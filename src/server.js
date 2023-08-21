@@ -29,6 +29,18 @@ export function getStorageProvider (stcode) {
   return null
 }
 
+function getHP (url) {
+  let origin = url
+  let i = origin.indexOf('://')
+  if (i !== -1) origin = origin.substring(i + 3)
+  i = origin.indexOf('/')
+  if (i !== -1) origin = origin.substring(0, i)
+  i = origin.indexOf(':')
+  const hn = i === -1 ? origin : origin.substring(0, i)
+  const po = i === -1 ? 0 : parseInt(origin.substring(i + 1))
+  return [hn, po]
+}
+
 export const ctx = { 
   config: config,
   logger: null,
@@ -153,7 +165,12 @@ try { // Récupération de la configuration et définition du contexte d'exécut
 
   ctx.port = process.env.PORT || config.port
   ctx.logger.info('PORT=' + ctx.port)
-  
+  if (config.rooturl) {
+    let [hn, po] = getHP(config.rooturl)
+    if (config.gae || po === 0) po = ctx.port 
+    config.origins.push(hn + ':' + po)
+  }
+
   if (!config.favicon) {
     ctx.favicon = Buffer.from(toByteArray(faviconb64))
   } else {
@@ -392,22 +409,20 @@ try {
   console.error('server.mjs : catch global = ' + e.message)
 }
 
-/**************************************************************/
-
-/* 
+/************************************************************* 
 vérification que l'origine appartient à la liste des origines autorisées (q'il y en a une)
 localhost passe toujours
 */
 function checkOrigin(req) {
-  if (ctx.mode === 2) return true
-  if (!ctx.config.origins || !ctx.config.origins.length) return true
   let origin = req.headers['origin']
   if (!origin || origin === 'null') {
     const referer = req.headers['referer']
     if (referer) origin = referer
   }
   if (!origin || origin === 'null') origin = req.headers['host']
-  if (ctx.config.origins.indexOf(origin) !== -1) return true
+  const [hn, po] = getHP(origin)
+  const x = hn + ':' + po
+  if (ctx.config.origins.indexOf(x) !== -1) return true
   ctx.logger.error('Origine refusée : ' + origin)
   throw new AppExc(E_SRV, 1, [origin])
 }
