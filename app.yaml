@@ -5,6 +5,19 @@ env: standard
 instance_class: F1
 
 handlers:
+- url: /www
+  static_files: www/index.html
+  secure: always
+  upload: www/index.html
+
+- url: /www
+  static_dir: www
+  secure: always
+
+- url: /app
+  static_dir: app
+  secure: always
+
 - url: /.*
   secure: always
   redirect_http_response_code: 301

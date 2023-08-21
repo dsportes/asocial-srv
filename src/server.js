@@ -234,7 +234,13 @@ const app = express()
 if (config.pathapp) {
   const ap = path.resolve(config.pathapp)
   ctx.logger.info('PATH_APP=' + ap)
-  app.use(ctx.config.prefixapp, express.static(ap))
+  app.use(config.prefixapp, express.static(ap))
+}
+
+if (config.pathwww) {
+  const ap = path.resolve(config.pathwww)
+  ctx.logger.info('PATH_WWW=' + ap)
+  app.use(config.prefixwww, express.static(ap))
 }
 
 // OPTIONS est toujours envoyé pour tester les appels cross origin
@@ -308,8 +314,8 @@ app.use(ctx.config.prefixop + '/:operation', async (req, res) => {
   })
 })
 
-if (ctx.config.prefixapp) app.get('/', function (req, res) {
-  res.redirect(ctx.config.prefixapp);
+if (config.prefixapp) app.get('/', function (req, res) {
+  res.redirect(config.prefixapp + '/index.html');
 })
 
 /****** starts listen ***************************
