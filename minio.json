@@ -1,0 +1,7 @@
+{
+  "url":"http://localhost:9090/api/v1/service-account-credentials",
+  "accessKey":"access-asocial",
+  "secretKey":"secret-asocial",
+  "api":"s3v4",
+  "path":"auto"
+}

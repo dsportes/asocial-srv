@@ -1,0 +1,340 @@
+{
+  "indexes": [
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "singletons",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "singletons",
+      "fieldPath": "v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "singletons",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "espaces",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "espaces",
+      "fieldPath": "id_v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "espaces",
+      "fieldPath": "org",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "espaces",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "syntheses",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "syntheses",
+      "fieldPath": "v",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "syntheses",
+      "fieldPath": "id_v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "syntheses",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "gcvols",
+      "fieldPath": "id",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "gcvols",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "fpurges",
+      "fieldPath": "id",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "fpurges",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "tribus",
+      "fieldPath": "id",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "tribus",
+      "fieldPath": "v",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "tribus",
+      "fieldPath": "id_v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "tribus",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "comptas",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "comptas",
+      "fieldPath": "v",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "comptas",
+      "fieldPath": "id_v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "comptas",
+      "fieldPath": "hps1",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "comptas",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "versions",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "versions",
+      "fieldPath": "v",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "versions",
+      "fieldPath": "id_v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "versions",
+      "fieldPath": "dlv",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "versions",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "avatars",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "avatars",
+      "fieldPath": "v",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "avatars",
+      "fieldPath": "id_v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "avatars",
+      "fieldPath": "vcv",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "avatars",
+      "fieldPath": "id_vcv",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "avatars",
+      "fieldPath": "hpc",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "avatars",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "chats",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chats",
+      "fieldPath": "ids",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "chats",
+      "fieldPath": "v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "chats",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "notes",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "notes",
+      "fieldPath": "ids",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "notes",
+      "fieldPath": "v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "notes",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "transferts",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "transferts",
+      "fieldPath": "ids",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "transferts",
+      "fieldPath": "dlv",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }]
+    },
+    {
+      "collectionGroup": "transferts",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "sponsorings",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "sponsorings",
+      "fieldPath": "ids",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }]
+    },
+    {
+      "collectionGroup": "sponsorings",
+      "fieldPath": "v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "sponsorings",
+      "fieldPath": "dlv",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }]
+    },
+    {
+      "collectionGroup": "sponsorings",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
+      "collectionGroup": "groupes",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "groupes",
+      "fieldPath": "v",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "groupes",
+      "fieldPath": "id_v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "groupes",
+      "fieldPath": "dfh",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "groupes",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+    
+    {
+      "collectionGroup": "membres",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "membres",
+      "fieldPath": "ids",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "membres",
+      "fieldPath": "v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "membres",
+      "fieldPath": "vcv",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "membres",
+      "fieldPath": "dlv",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }]
+    },
+    {
+      "collectionGroup": "membres",
+      "fieldPath": "_data_",
+      "indexes": []
+    }
+  ]
+}

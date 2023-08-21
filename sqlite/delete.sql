@@ -1,0 +1,17 @@
+DELETE FROM singletons;
+DELETE FROM espaces;
+DELETE FROM syntheses;
+DELETE FROM gcvols;
+DELETE FROM purges;
+DELETE FROM fpurges;
+DELETE FROM tribus;
+DELETE FROM tribu2s;
+DELETE FROM comptas;
+DELETE FROM avatars;
+DELETE FROM chats;
+DELETE FROM notes;
+DELETE FROM transferts;
+DELETE FROM sponsorings;
+DELETE FROM groupes;
+DELETE FROM membres;
+DELETE FROM versions;
