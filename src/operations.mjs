@@ -119,16 +119,18 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
   }
 }
 
-/* Création d'un nouvel espace et du comptable associé
-args.token donne les éléments d'authentification du compte.
-args.rowEspace : espace à créer
-args.rowSynthese: Synthese à créer
-args.rowAvatar, 
-args.rowTribu,
-args.rowCompta du compte du comptable
-args.rowVersion: version de l'avatar (avec sa dlv)
-args.hps1 : hps1 de la phrase secrète
-Retour: rien. Si OK le rowEspace est celui créé en session
+/* `CreerEspace` : création d'un nouvel espace et du comptable associé
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `rowEspace` : row de l'espace créé
+- `rowSynthese` : row `syntheses` créé
+- `rowAvatar` : row de l'avatar du comptable de l'espace
+- `rowTribu` : row de la tribu primitive de l'espace
+- `rowCompta` : row du compte du Comptable
+- `rowVersion`: row de la version de l'avatar (avec sa dlv)
+- `hps1` : hps1 de la phrase secrète
+
+Retour: rien si OK (sinon exceptions)
 */
 operations.CreerEspace = class CreerEspace extends Operation {
   constructor () { super('CreerEspace') }
@@ -148,11 +150,21 @@ operations.CreerEspace = class CreerEspace extends Operation {
   }
 }
 
-/* Set notification générale *****************************************************
-args.token donne les éléments d'authentification du compte.
-args.ns
-args.notif
-Retour: rowEspace
+/* `SetNotifG` : déclaration d'une notification à un espace par l'administrateur
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace notifié
+- `notif` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
+  - `idSource`: id du Comptable ou du sponsor, par convention 0 pour l'administrateur.
+  - `jbl` : jour de déclenchement de la procédure de blocage sous la forme `aaaammjj`, 0 s'il n'y a pas de procédure de blocage en cours.
+  - `nj` : en cas de procédure ouverte, nombre de jours après son ouverture avant de basculer en niveau 4.
+  - `texte` : texte informatif, pourquoi, que faire ...
+  - `dh` : date-heure de dernière modification (informative).
+
+Retour: 
+- `rowEspace` : le row espaces mis à jour.
+
+Assertion sur l'existence du row `Espaces`.
 */
 operations.SetNotifG = class SetNotifG extends Operation {
   constructor () { super('SetNotifG'); this.authMode = 1 }
@@ -166,33 +178,34 @@ operations.SetNotifG = class SetNotifG extends Operation {
   }
 }
 
-/* Get de l'espace du compte de la session *****************************************************
-args.token donne les éléments d'authentification du compte.
-args.ns
+/* `GetEspace` : get de l'espace du compte de la session
+POST:
+- `token` : éléments d'authentification du compte.
+- `ns` : id de l'espace.
+
 Retour:
-- rowEspace
+- `rowEspace`
+
+Assertion sur l'existence du row Espace.
 */
 operations.GetEspace = class GetEspace extends Operation {
   constructor () { super('GetEspace'); this.authMode = 1 }
 
   async phase2 (args) {
     const rowEspace = await this.getRowEspace(args.ns, 'GetEspace')
-    /* début du texte à SUPPRIMER
-    const espace = compile(rowEspace)
-    if (rowEspace.org && !espace.org) {
-      espace.org = rowEspace.org
-      rowEspace = espace.toRow()
-    }
-    */
     this.setRes('rowEspace', rowEspace)
   }
 }
 
-/* Set t de l'espace par l'administrateur ******************
-args.token donne les éléments d'authentification du compte.
-args.ns
-args.t
-Retour:
+/*`SetEspaceT` : déclaration du profil de volume de l'espace par l'administrateur
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace notifié.
+- `t` : numéro de profil de 0 à N. Liste spécifiée dans config.mjs de l'application.
+
+Retour: rien
+
+Assertion sur l'existence du row `Espaces`.
 */
 operations.SetEspaceT = class SetEspaceT extends Operation {
   constructor () { super('SetEspaceT')}
@@ -207,11 +220,15 @@ operations.SetEspaceT = class SetEspaceT extends Operation {
   }
 }
 
-/* GetSynthese ********************************************
-args.token donne les éléments d'authentification du compte.
-args.ns
+/* `GetSynthese` : retourne la synthèse de l'espace
+POST:
+- `token` : éléments d'authentification du compte.
+- `ns` : id de l'espace.
+
 Retour:
-- rowSynthse
+- `rowSynthese`
+
+Assertion sur l'existence du row `Syntheses`.
 */
 operations.GetSynthese = class GetSynthese extends Operation {
   constructor () { super('GetSynthese')}
@@ -222,10 +239,17 @@ operations.GetSynthese = class GetSynthese extends Operation {
   }
 }
 
-/* Ajout sponsoring ******
-args.token: éléments d'authentification du compte.
-args.rowSponsoring : row Sponsoring, SANS la version
-Retour:
+/* `AjoutSponsoring` : déclaration d'un nouveau sponsoring par le comptable ou un sponsor
+POST:
+- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
+- `rowSponsoring` : row Sponsoring, SANS la version (qui est calculée par le serveur).
+
+Retour: rien
+
+Exceptions:
+- `F_SRV 7` : un sponsoring identifié par une même phrase (du moins son hash) existe déjà.
+
+Assertion sur l'existence du row `Versions` du compte.
 */
 operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
   constructor () { super('AjoutSponsoring') }
@@ -247,9 +271,16 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
   }
 }
 
-/* Prolonger un sponsoring
-args.id ids : identifiant du sponsoring
-args.dlv : nouvelle dlv (0 == annulation)
+/* `ProlongerSponsoring` : prolongation d'un sponsoring existant
+Change la date limite de validité du sponsoring pour une date plus lointaine. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
+POST:
+- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
+- `id ids` : identifiant du sponsoring.
+- `dlv` : nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
+
+Retour: rien
+
+Assertion sur l'existence des rows `Sponsorings` et `Versions` du compte.
 */
 operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   constructor (nom) { super(nom) }
@@ -272,9 +303,18 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   }
 }
 
-/* Refus d'un sponsoring
-args.ids : identifiant du sponsoring
-args.ardx : réponse du filleul
+/* `RefusSponsoring` : refus de son sponsoring par le _sponsorisé_
+Change le statut du _sponsoring_ à _refusé_. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
+POST:
+- `ids` : identifiant du sponsoring, hash de la phrase de contact.
+- `ardx` : justification / remerciement du _sponsorisé à stocker dans le sponsoring.
+
+Retour: rien.
+
+Exceptions:
+- `F_SRV 8` : le sponsoring n'existe pas.
+
+Assertion sur l'existence du row Versions du compte sponsor.
 */
 operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { super(nom); this.authMode = 2 }
@@ -304,24 +344,37 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   }
 }
 
-/* Acceptation d'un sponsoring ************************************************
-args...
-token: authToken,
-rowCompta, rowAvatar, rowVersion: du compte / avatar en création
-idt: id de sa tribu
-ids: ids du sponsoring
-rowChatI: chatI (interne) pour le compte en création
-rowChatE: chatE (externe) pour le sponsor - version à fixer
-ardx: ardoise du sponsoring à mettre à jour (avec statut 2 accepté)
-act: élément de la map act de sa tribu
-SI quotas à prélever sur le COMPTE du sponsor
-  args.it : index de ce compte dans la tribu
-  args.q1 q2 : quotas attribués par le sponsor.
-Retour:
-- rowTribu
-- rowChat (I)
-- credentials
-- rowEspace
+/* `AcceptationSponsoring` : création du compte du _sponsorisé_
+POST:
+- `token` : éléments d'authentification du compte à créer
+- `rowCompta` : row du compte à créer.
+- `rowAvatar` : row de son avatar principal.
+- `rowVersion` : row de avatar en création.
+- `idt` : id de sa tribu.
+- `ids` : ids du sponsoring, hash de sa phrase de reconnaissance qui permet de retrouver le sponsoring.
+- `rowChatI` : row chat _interne_ pour le compte en création donnant le message de remerciement au sponsor.
+- `rowChatE` : row chat _externe_ pour le sponsor avec le même message. La version est obtenue par le serveur.
+- `ardx` : texte de l'ardoise du sponsoring à mettre à jour (avec statut 2 accepté), copie du texte du chat échangé.
+- `act`: élément de la map act de sa tribu
+- **SI quotas à prélever** sur le COMPTE du sponsor,
+- `it` : index de ce compte dans la tribu
+- `q1 q2` : quotas attribués par le sponsor.
+
+Retour: rows permettant d'initialiser la session avec le nouveau compte qui se trouvera ainsi connecté.
+- `rowTribu`
+- `rowChat` : le chat _interne_, celui concernant le compte.
+- `credentials` : données d'authentification permettant à la session d'accéder au serveur de données Firestore.
+- `rowEspace` : row de l'espace, informations générales / statistiques de l'espace et présence de la notification générale éventuelle.
+
+Exceptions:
+- `F_SRV, 8` : il n'y a pas de sponsoring ayant ids comme hash de phrase de connexion.
+- `F_SRV, 9` : le sponsoring a déjà été accepté ou refusé ou est hors limite.
+
+Assertions:
+- existence du row `Tribus`,
+- existence du row `Versions` du compte sponsor.
+- existence du row `Avatars` du sponsorisé.
+- existence du row `Espaces`.
 */
 operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation {
   constructor (nom) { super(nom); this.authMode = 2 }
@@ -400,16 +453,25 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 }
 
-/* Connexion à un compte *****************************************************
-args.token donne les éléments d'authentification du compte.
+/* `ConnexionCompte` : connexion authentifiée à un compte
+Enregistrement d'une session et retour des données permettant à la session cliente de s'initialiser.
 
-Pour une connexion "admin", retour "admin" à true et rien d'autre.
+L'administrateur utilise cette opération pour se connecter mais le retour est différent.
 
-AUCUNE SIGNATURE : attente d'avoir tous les documents majeurs
-Retour:
-- rowAvatar : avatar principal
-- rowCompta
-- si pas SQL credentials: données d'authentification pour utilisation de l'API firestore dans l'application cliente
+POST:
+- `token` : éléments d'authentification du compte.
+
+Retour, sauf _administrateur_:
+- `rowAvatar` : row de l'avatar principal du compte
+- `rowCompta` : row compta du compte.
+- `rowEspace` : row de l'espace (informations générales / statistques de l'espace et présence de la notification générale éventuelle.
+- `credentials`: données d'authentification pour utilisation de l'API Firestore dans l'application cliente (absente en mode SQL)
+
+Retour, pour _administrateur_:
+- `admin` : `true` (permet en session de reconnaître une connexion d'administration).
+- `espaces` : array des rows de tous les espaces.
+
+Assertions sur l'existence des rows `Comptas, Avatars, Espaces`.
 */
 operations.ConnexionCompte = class ConnexionCompte extends Operation {
   constructor () { super('ConnexionCompte'); this.authMode = 1 }
@@ -462,10 +524,18 @@ operations.MajTribuVols = class MajTribuVols extends Operation {
   }
 }
 
-/* Gestion des abonnements *****************************************************
-args.token donne les éléments d'authentification du compte.
-Cette opération NE FAIT RIEN, sauf traiter args.abPlus / abMoins
-Retour:
+/* `GestionAb` : gestion des abonnements
+Toutes les opérations permettent de modifier la liste des abonnements,
+- `abPlus` : liste des avatars et groupes à ajouter,
+- `abMoins` : liste des abonnements à retirer.
+
+Cette opération permet de mettre à jour la liste des abonnements de la session alors qu'elle n'a aucune autre action à effectuer.
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `abPlus abMoins`.
+
+Retour: rien.
 */
 operations.GestionAb = class GestionAb extends Operation {
   constructor () { super('GestionAb') }

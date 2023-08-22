@@ -1479,7 +1479,8 @@ export class Operation {
     if (!rowCompta) throw new AppExc(F_SRV, 101)
     const shay = Buffer.from(sha256(Buffer.from(this.authData.shax))).toString('base64')
     this.compta = compile(rowCompta)
-    if (Buffer.from(this.compta.shay).toString('base64') !== shay) throw new AppExc(F_SRV, 101)
+    const sh = Buffer.from(this.compta.shay).toString('base64')
+    if (sh !== shay) throw new AppExc(F_SRV, 101)
     this.session = AuthSession.set(this.authData.sessionId, this.compta.id)
   }
 }

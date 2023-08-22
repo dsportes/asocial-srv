@@ -86,14 +86,14 @@ export class AppExc {
 }
 
 export function isAppExc (e) {
-  return e && (typeof yourVariable === 'object') && (e.name === 'AppExc')
+  return e && (typeof e === 'object') && (e.name === 'AppExc')
 }
 
 export function appexc (e, n) {
   if (isAppExc(e)) return e
   const m = e && e.message ? e.message : '???'
   const s = e && e.stack ? e.stack : ''
-  return new AppExc(E_BRO, n || 0, m, s)
+  return new AppExc(E_BRO, n || 0, [m], s)
 }
 
 /** Compteurs ***************************

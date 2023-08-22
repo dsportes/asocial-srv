@@ -1,4 +1,9 @@
-const gaeFlag = false
+const mode = 1 
+/*
+1:GAE 
+2:Test usuel
+3:Test local après build
+*/
 
 export const config = {
   // rooturl: 'https://192.168.5.64:8443',
@@ -18,29 +23,29 @@ export const config = {
   apitk: 'VldNo2aLLvXRm0Q',
   prefixop: '/op',
   prefixapp: '/app',
-  pathapp: gaeFlag ? '' : './app',
+  pathapp: mode === 1 ? '' : './app',
   prefixwww: '/www',
-  pathwww: gaeFlag ? '' : './www',
-  pathsql: './sqlite/test1.db3',
-  pathlogs: './logs',
+  pathwww: mode === 1 ? '' : './www',
+  pathsql: mode == 2 ? './sqlite/test1.db3' : '../sqlite/test1.db3',
+  pathlogs: mode === 2 ? './logs' : '../logs',
   // favicon: 'favicon.ico', 
 
   pathconfig: './config',
 
-  firestore: gaeFlag || false,
-  gae: gaeFlag || false,
-  emulator: gaeFlag ? false : false,
+  firestore: mode === 1 ? true : false,
+  gae: mode === 1 ? true : false,
+  emulator: false,
   firestore_emulator: 'localhost:8080',
   storage_emulator: 'http://127.0.0.1:9199', // 'httpp://' est REQUIS
 
-  storage_provider: gaeFlag ? 'gc' : 'fs',
+  storage_provider: mode === 1 ? 'gc' : 'fs',
 
   s3config: {
     bucket: 'asocial'
   },
 
   fsconfig: {
-    rootpath: './fsstorage'
+    rootpath: mode === 2 ? './fsstorage' : '../fsstorage'
   },
 
   gcconfig: {
