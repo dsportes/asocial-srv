@@ -1,7 +1,7 @@
 // import { encode, decode } from '@msgpack/msgpack'
 import { AppExc, F_SRV, A_SRV, ID, Compteurs, AMJ, UNITEV1, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
-import { ctx } from './server.js'
+import { ctx } from './server.mjs'
 import { AuthSession, Operation, compile, GenDoc, Chats, Versions,
   Transferts, Gcvols, Cache, trace } from './modele.mjs'
 import { sleep } from './util.mjs'

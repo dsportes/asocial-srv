@@ -16,7 +16,7 @@ if (!config.gae) prompt = require('prompt-sync')({ sigint: true });
 import { collsExp1, collsExp2, majeurs, collsExpA, collsExpG, sousColls, GenDoc, compile } from './modele.mjs'
 import { d14, ID } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
-import { getStorageProvider } from './server.js'
+import { getStorageProvider } from './server.mjs'
 
 const ctx = {}
 

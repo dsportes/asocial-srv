@@ -1,11 +1,11 @@
 {
-  "name": "gae-test",
+  "name": "asocial-srv",
   "version": "1.0.0",
   "description": "",
   "main": "src/server.js",
-  "type": "module",
+
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.mjs"
   },
   "author": "Daniel Sportes",
   "license": "ISC",

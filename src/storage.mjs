@@ -8,7 +8,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { b64ToU8, u8ToB64, crypterSrv, decrypterSrv } from './webcrypto.mjs'
 import { sleep } from './util.mjs'
 
-import { ctx } from './server.js'
+import { ctx } from './server.mjs'
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsCommand } from '@aws-sdk/client-s3'
 import { /* getSignedUrl, */ S3RequestPresigner } from '@aws-sdk/s3-request-presigner'
