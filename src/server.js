@@ -1,13 +1,12 @@
-import { createRequire } from 'module'
-const require = createRequire(import.meta.url)
+import requiredModules from './loadreq.js'
+export const prompt = requiredModules.prompt
+export const Firestore = requiredModules.Firestore
+export const Storage = requiredModules.Storage
+const LoggingWinston = requiredModules.LoggingWinston
 
-export const prompt = require('prompt-sync')({ sigint: true })
-export const Firestore = require('@google-cloud/firestore').Firestore
-export const Storage = require('@google-cloud/storage').Storage
-const {LoggingWinston} = require('@google-cloud/logging-winston')
-
-//import Database from 'better-sqlite3' // Ne marche pas avec webpack !!!
-const Database = require('better-sqlite3')
+// EXIGE dans config webpack: 
+// externals: { 'better-sqlite3': 'commonjs better-sqlite3' }
+import Database from 'better-sqlite3'
 
 import http from 'http'
 import https from 'https'
@@ -62,8 +61,7 @@ export const ctx = {
   lastSql: [],
   auj: 0,
   utils: '',
-  args: {},
-  prompt
+  args: {}
 }
 
 if (!config.gae) {
@@ -232,7 +230,7 @@ try { // Récupération de la configuration et définition du contexte d'exécut
         if (ctx.lastSql.length > 3) ctx.lastSql.length = 3
       } 
     }
-    ctx.sql = new Database(p, options)
+    ctx.sql = Database(p, options)
     ctx.fs = null
   }
   ctx.storage = getStorageProvider(config.storage_provider)

@@ -140,12 +140,10 @@ export class Test2 extends Gen{
     this.getfs()
     ctx.fs = this.fs
 
-    if (prompt) {
-      const resp = prompt('Test de FS. (o/N) ?')
-      if (resp === 'n' || resp === 'N') {
-        console.log('Test avorté !')
-        return false
-      }
+    const resp = prompt('Test de FS. (o/N) ?')
+    if (resp === 'n' || resp === 'N') {
+      console.log('Test avorté !')
+      return false
     }
     
     this.ix = 3210266028675707
@@ -263,12 +261,10 @@ export class UExport extends Gen{
       this.maxout = (this.nsout + 1) * d14
       this.log(`Renumérotation des IDs de ${this.nsin} en ${this.nsout}`)
 
-      if (prompt) {
-        const resp = prompt('Continuer export (o/N) ?')
-        if (resp === 'n' || resp === 'N') {
-          console.log('export avorté !')
-          return false
-        }
+      const resp = prompt('Continuer export (o/N) ?')
+      if (resp === 'n' || resp === 'N') {
+        console.log('export avorté !')
+        return false
       }
   
       if (this.sqlin) { 
@@ -295,12 +291,10 @@ export class UExport extends Gen{
     }
 
     if (ifn === 2) {
-      if (prompt) {
-        const resp = prompt('Continuer delete (o/N) ?')
-        if (resp === 'n' || resp === 'N') {
-          console.log('delete avorté !')
-          return false
-        }
+      const resp = prompt('Continuer delete (o/N) ?')
+      if (resp === 'n' || resp === 'N') {
+        console.log('delete avorté !')
+        return false
       }
 
       this.sqlout = this.sqlin
@@ -584,12 +578,10 @@ export class UStorage extends Gen{
     this.orgin = args.orgin
     this.orgout = args.orgout
 
-    if (prompt) {
-      const resp = prompt(`Transfert ${args.s ? 'simulé' : 'REEL'} des fichers:  ${args.in} / ${args.orgin} ==> ${args.out} / ${args.orgout}. Continuer (o/N) ? `)
-      if (resp === 'n' || resp === 'N') {
-        console.log('transfert avorté !')
-        return false
-      }
+    const resp = prompt(`Transfert ${args.s ? 'simulé' : 'REEL'} des fichers:  ${args.in} / ${args.orgin} ==> ${args.out} / ${args.orgout}. Continuer (o/N) ? `)
+    if (resp === 'n' || resp === 'N') {
+      console.log('transfert avorté !')
+      return false
     }
     
     if (!args.s) await this.pout.delOrg(this.orgout)
