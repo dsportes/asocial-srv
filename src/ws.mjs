@@ -1,6 +1,6 @@
 import { encode } from '@msgpack/msgpack'
 import { ID, PINGTO } from './api.mjs'
-import { ctx } from './server.mjs'
+import { ctx } from './server.js'
 
 export function startWs () {
   // eslint-disable-next-line no-unused-vars

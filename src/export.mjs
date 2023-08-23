@@ -1,36 +1,24 @@
 
-import { createRequire } from 'module'
-import { exit } from 'process'
-const require = createRequire(import.meta.url)
+import { existsSync } from 'node:fs'
+import { stdout } from 'node:process'
+import path from 'path'
+import Database from 'better-sqlite3'
 
-const fs = require('fs')
-const process = require('process')
-const path = require('path')
-
-import { config } from './config.mjs'
-
-let prompt
-if (!config.gae) prompt = require('prompt-sync')({ sigint: true });
-
-// import { sleep } from './util.mjs'
 import { collsExp1, collsExp2, majeurs, collsExpA, collsExpG, sousColls, GenDoc, compile } from './modele.mjs'
 import { d14, ID } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
-import { getStorageProvider } from './server.mjs'
+import { getStorageProvider, prompt, Firestore } from './server.js'
 
 const ctx = {}
 
 class Gen {
   getfs () {
-    const {Firestore} = require('@google-cloud/firestore')
     this.fs = new Firestore()
-    if (process.env.FIRESTORE_EMULATOR_HOST) 
-      this.log('FIRESTORE_EMULATOR_HOST = ' + process.env.FIRESTORE_EMULATOR_HOST)
   }
 
-  log2 (l) { process.stdout.write('\r' + l.padEnd(40, ' ')) }
+  log2 (l) { stdout.write('\r' + l.padEnd(40, ' ')) }
 
-  log (l) { process.stdout.write(l + '\n') }
+  log (l) { stdout.write(l + '\n') }
 
   prepareSetDocs () {
     this.setNom1 = new Set(collsExp1)
@@ -50,13 +38,13 @@ class Gen {
   }
 }
 
-export class Test extends Gen{
+export class UTest extends Gen{
   constructor () {
     super()
   }
 
   // eslint-disable-next-line no-unused-vars
-  async run (args, ifn) {
+  async run (args) {
     this.pin = getStorageProvider(args.in)
     const org = args.org
     const data = Buffer.from('Données de test')
@@ -148,8 +136,7 @@ export class Test2 extends Gen{
     return row
   }
 
-  // eslint-disable-next-line no-unused-vars
-  async run (args, ifn) {
+  async run () {
     this.getfs()
     ctx.fs = this.fs
 
@@ -163,22 +150,22 @@ export class Test2 extends Gen{
     
     this.ix = 3210266028675707
 
-    const row = await Test.getDocV('fake', 'avatars', this.ix, 5)
+    const row = await UTest.getDocV('fake', 'avatars', this.ix, 5)
     if (row) console.log(row.v)
 
     await this.fs.runTransaction(async (transaction) => {
-      const row = await Test.getDocV(transaction, 'avatars', this.ix, 5)
+      const row = await UTest.getDocV(transaction, 'avatars', this.ix, 5)
       if (row) console.log(row.v)
-      const obj = await Test.getDocAvatarVCV(transaction, this.ix, 5)
+      const obj = await UTest.getDocAvatarVCV(transaction, this.ix, 5)
       if (obj) console.log(obj.vcv)
-      const rows = await Test.collDoc(transaction, 'espaces')
+      const rows = await UTest.collDoc(transaction, 'espaces')
       console.log(rows.length)
     })
   }
 }
 
 /* Export ****************************************************************/
-export class Export extends Gen{
+export class UExport extends Gen{
   constructor () {
     super()
     this.fs = null // firestore
@@ -196,7 +183,9 @@ export class Export extends Gen{
     this.deletes = { }
   }
 
-  async run (args, ifn) { // ifn: 1-export 2-delete
+  async run (args, utils) { 
+    // ifn: 1-export 2-delete
+    const ifn = utils === 'export' ? 1 : (utils === 'delete' ? 2 : 3)
     if (ifn !== 1 && ifn !== 2) {
       this.log(`Syntaxe :
       node src/server.mjs export ...
@@ -236,11 +225,11 @@ export class Export extends Gen{
 
     if (args.in !== 'fs') {
       const psrc = path.resolve(args.in)
-      const ok = fs.existsSync(psrc)
+      const ok = existsSync(psrc)
       if (ifn === 1) this.log(`EXPORT depuis [${psrc}] ${!ok ? '  !!!non trouvée!!!' : ''}`)
       if (ifn === 2) this.log(`DELETE dans [${psrc}] ${!ok ? '  !!!non trouvée!!!' : ''}`)
       if (!ok) return false
-      this.sqlin = require('better-sqlite3')(psrc, { fileMustExist: true })
+      this.sqlin = new Database(psrc, { fileMustExist: true })
     }
 
     if (ifn === 1 && args.out !== 'fs') {
@@ -249,10 +238,10 @@ export class Export extends Gen{
         return false
       }
       const psrc = path.resolve(args.out)
-      const ok = fs.existsSync(psrc)
+      const ok = existsSync(psrc)
       this.log(`EXPORT dans [${psrc}] ${!ok ? '!!!non trouvée!!!' : ''}`)
-      if (!ok) exit(1)
-      this.sqlout = require('better-sqlite3')(psrc, { fileMustExist: true })
+      if (!ok) return false
+      this.sqlout = new Database(psrc, { fileMustExist: true })
     }
 
     if (ifn === 1 && (args.nsin < 10 || args.nsin > 59 || args.nsout < 10 || args.nsout > 59)) {
@@ -569,7 +558,7 @@ export class Export extends Gen{
 }
 
 /* Storage ****************************************************************/
-export class Storage extends Gen{
+export class UStorage extends Gen{
   constructor () {
     super()
   }
@@ -584,7 +573,7 @@ export class Storage extends Gen{
   }
 
   // eslint-disable-next-line no-unused-vars
-  async run (args, ifn) {
+  async run (args) {
     const espaces = '                                                                           '
     if (!args.in || !args.out || !args.orgin || !args.orgout ) return this.syntaxe()
     if (args.in === args.out) return this.syntaxe()

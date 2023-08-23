@@ -2287,6 +2287,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"asocial-srv@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "asocial-srv@workspace:."
+  dependencies:
+    "@aws-sdk/client-s3": ^3.395.0
+    "@aws-sdk/hash-node": ^3.374.0
+    "@aws-sdk/s3-request-presigner": ^3.395.0
+    "@aws-sdk/signature-v4-crt": ^3.391.0
+    "@aws-sdk/util-create-request": ^3.391.0
+    "@google-cloud/firestore": ^6.7.0
+    "@google-cloud/logging-winston": ^6.0.0
+    "@google-cloud/storage": ^7.0.1
+    "@msgpack/msgpack": ^3.0.0-beta2
+    better-sqlite3: ^8.4.0
+    eslint: ^8.2.0
+    express: ^4.18.2
+    node-args: ^2.1.8
+    prompt-sync: ^4.2.0
+    webpack: ^5.84
+    webpack-cli: ^4.9.1
+    winston: ^3.10.0
+    ws: ^8.13.0
+  languageName: unknown
+  linkType: soft
+
 "async-retry@npm:^1.3.3":
   version: 1.3.3
   resolution: "async-retry@npm:1.3.3"
@@ -3534,31 +3559,6 @@ __metadata:
   checksum: ca6c170f37640e2d94297da8bb4bf27a1d12bea3e00e6a3e007fd7aa32e37e000f5772acf941b4e4f3cf1c95c3752033d0c509af157ad8f526e7f00723b9eb9f
   languageName: node
   linkType: hard
-
-"gae-test@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "gae-test@workspace:."
-  dependencies:
-    "@aws-sdk/client-s3": ^3.395.0
-    "@aws-sdk/hash-node": ^3.374.0
-    "@aws-sdk/s3-request-presigner": ^3.395.0
-    "@aws-sdk/signature-v4-crt": ^3.391.0
-    "@aws-sdk/util-create-request": ^3.391.0
-    "@google-cloud/firestore": ^6.7.0
-    "@google-cloud/logging-winston": ^6.0.0
-    "@google-cloud/storage": ^7.0.1
-    "@msgpack/msgpack": ^3.0.0-beta2
-    better-sqlite3: ^8.4.0
-    eslint: ^8.2.0
-    express: ^4.18.2
-    node-args: ^2.1.8
-    prompt-sync: ^4.2.0
-    webpack: ^5.84
-    webpack-cli: ^4.9.1
-    winston: ^3.10.0
-    ws: ^8.13.0
-  languageName: unknown
-  linkType: soft
 
 "gauge@npm:^4.0.3":
   version: 4.0.4

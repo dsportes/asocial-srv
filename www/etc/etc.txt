@@ -96,6 +96,7 @@ node src/server.mjs export --in sqlite/test1.db3 --out fs --nsin 32 --nsout 32
 node src/server.mjs storage -s --in fs --out gc --orgin coltes --orgout coltes
 node src/server.mjs storage --in gc --out fsb --orgin coltes --orgout coltes
 node src/server.mjs test --in gc --org coltes
+node src/server.mjs storage --in fs --out fsb --orgin coltes --orgout coltes
 
 Export schema SQL
 sqlite3 test1.db3 '.schema' > schema.sql
@@ -118,6 +119,6 @@ firebase deploy --only firestore:indexes
 
 "prompt-sync": "^4.2.0",
 
-gcloud app deploy
+gcloud app deploy --verbosity debug
 
 gcloud app logs tail

@@ -1,10 +1,7 @@
-// import { createRequire } from 'module'
-// const require = createRequire(import.meta.url)
-
 const path = require('path')
-
-// export default {
 module.exports = {
+// import path from 'path'
+// export default {
   entry: './src/server.mjs',
   target: 'node',
   mode: 'production', // 'development' ou 'production'

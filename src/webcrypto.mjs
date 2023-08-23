@@ -1,10 +1,7 @@
 /*********************************************** 
 IMPLEMENTATION de webcrypto.js EN UTILISANT NODE (crypto)
 ************************************************/
-import { createRequire } from 'module'
-const require = createRequire(import.meta.url)
-
-const crypto = require('crypto')
+import crypto from 'crypto'
 
 import { toByteArray, fromByteArray } from './base64.mjs'
 

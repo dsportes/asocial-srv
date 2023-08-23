@@ -1,20 +1,17 @@
-/* eslint-disable no-unused-vars */
-import { createRequire } from 'module'
-const require = createRequire(import.meta.url)
-
-const fs = require('fs')
+import { writeFile, readFile } from 'node:fs/promises'
+import { existsSync, unlinkSync, rmSync, readdirSync, mkdirSync } from 'node:fs'
 import path from 'path'
-import { encode, decode } from '@msgpack/msgpack'
-import { b64ToU8, u8ToB64, crypterSrv, decrypterSrv } from './webcrypto.mjs'
-import { sleep } from './util.mjs'
-
-import { ctx } from './server.mjs'
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsCommand } from '@aws-sdk/client-s3'
 import { /* getSignedUrl, */ S3RequestPresigner } from '@aws-sdk/s3-request-presigner'
 import { createRequest } from '@aws-sdk/util-create-request'
 import { Hash } from '@aws-sdk/hash-node'
 import { formatUrl } from '@aws-sdk/util-format-url'
+
+import { encode, decode } from '@msgpack/msgpack'
+
+import { ctx, Storage } from './server.js'
+import { b64ToU8, u8ToB64, crypterSrv, decrypterSrv } from './webcrypto.mjs'
 
 function serial (arg) { return Buffer.from(encode(arg)) }
 
@@ -53,7 +50,7 @@ export class FsProvider {
   async ping() {
     const data = Buffer.from(new Date().toISOString())
     const p = path.resolve(this.rootpath, 'ping.txt')
-    await fs.promises.writeFile(p, Buffer.from(data))
+    await writeFile(p, Buffer.from(data))
   }
 
   getUrl (org, id, idf) { return storageUrl (org, id, idf) }
@@ -63,7 +60,7 @@ export class FsProvider {
   async getFile (org, id, idf) {
     try {
       const p = path.resolve(this.rootpath, ''+org, ''+id, ''+idf)
-      return await fs.promises.readFile(p)
+      return await readFile(p)
     } catch (err) {
       ctx.logger.info(err.toString())
       return null
@@ -72,20 +69,20 @@ export class FsProvider {
 
   async putFile (org, id, idf, data) {
     const dir = path.resolve(this.rootpath, ''+org, ''+id)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     const p = path.resolve(dir, ''+idf)
-    await fs.promises.writeFile(p, Buffer.from(data))
+    await writeFile(p, Buffer.from(data))
   }
 
   async delFiles (org, id, lidf) {
     if (!lidf || !lidf.length) return
     try {
       const dir = path.resolve(this.rootpath, ''+org, ''+id)
-      if (fs.existsSync(dir)) {
+      if (existsSync(dir)) {
         for (let i = 0; i < lidf.length; i++) {
           const p = path.resolve(dir, '' + lidf[i])
           try {
-            fs.unlinkSync(p)
+            unlinkSync(p)
           } catch (e) { /* rien*/ }
         }
       }
@@ -98,8 +95,8 @@ export class FsProvider {
   async delId (org, id) {
     try {
       const dir = path.resolve(this.rootpath, ''+org, ''+id)
-      if (fs.existsSync(dir)) {
-        fs.rmSync(dir, { recursive: true, force: true })
+      if (existsSync(dir)) {
+        rmSync(dir, { recursive: true, force: true })
       }
     } catch (err) {
       ctx.logger.info(err.toString())
@@ -110,8 +107,8 @@ export class FsProvider {
   async delOrg (org) {
     try {
       const dir = path.resolve(this.rootpath, ''+org)
-      if (fs.existsSync(dir)) {
-        fs.rmSync(dir, { recursive: true, force: true })
+      if (existsSync(dir)) {
+        rmSync(dir, { recursive: true, force: true })
       }
     } catch (err) {
       ctx.logger.info(err.toString())
@@ -123,8 +120,8 @@ export class FsProvider {
     try {
       const lst = []
       const dir = path.resolve(this.rootpath, ''+org, ''+id)
-      if (fs.existsSync(dir)) {
-        const files = fs.readdirSync(dir)
+      if (existsSync(dir)) {
+        const files = readdirSync(dir)
         if (files && files.length) files.forEach(name => { lst.push(name) })
       }
       return lst
@@ -138,8 +135,8 @@ export class FsProvider {
     try {
       const lst = []
       const dir = path.resolve(this.rootpath, ''+org)
-      if (fs.existsSync(dir)) {
-        const files = fs.readdirSync(dir)
+      if (existsSync(dir)) {
+        const files = readdirSync(dir)
         if (files && files.length) files.forEach(name => { lst.push(name) })
       }
       return lst
@@ -290,7 +287,7 @@ export class S3Provider {
 export class GcProvider {
   constructor (c) {
     // Imports the Google Cloud client library
-    const {Storage} = require('@google-cloud/storage')
+    // const {Storage} = require('@google-cloud/storage')
     // For more information on ways to initialize Storage, please see
     // https://googleapis.dev/nodejs/storage/latest/Storage.html
 
@@ -303,7 +300,7 @@ export class GcProvider {
     */
 
     this.bucket = new Storage().bucket(c.bucket)
-    if (!ctx.emulator) {
+    if (!ctx.config.emulator) {
       const cors = {
         // origin: ctx.config.origins2,
         origin: ['*'],
@@ -395,12 +392,12 @@ export class GcProvider {
   }
 
   async delId (org, id) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const options = {
         prefix: org + '/' + (id === -1 ? '' : id + '/'),
         force: true
       }
-      this.bucket.deleteFiles(options, (err, apiResponse) => {
+      this.bucket.deleteFiles(options, () => {
         resolve(true)
       })
     })

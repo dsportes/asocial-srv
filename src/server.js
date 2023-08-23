@@ -1,19 +1,31 @@
 import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 
-import { config } from './config.mjs'
-const winston = require('winston')
-const fs = require('fs')
-const process = require('process')
-const path = require('path')
-import { exit } from 'process'
+export const prompt = require('prompt-sync')({ sigint: true })
+export const Firestore = require('@google-cloud/firestore').Firestore
+export const Storage = require('@google-cloud/storage').Storage
+const {LoggingWinston} = require('@google-cloud/logging-winston')
 
+//import Database from 'better-sqlite3' // Ne marche pas avec webpack !!!
+const Database = require('better-sqlite3')
+
+import http from 'http'
+import https from 'https'
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'path'
+import { exit, env } from 'process'
+import { parseArgs } from 'node:util'
+
+import winston from 'winston'
+import express from 'express'
+import { WebSocketServer } from 'ws'
 import { encode, decode } from '@msgpack/msgpack'
 
+import { config } from './config.mjs'
 import { faviconb64 } from './favicon.mjs'
 import { toByteArray } from './base64.mjs'
 import { decode3, FsProvider, S3Provider, GcProvider } from './storage.mjs'
-import { Export, Test, Storage } from './export.mjs'
+import { UExport, UTest, UStorage } from './export.mjs'
 import { atStart, operations } from './operations.mjs'
 import { SyncSession, startWs } from './ws.mjs'
 import { version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV, AMJ } from './api.mjs'
@@ -48,12 +60,28 @@ export const ctx = {
   fs: null, 
   sql: null, 
   lastSql: [],
-  auj: 0
+  auj: 0,
+  utils: '',
+  args: {},
+  prompt
 }
 
 if (!config.gae) {
-  const args = require('node-args')
-  ctx.utils = args.additional.length === 1
+  const x = parseArgs({
+    allowPositionals: true,
+    options: { 
+      outil: { type: 'string', short: 'o' },
+      in: { type: 'string' },
+      out: { type: 'string' },
+      orgin: { type: 'string' },
+      orgout: { type: 'string' },
+      nsin: { type: 'string' },
+      nsout: { type: 'string' },
+      simulation: { type: 'boolean', short: 's'}
+    }
+  })
+  ctx.utils = x.positionals[0]
+  ctx.args = x.values
 }
 
 /** Setup Logging ***********************************************/
@@ -63,7 +91,6 @@ const myFormat = winston.format.printf(({ level, message, timestamp }) => {
 
 if (config.gae) {
   // Imports the Google Cloud client library for Winston
-  const {LoggingWinston} = require('@google-cloud/logging-winston')
   const loggingWinston = new LoggingWinston()
   // Logs will be written to: "projects/YOUR_PROJECT_ID/logs/winston_log"
   ctx.logger = winston.createLogger({
@@ -91,63 +118,63 @@ if (config.gae) {
     ],
   })
   // If we're not in production then log to the `console
-  if (process.env.NODE_ENV !== 'production')
+  if (env.NODE_ENV !== 'production')
     ctx.logger.add(new winston.transports.Console())
 }
 ctx.logger.info('Logs configurés')
 
 /* Chargement de la configuation **************************/
 try { // Récupération de la configuration et définition du contexte d'exécution
-  if (process.env.NODE_ENV === 'mondebug') {
+  if (env.NODE_ENV === 'mondebug') {
     ctx.logger.info('Mode mondebug')
     ctx.debug = true
   }
 
   if (config.projectId) {
     if (!config.gae) // GAE n'accepte pas de modifier une de SES variables
-      process.env['GOOGLE_CLOUD_PROJECT'] = config.projectId
+      env['GOOGLE_CLOUD_PROJECT'] = config.projectId
     ctx.logger.info('GOOGLE_CLOUD_PROJECT=' + config.projectId)
   }
 
   if (config.emulator && config.firestore_emulator) {
-    process.env['FIRESTORE_EMULATOR_HOST'] = config.firestore_emulator
+    env['FIRESTORE_EMULATOR_HOST'] = config.firestore_emulator
     ctx.logger.info('FIRESTORE_EMULATOR_HOST=' +  config.firestore_emulator)
-    ctx.emulator = true
+    ctx.config.emulator = config.firestore_emulator
   }
 
   if (config.emulator && config.storage_emulator) {
-    process.env['STORAGE_EMULATOR_HOST'] = config.storage_emulator
+    env['STORAGE_EMULATOR_HOST'] = config.storage_emulator
     ctx.logger.info('STORAGE_EMULATOR_HOST=' +  config.storage_emulator)
   }
 
   {
     const p = path.resolve(config.pathconfig + '/service_account.json')
-    if (fs.existsSync(p)) {
-      process.env['GOOGLE_APPLICATION_CREDENTIALS'] = p
+    if (existsSync(p)) {
+      env['GOOGLE_APPLICATION_CREDENTIALS'] = p
       ctx.logger.info('GOOGLE_APPLICATION_CREDENTIALS=' + p)
       /* Pour permettre, si nécessaire un jour, à la création
       du Provider GC : new Storage(opt)
       de spécifier en opt l'objet contenant ce service account
       Code commenté dans storage.mjs.
       */ 
-      const x = fs.readFileSync(p)
+      const x = readFileSync(p)
       ctx.config.service_account = JSON.parse(x)
     }
   }
 
   {
     const p = path.resolve(config.pathconfig + '/s3_config.json')
-    if (fs.existsSync(p)) {
+    if (existsSync(p)) {
       ctx.logger.info('s3_config=' + p)
-      const x = fs.readFileSync(p)
+      const x = readFileSync(p)
       ctx.config.s3_config = JSON.parse(x)
     }
   }
 
   {
     const p = path.resolve(config.pathconfig + '/firebase_config.json')
-    if (fs.existsSync(p)) {
-      const x = fs.readFileSync(p)
+    if (existsSync(p)) {
+      const x = readFileSync(p)
       config.fscredentials = JSON.parse(x)
       ctx.logger.info('FIREBASE_CONFIG=' + p)
     }
@@ -156,30 +183,30 @@ try { // Récupération de la configuration et définition du contexte d'exécut
   if (!config.gae) {
     const pc = path.resolve(config.pathconfig + '/fullchain.pem')
     const pk = path.resolve(config.pathconfig + '/privkey.pem')
-    if (fs.existsSync(pc) && fs.existsSync(pk)) {
-      config.certkey = fs.readFileSync(pk)
-      config.certcert = fs.readFileSync(pc)
+    if (existsSync(pc) && existsSync(pk)) {
+      config.certkey = readFileSync(pk)
+      config.certcert = readFileSync(pc)
       ctx.logger.info('Certificat trouvé')
     }
   }
 
-  ctx.port = process.env.PORT || config.port
+  ctx.port = env.PORT || config.port
   ctx.logger.info('PORT=' + ctx.port)
   if (config.rooturl) {
-    let [hn, po] = getHP(config.rooturl)
-    if (config.gae || po === 0) po = ctx.port 
-    config.origins.push(hn + ':' + po)
+    const [hn, po] = getHP(config.rooturl)
+    const pox = config.gae || po === 0 ? ctx.port : po
+    config.origins.push(hn + ':' + pox)
+    config.origins.push(hn)
   }
 
   if (!config.favicon) {
     ctx.favicon = Buffer.from(toByteArray(faviconb64))
   } else {
-    ctx.favicon = fs.readFileSync(path.resolve(config.pathconfig + '/' + config.favicon))
-    // fs.writeFileSync('./faviconb64', ctx.favicon)
+    ctx.favicon = readFileSync(path.resolve(config.pathconfig + '/' + config.favicon))
+    // writeFileSync('./faviconb64', ctx.favicon)
   }
 
   if (config.firestore) {
-    const { Firestore } = require('@google-cloud/firestore')
     /* Ne marche PAS
     const opt = { projectId: config.projectId, keyFilename: './config/service_account.json' }
     ctx.fs = new Firestore(opt)
@@ -193,7 +220,7 @@ try { // Récupération de la configuration et définition du contexte d'exécut
     ctx.logger.info('DB=Firestore')
   } else {
     const p = path.resolve(config.pathsql)
-    if (!fs.existsSync(p)) {
+    if (!existsSync(p)) {
       ctx.logger.info('DB (créée)=' + p)
     } else {
       ctx.logger.info('DB=' + p)
@@ -205,10 +232,9 @@ try { // Récupération de la configuration et définition du contexte d'exécut
         if (ctx.lastSql.length > 3) ctx.lastSql.length = 3
       } 
     }
-    ctx.sql = require('better-sqlite3')(p, options)
+    ctx.sql = new Database(p, options)
     ctx.fs = null
   }
-
   ctx.storage = getStorageProvider(config.storage_provider)
   await ctx.storage.ping()
   ctx.logger.info('Storage=' + config.storage_provider)
@@ -218,23 +244,22 @@ try { // Récupération de la configuration et définition du contexte d'exécut
   exit(1)
 }
 
-/* Utils *********************************************************/
+/* Utils ********************************************************/
 if (ctx.utils) {
-  const lstfn = { export: 1, delete: 2, storage: 3, test: 9 }
-  const ifn = lstfn[args.additional[0]]
   let ok
-  if (ifn === 1 || ifn === 2) {
-    ok = await new Export().run(args, ifn)
-  } else if (ifn === 3) {
-    ok = await new Storage().run(args, ifn)
-  } else ok = await new Test().run(args, ifn)
+  if (ctx.utils === 'export' || ctx.utils === 'delete') {
+    ok = await new UExport().run(ctx.args, ctx.utils)
+  } else if (ctx.utils === 'storage') {
+    ok = await new UStorage().run(ctx.args, ctx.utils)
+  } else if (ctx.utils === 'test') { 
+    ok = await new UTest().run(ctx.args, ctx.utils)
+  } else {
+    ctx.logger.info('Syntaxe: node/server.js export|delete|storage|test ...')
+  }
   exit(ok ? 0 : 1)
 }
 
-/************************************************************************** */
-const http = require('http')
-const https = require('https')
-import express from 'express'
+/***************************************************************************/
 
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
@@ -392,8 +417,7 @@ try {
         console.error('HTTPS server atStart erreur : ' + e.message)
       }
     })
-    const WebSocket = require('ws')
-    const wss = new WebSocket.Server({ server })
+    const wss = new WebSocketServer({ server })
     wss.on('connection', (ws, request) => {
       new SyncSession (ws, request, wss)
     })
@@ -420,9 +444,12 @@ function checkOrigin(req) {
     if (referer) origin = referer
   }
   if (!origin || origin === 'null') origin = req.headers['host']
+  // eslint-disable-next-line no-unused-vars
   const [hn, po] = getHP(origin)
   const x = hn + ':' + po
-  if (ctx.config.origins.indexOf(x) !== -1) return true
+  if (ctx.config.origins.indexOf(hn) !== -1 || 
+    ctx.config.origins.indexOf(x) !== -1 
+  ) return true
   ctx.logger.error('Origine refusée : ' + origin)
   throw new AppExc(E_SRV, 1, [origin])
 }

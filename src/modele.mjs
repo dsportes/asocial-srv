@@ -33,7 +33,7 @@ B) compilation en Objet serveur
 
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
-import { ctx } from './server.mjs'
+import { ctx } from './server.js'
 import { b64ToU8, sha256 } from './webcrypto.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6 } from './util.mjs'
