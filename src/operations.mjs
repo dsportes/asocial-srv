@@ -130,7 +130,11 @@ POST:
 - `rowVersion`: row de la version de l'avatar (avec sa dlv)
 - `hps1` : hps1 de la phrase secrète
 
-Retour: rien si OK (sinon exceptions)
+Retour: rien
+
+Exceptions: 
+- F_SRV 12 : phrase secrète semblable déjà trouvée.
+- F_SRV 3 : Espace déjà créé.
 */
 operations.CreerEspace = class CreerEspace extends Operation {
   constructor () { super('CreerEspace') }
