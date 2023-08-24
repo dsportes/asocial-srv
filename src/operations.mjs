@@ -545,13 +545,17 @@ operations.GestionAb = class GestionAb extends Operation {
   constructor () { super('GestionAb') }
 }
 
-/* Retourne les documents avatar dont la version est postérieure à celle détenue en session **********
-args.token: éléments d'authentification du compte.
-args.vcompta : version de compta qui ne doit pas avoir changé
-args.mapv : map. Clé : id de l'avatar, Valeur : version détenue en session
+/* `GetAvatars` : retourne les documents avatar dont la version est postérieure à celle détenue en session
+POST:
+- `token` : éléments d'authentification du compte.
+- `vcompta` : version de compta qui ne doit pas avoir changé depuis le début de la phase de connexion. Si la version actuelle de compta est postérieure, le retour de `OK` est false.
+- `mapv` : map des avatars à charger.
+  - _clé_ : id de l'avatar, 
+  - _valeur_ : version détenue en session. Ne retourner l'avatar que si sa version est plus récente que celle-ci.
+
 Retour:
-- OK : si la version de compta n'a pas changé
-- rowAvatars: row des avatars
+- `OK` : si la version de compta n'a pas changé
+- `rowAvatars`: array des rows des avatars dont la version est postérieure à celle indiquée en arguments.
 */
 operations.GetAvatars = class GetAvatars extends Operation {
   constructor () { super('GetAvatars') }
@@ -571,11 +575,15 @@ operations.GetAvatars = class GetAvatars extends Operation {
   }
 }
 
-/* Retourne le row avatar le plus récent *********************************
-args.token: éléments d'authentification du compte.
-args.id : id de l'avatar
+/*`GetAvatar` : retourne le row le plus récent de l'avatar 
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id de l'avatar
+
 Retour:
-- rowAvatar: row de l'avatar
+- `rowAvatar`: row de l'avatar.
+
+Assertion sur l'existence de l'avatar.
 */
 operations.GetAvatar = class GetAvatar extends Operation {
   constructor () { super('GetAvatar') }
@@ -586,12 +594,18 @@ operations.GetAvatar = class GetAvatar extends Operation {
   }
 }
 
-/* Retourne le row tribu le plus récent *********************************
-args.token: éléments d'authentification du compte.
-args.id : id de la tribu
-args.setC: déclarer la tribu courante
+/* `GetTribu` : retourne le row le plus récent de la tribu
+Et optionnellement déclare cette tribu comme _courante_, c'est à dire abonne la session à cette tribu (après détection d'un changement de tribu).
+
+POST:
+- `token`: éléments d'authentification du compte.
+- `id` : id de la tribu.
+- `setC`: si true, déclarer la tribu courante.
+
 Retour:
-- rowtribu: row de la tribu
+- `rowtribu` : row de la tribu.
+
+Assertion sur l'existence du rows `Tribus`.
 */
 operations.GetTribu = class GetTribu extends Operation {
   constructor () { super('GetTribu') }
@@ -603,11 +617,10 @@ operations.GetTribu = class GetTribu extends Operation {
   }
 }
 
-/* Abonnement / désabonnement de la tribu courante ************************
-args.token: éléments d'authentification du compte.
-args.id : id de la tribu - Si 0 désabonnement
-Retour:
-- rowtribu: row de la tribu
+/* `AboTribuc` : abonnement / désabonnement de la tribu courante 
+POST:
+- `token`: éléments d'authentification du compte.
+- `id` : id de la tribu. Si 0 désabonnement.
 */
 operations.AboTribuC = class AboTribuC extends Operation {
   constructor () { super('AboTribuC') }
@@ -617,11 +630,15 @@ operations.AboTribuC = class AboTribuC extends Operation {
   }
 }
 
-/* Retourne le row groupe le plus récent *********************************
-args.token: éléments d'authentification du compte.
-args.id : id du groupe
+/* `GetGroupe` : retourne le row le plus récent du groupe 
+POST:
+- `token`: éléments d'authentification du compte.
+- `id` : id du groupe.
+
 Retour:
-- rowGroupe: row du groupe
+- `rowGroupe`: row du groupe.
+
+Assertion sur l'existence du row `Groupes`.
 */
 operations.GetGroupe = class GetGroupe extends Operation {
   constructor () { super('GetGroupe') }
@@ -632,12 +649,15 @@ operations.GetGroupe = class GetGroupe extends Operation {
   }
 }
 
-/* Retourne les documents groupes ayant une version plus récente que celle détenue en session.
-args.token: éléments d'authentification du compte.
-args.mapv : map des groupes
-  - clé: id du groupe  - valeur: version détenue en session
+/* `GetGroupes` : retourne les documents groupes ayant une version plus récente que celle détenue en session
+POST:
+- `token`: éléments d'authentification du compte.
+- `mapv` : map des versions des groupes détenues en session :
+  - _clé_ : id du groupe  
+  - _valeur_ : version détenue en session
+
 Retour:
-- rowGroupes: row des groupes ayant une version postérieure à celle connue en session
+- `rowGroupes` : array des rows des `Groupes` ayant une version postérieure à celle connue en session.
 */
 operations.GetGroupes = class GetGroupes extends Operation {
   constructor () { super('GetGroupes') }
@@ -650,12 +670,14 @@ operations.GetGroupes = class GetGroupes extends Operation {
   }
 }
 
-/* Charger les notes de l'avatar / groupe id et de version postérieure à v ******
-args.token: éléments d'authentification du compte.
-args.id: de l'avatar ou du groupe
-args.v: version connue en session
+/* `ChargerNotes` : retourne les notes de l'avatar / groupe id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar ou du groupe
+- `v` : version connue en session
+
 Retour:
-rowNotes: liste des rows des notes de version postérieure à v
+- `rowNotes` : array des rows `Notes` de version postérieure à `v`.
 */
 operations.ChargerNotes = class ChargerNotes extends Operation {
   constructor () { super('ChargerNotes') }
@@ -665,12 +687,14 @@ operations.ChargerNotes = class ChargerNotes extends Operation {
   }
 }
 
-/* Charger les chats de l'avatar id et de version postérieure à v ******
-args.token: éléments d'authentification du compte.
-args.id: de l'avatar
-args.v: version connue en session
+/* `ChargerChats` : retourne les chats de l'avatar id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar
+- `v` : version connue en session
+
 Retour:
-rowChats: liste des rows des chats de version postérieure à v
+- `rowChats` : array des rows `Chats` de version postérieure à `v`.
 */
 operations.ChargerChats = class ChargerChats extends Operation {
   constructor () { super('ChargerChats') }
@@ -680,12 +704,14 @@ operations.ChargerChats = class ChargerChats extends Operation {
   }
 }
 
-/* Charger les sponsoring de l'avatar id et de version postérieure à v ******
-args.token: éléments d'authentification du compte.
-args.id: de l'avatar
-args.v: version connue en session
+/* `ChargerSponsorings` : retourne les sponsoring de l'avatar id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar
+- `v` : version connue en session
+
 Retour:
-rowSponsorings: liste des rows des sponsorings de version postérieure à v
+- `rowSponsorings` : array des rows `Sponsorings` de version postérieure à `v`.
 */
 operations.ChargerSponsorings = class ChargerSponsorings extends Operation {
   constructor () { super('ChargerSponsorings') }
@@ -695,12 +721,14 @@ operations.ChargerSponsorings = class ChargerSponsorings extends Operation {
   }
 }
 
-/* Charger les membres du groupe id et de version postérieure à v ******
-args.token: éléments d'authentification du compte.
-args.id: du groupe
-args.v: version connue en session
+/* `ChargerMembres` : retourne les membres du groupe id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : du groupe
+- `v` : version connue en session
+
 Retour:
-rowMembres: liste des rows des sponsorings de version postérieure à v
+- `rowMembres` : array des rows `Membres` de version postérieure à `v`.
 */
 operations.ChargerMembres = class ChargerMembres extends Operation {
   constructor () { super('ChargerMembres') }
@@ -710,17 +738,22 @@ operations.ChargerMembres = class ChargerMembres extends Operation {
   }
 }
 
-/* Charger le groupe id, ses membres et ses notes, de version postérieure à v ******
-args.token: éléments d'authentification du compte.
-args.id: du groupe
-args.v: version connue en session
-Retour:
-- rowGroupe (fac), rowMembres rowNotes: liste des rows des notes et membres de version postérieure à v
-- vgroupe: row version du groupe, possiblement _zombi
-Le GC PEUT avoir faire disparaitre un groupe (sa versions est _zombi) 
-BIEN AVANT que les lgr des avatars membres ne l'ait perçu. 
-Quand le groupe est _zombi, les row groupe, membres, notes NE SONT PAS
-retournés.
+/* `ChargerGMS` : retourne le groupe id, ses membres et ses notes, de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : du groupe
+- `v` : version connue en session
+
+Retour: 
+- quand le groupe est _zombi, les row `Groupes, Membres, Notes` NE SONT PAS significatifs.
+- `rowGroupe` : seulement si version postérieure à `v`. 
+- `rowMembres` : array des rows `Membres` de version postérieure à `v`.
+- `rowSecrets` : array des rows `Notes` de version postérieure à `v`.
+- `vgroupe` : row version du groupe, possiblement _zombi.
+
+**Remarque** : 
+- Le GC PEUT avoir faire disparaître un groupe (son row `versions` est _zombi) AVANT que les listes des groupes (`lgr`) dans les rows avatars membres n'aient été mises à jour.
+- Quand le groupe est _zombi, les row groupe, membres, notes NE SONT PAS retournés.
 */
 operations.ChargerGMS = class ChargerGMS extends Operation {
   constructor () { super('ChargerGMS') }
@@ -738,11 +771,18 @@ operations.ChargerGMS = class ChargerGMS extends Operation {
   }
 }
 
-/* Charger les tribus (pour le comptable seulemen) ******
-args.token: éléments d'authentification du compte.
-args.mvtr: map des versions des tribus détenues en session
-Retour:
-- rowTribus: array des rows des tribus
+/* `ChargerTribus` : retourne les tribus de l'espace
+Pour le comptable seulement
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `mvtr` : map des versions des tribus détenues en session
+  _clé_ : id de la tribu,
+  _valeur_ : version détenue en session.
+
+Retour :
+- `rowTribus`: array des rows des tribus de version postérieure à v.
+- `delids` : array des ids des tribus disparues.
 */
 operations.ChargerTribus = class ChargerTribus extends Operation {
   constructor () { super('ChargerTribus') }
@@ -762,14 +802,20 @@ operations.ChargerTribus = class ChargerTribus extends Operation {
   }
 }
 
-/* Charger l'avatar, ses notes chats sponsorings, de version postérieure à v ******
-args.token: éléments d'authentification du compte.
-args.id: du groupe
-args.v: version connue en session
+/* `ChargerASCS` : retourne l'avatar, ses notes, chats et sponsorings, de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar.
+- `v` : version connue en session.
+
 Retour:
-- rowNotes rowChats rowSponsorings: liste des rows des notes chats sponsorings de version postérieure à v
-- rowAvatar (fac)
-- vavatar : PEUT être _zombi. Dans ce cas les autres row ne sont pas transmis
+- `rowNotes` : arrays des rows `Notes Chats Sponsorings` de version postérieure à v
+- `rowChats` :
+- `rowSponsorings` : 
+- `rowAvatar` : seulement si de version postérieure à v.
+- `vavatar` : row `Versions` de l'avatar. Il PEUT être _zombi. Dans ce cas les autres rows n'ont pas de signification.
+
+Assertion sur l'existence du row `Versions` de l'avatar.
 */
 operations.ChargerASCS = class ChargerASCS extends Operation {
   constructor () { super('ChargerASCS') }
@@ -788,22 +834,33 @@ operations.ChargerASCS = class ChargerASCS extends Operation {
   }
 }
 
-/* 
-Signatures des groupes et avatars - Si un des avatars a changé de version, retour en OK false
-args.token: éléments d'authentification du compte.
-args.vcompta : version de compta qui ne doit pas avoir changé
-args.mbsMap : map des membres des groupes des avatars
-  - clé: id du groupe  
-  - valeur: { idg, mbs: [ids], dlv }
-args.avsMap : map des avatars du compte 
-  - clé: id de l'avatar  - valeur: {v (version connue en session), dlv}
-args.abPlus = [] // ids des groupes auxquels s'abonner
+/*`SignaturesEtVersions` : signatures des groupes et avatars
+Si un des avatars a changé de version, retour en `OK` `false` : la liste des avatars doit être la même que celle précédemment obtenue en session.
+
+Signature par les `dlv` passées en arguments des row `versions` des avatars et membres (groupes en fait).
+
+Retourne les `versions` des avatars et groupes de la session.
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `vcompta` : version de compta qui ne doit pas avoir changé
+- `mbsMap` : map des membres des groupes des avatars :
+  - _clé_ : id du groupe  
+  - _valeur_ : `{ idg, mbs: [ids], dlv }`
+- `avsMap` : map des avatars du compte 
+  - `clé` : id de l'avatar
+  - `valeur` : `{v (version connue en session), dlv}`
+- `abPlus` : array des ids des groupes auxquels s'abonner
+
 Retour:
-- OK: true / false (un avatar a changé de version)
-- versions: map pour chaque avatar / groupe de :
-  { v }: pour un avatar
-  { v, vols: {v1, v2, q1, q2} } : pour un groupe (si zombi _zombi: true pas vols)
-  
+- `OK` : true / false si le compta ou un des avatars a changé de version.
+- `versions` : map pour chaque avatar / groupe de :
+  - _clé_ : id du groupe ou de l'avatar.
+  - _valeur_ :
+    - `{ v }`: pour un avatar.
+    - `{ v, vols: {v1, v2, q1, q2} }` : pour un groupe.
+
+Assertions sur les rows `Comptas, Avatars, Versions`.
 */
 operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
   constructor () { super('SignaturesEtVersions') }
@@ -872,12 +929,12 @@ operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
   }
 }
 
-/* Retire pour chaque avatar de la map ses accès (lgrk) aux groupes listés par numéro d'invitation
-args.token: éléments d'authentification du compte.
-args.mapIdNi : map
-  - clé : id d'un avatar
-  - valeur : array des ni des groupes ciblés
-Retour:
+/* `EnleverGroupesAvatars` : retirer pour chaque avatar de la map ses accès aux groupes listés par numéro d'invitation
+POST:
+- `token` : éléments d'authentification du compte.
+- `mapIdNi` : map
+  - _clé_ : id d'un avatar
+  - _valeur_ : array des `ni` (numéros d'invitation) des groupes ciblés.
 */
 operations.EnleverGroupesAvatars = class EnleverGroupesAvatars extends Operation {
   constructor () { super('EnleverGroupesAvatars') }
@@ -904,12 +961,11 @@ operations.EnleverGroupesAvatars = class EnleverGroupesAvatars extends Operation
   }
 }
 
-/* Retrait de l'accès à un groupe pour un avatar  ************************
-args.token: éléments d'authentification du compte.
-args.id : id de l'avatar
-args.ni : numéro d'invitation du groupe pour cet avatar
-args.opt 1:lgrk 2:invits 3:lgrk+invits
-Retour:
+/* `RetraitAccesGroupe` : retirer l'accès à un groupe pour un avatar
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id de l'avatar.
+- `ni` : numéro d'invitation du groupe pour cet avatar.
 */
 operations.RetraitAccesGroupe = class RetraitAccesGroupe extends Operation {
   constructor () { super('RetraitAccesGroupe') }
@@ -927,12 +983,13 @@ operations.RetraitAccesGroupe = class RetraitAccesGroupe extends Operation {
   }
 }
 
-/* Après détection de la disparition d'un membre  ************************
-Enregistrement de son statut dans son groupe
-args.token: éléments d'authentification du compte.
-args.id : id du groupe
-args.ids : ids du membre
-Retour:
+/* `DisparitionMembre` : enregistrement du statut disparu d'un membre dans son groupe
+Après détection de la disparition d'un membre.
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id du groupe
+- `ids` : ids du membre
 */
 operations.DisparitionMembre = class DisparitionMembre extends Operation {
   constructor () { super('DisparitionMembre') }
@@ -951,11 +1008,24 @@ operations.DisparitionMembre = class DisparitionMembre extends Operation {
   }
 }
 
-/* Rafraîchir les CV, quand nécessaire *********************************
-args.token: éléments d'authentification du compte.
-args.cibles : array de  { idE, vcv, lch: [[idI, idsI, idsE] ...], lmb: [[idg, im] ...] }
-Retour: les chats et membres de la cible sont mis à jour
-- nbrech : nombre de mises à jour effectuées.
+/* `RafraichirCvs` : rafraîchir les cartes de visite, quand nécessaire
+Mises à jour des cartes de visite, quand c'est nécessaire, pour tous les chats et membres de la cible.
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `cibles` : array de : 
+
+    {
+      idE, // id de l'avatar
+      vcv, // version de la carte de visite détenue
+      lch: [[idI, idsI, idsE] ...], // liste des chats
+      lmb: [[idg, im] ...] // liste des membres
+    }
+
+Retour:
+- `nbrech` : nombre de mises à jour effectuées.
+
+Assertions sur l'existence des `Avatars Versions`.
 */
 operations.RafraichirCvs = class RafraichirCvs extends Operation {
   constructor () { super('RafraichirCvs') }
@@ -1045,10 +1115,12 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
   }
 }
 
-/* Changer le mémo du compte ******
-args.token: éléments d'authentification du compte.
-args.memok : mémo crypté par la clé k
-Retour:
+/* `MemoCompte` : changer le mémo du compte
+POST:
+- `token` : éléments d'authentification du compte.
+- `memok` : texte du mémo crypté par la clé k
+
+Assertion d'existence du row `Avatars` de l'avatar principal et de sa `Versions`.
 */
 operations.MemoCompte = class MemoCompte extends Operation {
   constructor () { super('MemoCompte') }
@@ -1069,10 +1141,12 @@ operations.MemoCompte = class MemoCompte extends Operation {
   }
 }
 
-/* Changer les mots clés du compte ******
-args.token: éléments d'authentification du compte.
-args.mck : map des mots clés cryptée par la clé k
-Retour:
+/* `MotsclesCompte` : changer les mots clés du compte
+POST:
+- `token` : éléments d'authentification du compte.
+- `mck` : map des mots clés cryptée par la clé k.
+
+Assertion d'existence du row `Avatars` de l'avatar principal et de sa `Versions`.
 */
 operations.MotsclesCompte = class MotsclesCompte extends Operation {
   constructor () { super('MotsclesCompte') }
@@ -1093,12 +1167,14 @@ operations.MotsclesCompte = class MotsclesCompte extends Operation {
   }
 }
 
-/* Changer la phrase secrète du compte ******
-args.token: éléments d'authentification du compte.
-args.hps1: dans compta, `hps1` : hash du PBKFD de la ligne 1 de la phrase secrète du compte.
-args.shay: SHA du SHA de X (PBKFD de la phrase secrète).
-args.kx: clé K cryptée par la phrase secrète
-Retour:
+/* `ChangementPS` : changer la phrase secrète du compte
+POST:
+- `token` : éléments d'authentification du compte.
+- `hps1` : dans compta, `hps1` : hash du PBKFD de l'extrait de la phrase secrète du compte.
+- `shay` : SHA du SHA de X (PBKFD de la phrase secrète).
+- `kx` : clé K cryptée par la phrase secrète
+
+Assertion sur l'existence du row `Comptas` du compte.
 */
 operations.ChangementPS = class ChangementPS extends Operation {
   constructor () { super('ChangementPS') }
@@ -1115,15 +1191,20 @@ operations.ChangementPS = class ChangementPS extends Operation {
   }
 }
 
-/* Maj de la carte de visite d'un avatar ******************************************
-args.token: éléments d'authentification du compte.
-args.id : id de l'avatar dont la Cv est mise à jour
-args.v: version de l'avatar incluse dans la Cv. Si elle a changé sur le serveur, retour OK false (boucle sur la requête)
-args.cva: {v, photo, info} crypté par la clé de l'avatar
+/* `MajCv` : mise à jour de la carte de visite d'un avatar
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id de l'avatar dont la Cv est mise à jour
+- `v` : version de l'avatar incluse dans la Cv.
+- `cva` : `{v, photo, info}` crypté par la clé de l'avatar.
+  - SI C'EST Le COMPTE, pour dupliquer la CV,
+    `idTr` : id de sa tribu (où dupliquer la CV)
+    `hrnd` : clé d'entrée de la map `mbtr` dans tribu2.
+
 Retour:
-- OK : false s'il faut boucler sur la requête. 
-La version de l'avatar figure DANS cva, qu'il faut 
-recrypter si ce n'était pas la bonne.
+- `OK` : `false` si la carte de visite a changé sur le serveur depuis la version connue en session. Il faut reboucler sur la requête jusqu'à obtenir true.
+
+Assertion sur l'existence du row `Avatars` de l'avatar et de son row `Versions`.
 */
 operations.MajCv = class MajCv extends Operation {
   constructor () { super('MajCv') }
@@ -1149,12 +1230,15 @@ operations.MajCv = class MajCv extends Operation {
   }
 }
 
-/* Avatar ayant une phrase de contact donnée ******************************************
-args.token: éléments d'authentification du compte.
-args.hpc: hash d'une phrase de contact
-Retour: cvnapc : {cv, napc} si trouvé
-- cv : CV de l'avatar ayant ce hash de phrase de contact
-- napc : na de l'avatar ayant cette phrase de contact crypté par le PBKFD de cette phrase
+/* `GetAvatarPC` : information sur l'avatar ayant une phrase de contact donnée
+POST:
+- `token` : éléments d'authentification du compte.
+- `hpc` : hash de la phrase de contact
+
+Retour: si trouvé,
+- `cvnapc` : `{cv, napc}` si l'avatar ayant cette phrase a été trouvée.
+  - `cv` : `{v, photo, info}` crypté par la clé de l'avatar.
+  - `napc` : `[nom, clé]` de l'avatar crypté par le PBKFD de la phrase.
 */
 operations.GetAvatarPC = class GetAvatarPC extends Operation {
   constructor () { super('GetAvatarPC') }
@@ -1167,12 +1251,15 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   }
 }
 
-/** Changement de phrase de contact ****************************************************
-args.token: éléments d'authentification du compte.
-args.id: de l'avatar
-args.hpc: hash de la phrase de contact (SUPPRESSION si null)
-args.napc: na de l'avatar crypté par le PBKFD de la phrase
-args.pck: phrase de contact cryptée par la clé K du compte
+/* `ChangementPC` : changement de la phrase de contact d'un avatar
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar.
+- `hpc` : hash de la phrase de contact (SUPPRESSION si null).
+- `napc` : `[nom, clé]` de l'avatar crypté par le PBKFD de la phrase.
+- `pck` : phrase de contact cryptée par la clé K du compte.
+
+Assertion sur l'existence du row `Avatars` de l'avatar et de sa `Versions`.
 */
 operations.ChangementPC = class ChangementPC extends Operation {
   constructor () { super('ChangementPC') }
@@ -1200,20 +1287,24 @@ operations.ChangementPC = class ChangementPC extends Operation {
   }
 }
 
-/* Nouveau Chat **********************
-args.token: éléments d'authentification du compte.
-args.idI idsI : id du chat, côté interne
-args.idE idsE : id du chat côté externe
-args.ccKI : clé cc cryptée par la clé K du compte de I
-args.ccPE ! clé cc cryptée par la clé publique de l'avatar E
-args.contcI : contenu du chat I crypté par la clé cc
-args.contcE : contenu du chat E crypté par la clé cc
+/* `NouveauChat` : création d'un nouveau Chat
+POST:
+- `token` : éléments d'authentification du compte.
+- `idI idsI` : id du chat, côté _interne_.
+- `idE idsE` : id du chat, côté _externe_.
+- `ccKI` : clé cc du chat cryptée par la clé K du compte de I.
+- `ccPE` : clé cc cryptée par la clé **publique** de l'avatar E.
+- `contcI` : contenu du chat I (contient le [nom, rnd] de E), crypté par la clé cc.
+- `contcE` : contenu du chat E (contient le [nom, rnd] de I), crypté par la clé cc.
+
 Retour:
-st: 
+- `st` : 
   0 : E a disparu
-  1 : chat créé avec le contenu contc
+  1 : chat créé avec le contenu contc.
   2 : le chat était déjà créé, retour de chatI avec le contenu qui existait
-rowChat: chat I créé (sauf st = 0)
+- `rowChat` : row du chat I créé (sauf st = 0).
+
+Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
 */
 operations.NouveauChat = class NouveauChat extends Operation {
   constructor () { super('NouveauChat') }
@@ -1304,20 +1395,23 @@ operations.NouveauChat = class NouveauChat extends Operation {
   }
 }
 
-/* MAJ Chat **********************
-args.token: éléments d'authentification du compte.
-args.idI idsI : id du chat, côté interne
-args.idE idsE : id du chat côté externe
-args.ccKI : clé cc cryptée par la clé K du compte de I.
-  Seulement si en session la clé cc était cryptée par la clé publique
-args.seq : numéro de séquence à partir duquel contc a été créé
-args.contcI : contenu du chat I crypté par la clé cc
-args.contcE : contenu du chat E crypté par la clé cc
+/* `MajChat` : mise à jour d'un Chat
+POST:
+- `token` : éléments d'authentification du compte.
+- `idI idsI` : id du chat, côté _interne_.
+- `idE idsE` : id du chat, côté _externe_.
+- `ccKI` : clé cc du chat cryptée par la clé K du compte de I. _Seulement_ si en session la clé cc était cryptée par la clé publique de I.
+- `contcI` : contenu du chat I (contient le [nom, rnd] de E), crypté par la clé cc.
+- `contcE` : contenu du chat E (contient le [nom, rnd] de I), crypté par la clé cc.
+- `seq` : numéro de séquence à partir duquel `contc` a été créé.
+
 Retour:
-st: 
-  1 : chat créé avec le contenu contc
-  2 : le chat existant a un contenu plus récent que celui sur lequel était basé contc. Retour de chatI
-rowChat:
+- `st` : 
+  1 : chat mis à jour avec le contenu `contc`.
+  2 : le chat existant a un contenu plus récent que celui sur lequel était basé `contc`. Retour de chatI.
+- `rowChat` : row du chat I.
+
+Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
 */
 operations.MajChat = class MajChat extends Operation {
   constructor () { super('MajChat') }
@@ -1432,11 +1526,13 @@ operations.MajChat = class MajChat extends Operation {
   }
 }
 
-/* Changer les mots clés d'un chat ******************************
-args.token: éléments d'authentification du compte.
-args.mc : u8 des mots clés
-args.id ids : id du chat
-Retour:
+/* `MajMotsclesChat` : changer les mots clés d'un chat
+POST:
+- `token` : éléments d'authentification du compte.
+- `mc` : u8 des mots clés
+- `id ids` : id du chat
+
+Assertions sur le row `Chats` et la `Versions` de l'avatar id.
 */
 operations.MajMotsclesChat = class MajMotsclesChat extends Operation {
   constructor () { super('MajMotsclesChat') }
@@ -1452,12 +1548,14 @@ operations.MajMotsclesChat = class MajMotsclesChat extends Operation {
   }
 }
 
-/* Nouvel avatar *********************************
-args.token: éléments d'authentification du compte.
-args.rowAvatar : row du nouvel avatar
-args.rowVersion : row de le la version de l'avatar
-args.kx args.vx: entrée dans mavk de compta pour le nouvel avatar
-Retour:
+/* `NouvelAvatar` : création d'un nouvel avatar 
+POST:
+- `token` : éléments d'authentification du compte.
+- `rowAvatar` : row du nouvel avatar.
+- `rowVersion` : row de la version de l'avatar.
+- `kx vx`: entrée dans `mavk` (la liste des avatars du compte) de compta pour le nouvel avatar.
+
+Assertion sur l'existence du row `Comptas`.
 */
 operations.NouvelAvatar = class NouvelAvatar extends Operation {
   constructor () { super('NouvelAvatar') }
@@ -1474,11 +1572,13 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   }
 }
 
-/* Maj mavk *********************************
-args.token: éléments d'authentification du compte.
-args.lp: [kx, vx] liste des entées à ajouter dans mavk
-args.lm: [kx]  liste des entées à supprimer dans mavk
-Retour:
+/* `MajMavkAvatar` : mise à jour de la liste des avatars d'un compte
+POST:
+- `token` : éléments d'authentification du compte.
+- `lp` : liste _plus_, array des entrées `[kx, vx]` à ajouter dans la liste (`mavk`) du compte.
+- `lm` : liste _moins_ des entrées `[kx]` à enlever.
+
+Assertion sur l'existence du row Comptas.
 */
 operations.MajMavkAvatar = class MajMavkAvatar extends Operation {
   constructor () { super('MajMavkAvatar') }
@@ -1497,13 +1597,13 @@ operations.MajMavkAvatar = class MajMavkAvatar extends Operation {
   }
 }
 
-/* Nouvelle tribu *********************************
-args.token: éléments d'authentification du compte.
-args.rowTribu : row de la nouvelle tribu
-args.atrItem : item à insérer dans Compta en dernière position
-Retour:
-- OK : false si l'index dans rowTribu.id (poids faible) n'est pas égal à la longueur
-de Compta.atr (conflit d'attribution)
+/* `NouvelleTribu` : création d'une nouvelle tribu par le comptable
+POST: 
+- `token` : éléments d'authentification du comptable.
+- `rowTribu` : row de la nouvelle tribu.
+- `atrItem` : item à insérer dans le row Comptas du comptable en dernière position.
+
+Assertion sur l'existence du row `Comptas` du comptable.
 */
 operations.NouvelleTribu = class NouvelleTribu extends Operation {
   constructor () { super('NouvelleTribu') }
@@ -1525,11 +1625,13 @@ operations.NouvelleTribu = class NouvelleTribu extends Operation {
   }
 }
 
-/* Set `notif` tribu : notification de la tribu (cryptée par la clé de la tribu).
-args.token: éléments d'authentification du compte.
-args.id : id de la tribu
-args.notif: notification cryptée par la clé de la tribu
-Retour:
+/* `SetNotifT` : notification de la tribu
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id de la tribu
+- `notif` : notification cryptée par la clé de la tribu.
+
+Assertion sur l'existence du row `Tribus` de la tribu.
 */
 operations.SetNotifT = class SetNotifT extends Operation {
   constructor () { super('SetNotifT') }
@@ -1543,13 +1645,15 @@ operations.SetNotifT = class SetNotifT extends Operation {
   }
 }
 
-/* Set notification de compte dans tribu
-args.token: éléments d'authentification du compte.
-args.id : id de la tribu
-args.idc: id du compte
-args.notif: notification du compte cryptée par la clé de la tribu
-args.stn : 0: aucune 1:simple 2:bloquante
-Retour:
+/* `SetNotifC` : notification d'un compte d'une tribu
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id de la tribu
+- `idc` : id du compte
+- `notif` : notification du compte cryptée par la clé de la tribu
+- `stn` : 0: aucune 1:simple 2:bloquante
+
+Assertion sur l'existence du row `Tribus` de la tribu et `Comptas` du compte.
 */
 operations.SetNotifC = class SetNotifC extends Operation {
   constructor () { super('SetNotifC') }
@@ -1568,13 +1672,17 @@ operations.SetNotifC = class SetNotifC extends Operation {
   }
 }
 
-/* Set des quotas OU de l'info d'une tribu *********************************
-args.token: éléments d'authentification du compte.
-args.id : id de la tribu
-args.idc: id du comptable
-args.atrItem: élément de atr {clet, info, q1, q2} cryptés par sa clé K
-args.quotas: [q1, q2] ]si changement des quotas, sinon null
-Retour:
+/* `SetAtrItemComptable` : Set des quotas OU de l'info d'une tribu
+TODO : Vérifier pourquoi idc ? L'id du Comptable est déduite du ns courant ? Peut-être juste pour éviter à avaoir à calculer l'ID du comptable d'un ns sur le serveur (la méthode étant sur le client).
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id de la tribu
+- `idc` : id du comptable
+- `atrItem` : élément de `atr` `{clet, info, q1, q2}` cryptés par sa clé K.
+- `quotas` : `[q1, q2]` si changement des quotas, sinon null
+
+Assertion sur l'existence des rows `Comptas` du comptable et `Tribus` de la tribu.
 */
 operations.SetAtrItemComptable = class SetAtrItemComptable extends Operation {
   constructor () { super('SetAtrItemComptable') }
@@ -1595,12 +1703,14 @@ operations.SetAtrItemComptable = class SetAtrItemComptable extends Operation {
   }
 }
 
-/* Set sponsor dans tribu / compte
-args.token: éléments d'authentification du compte.
-args.idt : id de la tribu
-args.idc: id du compte
-args.nasp: na du compte crypté par la cle de la tribu
-Retour:
+/* `SetSponsor` : déclare la qualité de sponsor d'un compte dans une tribu
+POST:
+- `token` : éléments d'authentification du sponsor.
+- `idc` : id du compte sponsorisé ou non
+- `idt` : id de sa tribu.
+- `nasp` : [nom, clé] du compte crypté par la cle de la tribu.
+
+Assertion sur l'existence des rows `Comptas` du compte et `Tribus` de la tribu.
 */
 operations.SetSponsor = class SetSponsor extends Operation {
   constructor () { super('SetSponsor') }
@@ -1621,12 +1731,14 @@ operations.SetSponsor = class SetSponsor extends Operation {
   }
 }
 
-/* Set des quotas dans tribu / compte
-args.token: éléments d'authentification du compte.
-args.idt : id de la tribu
-args.idc: id du compte
-args.q1 args.q2 : quotas
-Retour:
+/* `SetQuotas` : déclaration des quotas d'un compte par un sponsor de sa tribu
+POST:
+- `token` : éléments d'authentification du sponsor.
+- `idc` : id du compte sponsorisé.
+- `idt` : id de sa tribu.
+- `q1 q2` : ses nouveaux quotas de volume V1 et V2.
+
+Assertion sur l'existence des rows `Comptas` du compte et `Tribus` de la tribu.
 */
 operations.SetQuotas = class SetQuotas extends Operation {
   constructor () { super('SetQuotas') }
@@ -1652,10 +1764,12 @@ operations.SetQuotas = class SetQuotas extends Operation {
   }
 }
 
-/* Set du dhvu d'une compta *********************************
-args.token: éléments d'authentification du compte.
-args.dhvu : dhvu cryptée par la clé K
-Retour:
+/* `SetDhvuCompta` : enregistrement de la date-heure de _vue_ des notifications dans une session
+POST: 
+- `token` : éléments d'authentification du compte.
+- `dhvu` : date-heure cryptée par la clé K.
+
+Assertion sur l'existence du row `Comptas` du compte.
 */
 operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
   constructor () { super('SetDhvuCompta') }
@@ -1668,10 +1782,12 @@ operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
   }
 }
 
-/* Maj cletK d'une compta *********************************
-args.token: éléments d'authentification du compte.
-args.cletK : cletK du compte
-Retour:
+/* `MajNctkCompta` : mise à jour de la tribu d'un compte 
+POST: 
+- `token` : éléments d'authentification du compte.
+- `nctk` : `[nom, cle]` de la la tribu du compte crypté par la clé K du compte.
+
+Assertion sur l'existence du row `Comptas` du compte.
 */
 operations.MajCletKCompta = class MajCletKCompta extends Operation {
   constructor () { super('MajCletKCompta') }
@@ -1684,11 +1800,15 @@ operations.MajCletKCompta = class MajCletKCompta extends Operation {
   }
 }
 
-/* Get "compteurs" d'une compta *********************************
-args.token: éléments d'authentification du compte.
-args.id : id de la compta
+/* `GetCompteursCompta` : retourne les "compteurs" d'un compte
+POST:
+- `token` : éléments d'authentification du compte demandeur.
+- `id` : id du compte dont les compteurs sont à retourner.
+
 Retour:
-- compteurs : objet compteurs de cette compta
+- `compteurs` : objet `compteurs` enregistré dans `Comptas`.
+
+Assertion sur l'existence du row `Comptas` du compte.
 */
 operations.GetCompteursCompta = class GetCompteursCompta extends Operation {
   constructor () { super('GetCompteursCompta') }
@@ -1702,23 +1822,26 @@ operations.GetCompteursCompta = class GetCompteursCompta extends Operation {
   }
 }
 
-/* Changer un compte de tribu *********************************
-args.token: éléments d'authentification du compte.
-args.id : id du compte qui change de tribu
-args.idtAv : id de la tribu quittée
-args.idtAp : id de la tribu intégrée
-args.idT : id court du compte crypté par la clé de la nouvelle tribu.
-args.nasp : si sponsor `[nom, cle]` crypté par la cle de la nouvelle tribu.
-args.stn : statut de la notification 0, 1 2
-args.notif`: notification de niveau compte cryptée par la clé de la nouvelle tribu.
+/* `ChangerTribu` : changer un compte de tribu par le Comptable
+POST:
+- `token` : éléments d'authentification du comptable.
+- `id` : id du compte qui change de tribu.
+- `idtAv` : id de la tribu quittée
+- `idtAp` : id de la tribu intégrée
+- `idT` : id court du compte crypté par la clé de la nouvelle tribu.
+- `nasp` : si sponsor `[nom, cle]` crypté par la cle de la nouvelle tribu.
+- `stn` : statut de la notification 0, 1 2 recopiée de l'ancienne tribu.
+- `notif``: notification de niveau compte cryptée par la clé de la nouvelle tribu, recopiée de l'ancienne tribu.
 
-Sur Compta:
-args.cletX : clé de la tribu cryptée par la clé K du comptable.
-args.cletK : clé de la tribu cryptée par la clé K du compte : 
-  si cette clé a une longueur de 256, elle est cryptée par la clé publique RSA du compte 
-  (en cas de changement de tribu forcé par le comptable).
+Relatif à `Comptas`:
+- `cletX` : clé de la tribu cryptée par la clé K du comptable.
+- `cletK` : clé de la tribu cryptée par la clé K du compte : 
+  - si cette clé a une longueur de 256, elle est cryptée par la clé publique RSA du compte (en cas de changement de tribu forcé par le comptable).
+
 Retour:
-- rowTribu (nouvelle)
+- `rowTribu` row de la nouvelle `Tribus`
+
+Assertions sur l'existence du row `Comptas` compte et de ses `Tribus` _avant_ et _après_.
 */
 operations.ChangerTribu = class ChangerTribu extends Operation {
   constructor () { super('ChangerTribu') }
