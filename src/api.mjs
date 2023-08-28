@@ -132,61 +132,26 @@ export class Compteurs {
     } else {
       this.j = AMJ.amjUtc()
     }
-    this.maj = false
     this.amj = AMJ.aaaammjj(this.j) // [aaaa, mm, jj] "avant"
     this.calculauj()
+  }
+
+  setqv (qv) {
+    this.q1 = qv.q1; this.q2 = qv.q2; this.v1 = qv.v1; this.v2 = qv.v2
+    return this
+  }
+
+  settr (delta) {
+    if (delta) {
+      this.trj += delta
+      this.trm += delta
+    }
   }
 
   get serial () { // retourne un {...} contenant les champs (ce N'EST PAS un OBJET Compteurs)
     const c = { j: this.j, tr8: this.tr8, hist: this.hist }
     lch1.forEach(f => { c[f] = this[f] })
     return new Uint8Array(encode(c))
-  }
-
-  get volMoyTr7 () { return Math.round(pow(this.tr8[0]) / 7) }
-
-  get volQ2 () { return this.q2 * UNITEV2 }
-
-  setV1 (delta) {
-    if (delta) {
-      this.v1m = Math.round(((this.v1m * this.amj[2]) + delta) / this.amj[2])
-      this.v1 = this.v1 + delta
-      this.maj = true
-    }
-    return this.v1 <= this.q1 * UNITEV2
-  }
-
-  setV2 (delta) {
-    if (delta) {
-      this.v2m = Math.round(((this.v2m * this.amj[2]) + delta) / this.amj[2])
-      this.v2 = this.v2 + delta
-      this.maj = true
-    }
-    return this.v2 <= this.q2 * UNITEV2
-  }
-
-  setTr (delta) {
-    if (delta) {
-      this.trj += delta
-      this.trm += delta
-      this.maj = true
-    }
-  }
-
-  setQ1 (q) {
-    if (q !== this.q1) {
-      this.q1 = q
-      this.maj = true
-    }
-    return this.v1 <= this.q1 * UNITEV1
-  }
-
-  setQ2 (q) {
-    if (q !== this.q2) {
-      this.q2 = q
-      this.maj = true
-    }
-    return this.v2 <= this.q2 * UNITEV2
   }
 
   shiftTr8 (nj) {
@@ -208,7 +173,6 @@ export class Compteurs {
     const dj = AMJ.amjUtc() // dj: entier aaaammjj
     if (dj === this.j) return // déjà normalisé, calculé aujourd'hui
 
-    this.maj = true
     const [djaaa, djamm, djajj] = this.amj // "avant"
     const [djaa, djmm, djjj]  = AMJ.aaaammjj(dj) // "maintenant"
 

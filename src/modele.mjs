@@ -1377,23 +1377,24 @@ export class Operation {
 
   /* Maj des compteurs :
   Si ex: lève une exception en cas de dépassement de quota
-  Si noupd, n'effectue pas la mise à jour "this.update(compta.toRow())"
-  et le laisse faire à l'appelant
   Retourne compta
   */
   async majCompteursCompta (idc, dv1, dv2, vt, ex, assert) {
     if (!idc || (dv1 === 0 && dv2 === 0 && vt === 0)) return null
     const compta = compile(await this.getRowCompta(idc, assert))
+    const qv = compta.qv
+    qv.v1 += dv1
+    const dep1 = (qv.q1 * UNITEV1) < qv.v1
+    qv.v2 += dv2
+    const dep2 = (qv.q2 * UNITEV2) < qv.v2
     const c = new Compteurs(compta.compteurs)
-    if (ex && dv1 > 0 && !c.setV1(dv1)) throw new AppExc(F_SRV, 55, [c.v1 + dv1, c.q1])
-    if (ex && dv2 > 0 && !c.setV2(dv2)) throw new AppExc(F_SRV, 55, [c.v2 + dv2, c.q2])
-    if (vt) c.setTr(vt)
-    if (c.maj) { 
-      compta.compteurs = c.serial
-      compta.v++
-      this.update(compta.toRow())
-    }
-    return compta
+    if (ex && dv1 > 0 && dep1) throw new AppExc(F_SRV, 55, [q1.v1, qv.q1])
+    if (ex && dv2 > 0 && dep2) throw new AppExc(F_SRV, 55, [qv.v2, qv.q2])
+    c.setqv(qv)
+    c.setTr(vt)
+    compta.compteurs = c.serial
+    compta.v++
+    this.update(compta.toRow())
   }
 
   /* lcSynt = ['q1', 'q2', 'a1', 'a2', 'v1', 'v2', 

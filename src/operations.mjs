@@ -528,6 +528,46 @@ operations.MajTribuVols = class MajTribuVols extends Operation {
   }
 }
 
+/* AlignerComptas : alignement des compteurs de comptas sur un 
+décompte précis avec connexion (si la version passée en argument est toujours la bonne).
+POST:
+- `token` : éléments d'authentification du comptable.
+- `id` : id du compte.
+- `v` : version de comptas
+- `qv` : { ng nc nn v1 v2 } compteurs de volume rectifiés
+- `soldeCK`: de comptas
+- `idt`: id de la tribu. null pour un compte A
+- `it`: indice du compte dans act de la tribu 
+
+Assertions sur l'existence du row `Comptas` compte et de sa `Tribus`
+*/
+operations.AlignerComptas = class AlignerComptas extends Operation {
+  constructor () { super('AlignerComptas')}
+
+  async phase2 (args) {
+    const compta = compile(await this.getRowCompta(args.id, 'AlignerComptas-1'))
+    if (compta.v !== args.v) return
+    compta.v++
+    compta.soldeCK = args.soldeCK
+    const x = compta.qv
+    x.ng = args.qv.ng
+    x.nc = args.qv.nc
+    x.nn = args.qv.nn
+    x.v1 = args.qv.v1
+    x.v2 = args.qv.v2
+    compta.compteurs = new Compteurs(compta.compteurs).setqv(args.qv).serial
+    if (args.it) {
+      const tribu = compile(await this.getRowTribu(args.idt, 'AlignerComptas-2'))
+      tribu.v++
+      tribu.act[args.it].v1 = args.qv.v1
+      tribu.act[args.it].v2 = args.qv.v2
+      this.update(tribu.toRow())
+      await this.MajSynthese(tribu)
+    }
+    ctx.logger.info('AlignerComptas !!! ' + JSON.stringify({id: args.id, qv: args.qv}))
+  }
+}
+
 /* `GestionAb` : gestion des abonnements
 Toutes les opérations permettent de modifier la liste des abonnements,
 - `abPlus` : liste des avatars et groupes à ajouter,
@@ -1756,10 +1796,9 @@ operations.SetQuotas = class SetQuotas extends Operation {
     this.update(tribu.toRow())
     await this.MajSynthese(tribu)
     compta.v++
-    const c = new Compteurs(compta.compteurs)
-    c.q1 = args.q1
-    c.q2 = args.q2
-    compta.compteurs = c.serial
+    compta.qv.q1 = args.q1
+    compta.qv.q2 = args.q2
+    compta.compteurs = new Compteurs(compta.compteurs).setqv(comta.qv).serial
     this.update(compta.toRow())
   }
 }
@@ -2547,13 +2586,13 @@ operations.NouvelleNote = class NouvelleNote extends Operation {
     const note = compile(args.rowNote)
     let v
     if (ID.estGroupe(note.id)) {
-      v = await this.majVolumeGr (note.id, note.v1, 0, false, 'NouvelleNote-1')
+      v = await this.majVolumeGr (note.id, 1, 0, false, 'NouvelleNote-1')
     } else {
       v = compile(await this.getRowVersion(note.id, 'NouvelleNote-2', true))
       v.v++
       this.update(v.toRow())
     }
-    await this.majCompteursCompta (args.idc, note.v1, 0, 0, true, 'NouvelleNote-3')
+    await this.majCompteursCompta (args.idc, 1, 0, 0, true, 'NouvelleNote-3')
     note.v = v.v
     this.insert(note.toRow())
   }
@@ -2563,7 +2602,6 @@ operations.NouvelleNote = class NouvelleNote extends Operation {
 args.token: éléments d'authentification du compte.
 args.id ids: identifiant de la note (dont celle du groupe pour un note de groupe)
 args.txts : nouveau texte encrypté
-args.v1 : volume du texte de la note
 args.prot : protégé en écriture
 args.idc : compta à qui imputer le volume
   - pour une note personelle, id du compte de l'avatar
@@ -2575,21 +2613,14 @@ operations.MajNote = class MajNote extends Operation {
 
   async phase2 (args) { 
     const note = compile(await this.getRowNote(args.id, args.ids, 'MajNote-1'))
-    const dv1 = args.v1 - note.v1
-    let v
-    if (ID.estGroupe(note.id)) {
-      v = await this.majVolumeGr (note.id, dv1, 0, false, 'MajNote-3')
-    } else {
-      v = compile(await this.getRowVersion(note.id, 'MajNote-2', true))
-      v.v++
-      this.update(v.toRow())
-    }
-    note.v1 = args.v1
+    const v = compile(await this.getRowVersion(note.id, 'MajNote-2', true))
+    v.v++
+    this.update(v.toRow())
+    
     note.txts = args.txts
     note.p = args.prot ? 1 : 0
     note.v = v.v
     this.update(note.toRow())
-    await this.majCompteursCompta(args.idc, dv1, 0, 0, true, 'MajNote-3')
   }
 }
 
@@ -2713,17 +2744,16 @@ operations.SupprNote = class SupprNote extends Operation {
     if (!note) return
     this.lidf = []
     for (const idf in note.mfas) this.lidf.push(parseInt(idf))
-    const dv1 = - note.v1
     const dv2 = - note.v2
     let v
     if (ID.estGroupe(args.id)) {
-      v = await this.majVolumeGr(args.id, dv1, dv2, false, 'SupprNote-1') // version du groupe (mise à jour)
+      v = await this.majVolumeGr(args.id, -1, dv2, false, 'SupprNote-1') // version du groupe (mise à jour)
     } else {
       v = compile(await this.getRowVersion(args.id, 'SupprNote-2', true)) // version de l'avatar
       v.v++
       this.update(v.toRow())
     }
-    await this.majCompteursCompta(args.idc, dv1, dv2, 0, false, 'SupprNote-3')
+    await this.majCompteursCompta(args.idc, -1, dv2, 0, false, 'SupprNote-3')
     note.v = v.v
     note._zombi = true
     this.update(note.toRow())
@@ -2856,13 +2886,10 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
       await this.majVolumeGr (args.id, 0, dv2, false, 'ValiderUpload-3')
     }
     const h = compile(await this.getRowCompta(args.idh, 'ValiderUpload-4'))
-    const c = new Compteurs(h.compteurs)
-    if (!c.setV2(dv2)) {
-      const d = c.v2 + dv2
-      const q = c.q2 * UNITEV2
-      throw new AppExc(F_SRV, 56, [edvol(d), edvol(q)])
-    }
-    h.compteurs = c.serial
+    h.qv.v2 += dv2
+    const q = h.qv.q2 * UNITEV2
+    if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
+    h.compteurs = new Compteurs(h.compteurs).setqv(h.qv).serial
     h.v++
     this.update(h.toRow())
     
@@ -2906,16 +2933,15 @@ operations.SupprFichier = class SupprFichier extends Operation {
     if (ID.estGroupe(args.id)) {
       await this.majVolumeGr (args.id, 0, dv2, false, 'SupprFichier-3')
     }
-    const h = compile(await this.getRowCompta(args.idh, 'SupprFichier-4'))
-    const c = new Compteurs(h.compteurs)
-    if (!c.setV2(dv2)) {
-      const d = c.v2 + dv2
-      const q = c.q2 * UNITEV2
-      throw new AppExc(F_SRV, 56, [edvol(d), edvol(q)])
-    }
-    h.compteurs = c.serial
+
+    const h = compile(await this.getRowCompta(args.idh, 'ValiderUpload-4'))
+    h.qv.v2 += dv2
+    const q = h.qv.q2 * UNITEV2
+    if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
+    h.compteurs = new Compteurs(h.compteurs).setqv(h.qv).serial
     h.v++
     this.update(h.toRow())
+
     this.idfp = await this.setFpurge(args.id, [args.idf])
   }
 
