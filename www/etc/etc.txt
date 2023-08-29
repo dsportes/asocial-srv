@@ -77,7 +77,7 @@ node src/server.mjs export --in fs --out dbout.db3 --nsin 24 --nsout 32
 node src/server.mjs test --in gc --org coltes
 
 Emulators :
-firebase emulators:start
+firebase emulators:start --project asocial-test1
 firebase emulators:start --import=./emulators/bk1
 firebase emulators:export ./emulators/bk2 -f
 

@@ -1,8 +1,11 @@
-import requiredModules from './loadreq.js'
-export const prompt = requiredModules.prompt
-export const Firestore = requiredModules.Firestore
-export const Storage = requiredModules.Storage
-const LoggingWinston = requiredModules.LoggingWinston
+// import requiredModules from './loadreq.js'
+// export const prompt = requiredModules.prompt
+// export const Firestore = requiredModules.Firestore
+// export const Storage = requiredModules.Storage
+// const LoggingWinston = requiredModules.LoggingWinston
+
+import { Firestore } from '@google-cloud/firestore'
+import { LoggingWinston } from '@google-cloud/logging-winston'
 
 // EXIGE dans config webpack: 
 // externals: { 'better-sqlite3': 'commonjs better-sqlite3' }
