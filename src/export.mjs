@@ -1,6 +1,6 @@
 
 import { existsSync } from 'node:fs'
-import { stdout } from 'node:process'
+import { stdin, stdout } from 'node:process'
 import path from 'path'
 import Database from 'better-sqlite3'
 
@@ -10,7 +10,6 @@ import { encode, decode } from '@msgpack/msgpack'
 import { getStorageProvider /* Firestore */ } from './server.js'
 import { Firestore } from '@google-cloud/firestore'
 import { createInterface } from 'readline'
-import { stdin, stdout } from 'process'
 
 function prompt (q) {
   return new Promise((resolve) => {
@@ -154,7 +153,7 @@ export class Test2 extends Gen{
     this.getfs()
     ctx.fs = this.fs
 
-    const resp = prompt('Test de FS. (o/N) ?')
+    const resp = await prompt('Test de FS. (o/N) ?')
     if (resp === 'n' || resp === 'N') {
       console.log('Test avorté !')
       return false
@@ -275,7 +274,7 @@ export class UExport extends Gen{
       this.maxout = (this.nsout + 1) * d14
       this.log(`Renumérotation des IDs de ${this.nsin} en ${this.nsout}`)
 
-      const resp = prompt('Continuer export (o/N) ?')
+      const resp = await prompt('Continuer export (o/N) ?')
       if (resp === 'n' || resp === 'N') {
         console.log('export avorté !')
         return false
@@ -305,7 +304,7 @@ export class UExport extends Gen{
     }
 
     if (ifn === 2) {
-      const resp = prompt('Continuer delete (o/N) ?')
+      const resp = await prompt('Continuer delete (o/N) ?')
       if (resp === 'n' || resp === 'N') {
         console.log('delete avorté !')
         return false
@@ -592,7 +591,7 @@ export class UStorage extends Gen{
     this.orgin = args.orgin
     this.orgout = args.orgout
 
-    const resp = prompt(`Transfert ${args.s ? 'simulé' : 'REEL'} des fichers:  ${args.in} / ${args.orgin} ==> ${args.out} / ${args.orgout}. Continuer (o/N) ? `)
+    const resp = await prompt(`Transfert ${args.s ? 'simulé' : 'REEL'} des fichers:  ${args.in} / ${args.orgin} ==> ${args.out} / ${args.orgout}. Continuer (o/N) ? `)
     if (resp === 'n' || resp === 'N') {
       console.log('transfert avorté !')
       return false

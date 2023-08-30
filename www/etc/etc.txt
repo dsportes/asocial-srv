@@ -71,10 +71,10 @@ export STORAGE_EMULATOR_HOST="http://127.0.0.1:9199"
 // Si cannot determine the project_id ...
 export GOOGLE_CLOUD_PROJECT="asocial-test1"
 
-node src/server.mjs export --in dbin.db3 --out fs --nsin 32 --nsout 32
-node src/server.mjs export --in sqlite/test1.db3 --out fs --nsin 32 --nsout 32
-node src/server.mjs export --in fs --out dbout.db3 --nsin 24 --nsout 32
-node src/server.mjs test --in gc --org coltes
+node src/server.js export --in dbin.db3 --out fs --nsin 32 --nsout 32
+node src/server.js export --in sqlite/test1.db3 --out fs --nsin 32 --nsout 32
+node src/server.js export --in fs --out dbout.db3 --nsin 24 --nsout 32
+node src/server.js test --in gc --org coltes
 
 Emulators :
 firebase emulators:start --project asocial-test1
@@ -89,14 +89,14 @@ node --inspect-brk src/server.mjs
 node src/server.mjs
 
 Export, storage, test :
-node src/server.mjs export --in madbin.db3 --out madbout.db3 --nsin 10 --nsout 24
-node src/server.mjs export --in fs --out sqlite/test1-1.db3 --nsin 32 --nsout 32
-node src/server.mjs export --in madbin.db3 --out fs --nsin 10 --nsout 24
-node src/server.mjs export --in sqlite/test1.db3 --out fs --nsin 32 --nsout 32
-node src/server.mjs storage -s --in fs --out gc --orgin coltes --orgout coltes
-node src/server.mjs storage --in gc --out fsb --orgin coltes --orgout coltes
-node src/server.mjs test --in gc --org coltes
-node src/server.mjs storage --in fs --out fsb --orgin coltes --orgout coltes
+node src/server.js export --in madbin.db3 --out madbout.db3 --nsin 10 --nsout 24
+node src/server.js export --in fs --out sqlite/test1-1.db3 --nsin 32 --nsout 32
+node src/server.js export --in madbin.db3 --out fs --nsin 10 --nsout 24
+node src/server.js export --in sqlite/test1.db3 --out fs --nsin 32 --nsout 32
+node src/server.js storage -s --in fs --out gc --orgin coltes --orgout coltes
+node src/server.js storage --in gc --out fsb --orgin coltes --orgout coltes
+node src/server.js test --in gc --org coltes
+node src/server.js storage --in fs --out fsb --orgin coltes --orgout coltes
 
 Export schema SQL
 sqlite3 test1.db3 '.schema' > schema.sql
