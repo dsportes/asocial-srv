@@ -528,7 +528,7 @@ operations.MajTribuVols = class MajTribuVols extends Operation {
   }
 }
 
-/* AlignerComptas : alignement des compteurs de comptas sur un 
+/* TODO - AlignerComptas : alignement des compteurs de comptas sur un 
 décompte précis avec connexion (si la version passée en argument est toujours la bonne).
 POST:
 - `token` : éléments d'authentification du comptable.
@@ -538,6 +538,16 @@ POST:
 - `soldeCK`: de comptas
 - `idt`: id de la tribu. null pour un compte A
 - `it`: indice du compte dans act de la tribu 
+Pré-condition sur `lgrk` d'un avatar (après résiliation de la participation à un groupe)
+- `ida` : id de l'avatar
+- `ni` : ni de son élément dans lgrk.
+
+Quand il y a une pré-condition, l'opération, 
+- est IGNOREE si l'élément ni de lgrk de l'avatar ida n'existe pas: la mise à jour a déjà été faite.
+- sinon cet élément est détruit et lopération est faite.
+
+Retour:
+- `rowComptas` : si non null, l'opération est à refaire aprè un petit délai et avoir remis à jour `comptas` par sa nouvelle version. 
 
 Assertions sur l'existence du row `Comptas` compte et de sa `Tribus`
 */
@@ -1798,7 +1808,7 @@ operations.SetQuotas = class SetQuotas extends Operation {
     compta.v++
     compta.qv.q1 = args.q1
     compta.qv.q2 = args.q2
-    compta.compteurs = new Compteurs(compta.compteurs).setqv(comta.qv).serial
+    compta.compteurs = new Compteurs(compta.compteurs).setqv(compta.qv).serial
     this.update(compta.toRow())
   }
 }
