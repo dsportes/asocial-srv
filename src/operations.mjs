@@ -2,8 +2,8 @@
 import { AppExc, F_SRV, A_SRV, ID, Compteurs, AMJ, UNITEV1, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
-import { AuthSession, Operation, compile, GenDoc, Chats, Versions,
-  Transferts, Gcvols, Cache, trace } from './modele.mjs'
+import { AuthSession, Operation, compile, Chats, Versions,
+  Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
 import { limitesjour } from './api.mjs'
 
@@ -82,7 +82,7 @@ operations.ChercherSponsoring = class ChercherSponsoring extends Operation {
   constructor () { super('ChercherSponsoring'); this.authMode = 3  }
 
   async phase1 (args) {
-    const row = await GenDoc.getSponsoringIds(this.transaction, args.ids)
+    const row = await this.getSponsoringIds(args.ids)
     if (row) this.setRes('rowSponsoring', row)
   }
 }
@@ -101,17 +101,17 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 
   async phase1 (args) {
     if (args.t === 1) {
-      if (await GenDoc.getComptaHps1(this.transaction, args.ids)) {
+      if (await this.getComptaHps1(args.ids)) {
         this.setRes('existe', true)
         return
       }
     } if (args.t === 2) {
-      if (await GenDoc.getSponsoringIds(this.transaction, args.ids)) {
+      if (await this.getSponsoringIds(args.ids)) {
         this.setRes('existe', true)
         return
       }
     } if (args.t === 3) {
-      if (await GenDoc.getAvatarHpc(this.transaction, args.ids)) {
+      if (await this.getAvatarHpc(args.ids)) {
         this.setRes('existe', true)
         return
       }
@@ -140,7 +140,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
   constructor () { super('CreerEspace') }
 
   async phase2(args) {
-    if (await GenDoc.getComptaHps1(this.transaction, args.hps1))
+    if (await this.getComptaHps1(args.hps1))
       throw new AppExc(F_SRV, 12)
     const resp = await this.getRowEspace(args.rowEspace.id)
     if (resp) throw new AppExc(F_SRV, 3)
@@ -260,7 +260,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
   async phase2 (args) {
     const rowSp = args.rowSponsoring
-    const row = await GenDoc.getSponsoringIds(this.transaction, rowSp.ids)
+    const row = await this.getSponsoringIds(rowSp.ids)
     if (row) throw new AppExc(F_SRV, 7)
 
     const rowVersion = await this.getRowVersion(rowSp.id, 'AjoutSponsoring', true)
@@ -329,7 +329,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   }
 
   async phase2(args) {
-    const rowSponsoring = await GenDoc.getSponsoringIds(this.transaction, args.ids)
+    const rowSponsoring = await this.getSponsoringIds(args.ids)
     if (!rowSponsoring) throw new AppExc(F_SRV, 8)
 
     const rowVersion = await this.getRowVersion(rowSponsoring.id, 'RefusSponsoring', true)
@@ -389,7 +389,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
 
   async phase2(args) {
     // Obtention du sponsoring et incrementation de la version du sponsor    
-    const sp = compile(await GenDoc.getSponsoringIds(this.transaction, args.ids))
+    const sp = compile(await this.getSponsoringIds(args.ids))
     if (!sp) throw new AppExc(F_SRV, 8)
     if (sp.st !== 0) throw new AppExc(F_SRV, 9)
     const versionsp = compile(await this.getRowVersion(sp.id, 'AcceptationSponsoring-3'), true)
@@ -1090,7 +1090,7 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
     for (const c of args.cibles) {
       let avE = avEs[c.idE]
       if (avE !== false) {
-        avE = await GenDoc.getAvatarVCV(this.transaction, c.idE, c.vcv)
+        avE = await this.getAvatarVCV(c.idE, c.vcv)
         if (avE) avEs[c.idE] = avE; else avEs[c.idE] = false
       }
 
@@ -1098,7 +1098,7 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
         // maj des CV (quand nécessaire) dans tous les chats et membres de la cible
         for(const x of c.lch) {
           const [idI, idsI, idsE] = x
-          const chI = await GenDoc.getChatVCV(this.transaction, idI, idsI, avE.vcv)
+          const chI = await this.getChatVCV(idI, idsI, avE.vcv)
           if (chI) {
             // Maj de chI
             let vI = vIs[idI]
@@ -1122,7 +1122,7 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
             avI = compile(await this.getRowAvatar(idI, 'RafraichirCvs-2'))
             avIs[idI] = avI
           }
-          const chE = await GenDoc.getChatVCV(this.transaction, c.idE, idsE, avI.vcv)
+          const chE = await this.getChatVCV(c.idE, idsE, avI.vcv)
           if (chE) {
             // Maj de chE, la CV de I est plus récente
             let vE = vEs[c.idE]
@@ -1141,7 +1141,7 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
         }
         for(const x of c.lmb) {
           const [idg, im] = x
-          const mb = await GenDoc.getMembreVCV(this.transaction, idg, im, avE.vcv)
+          const mb = await this.getMembreVCV(idg, im, avE.vcv)
           if (mb) {
             // Maj de mb
             let vM = vmb[idg]
@@ -1294,7 +1294,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   constructor () { super('GetAvatarPC') }
 
   async phase2 (args) {
-    const avatar = compile(await GenDoc.getAvatarHpc(this.transaction, args.hpc))
+    const avatar = compile(await this.getAvatarHpc(args.hpc))
     if (avatar) {
       this.setRes('cvnapc', { cv: avatar.cva, napc: avatar.napc } )
     }
@@ -1426,7 +1426,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
       }
 
       // MAJ éventuelle de chatE
-      const rowChatE = await GenDoc.getChatVCV(this.transaction, args.idE, args.idsS, vcvI)
+      const rowChatE = await this.getChatVCV(args.idE, args.idsS, vcvI)
       if (rowChatE) {
         const chatE = compile(rowChatE)
         const versionE = compile(await this.getRowVersion(args.idE, 'NouveauChat-4'))
@@ -1511,8 +1511,8 @@ operations.MajChat = class MajChat extends Operation {
       return
     }
 
-    const avatarE = compile(await GenDoc.getAvatarVCV(this.transaction, args.idE, chatI.vcv))
-    const avatarI = compile(await GenDoc.getAvatarVCV(this.transaction, args.idI, rowChatE.vcv))
+    const avatarE = compile(await this.getAvatarVCV(args.idE, chatI.vcv))
+    const avatarI = compile(await this.getAvatarVCV(args.idI, rowChatE.vcv))
 
     // chat E et chat I existent (et sont synchrones)
     if (chatI.seq > args.seq) {
@@ -2772,7 +2772,7 @@ operations.SupprNote = class SupprNote extends Operation {
 
   async phase3 (args) {
     try {
-      const org = await Cache.org(ID.ns(args.id))
+      const org = await this.org(ID.ns(args.id))
       const idi = args.id % d14  
       await ctx.storage.delFiles(org, idi, this.lidf)
       await this.unsetFpurge(this.idfp)
@@ -2796,7 +2796,7 @@ operations.ChargerCvs = class ChargerCvs extends Operation {
     for (const idx in args.mcv) {
       const id = parseInt(idx)
       const vcv = args.mcv[idx]
-      const avatar = await GenDoc.getAvatarVCV(this.transaction, id, vcv)
+      const avatar = await this.getAvatarVCV(id, vcv)
       if (avatar) {
         const _data_ = new Uint8Array(Buffer.from(encode({ cva: avatar.cva })))
         this.addRes('rowCvs', { _nom: 'cvs', id, _data_ })
@@ -2818,7 +2818,7 @@ operations.GetUrl = class GetUrl extends Operation {
   constructor () { super('GetUrl') }
 
   async phase2 (args) {
-    const org = await Cache.org(ID.ns(args.id))
+    const org = await this.org(ID.ns(args.id))
     const idi = args.id % d14
     const url = await ctx.storage.getUrl(org, idi, args.idf)
     this.setRes('getUrl', url)
@@ -2851,7 +2851,7 @@ operations.PutUrl = class PutUrl extends Operation {
         throw new AppExc(F_SRV, 56, [edvol(d), edvol(q)])
     }
 
-    const org = await Cache.org(ID.ns(args.id))
+    const org = await this.org(ID.ns(args.id))
     const idi = args.id % d14
     const url = await ctx.storage.putUrl(org, idi, args.idf)
     this.setRes('putUrl', url)
@@ -2908,7 +2908,7 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
 
   async phase3 (args) {
     if (args.lidf && args.lidf.length) {
-      const org = await Cache.org(ID.ns(args.id))
+      const org = await this.org(ID.ns(args.id))
       const idi = args.id % d14
       await ctx.storage.delFiles(org, idi, args.lidf)
     }
@@ -2957,7 +2957,7 @@ operations.SupprFichier = class SupprFichier extends Operation {
 
   async phase3 (args) {
     try {
-      const org = await Cache.org(ID.ns(args.id))
+      const org = await this.org(ID.ns(args.id))
       const idi = args.id % d14  
       await ctx.storage.delFiles(org, idi, [args.idf])
       await this.unsetFpurge(this.idfp)
@@ -3083,7 +3083,7 @@ operations.ListeGcvols = class ListeGcvols extends Operation {
 
   async phase1() {
     const ns = ID.ns(this.session.id)
-    const l = await GenDoc.getGcvols(ns)
+    const l = await this.getGcvols(ns)
     this.setRes('gcvols', l)
   }
 }
@@ -3196,7 +3196,7 @@ operations.GCGen = class GCGen extends Operation {
         const msg = trace('GCGen-ER1-' + nom, 0, info, true)
         ret = { err: msg }
       }
-      const ckpt = await Cache.getCheckpoint()
+      const ckpt = await this.getCheckpoint()
       const log = { 
         nom: nom,
         start: start,
@@ -3210,7 +3210,7 @@ operations.GCGen = class GCGen extends Operation {
         ckpt.nbTaches++
       }
       ckpt.log.push(log)
-      await Cache.setCheckpoint(ckpt)
+      await this.setCheckpoint(ckpt)
 
       if (ret.err) {
         trace('GCGen-ER2-' + nom, 0, ret.err, true)
@@ -3225,12 +3225,12 @@ operations.GCGen = class GCGen extends Operation {
 
   async phase1 () {
     {
-      const ckpt = await Cache.getCheckpoint()
+      const ckpt = await this.getCheckpoint()
       const start = new Date().getTime()
       ckpt.dhStart = start
       ckpt.log = []
       ckpt.nbTaches = 0
-      await Cache.setCheckpoint(ckpt)
+      await this.setCheckpoint(ckpt)
     }
 
     // Récupération des fin d'hébergement
@@ -3253,9 +3253,9 @@ operations.GCGen = class GCGen extends Operation {
     if (!await this.step('GCDlv')) return
 
     {
-      const ckpt = await Cache.getCheckpoint()
+      const ckpt = await this.getCheckpoint()
       ckpt.duree = new Date().getTime() - ckpt.dhStart
-      await Cache.setCheckpoint(ckpt)
+      await this.setCheckpoint(ckpt)
       // trace de chkpt en JSON
       const info = JSON.stringify(ckpt)
       trace('GCGen-OK', 0, info)
@@ -3269,7 +3269,7 @@ operations.GetCheckpoint = class GetCheckpoint extends Operation {
   constructor () { super('GetCheckpoint'); this.authMode = 3  }
 
   async phase1() {
-    const ckpt = await Cache.getCheckpoint()
+    const ckpt = await this.getCheckpoint()
     this.setRes('checkpoint', ckpt)
   }
 }
@@ -3289,7 +3289,7 @@ operations.GCHeb = class GCHeb extends Operation {
     try {
       const auj = AMJ.amjUtc()
 
-      const hb = await GenDoc.getGroupesDfh(auj)
+      const hb = await this.getGroupesDfh(auj)
       for (const id of hb) {
         try {
           await new operations.GCHebtr().run({id: id, dlv: auj})
@@ -3347,7 +3347,7 @@ operations.GCGro = class GCGro extends Operation {
     try {
       const auj = AMJ.amjUtc()
 
-      const lmb = await GenDoc.getMembresDlv(auj)
+      const lmb = await this.getMembresDlv(auj)
       const lgr = new Map()
       for (const [id, ids] of lmb) {
         let a = lgr.get(id)
@@ -3438,38 +3438,38 @@ operations.GCPag = class GCPag extends Operation {
       const auj = AMJ.amjUtc()
       const min = AMJ.amjUtcPlusNbj(auj, -limitesjour.dlv)
 
-      this.lids = await GenDoc.getVersionsDlv(min, auj)
+      this.lids = await this.getVersionsDlv(min, auj)
 
       for (const id of this.lids) {
         idref = id
         const estG = ID.estGroupe(id)
         if (estG) {
           st.ng++
-          st.nn += await GenDoc.delScoll('notes', id)
-          st.nm += await GenDoc.delScoll('membres', id)
-          st.nt += await GenDoc.delScoll('transferts', id)
+          st.nn += await this.delScoll('notes', id)
+          st.nm += await this.delScoll('membres', id)
+          st.nt += await this.delScoll('transferts', id)
         } else {
           st.na++
           // récupération éventuelle des volumes du compte (si l'avatar est un compte)
           await new operations.GCPagtr().run({ id })
-          st.nn += await GenDoc.delScoll('notes', id)
-          st.nc += await GenDoc.delScoll('chats', id)
-          st.ns += await GenDoc.delScoll('sponsorings', id)
-          st.nt += await GenDoc.delScoll('transferts', id)
+          st.nn += await this.delScoll('notes', id)
+          st.nc += await this.delScoll('chats', id)
+          st.ns += await this.delScoll('sponsorings', id)
+          st.nt += await this.delScoll('transferts', id)
         }
 
         // purge de avatar / groupe
-        await GenDoc.delAvGr(id)
+        await this.delAvGr(id)
 
         // purge des fichiers
-        const org = await Cache.org(id)
+        const org = await this.org(id)
         const idi = id % d14
         await ctx.storage.delId(org, idi)
         this.setRes('stats', st)
 
         // validation des purges
         const dlv = AMJ.amjUtcPlusNbj(auj, -(2 * limitesjour.dlv))
-        await GenDoc.setVdlv(id, dlv)
+        await this.setVdlv(id, dlv)
 
       }
       this.setRes('stats', st)
@@ -3534,7 +3534,7 @@ operations.GCFpu = class GCFpu extends Operation {
           const idref = fpurge.id + '/' + fpurge.idag
           n += fpurge.lidf.length
           try {
-            const org = await Cache.org(ID.ns(fpurge.idag))
+            const org = await this.org(ID.ns(fpurge.idag))
             const idi = fpurge.idag % d14   
             await ctx.storage.delFiles(org, idi, fpurge.lidf)
             await this.unsetFpurge(fpurge.id)
@@ -3575,7 +3575,7 @@ operations.GCTra = class GCTra extends Operation {
           const idref = id + '/' + idf
           try {
             const ns = ID.ns(id)
-            const org = await Cache.org(ns)
+            const org = await this.org(ns)
             const idi = id % d14        
             await ctx.storage.delFiles(org, idi, [idf])
             await this.purgeTransferts(id, idf)

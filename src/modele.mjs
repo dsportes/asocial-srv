@@ -86,7 +86,7 @@ export const sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats',
 Cache des objets majeurs "tribus comptas avatars groupes" 
 */
 
-export class Cache {
+class Cache {
   static MAX_CACHE_SIZE = 1000
 
   static map = new Map()
@@ -102,20 +102,21 @@ export class Cache {
   certes la transaction peut échouer, mais au pire on a lu une version,
   pas forcément la dernière, mais plus récente.
   */
-  static async getRow (transaction, nom, id) {
+  static async getRow (op, nom, id) {
     if (this.map.size > Cache.MAX_CACHE_SIZE) Cache._purge()
     const k = nom + '/' + id
     const x = Cache.map.get(k)
     if (x) { // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
-      const n = await GenDoc.getV(transaction, nom, id, x.row.v)
+      const n = await GenDoc.getV(op.transaction, nom, id, x.row.v)
       x.lru = new Date().getTime()
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
         Cache.orgs.set(x.row.id, x.row.org)
       return x.row
     }
-    const n = await GenDoc.getV(transaction, nom, id, 0)
+    const n = await GenDoc.getV(op.transaction, nom, id, 0)
     if (n) { // dernière version si elle existe
+      op.nl++
       const y = { lru: new Date().getTime(), row: n }
       this.map.set(k, y)
     }
@@ -156,7 +157,7 @@ export class Cache {
     }
   }
 
-  static async getCheckpoint () { 
+  static async getCheckpoint (op) { 
     // INDEX singletons v
     if (!ctx.sql) {
       const q = ctx.fs.collection('singletons/1').where('v', '>', Cache.checkpoint.v )
@@ -164,6 +165,7 @@ export class Cache {
       if (!qs.empty()) for(const doc of qs.docs) {
         Cache.checkpoint._data_ = doc.get('_data_')
         Cache.checkpoint.v = doc.get('v')
+        op.nl++
       }
     } else {
       const st = stmt('SELCHKPT', 'SELECT * FROM singletons WHERE id = 1 AND v > @v')
@@ -171,12 +173,13 @@ export class Cache {
       if (x) {
         Cache.checkpoint.v = x.v
         Cache.checkpoint._data_ = x._data_
+        op.nl++
       }
     }
     return Cache.checkpoint._data_ ? decode(Cache.checkpoint._data_) : { v: 0 }
   }
 
-  static async setCheckpoint (obj) {
+  static async setCheckpoint (op, obj) {
     const x = obj || { v: 0 }
     x.v = new Date().getTime()
     const _data_ = new Uint8Array(encode(x))
@@ -184,7 +187,7 @@ export class Cache {
       Cache.checkpoint.v = x.v
       Cache.checkpoint._data_ = _data_
       const dr = ctx.fs.doc('singletons/1')
-      await dr.set(Cache.checkpoint) 
+      await dr.set(Cache.checkpoint)
     } else {
       let st
       if (!Cache.checkpoint._data_) {
@@ -196,9 +199,10 @@ export class Cache {
       Cache.checkpoint.v = x.v
       Cache.checkpoint._data_ = _data_
     }
+    op.ne++
   }
 
-  static async org (id) {
+  static async org (op, id) {
     const ns = id < 100 ? id : ID.ns(id)
     const org = Cache.orgs.get(ns)
     if (org) return org
@@ -212,6 +216,7 @@ export class Cache {
       row = st.get({ id: ns })
     }
     if (row) {
+      op.nl++
       Cache.update([row], [])
       return row.org
     }
@@ -384,7 +389,7 @@ export class GenDoc {
     }
   }
 
-  static setSqlVdlv (id, dlv) {
+  static async setSqlVdlv (id, dlv) {
     const st = stmt('UPDVDLV', 
       'UPDATE versions SET dlv = @dlv, _data_ = NULL WHERE id = @id')
     st.run({ id, dlv })
@@ -875,144 +880,22 @@ export class GenDoc {
     if (ctx.sql) return await GenDoc.getSql(nom, id, ids)
     else return await GenDoc.getDoc(transaction, nom, id, ids)
   }
-
-  static async getAvatarVCV (transaction, id, vcv) {
-    if (ctx.sql) return await GenDoc.getSqlAvatarVCV(id, vcv)
-    else await GenDoc.getDocAvatarVCV(transaction, id, vcv)
-  }
-
-  static async getChatVCV (transaction, id, ids, vcv) {
-    if (ctx.sql) return await GenDoc.getSqlChatVCV(id, ids, vcv)
-    else return await GenDoc.getDocChatVCV(transaction, id, ids, vcv)
-  }
-
-  static async getMembreVCV (transaction, id, ids, vcv) {
-    if (ctx.sql) return await GenDoc.getSqlMembreVCV(id, ids, vcv)
-    else return await GenDoc.getDocMembreVCV(transaction, id, ids, vcv)
-  }
-
-  static async getVersionsDlv (dlvmin, dlvmax) {
-    if (ctx.sql) return await GenDoc.getSqlVersionsDlv(dlvmin, dlvmax)
-    else return await GenDoc.getDocVersionsDlv(dlvmin, dlvmax)
-  }
-
-  static async getMembresDlv (dlvmax) {
-    if (ctx.sql) return await GenDoc.getSqlMembresDlv(dlvmax)
-    else await GenDoc.getDocMembresDlv(dlvmax)
-  }
-
-  static async getGroupesDfh (dfh) {
-    if (ctx.sql) return await GenDoc.getSqlGroupesDfh(dfh)
-    else return await GenDoc.getDocGroupesDfh(dfh)
-  }
-
-  static async coll (transaction, nom) {
-    if (ctx.sql) return await GenDoc.collSql(nom)
-    else return await GenDoc.collDoc(transaction, nom)
-  }
-
-  static async collNs (transaction, nom, ns) {
-    if (ctx.sql) return await GenDoc.collNsSql(nom, ns)
-    else return await GenDoc.collNsDoc(transaction, nom, ns)
-  }
-
-  static async scoll (transaction, nom, id, v) {
-    if (ctx.sql) return await GenDoc.scollSql(nom, id, v)
-    else return await GenDoc.scollDoc(transaction, nom, id, v)
-  }
-
-  static async delScoll (nom, id) {
-    if (ctx.sql) return await GenDoc.delScollSql(nom, id)
-    else return await GenDoc.delScollDoc(nom, id)
-  }
-
-  static async delAvGr (id) {
-    if (ctx.sql) return await GenDoc.delAvGrSql(id)
-    else return await GenDoc.delAvGrDoc(id)
-  }
-
-  static async getComptaHps1 (transaction, hps1) {
-    if (ctx.sql) return await GenDoc.getSqlComptaHps1(hps1)
-    else return await GenDoc.getDocComptaHps1(transaction, hps1)
-  }
-
-  static async getAvatarHpc (transaction, hpc) {
-    if (ctx.sql) return await GenDoc.getSqlAvatarHpc(hpc)
-    else return await GenDoc.getDocAvatarHpc(transaction, hpc)
-  }
-
-  static async getSponsoringIds (transaction, ids) {
-    if (ctx.sql) return await GenDoc.getSqlSponsoringIds(ids)
-    else return await GenDoc.getDocSponsoringIds(transaction, ids)
-  }
-
-  static async getGcvols (ns) {
-    if (ctx.sql) return await GenDoc.collNsSql('gcvols', ns)
-    else return await GenDoc.collNsDoc(null, 'gcvols', ns)
-  }
-
-  static async setVdlv (id, dlv) {
-    if (ctx.sql) return await GenDoc.setSqlVdlv(id, dlv)
-    else return await GenDoc.setDocVdlv(id, dlv)
-  }
-
 }
 
-export class Espaces extends GenDoc {
-  constructor () { super('espaces') }
-}
-
-export class Gcvols extends GenDoc {
-  constructor () { super('gcvols') }
-}
-
-export class Fpurges extends GenDoc {
-  constructor () { super('fpurges') }
-}
-
-export class Tribus extends GenDoc {
-  constructor () { super('tribus') }
-}
-
-export class Syntheses extends GenDoc {
-  constructor () { super('syntheses') }
-}
-
-export class Comptas extends GenDoc {
-  constructor() { super('comptas') }
-}
-
-export class Versions extends GenDoc {
-  constructor() { super('versions') }
-}
-
-export class Avatars extends GenDoc {
-  constructor() { super('avatars') }
-}
-
-export class Notes extends GenDoc {
-  constructor() { super('notes') }
-}
-
-export class Transferts extends GenDoc {
-  constructor() { super('transferts') }
-}
-
-export class Sponsorings extends GenDoc {
-  constructor() { super('sponsorings') }
-}
-
-export class Chats extends GenDoc {
-  constructor() { super('chats') }
-}
-
-export class Groupes extends GenDoc {
-  constructor() { super('groupes') }
-}
-
-export class Membres extends GenDoc {
-  constructor() { super('membres') }
-}
+export class Espaces extends GenDoc { constructor () { super('espaces') } }
+export class Gcvols extends GenDoc { constructor () { super('gcvols') } }
+export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
+export class Tribus extends GenDoc { constructor () { super('tribus') } }
+export class Syntheses extends GenDoc { constructor () { super('syntheses') } }
+export class Comptas extends GenDoc { constructor() { super('comptas') } }
+export class Versions extends GenDoc { constructor() { super('versions') } }
+export class Avatars extends GenDoc { constructor() { super('avatars') } }
+export class Notes extends GenDoc { constructor() { super('notes') } }
+export class Transferts extends GenDoc { constructor() { super('transferts') } }
+export class Sponsorings extends GenDoc { constructor() { super('sponsorings') } }
+export class Chats extends GenDoc { constructor() { super('chats') } }
+export class Groupes extends GenDoc { constructor() { super('groupes') } }
+export class Membres extends GenDoc { constructor() { super('membres') } }
 
 /** Operation *****************************************************
 authMode == 3 : SANS TOKEN, pings et accès non authentifiés (recherche phrase de sponsoring)
@@ -1053,6 +936,8 @@ export class Operation {
       if (this.authMode < 2) await this.auth() // this.session est OK
     }
     this.dh = new Date().getTime()
+    this.nl = 0
+    this.ne = 0
     this.result = { dh: this.dh, sessionId: this.authData ? this.authData.sessionId : '666' }
 
     if (this.phase1) {
@@ -1133,97 +1018,217 @@ export class Operation {
     // (D) finalisation du résultat (fusion résultats phase 1 / 2)
     for(const prop in this.result2) { this.result[prop] = this.result2[prop] }
 
+    this.result.nl = this.nl
+    this.result.ne = this.ne
     return this.result
   }
 
+  async org (ns) { return Cache.org(this, ns)}
+
+  async getCheckpoint () { return Cache.getCheckpoint(this) }
+
+  async setCheckpoint (op, obj) { return Cache.setCheckpoint(this, obj) }
+
+  async delAvGr (id) {
+    if (ctx.sql) await GenDoc.delAvGrSql(id); else await GenDoc.delAvGrDoc(id)
+    this.ne++
+  }
+
+  async coll (nom) {
+    const r = ctx.sql ? await GenDoc.collSql(nom) : await GenDoc.collDoc(this.transaction, nom)
+    this.nl += r.length
+    return r
+  }
+
+  async collNs (nom, ns) {
+    const r = ctx.sql ? await GenDoc.collNsSql(nom, ns) : await GenDoc.collNsDoc(this.transaction, nom, ns)
+    this.nl += r.length
+    return r
+  }
+
+  async scoll (nom, id, v) {
+    const r = ctx.sql ? await GenDoc.scollSql(nom, id, v) : await GenDoc.scollDoc(this.transaction, nom, id, v)
+    this.nl += r.length
+    return r
+  }
+
+  async delScoll (nom, id) {
+    const n = ctx.sql ? await GenDoc.delScollSql(nom, id) : await GenDoc.delScollDoc(nom, id)
+    this.ne += n
+    return n
+  }
+
+  async getVersionsDlv (dlvmin, dlvmax) {
+    const r = ctx.sql ? await GenDoc.getSqlVersionsDlv(dlvmin, dlvmax)
+      : await GenDoc.getDocVersionsDlv(dlvmin, dlvmax)
+    this.nl += r.length
+    return r
+  }
+
+  async getMembresDlv (dlvmax) {
+    const r = ctx.sql ? await GenDoc.getSqlMembresDlv(dlvmax)
+      : await GenDoc.getDocMembresDlv(dlvmax)
+    this.nl += r.length
+    return r
+  }
+
+  async getGroupesDfh (dfh) {
+    const r = ctx.sql ? await GenDoc.getSqlGroupesDfh(dfh)
+      : await GenDoc.getDocGroupesDfh(dfh)
+    this.nl += r.length
+    return r
+  }
+
+  async getGcvols (ns) {
+    const r = ctx.sql ? await GenDoc.collNsSql('gcvols', ns)
+      : await GenDoc.collNsDoc(null, 'gcvols', ns)
+    this.nl += r.length
+    return r
+  }
+
+  async setVdlv (id, dlv) {
+    if (ctx.sql) await GenDoc.setSqlVdlv(id, dlv)
+    else await GenDoc.setDocVdlv(id, dlv)
+    this.ne++
+  }
+
+  async getAvatarVCV (id, vcv) {
+    const r = ctx.sql ? await GenDoc.getSqlAvatarVCV(id, vcv)
+      : await GenDoc.getDocAvatarVCV(this.transaction, id, vcv)
+    if (r) this.nl++
+    return r
+  }
+
+  async getChatVCV (id, ids, vcv) {
+    const r = ctx.sql ? await GenDoc.getSqlChatVCV(id, ids, vcv)
+      : await GenDoc.getDocChatVCV(this.transaction, id, ids, vcv)
+    if (r) this.nl++
+    return r
+  }
+
+  async getMembreVCV (id, ids, vcv) {
+    const r = ctx.sql ? await GenDoc.getSqlMembreVCV(id, ids, vcv)
+      : await GenDoc.getDocMembreVCV(this.transaction, id, ids, vcv)
+    if (r) this.nl++
+    return r
+  }
+
+  async getAvatarHpc (hpc) {
+    const r = ctx.sql ? await GenDoc.getSqlAvatarHpc(hpc)
+      : await GenDoc.getDocAvatarHpc(this.transaction, hpc)
+    if (r) this.nl++
+    return r
+  }
+
+  async getComptaHps1 (hps1, fake) {
+    const r = ctx.sql ? await GenDoc.getSqlComptaHps1(hps1)
+      : await GenDoc.getDocComptaHps1(fake ? 'fake' : this.transaction, hps1)
+    if (r) this.nl++
+    return r    
+  }
+
+  async getSponsoringIds (ids) {
+    const r = ctx.sql ? await GenDoc.getSqlSponsoringIds(ids)
+      : await GenDoc.getDocSponsoringIds(this.transaction, ids)
+    if (r) this.nl++
+    return r    
+  }
+
   async getAllRowsEspace () {
-    return await GenDoc.coll(this.transaction, 'espaces')
+    return await this.coll('espaces')
   }
 
   async getRowEspace (id, assert) {
-    const tr = await Cache.getRow(this.transaction, 'espaces', id)
+    const tr = await Cache.getRow(this, 'espaces', id)
     if (assert && !tr) throw assertKO('getRowEspace/' + assert, 2, [id])
     return tr
   }
 
   async getAllRowsTribu () {
-    return await GenDoc.collNs(this.transaction, 'tribus', this.session.ns)
+    const r = ctx.sql ? await GenDoc.collNsSql('tribus', this.session.ns)
+      : await GenDoc.collNsDoc(this.transaction, 'tribus', this.session.ns)
+    this.ns += r.length
+    return r
   }
 
   async getRowTribu (id, assert) {
-    const tr = await Cache.getRow(this.transaction, 'tribus', id)
+    const tr = await Cache.getRow(this, 'tribus', id)
     if (assert && !tr) throw assertKO('getRowTribu/' + assert, 2, [id])
     return tr
   }
 
   async getRowSynthese (id, assert) {
-    const tr = await Cache.getRow(this.transaction, 'syntheses', id)
+    const tr = await Cache.getRow(this, 'syntheses', id)
     if (assert && !tr) throw assertKO('getRowSynthese/' + assert, 2, [id])
     return tr
   }
 
   async getRowCompta (id, assert) {
-    const cp = await Cache.getRow(this.transaction, 'comptas', id)
+    const cp = await Cache.getRow(this, 'comptas', id)
     if (assert && !cp) throw assertKO('getRowCompta/' + assert, 4, [id])
     return cp
   }
 
   async getRowVersion (id, assert, nonZombi) {
-    const v = await Cache.getRow(this.transaction, 'versions', id)
+    const v = await Cache.getRow(this, 'versions', id)
     if ((assert && !v) || (nonZombi && v && v.dlv && v.dlv <= ctx.auj))
       throw assertKO('getRowVersion/' + assert, 14, [id])
     return v
   }
 
   async getRowAvatar (id, assert) {
-    const av = await Cache.getRow(this.transaction, 'avatars', id)
+    const av = await Cache.getRow(this, 'avatars', id)
     if (assert && !av) throw assertKO('getRowAvatar/' + assert, 8, [id])
     return av
   }
 
   async getRowGroupe (id, assert) {
-    const rg = await Cache.getRow(this.transaction, 'groupes', id)
+    const rg = await Cache.getRow(this, 'groupes', id)
     if (assert && !rg) throw assertKO('getRowGroupe/' + assert, 9, [id])
     return rg
   }
 
   async getAllRowsNote(id, v) {
-    return await GenDoc.scoll(this.transaction, 'notes', id, v)
+    return await this.scoll('notes', id, v)
   }
 
   async getRowNote (id, ids, assert) {
     const rs = await GenDoc.get(this.transaction, 'notes', id, ids)
     if (assert && !rs) throw assertKO('getRowNote/' + assert, 7, [id, ids])
+    if (rs) this.nl++
     return rs
   }
 
   async getAllRowsChat(id, v) {
-    return await GenDoc.scoll(this.transaction, 'chats', id, v)
+    return await this.scoll('chats', id, v)
   }
 
   async getRowChat (id, ids, assert) {
     const rc = await GenDoc.get(this.transaction, 'chats', id, ids)
     if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [id, ids])
+    if (rc) this.nl++
     return rc
   }
 
   async getAllRowsSponsoring(id, v) {
-    return await GenDoc.scoll(this.transaction, 'sponsorings', id, v)
+    return await this.scoll('sponsorings', id, v)
   }
 
   async getRowSponsoring (id, ids, assert) {
     const rs = await GenDoc.get(this.transaction, 'sponsorings', id, ids)
     if (assert && !rs) throw assertKO('getRowSponsoring/' + assert, 13, [id, ids])
+    if (rs) this.nl++
     return rs
   }
 
   async getAllRowsMembre(id, v) {
-    return await GenDoc.scoll(this.transaction, 'membres', id, v)
+    return await this.scoll('membres', id, v)
   }
 
   async getRowMembre (id, ids, assert) {
     const rm = await GenDoc.get(this.transaction, 'membres', id, ids)
     if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [id, ids])
+    if (rm) this.nl++
     return rm
   }
 
@@ -1239,6 +1244,7 @@ export class Operation {
       const st = stmt('INSFPURGE', 'INSERT INTO fpurges (id, _data_) VALUES (@id, @_data_)')
       st.run({ id, _data_ })
     }
+    this.ne++
     return id
   }
 
@@ -1250,6 +1256,7 @@ export class Operation {
       const st = stmt('DELFPURGE', 'DELETE FROM fpurges WHERE id = @id')
       st.run({ id })
     }
+    this.ne++
   }
 
   async listeFpurges () {
@@ -1271,6 +1278,7 @@ export class Operation {
         r.push(decode(row._data_))
       })
     }
+    this.nl += r.length
     return r
   }
 
@@ -1293,6 +1301,7 @@ export class Operation {
         r.push([row.id, row.ids])
       })
     }
+    this.nl += r.length
     return r
   }
 
@@ -1304,6 +1313,7 @@ export class Operation {
       const st = stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND ids = @ids')
       st.run({ id, ids })
     }
+    this.ne++
   }
 
   async purgeDlv (nom, dlv) { // nom: sponsorings, versions
@@ -1320,6 +1330,7 @@ export class Operation {
       const info = st.run({ dlv })
       n = info.changes
     }
+    this.ne += n
     return n
   }
 
@@ -1388,7 +1399,7 @@ export class Operation {
     qv.v2 += dv2
     const dep2 = (qv.q2 * UNITEV2) < qv.v2
     const c = new Compteurs(compta.compteurs)
-    if (ex && dv1 > 0 && dep1) throw new AppExc(F_SRV, 55, [q1.v1, qv.q1])
+    if (ex && dv1 > 0 && dep1) throw new AppExc(F_SRV, 55, [qv.v1, qv.q1])
     if (ex && dv2 > 0 && dep2) throw new AppExc(F_SRV, 55, [qv.v2, qv.q2])
     c.setqv(qv)
     c.setTr(vt)
@@ -1476,7 +1487,7 @@ export class Operation {
       return
     }
 
-    const rowCompta = await GenDoc.getComptaHps1('fake', this.authData.hps1)
+    const rowCompta = await this.getComptaHps1(this.authData.hps1, true)
     if (!rowCompta) throw new AppExc(F_SRV, 101)
     const shay = Buffer.from(sha256(Buffer.from(this.authData.shax))).toString('base64')
     this.compta = compile(rowCompta)
