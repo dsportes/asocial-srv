@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { ctx } from './server.js'
 import { b64ToU8, sha256 } from './webcrypto.mjs'
 import { SyncSession } from './ws.mjs'
@@ -68,7 +68,7 @@ export function stmt (code, sql) {
   return s
 }
 
-export const collsExp1 = ['espaces', 'syntheses']
+export const collsExp1 = ['espaces', 'tickets', 'syntheses']
 
 export const collsExp2 = ['fpurges', 'gcvols', 'tribus', 'comptas', 'avatars', 'groupes', 'versions']
 
@@ -244,6 +244,7 @@ export class GenDoc {
   static _attrs = {
     espaces: ['id', 'org', 'v', '_data_'],
     fpurges: ['id', '_data_'],
+    tickets: ['id', '_data_'],
     gcvols: ['id', '_data_'],
     tribus: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
@@ -265,6 +266,7 @@ export class GenDoc {
     switch (nom) {
     case 'espaces' : { obj = new Espaces(); break }
     case 'fpurges' : { obj = new Fpurges(); break }
+    case 'tickets' : { obj = new Tickets(); break }
     case 'gcvols' : { obj = new Gcvols(); break }
     case 'tribus' : { obj = new Tribus(); break }
     case 'syntheses' : { obj = new Syntheses(); break }
@@ -463,6 +465,16 @@ export class GenDoc {
     return row
   }
 
+  /* Retourne le row d'une collection de nom / id (sans version))
+  */
+  static async getSqlNV(nom, id) {
+    const code = 'SELNV' + nom
+    const st = stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id')
+    const row = st.get({ id : id})
+    if (row) row._nom = nom
+    return row
+  }
+  
   /* Retourne le row d'un objet d'une sous-collection nom / id / ids */
   static async getSql(nom, id, ids) {
     const code = 'SEL' + nom
@@ -605,6 +617,27 @@ export class GenDoc {
     const code = 'DELAVGR'+ nom
     const st = stmt(code, 'DELETE FROM ' + nom + ' WHERE id = @id')
     st.run({id : id})
+  }
+
+  /*
+  Retourne LE row de la collection nom / id (sans version)
+  */
+  static async getDocNV (transaction, nom, id) {
+    let row = null
+    const p = GenDoc._path(nom, id)
+    const dr = ctx.fs.doc(p) // dr: DocumentReference
+    // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
+    let ds
+    if (transaction !== 'fake') {
+      ds = await transaction.get(dr)
+    } else {
+      ds = await dr.get()
+    }
+    if (ds.exists) {
+      row = ds.data()
+      row._nom = nom
+    }
+    return row
   }
 
   /*
@@ -876,6 +909,11 @@ export class GenDoc {
     else return await GenDoc.getDocV(transaction, nom, id, v)
   }
 
+  static async getNV (transaction, nom, id) {
+    if (ctx.sql) return await GenDoc.getSqlNV(nom, id)
+    else return await GenDoc.getDocNV(transaction, nom, id)
+  }
+
   static async get (transaction, nom, id, ids) {
     if (ctx.sql) return await GenDoc.getSql(nom, id, ids)
     else return await GenDoc.getDoc(transaction, nom, id, ids)
@@ -883,6 +921,7 @@ export class GenDoc {
 }
 
 export class Espaces extends GenDoc { constructor () { super('espaces') } }
+export class Tickets extends GenDoc { constructor () { super('tickets') } }
 export class Gcvols extends GenDoc { constructor () { super('gcvols') } }
 export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
 export class Tribus extends GenDoc { constructor () { super('tribus') } }
@@ -1079,6 +1118,13 @@ export class Operation {
     return r
   }
 
+  async getTickets (ns) {
+    const r = ctx.sql ? await GenDoc.collNsSql('tickets', ns)
+      : await GenDoc.collNsDoc(null, 'tickets', ns)
+    this.nl += r.length
+    return r
+  }
+
   async getGcvols (ns) {
     const r = ctx.sql ? await GenDoc.collNsSql('gcvols', ns)
       : await GenDoc.collNsDoc(null, 'gcvols', ns)
@@ -1136,6 +1182,12 @@ export class Operation {
 
   async getAllRowsEspace () {
     return await this.coll('espaces')
+  }
+
+  async getRowTicket (id, assert) {
+    const tr = await GenDoc.getNV(this, 'tickets', id)
+    if (assert && !tr) throw assertKO('getRowTicket/' + assert, 2, [id])
+    return tr
   }
 
   async getRowEspace (id, assert) {
@@ -1478,7 +1530,13 @@ export class Operation {
   */
   async auth () {
     const s = AuthSession.get(this.authData.sessionId)
-    if (!this.authMode && s) { this.session = s; return } // la session est connue dans l'instance, OK
+    if (!this.authMode && s) {
+      // la session est connue dans l'instance, OK
+      this.session = s
+      this.ttl = new Date().getTime() + AuthSession.ttl
+      if (this.session.sync) this.session.sync.pingrecu()
+      return 
+    } 
 
     const shax64 = Buffer.from(this.authData.shax).toString('base64')
     if (ctx.config.admin.indexOf(shax64) !== -1) {
@@ -1502,7 +1560,7 @@ export class AuthSession {
 
   static dernierePurge = 0
 
-  static ttl = 0
+  static ttl = PINGTO * 60000
 
   constructor (sessionId, id, sync) { 
     this.sessionId = sessionId
@@ -1514,7 +1572,6 @@ export class AuthSession {
 
   // Retourne la session identifiée par sessionId et en prolonge la durée de vie
   static get (sessionId) {
-    if (!AuthSession.ttl) AuthSession.ttl = ((ctx.config.ttlsessionMin || 60) * 60000)
     const t = new Date().getTime()
     if (t - AuthSession.dernierePurge > AuthSession.ttl / 10) {
       AuthSession.map.forEach((s, k) => {
@@ -1524,6 +1581,7 @@ export class AuthSession {
     const s = AuthSession.map.get(sessionId)
     if (s) {
       s.ttl = t + AuthSession.ttl
+      if (s.sync) s.sync.pingrecu()
       return s
     }
     return false
@@ -1536,9 +1594,11 @@ export class AuthSession {
       sync = SyncSession.get(sessionId)
       if (!sync) throw new AppExc(E_SRV, 4)
       if (id) sync.setCompte(id)
+      sync.pingrecu()
     }
-    const x = new AuthSession(sessionId, id, sync)
-    AuthSession.map.set(sessionId, x)
-    return x
+    const s = new AuthSession(sessionId, id, sync)
+    AuthSession.map.set(sessionId, s)
+    s.ttl = new Date().getTime() + AuthSession.ttl
+    return s
   }
 }

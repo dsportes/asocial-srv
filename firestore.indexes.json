@@ -40,6 +40,17 @@
     },
 
     {
+      "collectionGroup": "tickets",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "tickets",
+      "fieldPath": "_data_",
+      "indexes": []
+    },
+
+    {
       "collectionGroup": "syntheses",
       "fieldPath": "id",
       "indexes": []

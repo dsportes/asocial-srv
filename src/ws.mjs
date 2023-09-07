@@ -1,5 +1,5 @@
 import { encode } from '@msgpack/msgpack'
-import { ID, PINGTO } from './api.mjs'
+import { ID, PINGTO, WSHEARTBEAT } from './api.mjs'
 import { ctx } from './server.js'
 
 export function startWs () {
@@ -54,24 +54,30 @@ export class SyncSession {
       // seul message reçu : ping avec le sessionid
       this.nbpings++
       const newid = m.data
-      const d = new Date()
-      this.dhping = d.getTime()
+      let os = false
       if (newid !== this.sessionId) {
         // nouvelle session
+        os = true
         if (this.sessionId) SyncSession.sessions.delete(this.sessionId)
         this.sessionId = newid
         SyncSession.sessions.set(newid, this)
-        if (ctx.debug) ctx.logger.debug('Ouverture de session reçue: ' + newid + ' / ' + d.toISOString())
-      } else {
-        if (ctx.debug) ctx.logger.debug('Ping reçu: ' + newid + ' / ' + d.toISOString())
       }
+      this.pingrecu(os)
       // réponse pong
-      if (this.nbpings < 1000000) { // pour tester et ne plus envoyer de pong au delà de N pings
+      if (WSHEARTBEAT) {
         const pong = { sessionId: newid, dh: new Date().getTime() }
         const buf = new Uint8Array(encode(pong))
         this.ws.send(buf)
       }
     }
+  }
+
+  pingrecu (os) { 
+    const d = new Date()
+    this.dhping = d.getTime()
+    if (ctx.debug) ctx.logger.debug(
+      os ? 'Ouverture de session reçue: ' : 'Ping reçu: ' +
+      this.sessionId + ' / ' + d.toISOString())
   }
 
   setCompte (id) {
