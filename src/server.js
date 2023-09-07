@@ -6,7 +6,8 @@ const LoggingWinston = requiredModules.LoggingWinston
 
 // EXIGE dans config webpack: 
 // externals: { 'better-sqlite3': 'commonjs better-sqlite3' }
-import Database from 'better-sqlite3'
+// import Database from 'better-sqlite3'
+const Database = requiredModules.Database
 
 import http from 'http'
 import https from 'https'
