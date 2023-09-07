@@ -1,48 +1,4 @@
-// import requiredModules from './loadreq.js'
-// export const prompt = requiredModules.prompt
-// export const Firestore = requiredModules.Firestore
-// export const Storage = requiredModules.Storage
-// const LoggingWinston = requiredModules.LoggingWinston
-
-import { Firestore } from '@google-cloud/firestore'
-import { LoggingWinston } from '@google-cloud/logging-winston'
-
-// EXIGE dans config webpack: 
-// externals: { 'better-sqlite3': 'commonjs better-sqlite3' }
-// import Database from 'better-sqlite3'
-import { Database } from './loadreq.js'
-
-import http from 'http'
-import https from 'https'
-import { existsSync, readFileSync } from 'node:fs'
-import path from 'path'
-import { exit, env } from 'process'
-import { parseArgs } from 'node:util'
-
-import winston from 'winston'
-import express from 'express'
-import { WebSocketServer } from 'ws'
-import { encode, decode } from '@msgpack/msgpack'
-
-import { config } from './config.mjs'
-import { faviconb64 } from './favicon.mjs'
-import { toByteArray } from './base64.mjs'
-import { decode3, FsProvider, S3Provider, GcProvider } from './storage.mjs'
-import { UExport, UTest, UStorage } from './export.mjs'
-import { atStart, operations } from './operations.mjs'
-import { SyncSession, startWs } from './ws.mjs'
-import { version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV, AMJ } from './api.mjs'
-
-export function getStorageProvider (stcode) {
-  const t = stcode.substring(0, 2)
-  const cfg = config[stcode + 'config']
-  switch (t) {
-  case 'fs' : { return new FsProvider(cfg) }
-  case 's3' : { return new S3Provider(cfg) }
-  case 'gc' : { return new GcProvider(cfg) }
-  }
-  return null
-}
+import { mode, config } from './config.mjs'
 
 function getHP (url) {
   let origin = url
@@ -68,6 +24,51 @@ export const ctx = {
   args: {}
 }
 
+// import Database from 'better-sqlite3'
+// webpack ne build pas correctement
+import { Database } from './loadreq.mjs'
+
+if (!config.firestore) {
+  const db = Database(mode === 2 ? './test.db3' : '../test.db3')
+  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(1)
+  console.log(row.id, row.name)
+}
+
+import http from 'http'
+import https from 'https'
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'path'
+import { exit, env } from 'process'
+import { parseArgs } from 'node:util'
+
+import { Firestore } from '@google-cloud/firestore'
+import winston from 'winston'
+
+// import { LoggingWinston } from '@google-cloud/logging-winston'
+
+import express from 'express'
+import { WebSocketServer } from 'ws'
+import { encode, decode } from '@msgpack/msgpack'
+
+import { faviconb64 } from './favicon.mjs'
+import { toByteArray } from './base64.mjs'
+import { decode3, FsProvider, S3Provider, GcProvider } from './storage.mjs'
+import { UExport, UTest, UStorage } from './export.mjs'
+import { atStart, operations } from './operations.mjs'
+import { SyncSession, startWs } from './ws.mjs'
+import { version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV, AMJ } from './api.mjs'
+
+export function getStorageProvider (stcode) {
+  const t = stcode.substring(0, 2)
+  const cfg = config[stcode + 'config']
+  switch (t) {
+  case 'fs' : { return new FsProvider(cfg) }
+  case 's3' : { return new S3Provider(cfg) }
+  case 'gc' : { return new GcProvider(cfg) }
+  }
+  return null
+}
+
 if (!config.gae) {
   const x = parseArgs({
     allowPositionals: true,
@@ -86,14 +87,15 @@ if (!config.gae) {
   ctx.args = x.values
 }
 
-/** Setup Logging ***********************************************/
+// Setup Logging ***********************************************
 const myFormat = winston.format.printf(({ level, message, timestamp }) => {
   return `${timestamp} ${level}: ${message}`
 })
 
-if (config.gae) {
+const BUGGOOGLEWINSTON = true
+if (!BUGGOOGLEWINSTON && config.gae) {
   // Imports the Google Cloud client library for Winston
-  const loggingWinston = new LoggingWinston()
+  const loggingWinston = null // new LoggingWinston()
   // Logs will be written to: "projects/YOUR_PROJECT_ID/logs/winston_log"
   ctx.logger = winston.createLogger({
     level: 'info',
@@ -125,7 +127,7 @@ if (config.gae) {
 }
 ctx.logger.info('Logs configurés')
 
-/* Chargement de la configuation **************************/
+// Chargement de la configuation **************************
 try { // Récupération de la configuration et définition du contexte d'exécution
   if (env.NODE_ENV === 'mondebug') {
     ctx.logger.info('Mode mondebug')
@@ -154,11 +156,10 @@ try { // Récupération de la configuration et définition du contexte d'exécut
     if (existsSync(p)) {
       env['GOOGLE_APPLICATION_CREDENTIALS'] = p
       ctx.logger.info('GOOGLE_APPLICATION_CREDENTIALS=' + p)
-      /* Pour permettre, si nécessaire un jour, à la création
-      du Provider GC : new Storage(opt)
-      de spécifier en opt l'objet contenant ce service account
-      Code commenté dans storage.mjs.
-      */ 
+      // Pour permettre, si nécessaire un jour, à la création
+      // du Provider GC : new Storage(opt)
+      // de spécifier en opt l'objet contenant ce service account
+      // Code commenté dans storage.mjs.
       const x = readFileSync(p)
       ctx.config.service_account = JSON.parse(x)
     }
@@ -209,10 +210,9 @@ try { // Récupération de la configuration et définition du contexte d'exécut
   }
 
   if (config.firestore) {
-    /* Ne marche PAS
-    const opt = { projectId: config.projectId, keyFilename: './config/service_account.json' }
-    ctx.fs = new Firestore(opt)
-    */
+    // Ne marche PAS
+    // const opt = { projectId: config.projectId, keyFilename: './config/service_account.json' }
+    // ctx.fs = new Firestore(opt)
     ctx.fs = new Firestore()
     {
       const dr = ctx.fs.doc('singletons/ping')
@@ -234,7 +234,9 @@ try { // Récupération de la configuration et définition du contexte d'exécut
         if (ctx.lastSql.length > 3) ctx.lastSql.length = 3
       } 
     }
+    console.log('7 avant db')
     ctx.sql = Database(p, options)
+    console.log('8 après db')
     ctx.fs = null
   }
   ctx.storage = getStorageProvider(config.storage_provider)
@@ -246,7 +248,7 @@ try { // Récupération de la configuration et définition du contexte d'exécut
   exit(1)
 }
 
-/* Utils ********************************************************/
+// Utils ********************************************************
 if (ctx.utils) {
   let ok
   if (ctx.utils === 'export' || ctx.utils === 'delete') {
@@ -261,7 +263,7 @@ if (ctx.utils) {
   exit(ok ? 0 : 1)
 }
 
-/***************************************************************************/
+//***************************************************************************
 
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
@@ -295,23 +297,23 @@ app.use('/', (req, res, next) => {
     next()
 })
 
-/**** fs ou sql ****/
+//*** fs ou sql ****
 app.get('/fs', (req, res) => {
   setRes(res, 200, 'text/plain').send(ctx.fs ? 'true' : 'false')
 })
 
-/**** favicon.ico du sites ****/
+//**** favicon.ico du sites ****
 app.get('/favicon.ico', (req, res) => {
   setRes(res, 200, 'image/x-icon').send(ctx.favicon)
 })
 
-/**** robots.txt du sites ****/
+//**** robots.txt du sites ****
 const rob = 'User-agent: *\nDisallow: /\n'
 app.get('/robots.txt', (req, res) => {
   setRes(res, 200, 'text/plain').send(rob)
 })
 
-/**** ping du site ***/
+//**** ping du site ***
 app.get('/ping', (req, res) => {
   setRes(res, 200, 'text/plain').send('V11 ' + new Date().toISOString())
 })
@@ -346,7 +348,7 @@ app.put('/storage/:arg', async (req, res) => {
   }
 })
 
-/**** appels des opérations ****/
+//**** appels des opérations ****
 app.use(ctx.config.prefixop + '/:operation', async (req, res) => {
   // push the data to body
   const body = [];
@@ -362,14 +364,13 @@ if (config.prefixapp) app.get('/', function (req, res) {
   res.redirect(config.prefixapp + '/index.html');
 })
 
-/****** starts listen ***************************
-Modes possibles : (ctx.mode)
-- 1: serveur node.js dans un environnement dédié
-- 2: GAE - node.js dans GoogleAppEngine
-- 3: passenger - node.js dans un site Web partagé
-    Pour installation sur o2switch
-    https://faq.o2switch.fr/hebergement-mutualise/tutoriels-cpanel/app-nodejs
-*/
+//***** starts listen ***************************
+// Modes possibles : (ctx.mode)
+// - 1: serveur node.js dans un environnement dédié
+// - 2: GAE - node.js dans GoogleAppEngine
+// - 3: passenger - node.js dans un site Web partagé
+// Pour installation sur o2switch
+// https://faq.o2switch.fr/hebergement-mutualise/tutoriels-cpanel/app-nodejs
 
 if (typeof(PhusionPassenger) !== 'undefined') {
   // eslint-disable-next-line no-undef
@@ -435,10 +436,10 @@ try {
   console.error('server.mjs : catch global = ' + e.message)
 }
 
-/************************************************************* 
-vérification que l'origine appartient à la liste des origines autorisées (q'il y en a une)
-localhost passe toujours
-*/
+//************************************************************* 
+// vérification que l'origine appartient à la liste des origines autorisées (q'il y en a une)
+// localhost passe toujours
+
 function checkOrigin(req) {
   let origin = req.headers['origin']
   if (!origin || origin === 'null') {
@@ -456,9 +457,8 @@ function checkOrigin(req) {
   throw new AppExc(E_SRV, 1, [origin])
 }
 
-/*
-Traitement générique d'une opération
-*/
+// Traitement générique d'une opération
+
 async function operation(req, res) {
   let pfx = new Date().toISOString() // prefix de log
   ctx.auj = AMJ.amjUtc()
@@ -487,22 +487,22 @@ async function operation(req, res) {
     const opClass = operations[opName]
     if (!opClass) throw new AppExc(E_SRV, 3, [opName || '???'])
 
-    /***************************************************************
-    Appel de l'opération
-      args : objet des arguments
-    Retourne un objet result :
-    Pour un GET :
-      result.type : type mime
-      result.bytes : si le résultat est du binaire
-    Pour un POST :
-      OK : result : objet résultat à sérialiser - HTTP status 200
-
-    Exception : AppExc : AppExc sérialisé en JSON
-      400 : F_SRV - erreur fonctionnelle
-      401 : A_SRV - assertion
-      402 : E_SRV - inattendue trappée DANS l'opération
-      403 : E_SRV - inattendue NON trappée par l'opération (trappée ici)
-    *****************************************************************/
+    //**************************************************************
+    // Appel de l'opération
+    //   args : objet des arguments
+    // Retourne un objet result :
+    // Pour un GET :
+    //   result.type : type mime
+    //   result.bytes : si le résultat est du binaire
+    // Pour un POST :
+    //   OK : result : objet résultat à sérialiser - HTTP status 200
+    // 
+    // Exception : AppExc : AppExc sérialisé en JSON
+    //   400 : F_SRV - erreur fonctionnelle
+    //   401 : A_SRV - assertion
+    //   402 : E_SRV - inattendue trappée DANS l'opération
+    //   403 : E_SRV - inattendue NON trappée par l'opération (trappée ici)
+    // *****************************************************************
     //  const args = isGet ? req.query : decode(req.body)
     let args, apitk
     if (isGet) {

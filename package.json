@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "build": "webpack"
   },
   "author": "Daniel Sportes",
   "license": "ISC",

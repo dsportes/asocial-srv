@@ -1,0 +1,46 @@
+"better-sqlite3": "8.6.0"
+In my server.js file, I have two options:
+
+import Database from 'better-sqlite3' // Option ES6
+// import { Database } from './loadreq.js' // Option CJS (CommonJS)
+
+In the option CJS CommonJS, I have a module loadreq.js
+
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
+export const Database = require('better-sqlite3')
+
+webpack.config.mjs
+
+import path from 'path'
+export default {
+  entry: './src/server.js',
+  target: 'node',
+  mode: 'production',
+  output: {
+    filename: 'app.js',
+    path: path.resolve('dist'),
+  },
+  externals: { 'better-sqlite3': 'commonjs better-sqlite3' }
+}
+
+Without Webpack build, my app is running, in both options ES6 and CJS.
+
+But when I build with Webpack:
+- Option CJS : OK 
+  the line 'externals: { 'better-sqlite3': ... ' can be commented. No effect
+
+- Option ES6 : KO
+  nwx webpack hs no error
+  But when I start 'node app.js' I get:
+    Error: Cannot find module 'better-sqlite3'
+    If I comment the line 'externals: { 'better-sqlite3': ... '
+    I get when starting: 
+    TypeError: Cannot read properties of undefined (reading 'indexOf')
+  
+'better-sqlite3' is the only module not supporting ES6 in my app,
+I succeed avoiding 'require' in my code.
+
+Do you see why ?
+Regards.
+

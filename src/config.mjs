@@ -1,4 +1,4 @@
-const mode = 3
+export const mode = 2
 /*
 1:GAE 
 2:Test usuel
@@ -15,7 +15,6 @@ export const config = {
   projectId: 'asocial-test1', // Pour Firestore et storage GC
 
   admin:  ['tyn9fE7zrDhZ6N7GSA87GbF1ouPovsOP/dVsUNfS0zk='],
-  ttlsessionMin: 60,
 
   apitk: 'VldNo2aLLvXRm0Q',
   prefixop: '/op',
