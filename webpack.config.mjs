@@ -10,7 +10,7 @@ export default {
     path: path.resolve('dist'),
   },
   externals: {
-    'better-sqlite3': 'commonjs better-sqlite3'
+    // 'better-sqlite3': 'commonjs better-sqlite3'
   }
 }
 

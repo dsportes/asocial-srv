@@ -2307,7 +2307,7 @@ __metadata:
     "@google-cloud/storage": ^7.0.1
     "@msgpack/msgpack": ^3.0.0-beta2
     "@open-wc/webpack-import-meta-loader": ^0.4.7
-    better-sqlite3: ^8.4.0
+    better-sqlite3: 8.6.0
     eslint: ^8.2.0
     express: ^4.18.2
     node-args: ^2.1.8
@@ -2373,14 +2373,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"better-sqlite3@npm:^8.4.0":
-  version: 8.5.1
-  resolution: "better-sqlite3@npm:8.5.1"
+"better-sqlite3@npm:8.6.0":
+  version: 8.6.0
+  resolution: "better-sqlite3@npm:8.6.0"
   dependencies:
     bindings: ^1.5.0
     node-gyp: latest
-    prebuild-install: ^7.1.0
-  checksum: ba06e7ae5d150f8d9dc77daff6299689476337b820fd82dae5bd844d39009c605e595758145b453362dc68e37041c285ae4cc73d63028b9e4a085b5ad2d3a2c4
+    prebuild-install: ^7.1.1
+  checksum: 9ebdfd675352347cda1ba30d620a3c512d9db827a1eba66460fd48203a7ad8138b0195893bbf47d40f704bcdd598710041271d4ed69779979b6f784c0d3579a1
   languageName: node
   linkType: hard
 
@@ -5111,7 +5111,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prebuild-install@npm:^7.1.0":
+"prebuild-install@npm:^7.1.1":
   version: 7.1.1
   resolution: "prebuild-install@npm:7.1.1"
   dependencies:

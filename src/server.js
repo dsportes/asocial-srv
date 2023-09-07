@@ -9,7 +9,8 @@ import { LoggingWinston } from '@google-cloud/logging-winston'
 
 // EXIGE dans config webpack: 
 // externals: { 'better-sqlite3': 'commonjs better-sqlite3' }
-import Database from 'better-sqlite3'
+// import Database from 'better-sqlite3'
+import { Database } from './loadreq.js'
 
 import http from 'http'
 import https from 'https'
