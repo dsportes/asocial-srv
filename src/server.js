@@ -44,6 +44,7 @@ import { parseArgs } from 'node:util'
 import { Firestore } from '@google-cloud/firestore'
 import winston from 'winston'
 
+// eslint-disable-next-line no-unused-vars
 // import { LoggingWinston } from '@google-cloud/logging-winston'
 
 import express from 'express'
