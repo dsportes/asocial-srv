@@ -33,7 +33,7 @@ export function nomFichier (v) {
   return v.trim().replace(regIntg, '_').replace(regInt2g, '')
 }
 
-export const lcSynt = ['q1', 'q2', 'a1', 'a2', 'v1', 'v2', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco1', 'nco2']
+export const lcSynt = ['qc', 'q1', 'q2', 'ac', 'a1', 'a2', 'cj', 'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
 
 export class ID {
   /* Retourne l'id COURT depuis une id, longue ou courte, string ou number */
@@ -479,6 +479,17 @@ export class Compteurs {
   }
 
   get cjv1v2 () { return [ this.consoj, this.qv.nn + this.qv.nc + this.qv.ng, this.qv.v2 ]}
+
+  get pourcents () {
+    const [consoj, v1, v2] = this.cjv1v2
+    const qcj = this.qcj
+    let pcc = qcj ? Math.round( (consoj * 100) / qcj) : 199
+    if (pcc > 199) pcc = 199
+    const pc1 = Math.round((v1 * 100) / this.qv.q1)
+    const pc2 = Math.round((v2 * 100) / (this.qv.q2 * UNITEV2))
+    let max = pcc; if (pc1 > max) max = pc1; if (pc2 > max) max = pc2
+    return {pcc, pc1, pc2, max}
+  }
 
   /* Cadeau de dépannage de Comptable / sponsor pour surmonter un excès
   transitoire de consommation.

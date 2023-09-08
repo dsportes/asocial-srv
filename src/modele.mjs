@@ -1472,19 +1472,24 @@ export class Operation {
     const idx = ID.court(tribu.id)
     const x = {}
     lcSynt.forEach(f => { x[f] = 0 })
+    x.qc = tribu.qc
     x.q1 = tribu.q1
     x.q2 = tribu.q2
+    x.ntr0 = tribu.stn === 0 ? 1 : 0
     x.ntr1 = tribu.stn === 1 ? 1 : 0
     x.ntr2 = tribu.stn === 2 ? 1 : 0
     for (let i = 0; i < tribu.act.length; i++) {
       const c = tribu.act[i]
       if (c && !c.vide) {
+        x.ac += c.qc
         x.a1 += c.q1
         x.a2 += c.q2
+        x.cj += c.cj
         x.v1 += c.v1
         x.v2 += c.v2
         x.nbc++
         if (c.nasp) x.nbsp++
+        if (c.stn === 0) x.nco0++
         if (c.stn === 1) x.nco1++
         if (c.stn === 2) x.nco2++
       }
