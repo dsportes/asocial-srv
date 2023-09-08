@@ -119,6 +119,35 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
   }
 }
 
+/* `EnregConso` : enregistrement de la consommation courante d'une session.
+A également une fonction de "heartbeat" maintenant la session active dans le server.
+POST:
+- `token` : jeton d'authentification du compte
+- `conso` : `{ nl, ne, vm, vd }`. Peut être null (aucune consommation)
+  - `nl`: nombre absolu de lectures depuis la création du compte.
+  - `ne`: nombre d'écritures.
+  - `vm`: volume _montant_ vers le Storage (upload).
+  - `vd`: volume _descendant_ du Storage (download).
+
+Retour: rien
+*/
+operations.EnregConso = class EnregConso extends Operation {
+  constructor () { super('EnregConso') }
+
+  async phase1(args) {
+    if (!args.conso) this.phase2 = null
+  }
+
+  async phase2(args) {
+    const compta = compile(await this.getRowCompta(this.session.id))
+    if (!compta) return
+    compta.v++
+    const c = new Compteurs(compta.compteurs, null, args.conso)
+    compta.compteurs = c.serial
+    this.update(compta.toRow())
+  }
+}
+
 /* `CreerEspace` : création d'un nouvel espace et du comptable associé
 POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**

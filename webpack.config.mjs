@@ -13,7 +13,7 @@ export default {
     // 'better-sqlite3': 'commonjs better-sqlite3'
     /* Avec cette directive, app.js N'EST PLUS AUTONOME
     Il lui faut node_modules (au moins une partie).
-    DONC IL FAUT obtenir better-sqlite3 par requir()
+    DONC IL FAUT obtenir better-sqlite3 par require()
     */
   }
 }
