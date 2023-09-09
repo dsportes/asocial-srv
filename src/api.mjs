@@ -515,7 +515,7 @@ export class Compteurs {
 
   notifS (credits) { // notification de dépassement des crédits
     const ntf = { dh: this.dh }
-    if (this.qv.qc) {
+    if (!this.qv.qc) {
       const solde = credits - this.cumulCouts
       if (solde < 0) { ntf.nr = 4; ntf.texte = 'R' }
       else {
