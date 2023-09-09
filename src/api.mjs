@@ -482,13 +482,48 @@ export class Compteurs {
 
   get pourcents () {
     const [consoj, v1, v2] = this.cjv1v2
-    const qcj = this.qcj
-    let pcc = qcj ? Math.round( (consoj * 100) / qcj) : 199
-    if (pcc > 199) pcc = 199
+    let pcc = 0
+    if (this.qv.qc) {
+      // c'est un compte O
+      const qcj = this.qcj
+      pcc = qcj ? Math.round( (consoj * 100) / qcj) : 199
+      if (pcc > 199) pcc = 199  
+    }
     const pc1 = Math.round((v1 * 100) / this.qv.q1)
     const pc2 = Math.round((v2 * 100) / (this.qv.q2 * UNITEV2))
     let max = pcc; if (pc1 > max) max = pc1; if (pc2 > max) max = pc2
     return {pcc, pc1, pc2, max}
+  }
+
+  get notifQ () { // notiication de dépassement de quotas
+    const { max } = this.pourcents
+    const ntf = { dh: this.dh }
+    if (max >= 100) { ntf.nr = 5; ntf.texte = 'R' }
+    else if (max >= 90) { ntf.nr = 0; ntf.texte = 'I' }
+    return ntf
+  }
+
+  get notifX () { // consommation excessive
+    const ntf = { dh: this.dh }
+    if (this.qv.qc) {
+      const { pcc } = this.pourcents
+      if (pcc >= 100) { ntf.nr = 4; ntf.texte = 'R' }
+      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = 'I' }
+    }
+    return ntf
+  }
+
+  notifS (credits) { // notification de dépassement des crédits
+    const ntf = { dh: this.dh }
+    if (this.qv.qc) {
+      const solde = credits - this.cumulCouts
+      if (solde < 0) { ntf.nr = 4; ntf.texte = 'R' }
+      else {
+        const nbj = Math.round(solde / this.consoj4M)
+        if (nbj < 30) { ntf.nr = 0; ntf.texte = '' + nbj }
+      }
+    }
+    return ntf
   }
 
   /* Cadeau de dépannage de Comptable / sponsor pour surmonter un excès
