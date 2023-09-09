@@ -108,7 +108,7 @@ class Cache {
     const x = Cache.map.get(k)
     if (x) { // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
       const n = await GenDoc.getV(op.transaction, nom, id, x.row.v)
-      x.lru = new Date().getTime()
+      x.lru = Date.now()
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
         Cache.orgs.set(x.row.id, x.row.org)
@@ -117,7 +117,7 @@ class Cache {
     const n = await GenDoc.getV(op.transaction, nom, id, 0)
     if (n) { // dernière version si elle existe
       op.nl++
-      const y = { lru: new Date().getTime(), row: n }
+      const y = { lru: Date.now(), row: n }
       this.map.set(k, y)
     }
     if (n && n._nom === 'espaces' && !Cache.orgs.has(n.id))
@@ -137,7 +137,7 @@ class Cache {
       if (x) {
         if (x.row.v < row.v) x.row = row
       } else {
-        this.map.set(k, { lru: new Date().getTime(), row: row })
+        this.map.set(k, { lru: Date.now(), row: row })
       }
       if (row._nom === 'espaces' && !Cache.orgs.has(row.id))
         Cache.orgs.set(row.id, row.org)
@@ -181,7 +181,7 @@ class Cache {
 
   static async setCheckpoint (op, obj) {
     const x = obj || { v: 0 }
-    x.v = new Date().getTime()
+    x.v = Date.now()
     const _data_ = new Uint8Array(encode(x))
     if (!ctx.sql) {
       Cache.checkpoint.v = x.v
@@ -974,7 +974,7 @@ export class Operation {
       }
       if (this.authMode < 2) await this.auth() // this.session est OK
     }
-    this.dh = new Date().getTime()
+    this.dh = Date.now()
     this.nl = 0
     this.ne = 0
     this.result = { dh: this.dh, sessionId: this.authData ? this.authData.sessionId : '666' }
@@ -1498,7 +1498,7 @@ export class Operation {
     if (n > 0) for (let i = 0; i < n; i++) synt.atr.push(null)
     synt.atr[idx] = encode(x)
     if (!noupd) {
-      synt.v = new Date().getTime()
+      synt.v = Date.now()
       this.update(synt.toRow())
     }
   }
@@ -1538,7 +1538,7 @@ export class Operation {
     if (!this.authMode && s) {
       // la session est connue dans l'instance, OK
       this.session = s
-      this.ttl = new Date().getTime() + AuthSession.ttl
+      this.ttl = Date.now() + AuthSession.ttl
       if (this.session.sync) this.session.sync.pingrecu()
       return 
     } 
@@ -1572,12 +1572,12 @@ export class AuthSession {
     this.id = id
     this.ns = Math.floor(this.id / d14)
     this.sync = sync
-    this.ttl = new Date().getTime() + AuthSession.ttl
+    this.ttl = Date.now() + AuthSession.ttl
   }
 
   // Retourne la session identifiée par sessionId et en prolonge la durée de vie
   static get (sessionId) {
-    const t = new Date().getTime()
+    const t = Date.now()
     if (t - AuthSession.dernierePurge > AuthSession.ttl / 10) {
       AuthSession.map.forEach((s, k) => {
         if (t > s.ttl) AuthSession.map.delete(k)
@@ -1603,7 +1603,7 @@ export class AuthSession {
     }
     const s = new AuthSession(sessionId, id, sync)
     AuthSession.map.set(sessionId, s)
-    s.ttl = new Date().getTime() + AuthSession.ttl
+    s.ttl = Date.now() + AuthSession.ttl
     return s
   }
 }

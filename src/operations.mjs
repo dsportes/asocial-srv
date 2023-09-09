@@ -324,7 +324,7 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
       const version = compile(await this.getRowVersion(args.id, 'ProlongerSponsoring-2'), true)
       version.v++
       sp.v = version.v
-      sp.dh = new Date().getTime()
+      sp.dh = Date.now()
       if (args.dlv) {
         sp.dlv = args.dlv
       } else {
@@ -369,7 +369,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
       version.v++
       sp.v = version.v
       sp.ardx = args.ardx
-      sp.dh = new Date().getTime()
+      sp.dh = Date.now()
       sp.st = 1
       this.update(sp.toRow())
       this.update(version.toRow())
@@ -425,7 +425,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     versionsp.v++
     sp.v = versionsp.v
     sp.ardx = args.ardx
-    sp.dh = new Date().getTime()
+    sp.dh = Date.now()
     sp.st = 2
     this.update(sp.toRow())
     this.update(versionsp.toRow())
@@ -2561,7 +2561,7 @@ operations.StatutMembre = class StatutMembre extends Operation {
   }
 
   async phase2 (args) {
-    this.auj = new Date().getTime()
+    this.auj = Date.now()
     this.umb = false
     this.ugr = false
     this.dgr = false
@@ -3214,7 +3214,7 @@ operations.GCGen = class GCGen extends Operation {
     let n = 0
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const start = new Date().getTime()
+      const start = Date.now()
       const op = operations[nom]
       let ret
       try {
@@ -3229,7 +3229,7 @@ operations.GCGen = class GCGen extends Operation {
       const log = { 
         nom: nom,
         start: start,
-        duree: new Date().getTime() - start,
+        duree: Date.now() - start,
         stats: ret.stats
       }
       if (n) log.retry = n
@@ -3255,7 +3255,7 @@ operations.GCGen = class GCGen extends Operation {
   async phase1 () {
     {
       const ckpt = await this.getCheckpoint()
-      const start = new Date().getTime()
+      const start = Date.now()
       ckpt.dhStart = start
       ckpt.log = []
       ckpt.nbTaches = 0
@@ -3283,7 +3283,7 @@ operations.GCGen = class GCGen extends Operation {
 
     {
       const ckpt = await this.getCheckpoint()
-      ckpt.duree = new Date().getTime() - ckpt.dhStart
+      ckpt.duree = Date.now() - ckpt.dhStart
       await this.setCheckpoint(ckpt)
       // trace de chkpt en JSON
       const info = JSON.stringify(ckpt)

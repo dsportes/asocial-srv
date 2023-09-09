@@ -419,7 +419,7 @@ export class Compteurs {
   - dh: normalement absent. Utilisé pour faire des tests indépendants de la date-heure courante.
   */
   constructor (serial, qv, conso, dh) {
-    const t = dh || new Date().getTime()
+    const t = dh || Date.now()
     if (serial) {
       const x = decode(serial)
       Compteurs.lp.forEach(p => { this[p] = x[p]})

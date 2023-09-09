@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 export function startWs () {
   // eslint-disable-next-line no-unused-vars
   const gcSessions = setInterval(() => {
-    const dh1 = new Date().getTime()
+    const dh1 = Date.now()
     const max = PINGTO * 6 * 10000 * (ctx.debug ? 1000 : 1)
     if (ctx.debug) ctx.logger.debug('PINGTO ' + max)
     SyncSession.sessionsmortes.clear()
@@ -65,7 +65,7 @@ export class SyncSession {
       this.pingrecu(os)
       // réponse pong
       if (WSHEARTBEAT) {
-        const pong = { sessionId: newid, dh: new Date().getTime() }
+        const pong = { sessionId: newid, dh: Date.now() }
         const buf = new Uint8Array(encode(pong))
         this.ws.send(buf)
       }
