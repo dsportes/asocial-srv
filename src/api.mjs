@@ -376,12 +376,13 @@ export class Compteurs {
 
   static NBCD = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 + Compteurs.X4
 
-  static lp = ['dh0', 'dh', 'qv', 'vd', 'mm', 'aboma', 'consoma']
+  static lp = ['dh0', 'dh', 'dhraz', 'qv', 'vd', 'mm', 'aboma', 'consoma', 'dec', 'dhdec', 'njdec']
   static lqv = ['qc', 'q1', 'q2', 'nn', 'nc', 'ng', 'v2']
 
   /*
   dh0 : date-heure de création du compte
   dh : date-heure courante
+  dhraz: date-heure du dernier changement O / A
   qv : quotas et volumes du dernier calcul `{ qc, q1, q2, nn, nc, ng, v2 }`.
     Quand on _prolonge_ l'état actuel pendant un certain temps AVANT d'appliquer de nouvelles valeurs,
     il faut pouvoir disposer de celles-ci.
@@ -389,6 +390,11 @@ export class Compteurs {
   mm : [0..18] - coût abo + conso pour le mois M et les 17 mois antérieurs (si 0 pour un mois, le compte n'était pas créé)
   aboma : somme des coûts d'abonnement des mois antérieurs depuis la création du compte
   consoma : somme des coûts consommation des mois antérieurs depuis la création du compte
+  dec : niveau de découvert autorisé.
+    - compta A : montant monétaire en c
+    - compte O : pourcentage de consommation excessive tolérée
+  dhdec : date-heure d'attribution du décovert
+  njdec : nombre de jours de validité
 
   Pour chaque mois M à M-3, il y a un **vecteur** de 14 (X1 + X2 + X3 + X4) compteurs:
   - X1_moyennes et X2 cumuls servent au calcul au montant du mois
@@ -426,15 +432,24 @@ export class Compteurs {
       this.shift(t)
       if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
       if (conso) this.majConso(conso)
+      if (this.dec) {
+        if (this.dhdec + (MSPARJOUR * this.nbj) < t) {
+          this.dhdec = 0; this.dec = 0; this.njdec = 0
+        }
+      }
     } else { // création - Les quotas sont initialisés, les consommations et montants monétaires nuls
       this.dh0 = t
       this.dh = t
+      this.dhraz = 0
       this.qv = qv
       this.vd = new Array(Compteurs.NHD)
       for(let i = 0; i < Compteurs.NHD; i++) this.vd[i] = new Array(Compteurs.NBCD).fill(0)
       this.mm = new Array(Compteurs.NHM).fill(0)
       this.aboma = 0
       this.consoma = 0
+      this.dhdec = 0
+      this.njdec = 0
+      this.dec = 0
     }
   }
 
@@ -449,7 +464,9 @@ export class Compteurs {
 
   get totalAboConso () { return this.totalAbo + this.totalConso }
 
-  get cumulCouts () { return this.aboma + this.consoma + this.totalAboConso }
+  get cumulCouts () { 
+    return this.aboma + this.consoma + this.totalAboConso
+  }
 
   /* Moyenne _annualisée_ de la consommation des mois M et M-1 
   - pour M le nombre de jours est le jour du mois, 
@@ -492,7 +509,7 @@ export class Compteurs {
     }
   }
 
-  get cov1v2 () { return [ this.conso2M, this.qv.nn + this.qv.nc + this.qv.ng, this.qv.v2 ]}
+  get v1 () { return this.qv.nn + this.qv.nc + this.qv.ng }
 
   /*
   pcc : consommation annualisée sur M et M-1 / limite annuelle qc
@@ -501,25 +518,25 @@ export class Compteurs {
   max : max de pcc pc1 pc2
   */
   get pourcents () {
-    const [conso2M, v1, v2] = this.cov1v2
     let pcc = 0
     if (this.qv.qc) {
       // c'est un compte O
-      pcc = Math.round( (conso2M * 100) / this.qv.qc)
+      pcc = Math.round( (this.conso2M * 100) / this.qv.qc)
       if (pcc > 999) pcc = 999  
     }
-    const pc1 = Math.round(v1 * 100 / UNITEV1 / this.qv.q1)
-    const pc2 = Math.round(v2 * 100 / UNITEV2 / this.qv.q2)
+    const pc1 = Math.round(this.v1 * 100 / UNITEV1 / this.qv.q1)
+    const pc2 = Math.round(this.v2 * 100 / UNITEV2 / this.qv.q2)
     let max = pcc; if (pc1 > max) max = pc1; if (pc2 > max) max = pc2
     return {pcc, pc1, pc2, max}
   }
 
   get notifQ () { // notitication de dépassement de quotas
-    const { pc1, pc2 } = this.pourcents
+    const pc1 = Math.round(this.v1 * 100 / UNITEV1 / this.qv.q1)
+    const pc2 = Math.round(this.v2 * 100 / UNITEV2 / this.qv.q2)
     const max = pc1 > pc2 ? pc1 : pc2
     const ntf = { dh: this.dh }
-    if (max >= 100) { ntf.nr = 5; ntf.texte = 'R' }
-    else if (max >= 90) { ntf.nr = 0; ntf.texte = 'I' }
+    if (max >= 100) { ntf.nr = 5; ntf.texte = '%R' }
+    else if (max >= 90) { ntf.nr = 0; ntf.texte = '%I' }
     return ntf
   }
 
@@ -527,8 +544,8 @@ export class Compteurs {
     const ntf = { dh: this.dh }
     if (this.qv.qc) {
       const { pcc } = this.pourcents
-      if (pcc >= 100) { ntf.nr = 4; ntf.texte = 'R' }
-      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = 'I' }
+      if (pcc >= 100 + this.dec) { ntf.nr = 4; ntf.texte = '%R' }
+      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = '%I' }
     }
     return ntf
   }
@@ -547,24 +564,35 @@ export class Compteurs {
 
   notifS (credits) { // notification de dépassement des crédits
     const ntf = { dh: this.dh }
-    const nbj = this.nbj(credits)
-    if (!nbj) { ntf.nr = 4; ntf.texte = 'R' }
-    else { ntf.nr = 0; ntf.texte = '' + nbj }
+    const solde = credits + this.dec - this.cumulCouts
+    if (solde < 0) { ntf.nr = 4; ntf.texte = '%R' }
+    else {
+      const nbj = this.nbj(credits)
+      if (nbj < 60) {
+        ntf.nr = 0
+        ntf.texte = nbj ? '%N' + nbj : '%D'
+      }
+    }
     return ntf
   }
 
-  /* Cadeau de dépannage de Comptable / sponsor pour surmonter un excès
-  transitoire de consommation.
+  /* Autorisation de découvert d'un montant d pendant nj jours
   */
-  cadeau (c) {
-    if (c <= this.consoma) this.consoma -= c; else this.consoma = 0
+  decouvert (d, nj) {
+    this.dhdec = AMJ.am(this.dh)
+    this.njdec = nj
+    this.dec = d
     return this
   }
 
   /* Lors de la transition O <-> A : raz abonnement / consommation des mois antérieurs */
   razma () {
+    this.dhraz = Date.now()
     this.aboma = 0
     this.consoma = 0
+    this.dhdec = 0
+    this.njdec = 0
+    this.dec = 0
     return this
   }
 
