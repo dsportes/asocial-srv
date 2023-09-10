@@ -1460,8 +1460,9 @@ export class Operation {
     this.update(compta.toRow())
   }
 
-  /* lcSynt = ['q1', 'q2', 'a1', 'a2', 'v1', 'v2', 
-    'ntr1', 'ntr2', 'ntr3', 'nbc', 'nbsp', 'nco1', 'nco2'] */
+  /* lcSynt = ['qc', 'q1', 'q2', 'ac', 'a1', 'a2', 'cj', 
+  'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
+*/
   /* Mise à jour de Synthese suite à une mise à jour d'une tribu */
   async MajSynthese (tribu, noupd) {
     let synt = this.synt
@@ -1484,7 +1485,7 @@ export class Operation {
         x.ac += c.qc
         x.a1 += c.q1
         x.a2 += c.q2
-        x.cj += c.cj
+        x.ca += c.ca
         x.v1 += c.v1
         x.v2 += c.v2
         x.nbc++

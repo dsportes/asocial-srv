@@ -62,8 +62,8 @@ export class ID {
   static ns (id) { return Math.floor(id / d14)}
 }
 
-export const UNITEV1 = 250000
-export const UNITEV2 = 25000000
+export const UNITEV1 = 250
+export const UNITEV2 = 100 * 1000 * 1000
 
 export const E_BRK = 1000 // Interruption volontaire de l'opération
 export const E_WS = 2000 // Toutes erreurs de réseau
@@ -287,21 +287,20 @@ export function edvol (vol, u) {
   
 /* Un tarif correspond à,
 - `am`: son premier mois d'application. Un tarif s'applique toujours au premier de son mois.
-- `cu` : un tableau de 7 coûts unitaires `[dt, u1, u2, ul, ue, um, ud]`
-  - 'uc': 365 jours de quota de consommation
-  - `u1`: 365 jours de quota q1 (250 notes / chats)
-  - `u2`: 365 jours de quota q2 (100Mo)
-  - `ul`: 1 million de lectures
-  - `ue`: 1 million d'écritures
-  - `um`: 1 GB de transfert montant.
-  - `ud`: 1 GB de transfert descendant.
+- `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
+  - `u1`: abonnement annuel en c à 250 notes / chats (250 = UNITEV1)
+  - `u2`: abonnement annuel en c à 100Mo de fichiers (100Mo = UNITEV2)
+  - `ul`: 1 million de lectures en c
+  - `ue`: 1 million d'écritures en c
+  - `um`: 1 GB de transfert montant en c
+  - `ud`: 1 GB de transfert descendant en c
 - les coûts sont en centimes d'euros
 */
 export class Tarif {
   static tarifs = [
-    { am: 202201, cu: [1.5, 0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202305, cu: [1.7, 0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202309, cu: [1.8, 0.45, 0.10, 80, 200, 15, 15] }
+    { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
+    { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
+    { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
   ]
 
   static init(t) { Tarif.tarifs = t}
@@ -332,7 +331,7 @@ Unités:
 - € : unité monétaire.
 
 quotas et volumes `qv` : `{ qc, q1, q2, nn, nc, ng, v2 }`
-- `qc`: quota de consommation
+- `qc`: limite de consommation
 - `q1`: quota du nombre total de notes / chats / groupes.
 - `q2`: quota du volume des fichiers.
 - `nn`: nombre de notes existantes.
@@ -359,6 +358,7 @@ export class Compteurs {
   static X3 = 4 // nombre de compteurs de volume (notes, chats, groupes v2)
   static X4 = 3 // nombre de compteurs techniques (ms ca cc)
 
+  static CUCONSO = 2 // indice du premier CU de consommation
   static QC = 0 // quota de consommation
   static Q1 = 1 // quota du nombre total de notes / chats / groupes.
   static Q2 = 2 // quota du volume des fichiers.
@@ -451,52 +451,72 @@ export class Compteurs {
 
   get cumulCouts () { return this.aboma + this.consoma + this.totalAboConso }
 
-  /* retourne la consommation (sans l'abonnement) des mois M et M-1 
-  - ramenée à la journée.
+  /* Moyenne _annualisée_ de la consommation des mois M et M-1 
   - pour M le nombre de jours est le jour du mois, 
   - pour M-1 c'est le nombre de jours du mois.
   */
-  get consoj () {
+  get conso2M () {
     const [ac, mc] = AMJ.am(this.dh)
     const mja = AMJ.djm(mc === 1 ? ac - 1 : ac, mc === 1 ? 12 : mc - 1)
     const x = this.vd[0][Compteurs.CC] + this.vd[1][Compteurs.CC]
-    return (x / (mc + mja))
+    return mc + mja === 0 ? 0 : (x * 365 / (mc + mja))
   }
 
-  /* retourne le quota qc ramené à la journée */
-  get qcj () {
-    return this.qv.qc / MSPARAN * MSPARJOUR
-  }
-
-  /* Moyenne _journalière_ de la consommation sur le mois en cours et les 3 précédents
-  Si le nombre de jours d'existance est inférieur à 30, retourne consoj
+  /* Moyenne _annualisée_ de la consommation sur le mois en cours et les 3 précédents
+  Si le nombre de jours d'existence est inférieur à 30, retourne conso2M
   */
-  get consoj4M () {
+  get conso4M () {
     let c = 0, ms = 0
-    for(let i = 0; i < Compteurs.NHD; i++) { c += this.vd[i][Compteurs.CC]; ms += this.vd[i][Compteurs.MS]; }
+    for(let i = 0; i < Compteurs.NHD; i++) { 
+      c += this.vd[i][Compteurs.CC]
+      ms += this.vd[i][Compteurs.MS]
+    }
     const nbj = Math.floor(ms / MSPARJOUR)
-    return nbj < 30 ? this.consoj : (c / nbj)
+    return nbj < 30 ? this.conso2M : (c * 365 / nbj)
   }
 
-  get cjv1v2 () { return [ this.consoj, this.qv.nn + this.qv.nc + this.qv.ng, this.qv.v2 ]}
+  /* Moyenne _annualisée_ de l'abonnement sur le mois en cours et les 3 précédents
+  */
+  get abo4M () {
+    let ams = 0, ms = 0
+    for(let i = 0; i < Compteurs.NHD; i++) { 
+      ms += this.vd[i][Compteurs.MS]
+      ams += (this.vd[i][Compteurs.CA] * ms )
+    }
+    if (ms === 0) {
+      const [ac, mc] = AMJ.am(this.dh)
+      const cu = Tarif.cu(ac, mc)
+      return (this.qv.q1 * cu[0]) + (this.qv.q2 * cu[1])
+    } else {
+      return ams / ms * MSPARAN
+    }
+  }
 
+  get cov1v2 () { return [ this.conso2M, this.qv.nn + this.qv.nc + this.qv.ng, this.qv.v2 ]}
+
+  /*
+  pcc : consommation annualisée sur M et M-1 / limite annuelle qc
+  pc1 : nombre actuel de notes, chats, groupes / abonnement q1
+  pc2 : volume actuel des fichiers / abonnement q2
+  max : max de pcc pc1 pc2
+  */
   get pourcents () {
-    const [consoj, v1, v2] = this.cjv1v2
+    const [conso2M, v1, v2] = this.cov1v2
     let pcc = 0
     if (this.qv.qc) {
       // c'est un compte O
-      const qcj = this.qcj
-      pcc = qcj ? Math.round( (consoj * 100) / qcj) : 199
-      if (pcc > 199) pcc = 199  
+      pcc = Math.round( (conso2M * 100) / this.qv.qc)
+      if (pcc > 999) pcc = 999  
     }
-    const pc1 = Math.round((v1 * 100) / this.qv.q1)
-    const pc2 = Math.round((v2 * 100) / (this.qv.q2 * UNITEV2))
+    const pc1 = Math.round(v1 * 100 / UNITEV1 / this.qv.q1)
+    const pc2 = Math.round(v2 * 100 / UNITEV2 / this.qv.q2)
     let max = pcc; if (pc1 > max) max = pc1; if (pc2 > max) max = pc2
     return {pcc, pc1, pc2, max}
   }
 
-  get notifQ () { // notiication de dépassement de quotas
-    const { max } = this.pourcents
+  get notifQ () { // notitication de dépassement de quotas
+    const { pc1, pc2 } = this.pourcents
+    const max = pc1 > pc2 ? pc1 : pc2
     const ntf = { dh: this.dh }
     if (max >= 100) { ntf.nr = 5; ntf.texte = 'R' }
     else if (max >= 90) { ntf.nr = 0; ntf.texte = 'I' }
@@ -513,16 +533,23 @@ export class Compteurs {
     return ntf
   }
 
+  /* Nombre de jours avant que le solde devienne négatif
+  en prolongeant le coût d'abonnement et ceux de consommation sur les 4 derniers mois
+  */
+  nbj (credits) {
+    const solde = credits - this.cumulCouts
+    if (solde <= 0) return 0
+    const [ac, mc] = AMJ.am(this.dh)
+    const cu = Tarif.cu(ac, mc)
+    const abo = (this.qv.q1 * cu[0]) + (this.qv.q2 * cu[1])
+    return Math.floor(solde / (abo + this.conso4M))
+  }
+
   notifS (credits) { // notification de dépassement des crédits
     const ntf = { dh: this.dh }
-    if (!this.qv.qc) {
-      const solde = credits - this.cumulCouts
-      if (solde < 0) { ntf.nr = 4; ntf.texte = 'R' }
-      else {
-        const nbj = Math.round(solde / this.consoj4M)
-        if (nbj < 30) { ntf.nr = 0; ntf.texte = '' + nbj }
-      }
-    }
+    const nbj = this.nbj(credits)
+    if (!nbj) { ntf.nr = 4; ntf.texte = 'R' }
+    else { ntf.nr = 0; ntf.texte = '' + nbj }
     return ntf
   }
 
@@ -549,19 +576,19 @@ export class Compteurs {
     let m = 0
     if (conso.nl) {
       v[Compteurs.X1 + Compteurs.NL] += conso.nl
-      m += cu[Compteurs.X1 + Compteurs.NL] * conso.nl / Compteurs.COEFFCONSO[Compteurs.NL]
+      m += cu[Compteurs.CUCONSO + Compteurs.NL] * conso.nl / Compteurs.COEFFCONSO[Compteurs.NL]
     }
     if (conso.ne) {
       v[Compteurs.X1 + Compteurs.NE] += conso.ne
-      m += cu[Compteurs.X1 + Compteurs.NE] * conso.ne / Compteurs.COEFFCONSO[Compteurs.NE]
+      m += cu[Compteurs.CUCONSO + Compteurs.NE] * conso.ne / Compteurs.COEFFCONSO[Compteurs.NE]
     }
     if (conso.vd) {
       v[Compteurs.X1 + Compteurs.VD] += conso.vd
-      m += cu[Compteurs.X1 + Compteurs.VD] * conso.vd / Compteurs.COEFFCONSO[Compteurs.VD]
+      m += cu[Compteurs.CUCONSO + Compteurs.VD] * conso.vd / Compteurs.COEFFCONSO[Compteurs.VD]
     }
     if (conso.vm) {
       v[Compteurs.X1 + Compteurs.VM] += conso.vm
-      m += cu[Compteurs.X1 + Compteurs.VM] * conso.vm / Compteurs.COEFFCONSO[Compteurs.VM]
+      m += cu[Compteurs.CUCONSO + Compteurs.VM] * conso.vm / Compteurs.COEFFCONSO[Compteurs.VM]
     }
     v[Compteurs.CC] += m
   }
@@ -655,7 +682,7 @@ export class Compteurs {
   calculMC (av, ap, vmc, cu) { // calcul du mois courant par extension
     const v = new Array(Compteurs.NBCD).fill(0)
     v[Compteurs.MS] = av + ap // nombre de millisecondes du mois
-    // Les X1 premiers compteurs sont des moyennes de quotas
+    // Les compteurs sont des moyennes de quotas
     for(let i = 0; i < Compteurs.X1; i++)
       v[i] = this.moy(av, ap, vmc[i], this.qv[Compteurs.lqv[i]])
     // Les X2 suivants sont des cumuls de consommation
@@ -667,31 +694,32 @@ export class Compteurs {
       v[j] = this.moy(av, ap, vmc[j], this.qv[y])
     }
     // calcul du montant par multiplication par leur cout unitaire.
-    // pour les X1 premiers "abonnement" le cu est annuel: on le calcule au prorata des ms du mois / ms d'un an
+    // pour les "abonnements" Q1 et Q2 le cu est annuel: 
+    // on le calcule au prorata des ms du mois / ms d'un an
     const px = v[Compteurs.MS] / MSPARAN
-    for(let i = 0; i < Compteurs.X1; i++)
-      v[Compteurs.CA] += v[i] * cu[i] * px
+    for(let i = 1; i < Compteurs.X1; i++)
+      v[Compteurs.CA] += v[i] * cu[i - 1] * px
     // pour les X2 suivants, coût unitaire est par Mega ou Giga
     for(let i = Compteurs.X1, c = 0; i < Compteurs.X1 + Compteurs.X2; i++, c++)
-      v[Compteurs.CC] += v[i] * cu[i] / Compteurs.COEFFCONSO[c]
+      v[Compteurs.CC] += v[i] * cu[Compteurs.CUCONSO + c] / Compteurs.COEFFCONSO[c]
     return v
   }
 
   calculNM (cu, msmois) { // calcul d'un nouveau mois ENTIER
     const v = new Array(Compteurs.NBCD).fill(0)
     v[Compteurs.MS] = msmois// nombre de millisecondes du mois
-    // Les X1 premiers compteurs sont des moyennes de quotas à initialiser
+    // Les X1 premiers compteurs sont des quotas à initialiser
     for(let i = 0; i < Compteurs.X1; i++)
       v[i] = this.qv[Compteurs.lqv[i]]
     // Les X2 suivants sont des cumuls de consommation à mettre à 0
     for(let i = 0, j = Compteurs.X1; i < Compteurs.X2; i++, j++)
       v[j] = 0
-    // Les X3 suivants sont des moyennes de consommations à initialiser
+    // Les X3 suivants sont des nombres de notes ... existantes
     for(let i = 0, j = Compteurs.X1 + Compteurs.X2; i < Compteurs.X3; i++, j++) {
       const y = Compteurs.lqv[Compteurs.X1 + i]
       v[j] = this.qv[y]
     }
-    // Seuls les quotas accroissent l'abonnement. Il n'y a pas de consommation
+    // Seuls Q1 et Q2 accroissent l'abonnement. Il n'y a pas de consommation
     for(let i = 0; i < Compteurs.X1; i++) {
       v[Compteurs.CA] += v[i] * cu[i] * (msmois / MSPARAN)
     }
@@ -707,7 +735,7 @@ export class Compteurs {
   cumulCouts=${e6(c.cumulCouts)}
   aboma=${e6(c.aboma)} consoma=${e6(c.consoma)}
   totalAbo= ${e6(c.totalAbo)} totalConso= ${e6(c.totalConso)}
-  consoj= ${e6(c.consoj)}  consoj4M= ${e6(c.consoj4M)}  qcj= ${e6(c.qcj)}`
+  conso2M= ${e6(c.conso2M)}  conso4M= ${e6(c.conso4M)}`
     console.log(JSON.stringify(c.qv) + p)
   }
   
