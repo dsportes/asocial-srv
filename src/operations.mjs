@@ -188,11 +188,6 @@ POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `ns` : id de l'espace notifié
 - `notif` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
-  - `idSource`: id du Comptable ou du sponsor, par convention 0 pour l'administrateur.
-  - `jbl` : jour de déclenchement de la procédure de blocage sous la forme `aaaammjj`, 0 s'il n'y a pas de procédure de blocage en cours.
-  - `nj` : en cas de procédure ouverte, nombre de jours après son ouverture avant de basculer en niveau 4.
-  - `texte` : texte informatif, pourquoi, que faire ...
-  - `dh` : date-heure de dernière modification (informative).
 
 Retour: 
 - `rowEspace` : le row espaces mis à jour.

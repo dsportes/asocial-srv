@@ -1,4 +1,4 @@
-import { mode, config } from './config.mjs'
+import { /* mode,*/ config } from './config.mjs'
 
 function getHP (url) {
   let origin = url
@@ -28,11 +28,13 @@ export const ctx = {
 // webpack ne build pas correctement
 import { Database } from './loadreq.mjs'
 
+/*
 if (!config.firestore) {
   const db = Database(mode === 2 ? './test.db3' : '../test.db3')
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(1)
   console.log(row.id, row.name)
 }
+*/
 
 import http from 'http'
 import https from 'https'
@@ -235,9 +237,7 @@ try { // Récupération de la configuration et définition du contexte d'exécut
         if (ctx.lastSql.length > 3) ctx.lastSql.length = 3
       } 
     }
-    console.log('7 avant db')
     ctx.sql = Database(p, options)
-    console.log('8 après db')
     ctx.fs = null
   }
   ctx.storage = getStorageProvider(config.storage_provider)

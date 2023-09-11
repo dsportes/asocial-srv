@@ -22,7 +22,7 @@ export const config = {
   pathapp: mode === 1 ? '' : './app',
   prefixwww: '/www',
   pathwww: mode === 1 ? '' : './www',
-  pathsql: mode === 2 ? './sqlite/test1.db3' : '../sqlite/test1.db3',
+  pathsql: mode === 2 ? './sqlite/test.db3' : '../sqlite/test1.db3',
   pathlogs: mode === 2 ? './logs' : '../logs',
   // favicon: 'favicon.ico', 
 
