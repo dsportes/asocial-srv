@@ -552,56 +552,6 @@ operations.MajTribuVols = class MajTribuVols extends Operation {
   }
 }
 
-/* TODO - AlignerComptas : alignement des compteurs de comptas sur un 
-décompte précis avec connexion (si la version passée en argument est toujours la bonne).
-POST:
-- `token` : éléments d'authentification du comptable.
-- `id` : id du compte.
-- `v` : version de comptas
-- `qv` : { ng nc nn v1 v2 } compteurs de volume rectifiés
-- `soldeCK`: de comptas
-- `idt`: id de la tribu. null pour un compte A
-- `it`: indice du compte dans act de la tribu 
-Pré-condition sur `lgrk` d'un avatar (après résiliation de la participation à un groupe)
-- `ida` : id de l'avatar
-- `ni` : ni de son élément dans lgrk.
-
-Quand il y a une pré-condition, l'opération, 
-- est IGNOREE si l'élément ni de lgrk de l'avatar ida n'existe pas: la mise à jour a déjà été faite.
-- sinon cet élément est détruit et lopération est faite.
-
-Retour:
-- `rowComptas` : si non null, l'opération est à refaire aprè un petit délai et avoir remis à jour `comptas` par sa nouvelle version. 
-
-Assertions sur l'existence du row `Comptas` compte et de sa `Tribus`
-*/
-operations.AlignerComptas = class AlignerComptas extends Operation {
-  constructor () { super('AlignerComptas')}
-
-  async phase2 (args) {
-    const compta = compile(await this.getRowCompta(args.id, 'AlignerComptas-1'))
-    if (compta.v !== args.v) return
-    compta.v++
-    compta.soldeCK = args.soldeCK
-    const x = compta.qv
-    x.ng = args.qv.ng
-    x.nc = args.qv.nc
-    x.nn = args.qv.nn
-    x.v1 = args.qv.v1
-    x.v2 = args.qv.v2
-    compta.compteurs = new Compteurs(compta.compteurs).setqv(args.qv).serial
-    if (args.it) {
-      const tribu = compile(await this.getRowTribu(args.idt, 'AlignerComptas-2'))
-      tribu.v++
-      tribu.act[args.it].v1 = args.qv.v1
-      tribu.act[args.it].v2 = args.qv.v2
-      this.update(tribu.toRow())
-      await this.MajSynthese(tribu)
-    }
-    ctx.logger.info('AlignerComptas !!! ' + JSON.stringify({id: args.id, qv: args.qv}))
-  }
-}
-
 /* `GestionAb` : gestion des abonnements
 Toutes les opérations permettent de modifier la liste des abonnements,
 - `abPlus` : liste des avatars et groupes à ajouter,
