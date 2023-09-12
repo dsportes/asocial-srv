@@ -1753,8 +1753,8 @@ POST:
 - `token` : éléments d'authentification du compte.
 - `id` : id de la tribu
 - `idc` : id du comptable
-- `atrItem` : élément de `atr` `{clet, info, q1, q2}` cryptés par sa clé K.
-- `quotas` : `[q1, q2]` si changement des quotas, sinon null
+- `atrItem` : élément de `atr` `{clet, info, q}` cryptés par sa clé K.
+- `quotas` : `[qc, q1, q2]` si changement des quotas, sinon null
 
 Assertion sur l'existence des rows `Comptas` du comptable et `Tribus` de la tribu.
 */
@@ -1765,8 +1765,9 @@ operations.SetAtrItemComptable = class SetAtrItemComptable extends Operation {
     if (args.quotas) {
       const tribu = compile(await this.getRowTribu(args.id, 'SetAtrItemComptable-1'))
       tribu.v++
-      tribu.q1 = args.quotas[0]
-      tribu.q2 = args.quotas[1]
+      tribu.qc = args.quotas[0]
+      tribu.q1 = args.quotas[1]
+      tribu.q2 = args.quotas[2]
       this.update(tribu.toRow())
       await this.MajSynthese(tribu)
     }

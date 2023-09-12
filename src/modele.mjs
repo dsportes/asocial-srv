@@ -1186,13 +1186,13 @@ export class Operation {
 
   async getRowTicket (id, assert) {
     const tr = await GenDoc.getNV(this, 'tickets', id)
-    if (assert && !tr) throw assertKO('getRowTicket/' + assert, 2, [id])
+    if (assert && !tr) throw assertKO('getRowTicket/' + assert, 15, [id])
     return tr
   }
 
   async getRowEspace (id, assert) {
     const tr = await Cache.getRow(this, 'espaces', id)
-    if (assert && !tr) throw assertKO('getRowEspace/' + assert, 2, [id])
+    if (assert && !tr) throw assertKO('getRowEspace/' + assert, 1, [id])
     return tr
   }
 
@@ -1211,13 +1211,13 @@ export class Operation {
 
   async getRowSynthese (id, assert) {
     const tr = await Cache.getRow(this, 'syntheses', id)
-    if (assert && !tr) throw assertKO('getRowSynthese/' + assert, 2, [id])
+    if (assert && !tr) throw assertKO('getRowSynthese/' + assert, 16, [id])
     return tr
   }
 
   async getRowCompta (id, assert) {
     const cp = await Cache.getRow(this, 'comptas', id)
-    if (assert && !cp) throw assertKO('getRowCompta/' + assert, 4, [id])
+    if (assert && !cp) throw assertKO('getRowCompta/' + assert, 3, [id])
     return cp
   }
 
@@ -1419,7 +1419,7 @@ export class Operation {
     return row
   }
     
-  /* Met à jour les volumes du groupe
+  /* Met à jour les volumes du groupe TODO
   Refuse si le volume est ex expansion et qu'il dépasse le quota
   L'objet version du groupe est mis à jour et retourné
   */
@@ -1438,7 +1438,7 @@ export class Operation {
     return vg
   }
 
-  /* Maj des compteurs :
+  /* Maj des compteurs : TODO
   Si ex: lève une exception en cas de dépassement de quota
   Retourne compta
   */

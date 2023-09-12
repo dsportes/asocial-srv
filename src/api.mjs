@@ -62,8 +62,9 @@ export class ID {
   static ns (id) { return Math.floor(id / d14)}
 }
 
-export const UNITEV1 = 250
-export const UNITEV2 = 100 * 1000 * 1000
+export const UNITEV0 = 10 // 10c : unité d'allocation de limite calcul
+export const UNITEV1 = 250 // nombre de notes + chats + groupes
+export const UNITEV2 = 100 * 1000 * 1000 // volume de fichiers
 
 export const E_BRK = 1000 // Interruption volontaire de l'opération
 export const E_WS = 2000 // Toutes erreurs de réseau
