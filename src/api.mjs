@@ -542,6 +542,8 @@ export class Compteurs {
 
   get v1 () { return this.qv.nn + this.qv.nc + this.qv.ng }
 
+  get v2 () { return this.qv.v2 }
+
   /*
   pcc : consommation annualisée sur M et M-1 / limite annuelle qc
   pc1 : nombre actuel de notes, chats, groupes / abonnement q1
