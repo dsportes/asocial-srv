@@ -221,7 +221,7 @@ export class AMJ {
     return (a * 10000) + (m * 100) + 1
   }
 
-  // Retourne l'amj du dernier jour du mois de celle passée en argument
+  // Retourne l'amj du dernier jour du mois précédent
   static djMoisPrec (amj) {
     const [a, m, ] = AMJ.aaaammjj(amj)
     const [ap, mp] = m === 1 ? [a - 1, 12] : [a, m - 1]
@@ -273,6 +273,10 @@ export class AMJ {
     const t1 = Date.UTC(a2, m2, 1, 0, 0, 0) // t1 du premier du mois suivant
     // console.log(new Date(t1).toISOString())
     return [t0, t - t0, t1 - t]
+  }
+
+  static t0MoisM (a, m) {
+    return Date.UTC(a, m - 1, 1, 0, 0, 0)
   }
 }
 
@@ -394,7 +398,7 @@ export class Compteurs {
   dec : niveau de découvert autorisé.
     - compta A : montant monétaire en c
     - compte O : pourcentage de consommation excessive tolérée
-  dhdec : date-heure d'attribution du décovert
+  dhdec : date-heure d'attribution du découvert
   njdec : nombre de jours de validité
 
   Pour chaque mois M à M-3, il y a un **vecteur** de 14 (X1 + X2 + X3 + X4) compteurs:
@@ -459,6 +463,32 @@ export class Compteurs {
     return new Uint8Array(encode(x))
   }
 
+  /* début de la période de référence [x, dh]
+  x: 0 -> création du compte
+  x: 1 -> début du mois précédent
+  x: 2 -> compte devient autonome
+  x: 3 -> compte devient organisation
+  */
+  get debref () {
+    if (!this.qv.qc) return [this.dhraz ? 2 : 0, this.dhraz || TouchList.dh0]
+    const [a, m] = AMJ.am(this.dh)
+    let ax = a, mx = m -1
+    if (mx === 0) { mx = 12; ax--}
+    const tmp = AMJ.t0MoisM(ax, mx)
+    if (this.dhraz && this.dhraz > tmp) return [3, this.dhraz]
+    return tmp < this.dho ? [0, this.dh0] : [1, tmp]
+  }
+
+  // retourne [m, dhf] - montant du découvert, date-heure de fin
+  // null si pas de découvert
+  get decouvert () {
+    if (!this.dec) return null
+    const dhf = this.dhdec + (this.njdec * MSPARJOUR)
+    return dhf > this.dh ? [this.dec, dhf] : null
+  }
+
+  get estA () { return this.qv.qc === 0 }
+
   get totalAbo () { return this.vd[0][Compteurs.CA] + this.vd[1][Compteurs.CA] }
 
   get totalConso () { return this.vd[0][Compteurs.CC] + this.vd[1][Compteurs.CC] }
@@ -469,7 +499,7 @@ export class Compteurs {
     return this.aboma + this.consoma + this.totalAboConso
   }
 
-  /* Moyenne _annualisée_ de la consommation des mois M et M-1 
+  /* Rythme annuel de consommation sur les mois M et M-1 
   - pour M le nombre de jours est le jour du mois, 
   - pour M-1 c'est le nombre de jours du mois.
   */
@@ -579,7 +609,7 @@ export class Compteurs {
 
   /* Autorisation de découvert d'un montant d pendant nj jours
   */
-  decouvert (d, nj) {
+  setDecouvert (d, nj) {
     this.dhdec = AMJ.am(this.dh)
     this.njdec = nj
     this.dec = d
