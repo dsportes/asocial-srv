@@ -470,13 +470,25 @@ export class Compteurs {
   x: 3 -> compte devient organisation
   */
   get debref () {
-    if (!this.qv.qc) return [this.dhraz ? 2 : 0, this.dhraz || TouchList.dh0]
-    const [a, m] = AMJ.am(this.dh)
-    let ax = a, mx = m -1
-    if (mx === 0) { mx = 12; ax--}
-    const tmp = AMJ.t0MoisM(ax, mx)
-    if (this.dhraz && this.dhraz > tmp) return [3, this.dhraz]
-    return tmp < this.dho ? [0, this.dh0] : [1, tmp]
+    let x = 0, t = 0
+    if (!this.qv.qc) {
+      x = this.dhraz ? 2 : 0
+      t = this.dhraz || this.dh0
+    } else {
+      const [a, m] = AMJ.am(this.dh)
+      let ax = a, mx = m - 1
+      if (mx === 0) { mx = 12; ax--}
+      const tmp = AMJ.t0MoisM(ax, mx)
+      if (this.dhraz && this.dhraz > tmp) {
+        x = 3
+        t = this.dhraz
+      } else {
+        if (tmp < this.dh0) { x = 0; t = this.dh0 }
+        else { x = 1; t = tmp }
+      }
+    }
+    const r = [x, t, Math.floor((this.dh - t) / MSPARJOUR)]
+    return r
   }
 
   // retourne [m, dhf] - montant du découvert, date-heure de fin
@@ -489,14 +501,16 @@ export class Compteurs {
 
   get estA () { return this.qv.qc === 0 }
 
-  get totalAbo () { return this.vd[0][Compteurs.CA] + this.vd[1][Compteurs.CA] }
+  get cumulAbo () { 
+    return this.aboma + this.vd[0][Compteurs.CA]
+  }
 
-  get totalConso () { return this.vd[0][Compteurs.CC] + this.vd[1][Compteurs.CC] }
-
-  get totalAboConso () { return this.totalAbo + this.totalConso }
+  get cumulConso () { 
+    return this.consoma + this.vd[0][Compteurs.CC]
+  }
 
   get cumulCouts () { 
-    return this.aboma + this.consoma + this.totalAboConso
+    return this.cumulAbo + this.cumulConso
   }
 
   /* Rythme annuel de consommation sur les mois M et M-1 
@@ -592,7 +606,8 @@ export class Compteurs {
     const [ac, mc] = AMJ.am(this.dh)
     const cu = Tarif.cu(ac, mc)
     const abo = (this.qv.q1 * cu[0]) + (this.qv.q2 * cu[1])
-    return Math.floor(solde / (abo + this.conso4M))
+    const x = Math.floor(solde / (abo + this.conso4M) * 365)
+    return x < 999 ? x : 999
   }
 
   notifS (credits) { // notification de dépassement des crédits
