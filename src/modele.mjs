@@ -125,6 +125,33 @@ class Cache {
     return n
   }
 
+  /* Retourne l'espace depuis celui détenu en cache
+  C'est seulement s'il a plus de PINGTO minutes d'âge qu'on vérifie sa version
+  et qu'on la recharge le cas échéant.
+  PAR PRINCIPE, elle est retardée: convient pour checker une restriction éventuelle
+  */
+  static async getEspaceLazy (ns) {
+    const now = Date.now()
+    const k = 'espaces/' + ns
+    let x = Cache.map.get(k)
+    if (x) {
+      if ((now - x.lru) > PINGTO * 60000) {
+        // Le row connu a plus de 5 minutes - if faut revérifier la version
+        const e = await GenDoc.getV('fake', 'espaces', ns, x.row.v)
+        if (e) x.row = e
+        x.lru = now
+        if (!Cache.orgs.has(x.row.id)) Cache.orgs.set(x.row.id, x.row.org)
+      }
+    } else {
+      const e = await GenDoc.getV('fake', 'espaces', ns, 0)
+      if (!e) return null
+      x = { lru: Date.now(), row: e }
+      this.map.set(k, x)
+    }
+    if (!Cache.orgs.has(x.row.id)) Cache.orgs.set(x.row.id, x.row.org)
+    return compile(x.row)
+  }
+
   /*
   Enrichissement de la cache APRES le commit de la transaction avec
   tous les rows créés, mis à jour ou accédés (en ayant obtenu la "dernière")
@@ -959,7 +986,7 @@ Une opération a deux phases :
   -abMoins : array des ids à désabonner: désabonnements après la phase 2 (après commit)
 */
 export class Operation {
-  constructor (nomop) { this.nomop = nomop, this.authMode = 0 }
+  constructor (nomop) { this.nomop = nomop, this.authMode = 0, this.lecture = false }
 
   /* Exécution de l'opération */
   async run (args) {
@@ -1438,25 +1465,42 @@ export class Operation {
     return vg
   }
 
-  /* Maj des compteurs : TODO
-  Si ex: lève une exception en cas de dépassement de quota
-  Retourne compta
+  /* Maj des compteurs de comptas
+    Objet quotas et volumes `qv` : `{ qc, q1, q2, nn, nc, ng, v2 }`
+    - `qc`: quota de consommation
+    - `q1`: quota du nombre total de notes / chats / groupes.
+    - `q2`: quota du volume des fichiers.
+    - `nn`: nombre de notes existantes.
+    - `nc`: nombre de chats existants.
+    - `ng` : nombre de participations aux groupes existantes.
+    - `v2`: volume effectif total des fichiers.
   */
-  async majCompteursCompta (idc, dv1, dv2, vt, ex, assert) {
-    if (!idc || (dv1 === 0 && dv2 === 0 && vt === 0)) return null
+  async diminutionVolumeCompta (idc, dnn, dnc, dng, dv2, assert) {
     const compta = compile(await this.getRowCompta(idc, assert))
     const qv = compta.qv
-    qv.v1 += dv1
-    const dep1 = (qv.q1 * UNITEV1) < qv.v1
-    qv.v2 += dv2
-    const dep2 = (qv.q2 * UNITEV2) < qv.v2
-    const c = new Compteurs(compta.compteurs)
-    if (ex && dv1 > 0 && dep1) throw new AppExc(F_SRV, 55, [qv.v1, qv.q1])
-    if (ex && dv2 > 0 && dep2) throw new AppExc(F_SRV, 55, [qv.v2, qv.q2])
-    c.setqv(qv)
-    c.setTr(vt)
-    compta.compteurs = c.serial
+    qv.nn -= dnn
+    qv.nc -= dnc
+    qv.ng -= dng
+    qv.v2 -= dv2
+    const ser = new Compteurs(compta.compteurs, qv).serial
     compta.v++
+    compta.compteurs = ser
+    this.update(compta.toRow())
+  }
+
+  async augmentationVolumeCompta (idc, dnn, dnc, dng, dv2, assert) {
+    const compta = compile(await this.getRowCompta(idc, assert))
+    const qv = compta.qv
+    qv.nn += dnn
+    qv.nc += dnc
+    qv.ng += dng
+    const v1 = qv.nn + qv.nc + qv.ng
+    if (v1 > qv.q1) throw new AppExc(F_SRV, 55, [v1, qv.q1])
+    qv.v2 += dv2
+    if (qv.v2 > qv.q2 * UNITEV2) throw new AppExc(F_SRV, 56, [qv.v2, qv.q2])
+    const ser = new Compteurs(compta.compteurs, qv).serial
+    compta.v++
+    compta.compteurs = ser
     this.update(compta.toRow())
   }
 
@@ -1535,7 +1579,7 @@ export class Operation {
   - compta: l'objet compilé correspondant
   */
   async auth () {
-    const s = AuthSession.get(this.authData.sessionId)
+    const s = AuthSession.get(this.authData.sessionId, this.lecture)
     if (!this.authMode && s) {
       // la session est connue dans l'instance, OK
       this.session = s
@@ -1547,7 +1591,7 @@ export class Operation {
     const shax64 = Buffer.from(this.authData.shax).toString('base64')
     if (ctx.config.admin.indexOf(shax64) !== -1) {
       // session admin authentifiée
-      this.session = AuthSession.set(this.authData.sessionId, 0)
+      this.session = AuthSession.set(this.authData.sessionId, 0, true)
       return
     }
 
@@ -1557,7 +1601,7 @@ export class Operation {
     this.compta = compile(rowCompta)
     const sh = Buffer.from(this.compta.shay).toString('base64')
     if (sh !== shay) throw new AppExc(F_SRV, 101)
-    this.session = AuthSession.set(this.authData.sessionId, this.compta.id)
+    this.session = AuthSession.set(this.authData.sessionId, this.compta.id, this.lecture)
   }
 }
 
@@ -1576,8 +1620,24 @@ export class AuthSession {
     this.ttl = Date.now() + AuthSession.ttl
   }
 
+  setEspace (noExcFige) {
+    if (!this.id) return this
+    const esp = Cache.getEspaceLazy(this.ns)
+    this.notifG = null
+    if (!esp) { 
+      this.notifG = {
+        nr: 2,
+        texte: 'Organisation inconnue', 
+        dh: Date.now()
+      }
+    } else this.notifG = esp.notif
+    if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
+    if (noExcFige || !this.notifG || this.notifG.nr !== 1) return this
+    throw AppExc.notifG(this.notifG)
+  }
+
   // Retourne la session identifiée par sessionId et en prolonge la durée de vie
-  static get (sessionId) {
+  static get (sessionId, noExcFige) {
     const t = Date.now()
     if (t - AuthSession.dernierePurge > AuthSession.ttl / 10) {
       AuthSession.map.forEach((s, k) => {
@@ -1586,6 +1646,7 @@ export class AuthSession {
     }
     const s = AuthSession.map.get(sessionId)
     if (s) {
+      s.setEspace(noExcFige)
       s.ttl = t + AuthSession.ttl
       if (s.sync) s.sync.pingrecu()
       return s
@@ -1594,7 +1655,7 @@ export class AuthSession {
   }
 
   // Enregistre la session avec l'id du compte de la session
-  static set (sessionId, id) {
+  static set (sessionId, id, noExcFige) {
     let sync = null
     if (ctx.sql) {
       sync = SyncSession.get(sessionId)
@@ -1602,7 +1663,7 @@ export class AuthSession {
       if (id) sync.setCompte(id)
       sync.pingrecu()
     }
-    const s = new AuthSession(sessionId, id, sync)
+    const s = new AuthSession(sessionId, id, sync).setEspace(noExcFige)
     AuthSession.map.set(sessionId, s)
     s.ttl = Date.now() + AuthSession.ttl
     return s

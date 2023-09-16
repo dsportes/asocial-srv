@@ -129,13 +129,22 @@ POST:
   - `vm`: volume _montant_ vers le Storage (upload).
   - `vd`: volume _descendant_ du Storage (download).
 
-Retour: rien
+Retour:
+- OK : true si l'enregistrement de la consommation a été faite
 */
 operations.EnregConso = class EnregConso extends Operation {
-  constructor () { super('EnregConso') }
+  constructor () { super('EnregConso'); this.lecture = true }
 
   async phase1(args) {
-    if (!args.conso) this.phase2 = null
+    /* this.lecture = true permet de récupérer this.session.notifG
+    et si "figé" de ne pas enregistrer la consommation.
+    Mais ça a permis de garder la session vivante
+    et de ne pas sortir en exception
+    */
+    if (this.notifG && this.notifG.nr) {
+      // espace figé
+      this.phase2 = null
+    } else if (!args.conso) this.phase2 = null
   }
 
   async phase2(args) {
@@ -145,6 +154,7 @@ operations.EnregConso = class EnregConso extends Operation {
     const c = new Compteurs(compta.compteurs, null, args.conso)
     compta.compteurs = c.serial
     this.update(compta.toRow())
+    this.setRes('ok', true)
   }
 }
 
@@ -193,6 +203,9 @@ Retour:
 - `rowEspace` : le row espaces mis à jour.
 
 Assertion sur l'existence du row `Espaces`.
+
+C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
+Elle n'écrit QUE dans espaces.
 */
 operations.SetNotifG = class SetNotifG extends Operation {
   constructor () { super('SetNotifG'); this.authMode = 1 }
@@ -217,7 +230,7 @@ Retour:
 Assertion sur l'existence du row Espace.
 */
 operations.GetEspace = class GetEspace extends Operation {
-  constructor () { super('GetEspace'); this.authMode = 1 }
+  constructor () { super('GetEspace'); this.authMode = 1; this.lecture = true }
 
   async phase2 (args) {
     const rowEspace = await this.getRowEspace(args.ns, 'GetEspace')
@@ -234,6 +247,9 @@ POST:
 Retour: rien
 
 Assertion sur l'existence du row `Espaces`.
+
+C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
+Elle n'écrit QUE dans espaces.
 */
 operations.SetEspaceT = class SetEspaceT extends Operation {
   constructor () { super('SetEspaceT')}
@@ -259,7 +275,7 @@ Retour:
 Assertion sur l'existence du row `Syntheses`.
 */
 operations.GetSynthese = class GetSynthese extends Operation {
-  constructor () { super('GetSynthese')}
+  constructor () { super('GetSynthese'); this.lecture = true }
 
   async phase2 (args) {
     const rowSynthese = await this.getRowSynthese(args.ns, 'GetSynthese')
@@ -1835,7 +1851,7 @@ Retour:
 Assertion sur l'existence du row `Comptas` du compte.
 */
 operations.GetCompteursCompta = class GetCompteursCompta extends Operation {
-  constructor () { super('GetCompteursCompta') }
+  constructor () { super('GetCompteursCompta'); this.lecture = true }
 
   async phase1 (args) {
     const compta = compile(await this.getRowCompta(args.id, 'GetCompteursCompta'))
@@ -2064,9 +2080,9 @@ operations.HebGroupe = class HebGroupe extends Operation {
       groupe.imh = args.imh
       groupe.dfh = 0
       this.update(groupe.toRow())
-      await this.majCompteursCompta (args.ida, v1, v2, 0, false, 'HebGroupe-3')
+      await this.augmentationVolumeCompta(args.idc, v1, 0, 0, v2, 'HebGroupe-3')
       if (args.t === 3) { // transfert d'hébergement
-        await this.majCompteursCompta (args.idd, -v1, -v2, 0, false, 'HebGroupe-4')
+        await this.diminutionVolumeCompta (args.idd, v1, 0, 0, v2, 'HebGroupe-4')
       }  
     }
   }
@@ -2103,7 +2119,7 @@ operations.FinHebGroupe = class FinHebGroupe extends Operation {
     groupe.idhg = null
     groupe.imh = 0
     this.update(groupe.toRow())
-    await this.majCompteursCompta (args.id, -v1, -v2, 0, false, 'FinHebGroupe-3')
+    await this.diminutionVolumeCompta (args.id, v1, 0, 0, v2, 'FinHebGroupe-3')
   }
 }
 
@@ -2444,9 +2460,9 @@ operations.StatutMembre = class StatutMembre extends Operation {
 
     if (this.mb.ids === this.gr.imh) {
       /* résiliation de l'hébergeur : rendu du volume à son compte */
-      const dv1 = -this.vg.vols.v1
-      const dv2 = -this.vg.vols.v2
-      await this.majCompteursCompta (this.args.idh, dv1, dv2, 0, false, 'StatutMembre-4')
+      const dv1 = this.vg.vols.v1
+      const dv2 = this.vg.vols.v2
+      await this.diminutionVolumeCompta (this.args.idh, dv1, 0, 0, dv2, 'StatutMembre-4')
     }
   }
 
@@ -2577,9 +2593,9 @@ operations.NouvelleNote = class NouvelleNote extends Operation {
       v.v++
       this.update(v.toRow())
     }
-    await this.majCompteursCompta (args.idc, 1, 0, 0, true, 'NouvelleNote-3')
     note.v = v.v
     this.insert(note.toRow())
+    await this.augmentationVolumeCompta(args.idc, 1, 0, 0, 0, 'NouvelleNote-2')
   }
 }
 
@@ -2729,16 +2745,16 @@ operations.SupprNote = class SupprNote extends Operation {
     if (!note) return
     this.lidf = []
     for (const idf in note.mfas) this.lidf.push(parseInt(idf))
-    const dv2 = - note.v2
+    const dv2 = note.v2
     let v
     if (ID.estGroupe(args.id)) {
-      v = await this.majVolumeGr(args.id, -1, dv2, false, 'SupprNote-1') // version du groupe (mise à jour)
+      v = await this.majVolumeGr(args.id, -1, -dv2, false, 'SupprNote-1') // version du groupe (mise à jour)
     } else {
       v = compile(await this.getRowVersion(args.id, 'SupprNote-2', true)) // version de l'avatar
       v.v++
       this.update(v.toRow())
     }
-    await this.majCompteursCompta(args.idc, -1, dv2, 0, false, 'SupprNote-3')
+    await this.diminutionVolumeCompta(args.idc, 1, 0, 0, dv2, 'SupprNote-3')
     note.v = v.v
     note._zombi = true
     this.update(note.toRow())
@@ -2765,7 +2781,7 @@ rowCvs: liste des row Cv { _nom: 'cvs', id, _data_ }
   _data_ : cva {v, photo, info} cryptée par la clé de son avatar
 */
 operations.ChargerCvs = class ChargerCvs extends Operation {
-  constructor () { super('ChargerCvs') }
+  constructor () { super('ChargerCvs'); this.lecture = true }
 
   async phase2 (args) { 
     for (const idx in args.mcv) {
@@ -2790,14 +2806,13 @@ args.idc : id du compte demandeur
 args.vt : volume du fichier (pour compta des volumes v2 transférés)
 */
 operations.GetUrl = class GetUrl extends Operation {
-  constructor () { super('GetUrl') }
+  constructor () { super('GetUrl'); this.lecture = true }
 
-  async phase2 (args) {
+  async phase1 (args) {
     const org = await this.org(ID.ns(args.id))
     const idi = args.id % d14
     const url = await ctx.storage.getUrl(org, idi, args.idf)
     this.setRes('getUrl', url)
-    await this.majCompteursCompta(args.idc, 0, 0, args.vt, false, 'GetUrl')
   }
 }
 
@@ -2960,7 +2975,9 @@ Suppression de compte seulement
 args.idt: id de la tribu du compte
 args.it: indice du compte dans act de tribu, pour suppression de cette entrée
 Suppression d'avatar seulement
-args.dv1: réduction du volume v1 du compte (notes avatar et notes des groupes hébergés)
+args.dnn: nombre de notes avatar et notes des groupes hébergés)
+args.dnc
+args.dng
 args.dv2
 Retour: OK
 - true : suprresion OK
@@ -3000,7 +3017,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
       await this.MajSynthese(tribu)
       this.update(tribu.row())
     } else {
-      await this.majCompteursCompta(args.idc, -args.dv1, -args.dv2, 0, false, 'SupprAvatar-9')
+      await this.diminutionVolumeCompta(args.idc, args.dnn, args.dnc, args.dng, args.dv2, 'SupprAvatar-9')
     }
   
     // MAJ des chats "externes"
