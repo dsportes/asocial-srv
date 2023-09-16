@@ -582,7 +582,7 @@ POST:
 Retour: rien.
 */
 operations.GestionAb = class GestionAb extends Operation {
-  constructor () { super('GestionAb') }
+  constructor () { super('GestionAb'); this.lecture = true }
 }
 
 /* `GetAvatars` : retourne les documents avatar dont la version est postérieure à celle détenue en session
@@ -598,7 +598,7 @@ Retour:
 - `rowAvatars`: array des rows des avatars dont la version est postérieure à celle indiquée en arguments.
 */
 operations.GetAvatars = class GetAvatars extends Operation {
-  constructor () { super('GetAvatars') }
+  constructor () { super('GetAvatars'); this.lecture = true }
 
   async phase2 (args) {
     const id = this.session.id
@@ -648,7 +648,7 @@ Retour:
 Assertion sur l'existence du rows `Tribus`.
 */
 operations.GetTribu = class GetTribu extends Operation {
-  constructor () { super('GetTribu') }
+  constructor () { super('GetTribu'); this.lecture = true }
 
   async phase2 (args) {
     const rowTribu = await this.getRowTribu(args.id, 'GetTribu-1')
@@ -700,7 +700,7 @@ Retour:
 - `rowGroupes` : array des rows des `Groupes` ayant une version postérieure à celle connue en session.
 */
 operations.GetGroupes = class GetGroupes extends Operation {
-  constructor () { super('GetGroupes') }
+  constructor () { super('GetGroupes'); this.lecture = true }
 
   async phase2 (args) {
     for (const id in args.mapv) {
@@ -720,7 +720,7 @@ Retour:
 - `rowNotes` : array des rows `Notes` de version postérieure à `v`.
 */
 operations.ChargerNotes = class ChargerNotes extends Operation {
-  constructor () { super('ChargerNotes') }
+  constructor () { super('ChargerNotes'); this.lecture = true }
 
   async phase2 (args) { 
     this.setRes('rowNotes', await this.getAllRowsNote(args.id, args.v))
@@ -737,7 +737,7 @@ Retour:
 - `rowChats` : array des rows `Chats` de version postérieure à `v`.
 */
 operations.ChargerChats = class ChargerChats extends Operation {
-  constructor () { super('ChargerChats') }
+  constructor () { super('ChargerChats'); this.lecture = true }
 
   async phase2 (args) { 
     this.setRes('rowChats', await this.getAllRowsChat(args.id, args.v))
@@ -754,7 +754,7 @@ Retour:
 - `rowSponsorings` : array des rows `Sponsorings` de version postérieure à `v`.
 */
 operations.ChargerSponsorings = class ChargerSponsorings extends Operation {
-  constructor () { super('ChargerSponsorings') }
+  constructor () { super('ChargerSponsorings'); this.lecture = true }
 
   async phase2 (args) { 
     this.setRes('rowSponsorings', await this.getAllRowsSponsoring(args.id, args.v))
@@ -771,7 +771,7 @@ Retour:
 - `rowMembres` : array des rows `Membres` de version postérieure à `v`.
 */
 operations.ChargerMembres = class ChargerMembres extends Operation {
-  constructor () { super('ChargerMembres') }
+  constructor () { super('ChargerMembres'); this.lecture = true}
 
   async phase2 (args) { 
     this.setRes('rowMembres', await this.getAllRowsMembre(args.id, args.v))
@@ -796,7 +796,7 @@ Retour:
 - Quand le groupe est _zombi, les row groupe, membres, notes NE SONT PAS retournés.
 */
 operations.ChargerGMS = class ChargerGMS extends Operation {
-  constructor () { super('ChargerGMS') }
+  constructor () { super('ChargerGMS'); this.lecture = TransformStreamDefaultController }
 
   async phase2 (args) {
     const vgroupe = await this.getRowVersion(args.id, 'ChargerGMS')
@@ -858,7 +858,7 @@ Retour:
 Assertion sur l'existence du row `Versions` de l'avatar.
 */
 operations.ChargerASCS = class ChargerASCS extends Operation {
-  constructor () { super('ChargerASCS') }
+  constructor () { super('ChargerASCS'); this.lecture = true }
 
   async phase2 (args) {
     const vavatar = await this.getRowVersion(args.id, 'ChargerASCS')
@@ -891,6 +891,7 @@ POST:
   - `clé` : id de l'avatar
   - `valeur` : `{v (version connue en session), dlv}`
 - `abPlus` : array des ids des groupes auxquels s'abonner
+- `estFige` : si true, ne pas egfectuer les signatures
 
 Retour:
 - `OK` : true / false si le compta ou un des avatars a changé de version.
@@ -903,9 +904,13 @@ Retour:
 Assertions sur les rows `Comptas, Avatars, Versions`.
 */
 operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
-  constructor () { super('SignaturesEtVersions') }
+  constructor () { super('SignaturesEtVersions'); this.lecture = true }
 
+  /*
+  this.lecture = true permet de tester this.session.estFige et de ne pas procéder aux signatures
+  */
   async phase2 (args) {
+    const signer = !this.session.estFige && !args.estFige
     const versions = {}
 
     // Test si "compta" a changé de version
@@ -926,7 +931,7 @@ operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
       DONC on ne devrait pas retrouver d'avatars disparus ici
       */
       versions[id] = { v: va.v }
-      if (va.dlv < e.dlv) { // signature de l'avatar
+      if (signer && (va.dlv < e.dlv)) { // signature de l'avatar
         va.dlv = e.dlv
         this.update(va.toRow())
       }
@@ -945,7 +950,7 @@ operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
         versions[id] = { v: vg.v, _zombi: true }
       } else {
         versions[id] = { v: vg.v, vols: vg.vols }
-        if (vg.dlv < e.dlv) { // signature de l'avatar
+        if (signer && (vg.dlv < e.dlv)) { // signature de l'avatar
           vg.dlv = e.dlv
           this.update(vg.toRow())
         }
@@ -956,7 +961,7 @@ operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
         if (r) { 
           /* normalement r existe : le membre ids du groupe correspond
           à un avatar qui l'a cité dans sa liste de groupe */
-          if (r.dlv < e.dlv) { // signatures des membres
+          if (signer && (r.dlv < e.dlv)) { // signatures des membres
             const membre = compile(r)
             membre.dlv = e.dlv
             this.update(membre.toRow())
@@ -1053,6 +1058,7 @@ Mises à jour des cartes de visite, quand c'est nécessaire, pour tous les chats
 
 POST:
 - `token` : éléments d'authentification du compte.
+- `estFige` : si true ne rien mettre à jour
 - `cibles` : array de : 
 
     {
@@ -1068,9 +1074,14 @@ Retour:
 Assertions sur l'existence des `Avatars Versions`.
 */
 operations.RafraichirCvs = class RafraichirCvs extends Operation {
-  constructor () { super('RafraichirCvs') }
+  constructor () { super('RafraichirCvs'); this.lecture = true }
+
+  /* this.lecture = true pour pouvoir tester this.session.estFige
+  et ne pas mettre à jour les CV si l'espace est figer
+  */
 
   async phase2 (args) {
+    const maj = !args.estFige && !this.session.estFige
     let nr = 0
     const avIs = {}
     const avEs = {}
@@ -1097,12 +1108,12 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
               v.v++
               vI = v.v
               vIs[idI] = vI
-              this.update(v.toRow())
+              if (maj) this.update(v.toRow())
             }
             chI.v = vI
             chI.vcv = avE.vcv
             chI.cva = avE.cva
-            this.update(chI.toRow())
+            if (maj) this.update(chI.toRow())
             nr++
           }
 
@@ -1121,12 +1132,12 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
               v.v++
               vE = v.v
               vEs[c.idE] = vE
-              this.update(v.toRow())
+              if (maj) this.update(v.toRow())
             }
             chE.v = vE
             chE.vcv = avI.vcv
             chE.cva = avI.cva
-            this.update(chE.toRow())
+            if (maj) this.update(chE.toRow())
           }
         }
         for(const x of c.lmb) {
@@ -1140,12 +1151,12 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
               v.v++
               vM = v.v
               vmb[idg] = vM
-              this.update(v.toRow())
+              if (maj) this.update(v.toRow())
             }
             mb.v = vM
             mb.vcv = avE.vcv
             mb.cva = avE.cva
-            this.update(mb.toRow())
+            if (maj) this.update(mb.toRow())
             nr++
           }
         }

@@ -1632,7 +1632,8 @@ export class AuthSession {
       }
     } else this.notifG = esp.notif
     if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
-    if (noExcFige || !this.notifG || this.notifG.nr !== 1) return this
+    if (this.notifG && this.notifG.nr === 1) this.estFige = true
+    if (noExcFige || !this.estFige) return this
     throw AppExc.notifG(this.notifG)
   }
 
