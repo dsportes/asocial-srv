@@ -8,6 +8,7 @@ export const PINGTO = 5 // en minutes : session auto close après PINGTO minutes
 
 export const MSPARJOUR = 86400 * 1000
 export const MSPARAN = 365 * MSPARJOUR
+export const MSPARMOIS = 30 * MSPARJOUR
 
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
@@ -62,7 +63,6 @@ export class ID {
   static ns (id) { return Math.floor(id / d14)}
 }
 
-export const UNITEV0 = 10 // 10c : unité d'allocation de limite calcul
 export const UNITEV1 = 250 // nombre de notes + chats + groupes
 export const UNITEV2 = 100 * 1000 * 1000 // volume de fichiers
 
@@ -517,7 +517,7 @@ export class Compteurs {
     return this.cumulAbo + this.cumulConso
   }
 
-  /* Rythme annuel de consommation sur les mois M et M-1 
+  /* Rythme MENSUEL (en fait 30 jours) de consommation sur les mois M et M-1
   - pour M le nombre de jours est le jour du mois, 
   - pour M-1 c'est le nombre de jours du mois.
   */
@@ -525,10 +525,10 @@ export class Compteurs {
     const [ac, mc] = AMJ.am(this.dh)
     const mja = AMJ.djm(mc === 1 ? ac - 1 : ac, mc === 1 ? 12 : mc - 1)
     const x = this.vd[0][Compteurs.CC] + this.vd[1][Compteurs.CC]
-    return mc + mja === 0 ? 0 : (x * 365 / (mc + mja))
+    return mc + mja === 0 ? 0 : (x * 30 / (mc + mja))
   }
 
-  /* Moyenne _annualisée_ de la consommation sur le mois en cours et les 3 précédents
+  /* Moyenne _mensualisée_ de la consommation sur le mois en cours et les 3 précédents
   Si le nombre de jours d'existence est inférieur à 30, retourne conso2M
   */
   get conso4M () {
@@ -538,10 +538,10 @@ export class Compteurs {
       ms += this.vd[i][Compteurs.MS]
     }
     const nbj = Math.floor(ms / MSPARJOUR)
-    return nbj < 30 ? this.conso2M : (c * 365 / nbj)
+    return nbj < 30 ? this.conso2M : (c * 30 / nbj)
   }
 
-  /* Moyenne _annualisée_ de l'abonnement sur le mois en cours et les 3 précédents
+  /* Moyenne _mensualisée_ de l'abonnement sur le mois en cours et les 3 précédents
   */
   get abo4M () {
     let ams = 0, ms = 0
@@ -554,7 +554,7 @@ export class Compteurs {
       const cu = Tarif.cu(ac, mc)
       return (this.qv.q1 * cu[0]) + (this.qv.q2 * cu[1])
     } else {
-      return ams / ms * MSPARAN
+      return ams / ms * MSPARMOIS
     }
   }
 
@@ -563,7 +563,7 @@ export class Compteurs {
   get v2 () { return this.qv.v2 }
 
   /*
-  pcc : consommation annualisée sur M et M-1 / limite annuelle qc
+  pcc : consommation mensualisée sur M et M-1 / limite mensuelle qc
   pc1 : nombre actuel de notes, chats, groupes / abonnement q1
   pc2 : volume actuel des fichiers / abonnement q2
   max : max de pcc pc1 pc2
@@ -610,7 +610,7 @@ export class Compteurs {
     const [ac, mc] = AMJ.am(this.dh)
     const cu = Tarif.cu(ac, mc)
     const abo = (this.qv.q1 * cu[0]) + (this.qv.q2 * cu[1])
-    const x = Math.floor(solde / (abo + this.conso4M) * 365)
+    const x = Math.floor(solde / (abo + this.conso4M) * 30)
     return x < 999 ? x : 999
   }
 
