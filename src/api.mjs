@@ -467,7 +467,7 @@ export class Compteurs {
     return new Uint8Array(encode(x))
   }
 
-  /* début de la période de référence [x, dh]
+  /* début de la période de référence [x, dh] : (compte O seulment)
   x: 0 -> création du compte
   x: 1 -> début du mois précédent
   x: 2 -> compte devient autonome
@@ -475,22 +475,29 @@ export class Compteurs {
   */
   get debref () {
     let x = 0, t = 0
-    if (!this.qv.qc) {
-      x = this.dhraz ? 2 : 0
-      t = this.dhraz || this.dh0
+    const [a, m] = AMJ.am(this.dh)
+    let ax = a, mx = m - 1
+    if (mx === 0) { mx = 12; ax--}
+    const tmp = AMJ.t0MoisM(ax, mx)
+    if (this.dhraz && this.dhraz > tmp) {
+      x = 3
+      t = this.dhraz
     } else {
-      const [a, m] = AMJ.am(this.dh)
-      let ax = a, mx = m - 1
-      if (mx === 0) { mx = 12; ax--}
-      const tmp = AMJ.t0MoisM(ax, mx)
-      if (this.dhraz && this.dhraz > tmp) {
-        x = 3
-        t = this.dhraz
-      } else {
-        if (tmp < this.dh0) { x = 0; t = this.dh0 }
-        else { x = 1; t = tmp }
-      }
+      if (tmp < this.dh0) { x = 0; t = this.dh0 }
+      else { x = 1; t = tmp }
     }
+    const r = [x, t, Math.floor((this.dh - t) / MSPARJOUR)]
+    return r
+  }
+
+  /* période de cumul abo+conso [x, dh]
+  x: 0 -> création du compte
+  x: 2 -> compte devient autonome
+  x: 3 -> compte devient organisation
+  */
+  get cumref () {
+    const x = this.dhraz ? (this.estA ? 2 : 3) : 0
+    const t = this.dhraz || this.dh0
     const r = [x, t, Math.floor((this.dh - t) / MSPARJOUR)]
     return r
   }
@@ -524,8 +531,11 @@ export class Compteurs {
   get conso2M () {
     const [ac, mc] = AMJ.am(this.dh)
     const mja = AMJ.djm(mc === 1 ? ac - 1 : ac, mc === 1 ? 12 : mc - 1)
-    const x = this.vd[0][Compteurs.CC] + this.vd[1][Compteurs.CC]
-    return mc + mja === 0 ? 0 : (x * 30 / (mc + mja))
+    return mc + mja === 0 ? 0 : (this.conso2B * 30 / (mc + mja))
+  }
+
+  get conso2B () {
+    return this.vd[0][Compteurs.CC] + this.vd[1][Compteurs.CC]
   }
 
   /* Moyenne _mensualisée_ de la consommation sur le mois en cours et les 3 précédents
