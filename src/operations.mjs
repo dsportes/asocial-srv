@@ -1681,6 +1681,7 @@ POST:
 - `token` : éléments d'authentification du compte.
 - `id` : id de la tribu
 - `notif` : notification cryptée par la clé de la tribu.
+- `stn`: statut de notif 0:simple 1 2 9:aucune notif
 
 Assertion sur l'existence du row `Tribus` de la tribu.
 */
@@ -1691,6 +1692,7 @@ operations.SetNotifT = class SetNotifT extends Operation {
     const tribu = compile(await this.getRowTribu(args.id, 'SetNotifT-1'))
     tribu.v++
     tribu.notif = args.notif
+    tribu.stn = args.stn
     this.update(tribu.toRow())
     await this.MajSynthese(tribu)
   }
@@ -1702,7 +1704,7 @@ POST:
 - `id` : id de la tribu
 - `idc` : id du compte
 - `notif` : notification du compte cryptée par la clé de la tribu
-- `stn` : 0: aucune 1:simple 2:bloquante
+- `stn` : 0:simple 1:lecture 2:mi,imal, 9:aucune
 
 Assertion sur l'existence du row `Tribus` de la tribu et `Comptas` du compte.
 */
@@ -1788,7 +1790,7 @@ POST:
 - `token` : éléments d'authentification du sponsor.
 - `idc` : id du compte sponsorisé.
 - `idt` : id de sa tribu.
-- `q1 q2` : ses nouveaux quotas de volume V1 et V2.
+- `[qc, q1, q2]` : ses nouveaux quotas de volume V1 et V2.
 
 Assertion sur l'existence des rows `Comptas` du compte et `Tribus` de la tribu.
 */
@@ -1801,16 +1803,16 @@ operations.SetQuotas = class SetQuotas extends Operation {
     tribu.v++
     const x = tribu.act[compta.it]
     if (!x || x.vide) return
-    const e = decode(x)
-    e.q1 = args.q1
-    e.q2 = args.q2
-    tribu.act[compta.it] = new Uint8Array(encode(e))
+    x.qc = args.q[0]
+    x.q1 = args.q[1]
+    x.q2 = args.q[2]
     this.update(tribu.toRow())
     await this.MajSynthese(tribu)
     compta.v++
-    compta.qv.q1 = args.q1
-    compta.qv.q2 = args.q2
-    compta.compteurs = new Compteurs(compta.compteurs).setqv(compta.qv).serial
+    compta.qv.qc = args.q[0]
+    compta.qv.q1 = args.q[1]
+    compta.qv.q2 = args.q[2]
+    compta.compteurs = new Compteurs(compta.compteurs, compta.qv).serial
     this.update(compta.toRow())
   }
 }
