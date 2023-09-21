@@ -264,6 +264,32 @@ operations.SetEspaceT = class SetEspaceT extends Operation {
   }
 }
 
+/*`SetEspaceOptionA` : changement de l'option A par le Comptable
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace notifié.
+- `optionA` : 0 1 2.
+
+Retour: rien
+
+Assertion sur l'existence du row `Espaces`.
+
+L'opération échappe au contrôle espace figé / clos.
+Elle n'écrit QUE dans espaces.
+*/
+operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
+  constructor () { super('SetEspaceOptionA')}
+
+  async phase2 (args) {
+    let rowEspace = await this.getRowEspace(args.ns, 'SetEspaceOptionA')
+    const espace = compile(rowEspace)
+    espace.v++
+    espace.opt = args.optionA || 0
+    rowEspace = this.update(espace.toRow())
+    this.setRes('rowEspace', rowEspace)
+  }
+}
+
 /* `GetSynthese` : retourne la synthèse de l'espace
 POST:
 - `token` : éléments d'authentification du compte.
