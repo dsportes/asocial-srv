@@ -1,5 +1,5 @@
 // import { encode, decode } from '@msgpack/msgpack'
-import { AppExc, F_SRV, A_SRV, ID, Compteurs, AMJ, UNITEV1, UNITEV2, edvol, d14 } from './api.mjs'
+import { AppExc, F_SRV, A_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Chats, Versions,
@@ -420,15 +420,12 @@ POST:
 - `rowCompta` : row du compte à créer.
 - `rowAvatar` : row de son avatar principal.
 - `rowVersion` : row de avatar en création.
-- `idt` : id de sa tribu.
+- `idt` : id de sa tribu. 0 SI compte A
 - `ids` : ids du sponsoring, hash de sa phrase de reconnaissance qui permet de retrouver le sponsoring.
 - `rowChatI` : row chat _interne_ pour le compte en création donnant le message de remerciement au sponsor.
 - `rowChatE` : row chat _externe_ pour le sponsor avec le même message. La version est obtenue par le serveur.
 - `ardx` : texte de l'ardoise du sponsoring à mettre à jour (avec statut 2 accepté), copie du texte du chat échangé.
-- `act`: élément de la map act de sa tribu
-- **SI quotas à prélever** sur le COMPTE du sponsor,
-- `it` : index de ce compte dans la tribu
-- `q1 q2` : quotas attribués par le sponsor.
+- `act`: élément de la map act de sa tribu. null SI compte A
 
 Retour: rows permettant d'initialiser la session avec le nouveau compte qui se trouvera ainsi connecté.
 - `rowTribu`
@@ -467,23 +464,16 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     this.update(sp.toRow())
     this.update(versionsp.toRow())
     
-    const tribu = compile(await this.getRowTribu(args.idt, 'AcceptationSponsoring-1'))
-    tribu.act.push(args.act)
-    const it = tribu.act.length - 1
-    tribu.v++
-    if (args.it) { // réduire les quotas du sponsor (qui n'est pas sponsor de la tribu)
-      const e = tribu.act[args.it]
-      if (args.q1 > e.q1) throw new AppExc(F_SRV, 20)
-      if (args.q2 > e.q2) throw new AppExc(F_SRV, 21)
-      if (((e.q1 - args.q1) * UNITEV1) < e.v1) throw new AppExc(F_SRV, 22)
-      if (((e.q2 - args.q2) * UNITEV2) < e.v2) throw new AppExc(F_SRV, 23)
-      e.q1 -= args.q1
-      e.q2 -= args.q2
-      tribu.act[args.it] = e
+    let it = 0
+    if (args.idt) { // C'est un compte O
+      const tribu = compile(await this.getRowTribu(args.idt, 'AcceptationSponsoring-1'))
+      tribu.act.push(args.act)
+      it = tribu.act.length - 1
+      tribu.v++
+      const rowTribu = this.update(tribu.toRow())
+      this.setRes('rowTribu', rowTribu)
+      this.MajSynthese(tribu)
     }
-    const rowTribu = this.update(tribu.toRow())
-    this.setRes('rowTribu', rowTribu)
-    this.MajSynthese(tribu)
 
     const compta = compile(args.rowCompta)
     compta.it = it
