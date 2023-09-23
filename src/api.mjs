@@ -4,7 +4,7 @@ import { encode, decode } from '@msgpack/msgpack'
 export const version = '1'
 
 export const WSHEARTBEAT = false
-export const PINGTO = 50 // en minutes : session auto close après PINGTO minutes d'inactivité
+export const PINGTO = 5 // en minutes : session auto close après PINGTO minutes d'inactivité
 
 export const MSPARJOUR = 86400 * 1000
 export const MSPARAN = 365 * MSPARJOUR
@@ -320,6 +320,19 @@ export class Tarif {
     if (am < t[0].am) return t[0].cu
     let cu; t.forEach(l => {if (am >= l.am) cu = l.cu})
     return cu
+  }
+
+  static evalConso (ca, dh) {
+    const [a, m] = AMJ.am(dh || Date.now())
+    const c = Tarif.cu(a, m)
+    const x = [(ca.nl * c[2] / Compteurs.MEGA) 
+      , (ca.ne * c[3] / Compteurs.MEGA) 
+      , (ca.vm * c[4] / Compteurs.GIGA)
+      , (ca.vd * c[5] / Compteurs.GIGA)]
+    let t = 0
+    x.forEach(i => { t += i })
+    x.push(t)
+    return x
   }
 }
 

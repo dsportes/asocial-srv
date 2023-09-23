@@ -1085,7 +1085,7 @@ export class Operation {
     for(const prop in this.result2) { this.result[prop] = this.result2[prop] }
 
     this.result.nl = this.nl
-    this.result.ne = this.ne
+    this.result.ne = this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length
     return this.result
   }
 
@@ -1610,7 +1610,7 @@ export class AuthSession {
 
   static dernierePurge = 0
 
-  static ttl = PINGTO * 60000
+  static ttl = PINGTO * 60000 * 10 // en test éviter les peres de session en debug
 
   constructor (sessionId, id, sync) { 
     this.sessionId = sessionId
