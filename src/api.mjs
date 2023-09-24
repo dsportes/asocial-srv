@@ -293,7 +293,30 @@ export function edvol (vol, u) {
   if (v < 1000000000000000) return (v / 1000000000000).toPrecision(3) + 'T' + (u || 'o')
   return (v / 1000000000000000).toPrecision(3) + 'P' + (u || 'o')
 }
-  
+
+/* retourne [c, ticket] d'un ticket t dont le dernier chiffre 
+(clé) n'est pas significatif. ns aaaammjj nnnn c
+- c : est le chiffre d'auto-contrôle
+- ticket : le ticket t d'entrée dont le dernier chiffre a été calculé
+*/
+export function cleAC (t) {
+  const x = '' + t
+  let cx = 0
+  for (let i = 0; i < x.length - 1; i++) { 
+    const y = parseInt(x.charAt(i)) 
+    const z = i % 2 === 0 ? y * 2 : y
+    cx += z > 9 ? (z % 10) + 1 : z
+  }
+  const c = cx % 10 === 0 ? 0 : (10 - (cx % 10))
+  const tx = x.substring(0, x.length - 1) + c
+  return [c, parseInt(tx)]
+}
+
+export function cleOK (t) {
+  const [, tk] = cleAC(t)
+  return tk === t
+}
+
 /* Un tarif correspond à,
 - `am`: son premier mois d'application. Un tarif s'applique toujours au premier de son mois.
 - `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
@@ -837,7 +860,7 @@ export class Compteurs {
     const p = `
   cumulCouts=${e6(c.cumulCouts)}
   aboma=${e6(c.aboma)} consoma=${e6(c.consoma)}
-  totalAbo= ${e6(c.totalAbo)} totalConso= ${e6(c.totalConso)}
+  cumulAbo= ${e6(c.cumulAbo)} cumulConso= ${e6(c.cumulConso)}
   conso2M= ${e6(c.conso2M)}  conso4M= ${e6(c.conso4M)}`
     console.log(JSON.stringify(c.qv) + p)
   }

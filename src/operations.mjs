@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Chats, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
-import { limitesjour } from './api.mjs'
+import { limitesjour, cleAC } from './api.mjs'
 
 export function atStart() {
   if (ctx.debug) console.log('atStart operations')
@@ -190,6 +190,54 @@ operations.CreerEspace = class CreerEspace extends Operation {
     this.insert(args.rowTribu)
     this.insert(args.rowAvatar)
     this.insert(args.rowVersion)
+  }
+}
+
+/* `NouveauTicket` : création d'un nouveau ticket depuis l espace du compte
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+
+Retour: 
+- ticket généré (entier) : ns aaaammjj nnnn c
+*/
+operations.NouveauTicket = class NouveauTicket extends Operation {
+  constructor () { super('NouveauTicket') }
+
+  async phase2() {
+    const espace = compile(await this.getRowEspace(this.session.ns, 'NouveauTicket'))
+    espace.v++
+    const dtk = espace.dtk || {j: 0, n: 0}
+    const amj = AMJ.amjUtc()
+    if (dtk.j !== amj) {
+      dtk.j = amj
+      dtk.n = 1
+    } else dtk.n++
+    dtk.c = 0
+    const t = ((((dtk.j) * 10000) + dtk.n) * 10) + dtk.c
+    const [c, ticket] = cleAC(t)
+    dtk.c = c
+    espace.dtk = dtk
+    this.update(espace.toRow())
+    this.setRes('ticket', ticket)
+  }
+}
+
+/* `MajCredits` : mise à jour du credits d'un compta
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `credits` : credits crypté par la clé K du compte
+
+Retour: 
+- ticket généré (entier) : ns aaaammjj nnnn c
+*/
+operations.MajCredits = class MajCredits extends Operation {
+  constructor () { super('MajCredits') }
+
+  async phase2(args) {
+    const compta = compile(await this.getRowCompta(this.session.id, 'MajCredits'))
+    compta.v++
+    compta.credits = args.credits
+    this.update(compta.toRow())
   }
 }
 
