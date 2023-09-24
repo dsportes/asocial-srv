@@ -298,6 +298,7 @@ export function edvol (vol, u) {
 (clé) n'est pas significatif. ns aaaammjj nnnn c
 - c : est le chiffre d'auto-contrôle
 - ticket : le ticket t d'entrée dont le dernier chiffre a été calculé
+https://forum.excel-pratique.com/excel/auto-controle-t5188.html
 */
 export function cleAC (t) {
   const x = '' + t
