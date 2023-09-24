@@ -297,8 +297,8 @@ export function edvol (vol, u) {
 /* Un tarif correspond à,
 - `am`: son premier mois d'application. Un tarif s'applique toujours au premier de son mois.
 - `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
-  - `u1`: abonnement annuel en c à 250 notes / chats (250 = UNITEV1)
-  - `u2`: abonnement annuel en c à 100Mo de fichiers (100Mo = UNITEV2)
+  - `u1`: abonnement mensuel en c à 250 notes / chats (250 = UNITEV1)
+  - `u2`: abonnement mensuel en c à 100Mo de fichiers (100Mo = UNITEV2)
   - `ul`: 1 million de lectures en c
   - `ue`: 1 million d'écritures en c
   - `um`: 1 GB de transfert montant en c

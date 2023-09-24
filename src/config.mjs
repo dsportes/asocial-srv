@@ -51,6 +51,12 @@ export const config = {
   gcconfig: {
     bucket: 'asocial-test1.appspot.com' // Pour emulator
     // bucket: 'asocial' // Pour prod, quoi que ...
-  }
+  },
+
+  tarifs: [
+    { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
+    { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
+    { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
+  ]
 
 }

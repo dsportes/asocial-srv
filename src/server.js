@@ -59,7 +59,7 @@ import { decode3, FsProvider, S3Provider, GcProvider } from './storage.mjs'
 import { UExport, UTest, UStorage } from './export.mjs'
 import { atStart, operations } from './operations.mjs'
 import { SyncSession, startWs } from './ws.mjs'
-import { version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV, AMJ } from './api.mjs'
+import { Tarif, version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV, AMJ } from './api.mjs'
 
 export function getStorageProvider (stcode) {
   const t = stcode.substring(0, 2)
@@ -71,6 +71,8 @@ export function getStorageProvider (stcode) {
   }
   return null
 }
+
+Tarif.tarifs = config.tarifs
 
 if (!config.gae) {
   const x = parseArgs({
