@@ -1,5 +1,13 @@
 {
   "indexes": [
+    {
+      "collectionGroup": "tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "id", "order": "ASCENDING" },
+        { "fieldPath": "nsdr", "order": "ASCENDING" }
+      ]
+    }
   ],
   "fieldOverrides": [
     {
@@ -43,6 +51,16 @@
       "collectionGroup": "tickets",
       "fieldPath": "id",
       "indexes": []
+    },
+    {
+      "collectionGroup": "tickets",
+      "fieldPath": "dr",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "tickets",
+      "fieldPath": "nsdr",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
     },
     {
       "collectionGroup": "tickets",

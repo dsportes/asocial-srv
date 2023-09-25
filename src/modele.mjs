@@ -448,6 +448,8 @@ export class GenDoc {
           const vcv = ('' + row.vcv).padStart(9, '0')
           r.id_vcv = row.id + vcv  
         }
+      } else if (row._nom === 'tickets') {
+        row.nsdr = row.dr === 0 ? 0 : ((ID.ns(row.id) * 100000000) + row.dr)
       }
       const p = GenDoc._path(row._nom, r.id, r.ids)
       await transaction.set(ctx.fs.doc(p), r)

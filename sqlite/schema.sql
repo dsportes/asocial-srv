@@ -14,9 +14,11 @@ CREATE TABLE IF NOT EXISTS "espaces" (
 CREATE INDEX "espaces_org" ON "espaces" ( "org" );
 CREATE TABLE IF NOT EXISTS "tickets" (
   "id"	INTEGER,
+  "dr"	INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
+CREATE INDEX "tickets_dr" ON "tickets" ( "dr" );
 CREATE TABLE IF NOT EXISTS "syntheses" (
   "id"	INTEGER,
   "v" INTEGER,
