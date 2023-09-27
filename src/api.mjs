@@ -52,6 +52,10 @@ export class ID {
     return (ns * d14) + ID.court(court)
   }
 
+  static duComptable (ns) { 
+    return ((ns * 10) + 1) * d13
+  }
+
   static estComptable (id) { return id % d13 === 0 }
 
   static estGroupe (id) { return Math.floor(id / d13) % 10 === 3 }
@@ -134,6 +138,8 @@ export class AMJ {
   static jj (amj) { return amj % 100 }
 
   static aaaammjj (amj) { return [AMJ.aaaa(amj), AMJ.mm(amj), AMJ.jj(amj)] }
+
+  static amjDeAMJ (a, m, j) { return (((a * 100) + m) * 100) + j}
   
   /* Edite une amj avec des - séparateurs */
   static editDeAmj (amj, jma) { 
@@ -292,30 +298,6 @@ export function edvol (vol, u) {
   if (v < 1000000000000) return (v / 1000000000).toPrecision(3) + 'G' + (u || 'o')
   if (v < 1000000000000000) return (v / 1000000000000).toPrecision(3) + 'T' + (u || 'o')
   return (v / 1000000000000000).toPrecision(3) + 'P' + (u || 'o')
-}
-
-/* retourne [c, ticket] d'un ticket t dont le dernier chiffre 
-(clé) n'est pas significatif. ns aaaammjj nnnn c
-- c : est le chiffre d'auto-contrôle
-- ticket : le ticket t d'entrée dont le dernier chiffre a été calculé
-https://forum.excel-pratique.com/excel/auto-controle-t5188.html
-*/
-export function cleAC (t) {
-  const x = '' + t
-  let cx = 0
-  for (let i = 0; i < x.length - 1; i++) { 
-    const y = parseInt(x.charAt(i)) 
-    const z = i % 2 === 0 ? y * 2 : y
-    cx += z > 9 ? (z % 10) + 1 : z
-  }
-  const c = cx % 10 === 0 ? 0 : (10 - (cx % 10))
-  const tx = x.substring(0, x.length - 1) + c
-  return [c, parseInt(tx)]
-}
-
-export function cleOK (t) {
-  const [, tk] = cleAC(t)
-  return tk === t
 }
 
 /* Un tarif correspond à,

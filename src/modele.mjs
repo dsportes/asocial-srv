@@ -72,7 +72,7 @@ export const collsExp1 = ['espaces', 'tickets', 'syntheses']
 
 export const collsExp2 = ['fpurges', 'gcvols', 'tribus', 'comptas', 'avatars', 'groupes', 'versions']
 
-export const collsExpA = ['notes', 'transferts', 'sponsorings', 'chats']
+export const collsExpA = ['notes', 'transferts', 'sponsorings', 'chats', 'tickets']
 
 export const collsExpG = ['notes', 'transferts', 'membres']
 
@@ -271,7 +271,6 @@ export class GenDoc {
   static _attrs = {
     espaces: ['id', 'org', 'v', '_data_'],
     fpurges: ['id', '_data_'],
-    tickets: ['id', '_data_'],
     gcvols: ['id', '_data_'],
     tribus: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
@@ -282,6 +281,7 @@ export class GenDoc {
     transferts: ['id', 'ids', 'dlv', '_data_'],
     sponsorings: ['id', 'ids', 'v', 'dlv', '_data_'],
     chats: ['id', 'ids', 'v', 'vcv', '_data_'],
+    tickets: ['id', 'ids', 'v', '_data_'],
     groupes: ['id', 'v', 'dfh', '_data_'],
     membres: ['id', 'ids', 'v', 'vcv', 'dlv', '_data_']
   }
@@ -293,7 +293,6 @@ export class GenDoc {
     switch (nom) {
     case 'espaces' : { obj = new Espaces(); break }
     case 'fpurges' : { obj = new Fpurges(); break }
-    case 'tickets' : { obj = new Tickets(); break }
     case 'gcvols' : { obj = new Gcvols(); break }
     case 'tribus' : { obj = new Tribus(); break }
     case 'syntheses' : { obj = new Syntheses(); break }
@@ -304,6 +303,7 @@ export class GenDoc {
     case 'transferts' : { obj = new Transferts(); break }
     case 'sponsorings' : { obj =  new Sponsorings(); break }
     case 'chats' : { obj = new Chats(); break }
+    case 'tickets' : { obj = new Tickets(); break }
     case 'groupes' : { obj = new Groupes(); break }
     case 'membres' : { obj =  new Membres(); break }
     }
@@ -448,8 +448,6 @@ export class GenDoc {
           const vcv = ('' + row.vcv).padStart(9, '0')
           r.id_vcv = row.id + vcv  
         }
-      } else if (row._nom === 'tickets') {
-        row.nsdr = row.dr === 0 ? 0 : ((ID.ns(row.id) * 100000000) + row.dr)
       }
       const p = GenDoc._path(row._nom, r.id, r.ids)
       await transaction.set(ctx.fs.doc(p), r)
@@ -529,6 +527,16 @@ export class GenDoc {
     if (row) {
       row._nom = 'chats'
       return compile(row)
+    }
+    return null
+  }
+
+  static async getSqlRowTicketV(id, ids, v) {
+    const st = stmt('SELTKV', 'SELECT * FROM tickets WHERE id = @id AND ids = @ids AND v > @v')
+    const row = st.get({ id : id, ids: ids, v: v })
+    if (row) {
+      row._nom = 'chats'
+      return row
     }
     return null
   }
@@ -753,12 +761,28 @@ export class GenDoc {
   }
 
   /* 
+  Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
+  */
+  static async getDocRowTicketV (transaction, id, ids, v) {
+    const p = GenDoc._path('tickets', id, ids)
+    // INDEX simple sur chats vcv
+    const q = ctx.fs.collection(p).where('v', '>', v)
+    const qs = await transaction.get(q)
+    let row = null
+    if (!qs.empty) {
+      for (const qds of qs.docs) { row = qds.data(); break }
+    }
+    if (row) row._nom = 'tickets'
+    return row
+  }
+
+  /* 
   Retourne LE membre si sa CV est MOINS récente que celle détenue en session (de version vcv)
   */
   static async getDocMembreVCV (transaction, id, ids, vcv) {
     const p = GenDoc._path('membres', id, ids)
     // INDEX simple sur membres vcv
-    const q = ctx.fs.collection(p).where('ids', '==', ids).where('vcv', '>', vcv)
+    const q = ctx.fs.collection(p).where('vcv', '>', vcv)
     const qs = await transaction.get(q)
     let row = null
     if (!qs.empty) {
@@ -1147,13 +1171,6 @@ export class Operation {
     return r
   }
 
-  async getTickets (ns) {
-    const r = ctx.sql ? await GenDoc.collNsSql('tickets', ns)
-      : await GenDoc.collNsDoc(null, 'tickets', ns)
-    this.nl += r.length
-    return r
-  }
-
   async getGcvols (ns) {
     const r = ctx.sql ? await GenDoc.collNsSql('gcvols', ns)
       : await GenDoc.collNsDoc(null, 'gcvols', ns)
@@ -1177,6 +1194,13 @@ export class Operation {
   async getChatVCV (id, ids, vcv) {
     const r = ctx.sql ? await GenDoc.getSqlChatVCV(id, ids, vcv)
       : await GenDoc.getDocChatVCV(this.transaction, id, ids, vcv)
+    if (r) this.nl++
+    return r
+  }
+
+  async getRowTicketV (id, ids, v) {
+    const r = ctx.sql ? await GenDoc.getSqlTicketV(id, ids, v)
+      : await GenDoc.getDocRowTicketV(this.transaction, id, ids, v)
     if (r) this.nl++
     return r
   }
@@ -1211,12 +1235,6 @@ export class Operation {
 
   async getAllRowsEspace () {
     return await this.coll('espaces')
-  }
-
-  async getRowTicket (id, assert) {
-    const tr = await GenDoc.getNV(this, 'tickets', id)
-    if (assert && !tr) throw assertKO('getRowTicket/' + assert, 15, [id])
-    return tr
   }
 
   async getRowEspace (id, assert) {
@@ -1287,6 +1305,17 @@ export class Operation {
   async getRowChat (id, ids, assert) {
     const rc = await GenDoc.get(this.transaction, 'chats', id, ids)
     if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [id, ids])
+    if (rc) this.nl++
+    return rc
+  }
+
+  async getAllRowsTicket(id, v) {
+    return await this.scoll('tickets', id, v)
+  }
+
+  async getRowTicket (id, ids, assert) {
+    const rc = await GenDoc.get(this.transaction, 'tickets', id, ids)
+    if (assert && !rc) throw assertKO('getRowTicket/' + assert, 17, [id, ids])
     if (rc) this.nl++
     return rc
   }
@@ -1612,7 +1641,7 @@ export class AuthSession {
 
   static dernierePurge = 0
 
-  static ttl = PINGTO * 60000 * 10 // en test éviter les peres de session en debug
+  static ttl = PINGTO * 60000 * 10 // en test éviter les peres de session en debug TODO
 
   constructor (sessionId, id, sync) { 
     this.sessionId = sessionId

@@ -12,13 +12,6 @@ CREATE TABLE IF NOT EXISTS "espaces" (
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "espaces_org" ON "espaces" ( "org" );
-CREATE TABLE IF NOT EXISTS "tickets" (
-  "id"	INTEGER,
-  "dr"	INTEGER,
-  "_data_"	BLOB,
-  PRIMARY KEY("id")
-) WITHOUT ROWID;
-CREATE INDEX "tickets_dr" ON "tickets" ( "dr" );
 CREATE TABLE IF NOT EXISTS "syntheses" (
   "id"	INTEGER,
   "v" INTEGER,
@@ -89,6 +82,14 @@ CREATE TABLE IF NOT EXISTS "notes" (
   PRIMARY KEY("id", "ids")
 );
 CREATE INDEX "notes_id_v" ON "notes" ( "id", "v" );
+CREATE TABLE IF NOT EXISTS "tickets" (
+  "id"	INTEGER,
+  "ids"  INTEGER,
+  "v"	INTEGER,
+  "_data_"	BLOB,
+  PRIMARY KEY("id", "ids")
+) WITHOUT ROWID;
+CREATE INDEX "tickets_id_v" ON "tickets" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "transferts" (
   "id"	 INTEGER,
   "ids"  INTEGER,

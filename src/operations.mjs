@@ -222,22 +222,100 @@ operations.NouveauTicket = class NouveauTicket extends Operation {
   }
 }
 
-/* `MajCredits` : mise à jour du credits d'un compta
+/* `MajCredits` : mise a jour du crédits d'un compte A
 POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `credits` : credits crypté par la clé K du compte
 
-Retour: 
-- ticket généré (entier) : ns aaaammjj nnnn c
+Retour: rien
 */
 operations.MajCredits = class MajCredits extends Operation {
   constructor () { super('MajCredits') }
 
   async phase2(args) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'MajCredits'))
+    const compta = compile(await this.getRowCompta(this.session.id, 'MajCredits-1'))
     compta.v++
     compta.credits = args.credits
     this.update(compta.toRow())
+  }
+}
+
+/* `PlusTicket` : ajout d'un ticket à un compte A
+et ajout d'un ticket au Comptable
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `credits` : credits crypté par la clé K du compte
+- `rowTicket` : nouveau row tickets pour le Comptable
+
+Retour: rien
+*/
+operations.PlusTicket = class PlusTicket extends Operation {
+  constructor () { super('PlusTicket') }
+
+  async phase2(args) {
+    const compta = compile(await this.getRowCompta(this.session.id, 'PlusTicket-1'))
+    compta.v++
+    compta.credits = args.credits
+    this.update(compta.toRow())
+    const idc = ID.duComptable(this.session.ns)
+    const version = compile(await this.getRowVersion(idc, 'PlusTicket-2'))
+    version.v++
+    this.update(version.toRow())
+    const ticket = compile(args.rowTicket)
+    ticket.v = version.v
+    this.insert(ticket.toRow())
+  }
+}
+
+/* `MoinsTicket` : retrait d'un ticket à un compte A
+et retrait d'un ticket au Comptable
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `credits` : credits crypté par la clé K du compte
+- `ids` : du ticket
+
+Retour: rien
+*/
+operations.MoinsTicket = class MoinsTicket extends Operation {
+  constructor () { super('MoinsTicket') }
+
+  async phase2(args) {
+    const idc = ID.duComptable(this.session.ns)
+    const ticket = compile(await this.getRowTicket(idc, args.ids, 'MoinsTicket-1'))
+    if (ticket.dr) throw new AppExc(F_SRV, 24)
+    const version = compile(await this.getRowVersion(args.rowTicket.id, 'MoinsTicket-2'))
+    version.v++
+    this.update(version.toRow())
+    ticket.v = version.v
+    ticket._zombi = true
+    this.update(ticket.toRow())
+
+    const compta = compile(await this.getRowCompta(this.session.id, 'MoinsTicket-3'))
+    compta.v++
+    compta.credits = args.credits
+    this.update(compta.toRow())
+  }
+}
+
+/* `RafraichirTickets` : nouvelles versions des tickets cités
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `mtk` : map des tickets. clé: ids, valeur: version détenue en session
+
+Retour: 
+- rowTickets: liste des rows des tickets ayant changé
+*/
+operations.RafraichirTickets = class RafraichirTickets extends Operation {
+  constructor () { super('RafraichirTickets') }
+
+  async phase2(args) {
+    const idc = ID.duComptable(this.session.ns)
+    for (const idss in args.mtk) {
+      const ids = parseInt(idss)
+      const v = args.mtk[idss]
+      const rowTicket = await this.getRowTicketV(idc, ids, v)
+      if (rowTicket) this.addRes('rowTickets', this.getRowTicket)
+    }
   }
 }
 
@@ -808,6 +886,23 @@ operations.ChargerChats = class ChargerChats extends Operation {
   }
 }
 
+/* `ChargerTickets` : retourne les tickets de l'avatar id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar
+- `v` : version connue en session
+
+Retour:
+- `rowChats` : array des rows `Chats` de version postérieure à `v`.
+*/
+operations.ChargerTickets = class ChargerTickets extends Operation {
+  constructor () { super('ChargerTickets'); this.lecture = true }
+
+  async phase2 (args) { 
+    this.setRes('rowTickets', await this.getAllRowsTicket(args.id, args.v))
+  }
+}
+
 /* `ChargerSponsorings` : retourne les sponsoring de l'avatar id et de version postérieure à v
 POST:
 - `token` : éléments d'authentification du compte.
@@ -906,7 +1001,7 @@ operations.ChargerTribus = class ChargerTribus extends Operation {
   }
 }
 
-/* `ChargerASCS` : retourne l'avatar, ses notes, chats et sponsorings, de version postérieure à v
+/* `ChargerASCS` : retourne l'avatar, ses notes, chats, tickets et sponsorings, de version postérieure à v
 POST:
 - `token` : éléments d'authentification du compte.
 - `id` : de l'avatar.
@@ -916,6 +1011,7 @@ Retour:
 - `rowNotes` : arrays des rows `Notes Chats Sponsorings` de version postérieure à v
 - `rowChats` :
 - `rowSponsorings` : 
+- `rowTickets` :
 - `rowAvatar` : seulement si de version postérieure à v.
 - `vavatar` : row `Versions` de l'avatar. Il PEUT être _zombi. Dans ce cas les autres rows n'ont pas de signification.
 
@@ -933,7 +1029,9 @@ operations.ChargerASCS = class ChargerASCS extends Operation {
       if (ra.v > args.v) this.setRes('rowAvatar', ra)
       this.setRes('rowNotes', await this.getAllRowsNote(args.id, args.v))
       this.setRes('rowSponsorings', await this.getAllRowsSponsoring(args.id, args.v))
-      this.setRes('rowChats', await await this.getAllRowsChat(args.id, args.v))
+      this.setRes('rowChats', await this.getAllRowsChat(args.id, args.v))
+      if (ID.estComptable(this.session.id))
+        this.setRes('rowTickets', await this.getAllRowsTicket(args.id, args.v))
     }
   }
 }
