@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Chats, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
-import { limitesjour, cleAC } from './api.mjs'
+import { limitesjour } from './api.mjs'
 
 export function atStart() {
   if (ctx.debug) console.log('atStart operations')
@@ -193,32 +193,28 @@ operations.CreerEspace = class CreerEspace extends Operation {
   }
 }
 
-/* `NouveauTicket` : création d'un nouveau ticket depuis l espace du compte
+/* `ReceptionTicket` : réception d'un ticket par le Comptable
 POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
+- `ids` : du ticket
+- `mc` : montant reçu
+- `refc` : référence du Comptable
 
-Retour: 
-- ticket généré (entier) : ns aaaammjj nnnn c
+Retour: rien
 */
-operations.NouveauTicket = class NouveauTicket extends Operation {
-  constructor () { super('NouveauTicket') }
+operations.ReceptionTicket = class ReceptionTicket extends Operation {
+  constructor () { super('ReceptionTicket') }
 
-  async phase2() {
-    const espace = compile(await this.getRowEspace(this.session.ns, 'NouveauTicket'))
-    espace.v++
-    const dtk = espace.dtk || {j: 0, n: 0}
-    const amj = AMJ.amjUtc()
-    if (dtk.j !== amj) {
-      dtk.j = amj
-      dtk.n = 1
-    } else dtk.n++
-    dtk.c = 0
-    const t = ((((dtk.j) * 10000) + dtk.n) * 10) + dtk.c
-    const [c, ticket] = cleAC(t)
-    dtk.c = c
-    espace.dtk = dtk
-    this.update(espace.toRow())
-    this.setRes('ticket', ticket)
+  async phase2(args) {
+    const idc = ID.duComptable(this.session.ns)
+    const version = compile(await this.getRowVersion(idc, 'PlusTicket-2'))
+    const ticket = compile(await this.getRowTicket(idc, args.ids, 'ReceptionTicket-1'))
+    version.v++
+    this.update(version.toRow())
+    ticket.v = version.v
+    ticket.mc = args.mc
+    ticket.refc = args.refc
+    this.update(ticket.toRow())
   }
 }
 
