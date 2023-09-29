@@ -535,7 +535,7 @@ export class GenDoc {
     const st = stmt('SELTKV', 'SELECT * FROM tickets WHERE id = @id AND ids = @ids AND v > @v')
     const row = st.get({ id : id, ids: ids, v: v })
     if (row) {
-      row._nom = 'chats'
+      row._nom = 'tickets'
       return row
     }
     return null
@@ -1199,7 +1199,7 @@ export class Operation {
   }
 
   async getRowTicketV (id, ids, v) {
-    const r = ctx.sql ? await GenDoc.getSqlTicketV(id, ids, v)
+    const r = ctx.sql ? await GenDoc.getSqlRowTicketV(id, ids, v)
       : await GenDoc.getDocRowTicketV(this.transaction, id, ids, v)
     if (r) this.nl++
     return r

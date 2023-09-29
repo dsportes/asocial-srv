@@ -214,6 +214,7 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
     ticket.v = version.v
     ticket.mc = args.mc
     ticket.refc = args.refc
+    ticket.dr = AMJ.amjUtc()
     this.update(ticket.toRow())
   }
 }
@@ -279,7 +280,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
     const idc = ID.duComptable(this.session.ns)
     const ticket = compile(await this.getRowTicket(idc, args.ids, 'MoinsTicket-1'))
     if (ticket.dr) throw new AppExc(F_SRV, 24)
-    const version = compile(await this.getRowVersion(args.rowTicket.id, 'MoinsTicket-2'))
+    const version = compile(await this.getRowVersion(idc, 'MoinsTicket-2'))
     version.v++
     this.update(version.toRow())
     ticket.v = version.v
@@ -310,7 +311,7 @@ operations.RafraichirTickets = class RafraichirTickets extends Operation {
       const ids = parseInt(idss)
       const v = args.mtk[idss]
       const rowTicket = await this.getRowTicketV(idc, ids, v)
-      if (rowTicket) this.addRes('rowTickets', this.getRowTicket)
+      if (rowTicket) this.addRes('rowTickets', rowTicket)
     }
   }
 }
