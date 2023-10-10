@@ -624,8 +624,8 @@ export class Compteurs {
     const ntf = { dh: this.dh }
     if (this.qv.qc) {
       const { pcc } = this.pourcents
-      if (pcc >= 100 + this.dec) { ntf.nr = 4; ntf.texte = '%R' }
-      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = '%I' }
+      if (pcc >= 100 + this.dec) { ntf.nr = 4; ntf.texte = '%A' }
+      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = '%B' }
     }
     return ntf
   }
@@ -644,14 +644,14 @@ export class Compteurs {
   }
 
   notifS (credits) { // notification de dépassement des crédits
-    const ntf = { dh: this.dh }
+    const ntf = { dh: Date.now() }
     const solde = credits + this.dec - this.cumulCouts
-    if (solde < 0) { ntf.nr = 4; ntf.texte = '%R' }
+    if (solde < 0) { ntf.nr = 4; ntf.texte = '%C' }
     else {
       const nbj = this.nbj(credits)
       if (nbj < 60) {
         ntf.nr = 0
-        ntf.texte = nbj ? '%N' + nbj : '%D'
+        ntf.texte = '%D'
       }
     }
     return ntf
