@@ -1477,6 +1477,35 @@ export class Operation {
     return row
   }
     
+  async majNbChat (dnc) {
+    const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
+    compta.v++
+    compta.qv.nc += dnc
+    const c = new Compteurs(compta.compteurs, compta.qv)
+    compta.compteurs = c.serial
+    this.update(compta.toRow())
+  }
+
+  async majNbNote (dnn) {
+    const compta = compile(await this.getRowCompta(this.session.id, 'majNbNote-1'))
+    compta.v++
+    const qv = compta.qv
+    qv.nn += dnn
+    const c = new Compteurs(compta.compteurs, qv)
+    compta.compteurs = c.serial
+    this.update(compta.toRow())
+  }
+
+  async majNbGroupe (dng) {
+    const compta = compile(await this.getRowCompta(this.session.id, 'majNbGroupe-1'))
+    compta.v++
+    const qv = compta.qv
+    qv.ng += dng
+    const c = new Compteurs(compta.compteurs, qv)
+    compta.compteurs = c.serial
+    this.update(compta.toRow())
+  }
+
   /* Met à jour les volumes du groupe TODO
   Refuse si le volume est ex expansion et qu'il dépasse le quota
   L'objet version du groupe est mis à jour et retourné

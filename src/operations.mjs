@@ -1542,7 +1542,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
         ids: args.idsI,
         v: versionI.v,
         vcv: vcvE,
-        st: 0, // E pas disparu
+        r: 1, // `r` : 0:raccroché, 1:en ligne, 2:en ligne mais E est mort
         seq: 1, // première version du chat
         cc: args.ccKI,
         cva: cvE || null,
@@ -1558,7 +1558,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
         ids: args.idsE,
         v: versionE.v,
         vcv: vcvI,
-        st: 0, // E pas disparu
+        r: 0, // `r` : 0:raccroché, 1:en ligne, 2:en ligne mais E est mort
         seq: 1, // première version du chat
         cc: args.ccPE,
         cva: cvI || null,
@@ -1568,6 +1568,8 @@ operations.NouveauChat = class NouveauChat extends Operation {
 
       this.setRes('st', 1)
       this.setRes('rowChat', rowChatI)
+
+      await this.majNbChat(1)
 
     } else {
       // chatI existe création croisée malencontreuse 
@@ -1614,11 +1616,14 @@ POST:
 - `contcI` : contenu du chat I (contient le [nom, rnd] de E), crypté par la clé cc.
 - `contcE` : contenu du chat E (contient le [nom, rnd] de I), crypté par la clé cc.
 - `seq` : numéro de séquence à partir duquel `contc` a été créé.
-
+- `op` : 1:envoyer, 2:raccrocher
 Retour:
-- `st` : 
+- `st` :
+  0 : chat mis à jour
   1 : chat mis à jour avec le contenu `contc`.
   2 : le chat existant a un contenu plus récent que celui sur lequel était basé `contc`. Retour de chatI.
+  3 : E disparu, chat zombi
+  4 : E disparu, chat non modifibale (disparaîtra si raccrocher
 - `rowChat` : row du chat I.
 
 Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
@@ -1634,40 +1639,31 @@ operations.MajChat = class MajChat extends Operation {
     let rowChatE = await this.getRowChat(args.idE, args.idsE)
 
     if (!rowChatE) {
-      // E disparu
-
-      if (chatI.seq > args.seq) {
-        // Maj basée sur un contenu dépassé : retour du chatI actuel
-        if (chatI.st === 0 || i1) { // E n'y était pas encore marqué disparu
-          // Maj de chatI : marquer E disparu et cc à mettre à jour
-          const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-2', true))
-          versionI.v++
-          this.update(versionI.toRow())
-          if (i1) chatI.cc = args.ccKI
-          chatI.st = 1
-          chatI.v = versionI.v
-          chatI.vcv = 0
-          chatI.cva = null
-          rowChatI = this.update(chatI.toRow())
+      /* E disparu. Maj interdite:
+      - op raccrocher (2) OU envoyer mais était raccroché: chat _zombi
+      - op envoyer : texte inchangé mais 2 -> r
+      */
+      const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-2', true))
+      versionI.v++
+      this.update(versionI.toRow())
+      chatI.v = versionI.v
+      if (args.op === 2 || chatI.r === 0) {
+        if (chatI.r) {
+          // était en ligne
+          await this.majNbChat(-1)
         }
-        this.setRes('st', 2)
-        this.setRes('rowChat', rowChatI)
+        chatI._zombi = true
+        this.setRes('st', 3)
       } else {
-        // cas presque normal : maj contc avec E disparu
-        const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-3', true))
-        versionI.v++
-        this.update(versionI.toRow())
-        chatI.v = versionI.v
-        chatI.st = 0
+        // n'était pas "raccroché" (sinon ci-dessus)
+        if (i1) chatI.cc = args.ccKI
+        chatI.r = 2
         chatI.vcv = 0
         chatI.cva = null
-        if (i1) chatI.cc = args.ccKI
-        chatI.contc = args.contcI
-        chatI.seq = args.seq + 1
-        rowChatI = this.update(chatI.toRow())
-        this.setRes('st', 1)
-        this.setRes('rowChat', rowChatI)
+        this.setRes('st', 4)
       }
+      rowChatI = this.update(chatI.toRow())
+      this.setRes('rowChat', rowChatI)
       return
     }
 
@@ -1703,35 +1699,49 @@ operations.MajChat = class MajChat extends Operation {
       }
       this.setRes('st', 2)
       this.setRes('rowChat', rowChatI)
+      return
+    } 
 
+    // cas normal : maj de contc sur chatI et chatE
+    const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-6', true))
+    versionI.v++
+    this.update(versionI.toRow())
+    if (i1) chatI.cc = args.ccKI
+    chatI.v = versionI.v
+    if (args.op === 1) chatI.seq++
+    chatI.contc = args.contcI
+    if (avatarE) {
+      chatI.vcv = avatarE.vcv
+      chatI.cva = avatarE.cva
+    }
+    let n = 0
+    if (chatI.r) {
+      // était en ligne
+      if (args.op === 2) n = -1 // on raccroche : -1 chat à décompter
     } else {
-      // cas normal : maj de contc sur chatI et chatE
-      const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-6', true))
-      versionI.v++
-      this.update(versionI.toRow())
-      if (i1) chatI.cc = args.ccKI
-      chatI.v = versionI.v
-      chatI.contc = args.contcI
-      if (avatarE) {
-        chatI.vcv = avatarE.vcv
-        chatI.cva = avatarE.cva
-      }
-      rowChatI = this.update(chatI.toRow())
+      // était raccroché
+      if (args.op === 1) n = 1
+    }
+    if (n) await this.majNbChat(n)
+    chatI.r = args.op === 1 ? 1 : 0
+    rowChatI = this.update(chatI.toRow())
+    this.setRes('st', 0)
+    this.setRes('rowChat', rowChatI)
 
+    if (args.op === 1 || avatarI) {
+      // Maj de chatE (son texte OU la CV de I)
       const chatE = compile (rowChatE)
       const versionE = compile(await this.getRowVersion(args.idE, 'MajChat-7', true))
       versionE.v++
       this.update(versionE.toRow())
       chatE.v = versionE.v
+      chatE.seq = chatI.seq
       chatE.contc = args.contcE
       if (avatarI) {
         chatE.vcv = avatarI.vcv
         chatE.cva = avatarI.cva
       }
       rowChatE = this.update(chatE.toRow())
-
-      this.setRes('st', 1)
-      this.setRes('rowChat', rowChatI)
     }
   }
 }
