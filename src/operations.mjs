@@ -828,7 +828,7 @@ operations.GetGroupe = class GetGroupe extends Operation {
   }
 }
 
-/* `GetGroupes` : retourne les documents groupes ayant une version plus récente que celle détenue en session
+/* *** OBOSOLETE *** `GetGroupes` : retourne les documents groupes ayant une version plus récente que celle détenue en session
 POST:
 - `token`: éléments d'authentification du compte.
 - `mapv` : map des versions des groupes détenues en session :
@@ -1033,7 +1033,142 @@ operations.ChargerASCS = class ChargerASCS extends Operation {
   }
 }
 
-/*`SignaturesEtVersions` : signatures des groupes et avatars
+/*`avGrSignatures` : obtention des groupes et avatars manquants et signatures
+Si un des avatars a changé de version, retour en `OK` `false` : la liste des avatars doit être la même que celle précédemment obtenue en session.
+
+Signature par les `dlv` passées en arguments des row `versions` des avatars et membres (groupes en fait).
+
+Retourne les `versions` des avatars et groupes de la session.
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `vcompta` : version de compta qui ne doit pas avoir changé
+- `vavatar`: version de l'avatar principal du compte qui ne doit pas avoir changé
+- `mbsMap` : map des membres des groupes des avatars :
+  - _clé_ : id du groupe  
+  - _valeur_ : `{ idg, v, npgk, mbs: [ids], dlv }`
+- `avsMap` : map des avatars du compte 
+  - `clé` : id de l'avatar
+  - `valeur` : `{v (version connue en session), dlv}`
+- `abPlus` : array des ids des groupes auxquels s'abonner
+- `estFige` : si true, ne pas effectuer les signatures
+
+Retour:
+- `OK` : true / false si le compta ou l'avatar principal a changé de version.
+- `versions` : map pour chaque avatar / groupe :
+  - _clé_ : id du groupe ou de l'avatar.
+  - _valeur_ :
+    - `{ v }`: pour un avatar.
+    - `{ v, vols: {v1, v2, q1, q2} }` : pour un groupe.
+- `avatars` : tows avatars ayant une nouvelle version.
+  Pour l'avatar principal, seule mpgk a pu avoir des items en moins (groupes disparus)
+- `groupes`: tous groupes ayant une nouvelle version
+
+Assertions sur les rows `Avatars (sauf le principal), Groupes (non disparus), Versions`.
+*/
+operations.avGrSignatures = class avGrSignatures extends Operation {
+  constructor () { super('avGrSignatures'); this.lecture = false }
+  /*
+  this.lecture = true permet de tester this.session.estFige et de ne pas procéder aux signatures
+  */
+
+  async phase2 (args) {
+    const signer = !this.session.estFige && !args.estFige
+    const versions = {}
+    let grDisparus = false
+
+    /* si compta ou avatar n'existe plus, le compte n'existe plus
+    si compta ou avatar ont changé de versions, recommencer la procédure de connexion */
+    const rowCompta = this.getRowCompta(this.session.id)
+    if (!rowCompta) throw new AppExc(F_SRV, 101)
+    const rowAvatar = this.getRowAvatar(this.session.id)
+    if (!rowAvatar) throw new AppExc(F_SRV, 101)
+
+    if (rowAvatar.v !== args.vavatar || rowCompta.v !== args.vcompta) { 
+      this.setRes('rowCompta', rowCompta)
+      this.setRes('rowAvatar', rowAvatar)
+      this.setRes('OK', false)
+      return
+    }
+
+    const avatar = compile(rowCompta)
+
+    /* Traitement des avatars SAUF le principal
+    Un avatar n'a pas pu disparaître:
+    - si le compte a disparu, exception ci-dessus
+    - si l'avatar s'est auto-résilié, l'avatar principal l'a su avant
+    */
+    for (const idx in args.avsMap) {
+      const id = parseInt(idx)
+      if (this.session.id === id) continue
+      const e = args.avsMap[id]
+
+      const row = await this.getRowAvatar(id, 'avGrSignatures-1')
+      if (row.v > e.v) this.addRes('avatars', row)
+
+      const va = compile(await this.getRowVersion(id, 'avGrSignatures-2', true))
+      versions[id] = { v: va.v }
+      if (signer && (va.dlv < e.dlv)) { // signature de l'avatar
+        va.dlv = e.dlv
+        this.update(va.toRow())
+      }
+    }
+
+    /* Un groupe peut DISPARAITRE par l'effet du GC (sa "versions" est _zombi), 
+    sans que cette disparition n'ait encore été répercutée dans mpgk des
+    avatars principaux de ses membres.
+    Le compte NE PEUT PAS être hébergeur d'un compte détecté disparu,
+    sinon le compte aurait lui-même disparu et on ne serait pas ici
+    (ses compteurs ne sont pas impactés).
+    On va mettre à jour l'avatar principal en enlevant les groupes disparus
+    et le retourner en résultat.
+    */
+    for (const idx in args.mbsMap) {
+      const id = parseInt(idx)
+      const e = args.mbsMap[id]
+
+      const vg = compile(await this.getRowVersion(id, 'avGrSignatures-3'))
+      if (vg._zombi) {
+        versions[id] = { v: vg.v, _zombi: true }
+        delete avatar.mpgk[e.npgk]
+        grDisparus = true
+      } else {
+        const row = await this.getRowGroupe(id, 'avGrSignatures-4')
+        if (row.v > e.v) this.addRes('groupes', row)  
+        for (const ids of e.mbs) {
+          const r = await this.getRowMembre(e.idg, ids)
+          if (r) { 
+            /* normalement r existe : le membre ids du groupe correspond
+            à un avatar qui l'a cité dans sa liste de groupe */
+            if (signer && (r.dlv < e.dlv)) { // signatures des membres
+              const membre = compile(r)
+              membre.dlv = e.dlv
+              this.update(membre.toRow())
+            }
+          }
+        }
+      }
+    }
+
+    const va = compile(await this.getRowVersion(this.session.id, 'avGrSignatures-2', true))
+    if (grDisparus) va.v++
+    versions[this.session.id] = { v: va.v }
+    const e = args.avsMap[this.session.id]
+    if (signer && (va.dlv < e.dlv)) { // signature de l'avatar
+      va.dlv = e.dlv
+      this.update(va.toRow())
+    }
+    if (grDisparus) {
+      avatar.v = va.v
+      this.setRes('avatar', this.update(avatar.toRow()))
+    }
+
+    this.setRes('versions', versions)
+    this.setRes('OK', true)
+  }
+}
+
+/*`SignaturesEtVersions` : signatures des groupes et avatars *** OBOSOLETE ***
 Si un des avatars a changé de version, retour en `OK` `false` : la liste des avatars doit être la même que celle précédemment obtenue en session.
 
 Signature par les `dlv` passées en arguments des row `versions` des avatars et membres (groupes en fait).
@@ -1133,7 +1268,7 @@ operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
   }
 }
 
-/* `EnleverGroupesAvatars` : retirer pour chaque avatar de la map ses accès aux groupes listés par numéro d'invitation
+/* *** OBOSOLETE *** ??? `EnleverGroupesAvatars` : retirer pour chaque avatar de la map ses accès aux groupes listés par numéro d'invitation
 POST:
 - `token` : éléments d'authentification du compte.
 - `mapIdNi` : map

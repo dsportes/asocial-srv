@@ -615,11 +615,11 @@ export class Compteurs {
     const pc2 = Math.round(this.v2 * 100 / UNITEV2 / this.qv.q2)
     const max = pc1 > pc2 ? pc1 : pc2
     const ntf = { dh: this.dh }
-    if (max >= 100) { ntf.nr = 5; ntf.texte = '%R' }
-    else if (max >= 90) { ntf.nr = 0; ntf.texte = '%I' }
+    if (max >= 100) { ntf.nr = 5; ntf.texte = '%E' }
+    else if (max >= 90) { ntf.nr = 0; ntf.texte = '%F' }
     return ntf
   }
-
+  
   get notifX () { // consommation excessive
     const ntf = { dh: this.dh }
     if (this.qv.qc) {
