@@ -1129,7 +1129,6 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
       const vg = compile(await this.getRowVersion(id, 'avGrSignatures-3'))
       if (vg._zombi) {
-        versions[id] = { v: vg.v, _zombi: true }
         delete avatar.mpgk[e.npgk]
         grDisparus = true
       } else {
