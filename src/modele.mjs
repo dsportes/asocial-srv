@@ -1039,7 +1039,7 @@ export class Operation {
 
     this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.result2 = {}
 
-    if (this.phase2) {
+    if (!this.result.KO && this.phase2) {
       if (ctx.sql) {
 
         if (this.session && args.abPlus && args.abPlus.length) {
@@ -1054,26 +1054,29 @@ export class Operation {
           this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.result2 = {}
           this.phase = 2
           await this.phase2(this.args)
-          if (this.toInsert.length) GenDoc.insertRowsSql(this.toInsert)
-          if (this.toUpdate.length) GenDoc.updateRowsSql(this.toUpdate)
-          if (this.toDelete.length) GenDoc.deleteRowsSql(this.toDelete)
+          if (!this.result2.KO) {
+            if (this.toInsert.length) GenDoc.insertRowsSql(this.toInsert)
+            if (this.toUpdate.length) GenDoc.updateRowsSql(this.toUpdate)
+            if (this.toDelete.length) GenDoc.deleteRowsSql(this.toDelete)
+          }
           stmt('commit', 'COMMIT').run()
         } catch (e) {
           stmt('rollback', 'ROLLBACK').run()
           throw e
         }
 
+        if (!this.result2.KO) {
         // (A) suppressions éventuelles des abonnements
-        if (this.session) {
-          if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.session.sync.moins(id) })
-          if (args.abPlus && args.abPlus.length) args.abPlus.forEach(id => { this.session.sync.plus(id) })
+          if (this.session) {
+            if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.session.sync.moins(id) })
+            if (args.abPlus && args.abPlus.length) args.abPlus.forEach(id => { this.session.sync.plus(id) })
+          }
+          // (B) envoi en synchronisation des rows modifiés
+          const rows = []
+          this.toUpdate.forEach(row => { if (syncs.has(row._nom)) rows.push(row) })
+          this.toInsert.forEach(row => { if (syncs.has(row._nom)) rows.push(row) })
+          if (rows.length) SyncSession.toSync(rows)
         }
-        // (B) envoi en synchronisation des rows modifiés
-        const rows = []
-        this.toUpdate.forEach(row => { if (syncs.has(row._nom)) rows.push(row) })
-        this.toInsert.forEach(row => { if (syncs.has(row._nom)) rows.push(row) })
-        if (rows.length) SyncSession.toSync(rows)
-
       } else {
 
         await ctx.fs.runTransaction(async (transaction) => {
@@ -1082,9 +1085,11 @@ export class Operation {
           this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.result2 = {}
           this.phase = 2
           await this.phase2(this.args)
-          if (this.toInsert.length) await GenDoc.setRowsDoc(this.transaction, this.toInsert)
-          if (this.toUpdate.length) await GenDoc.setRowsDoc(this.transaction, this.toUpdate)
-          if (this.toDelete.length) await GenDoc.deleteRowsDoc(this.transaction, this.toDelete)
+          if (!this.result2.KO) {
+            if (this.toInsert.length) await GenDoc.setRowsDoc(this.transaction, this.toInsert)
+            if (this.toUpdate.length) await GenDoc.setRowsDoc(this.transaction, this.toUpdate)
+            if (this.toDelete.length) await GenDoc.deleteRowsDoc(this.transaction, this.toDelete)
+          }
         })
 
       }
@@ -1096,22 +1101,25 @@ export class Operation {
     - (C) envoi en cache des objets majeurs mis à jour / supprimés
     - (D) finalisation du résultat (fusion résultats phase 1 / 2)
     */
-    
-    // (C) envoi en cache des objets majeurs modifiés / ajoutés / supprimés
-    const updated = [] // rows mis à jour / ajoutés
-    const deleted = [] // paths des rows supprimés
-    this.toInsert.forEach(row => { if (majeurs.has(row._nom)) updated.push(row) })
-    this.toUpdate.forEach(row => { if (majeurs.has(row._nom)) updated.push(row) })
-    this.toDelete.forEach(row => { if (majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-    Cache.update(updated, deleted)
-
-    if (this.phase3) await this.phase3(this.args) // peut ajouter des résultas
 
     // (D) finalisation du résultat (fusion résultats phase 1 / 2)
-    for(const prop in this.result2) { this.result[prop] = this.result2[prop] }
-
+    if (!this.result2.KO)
+      for(const prop in this.result2) { this.result[prop] = this.result2[prop] }
     this.result.nl = this.nl
     this.result.ne = this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length
+  
+    if (!this.result.KO) {
+      // (C) envoi en cache des objets majeurs modifiés / ajoutés / supprimés
+      const updated = [] // rows mis à jour / ajoutés
+      const deleted = [] // paths des rows supprimés
+      this.toInsert.forEach(row => { if (majeurs.has(row._nom)) updated.push(row) })
+      this.toUpdate.forEach(row => { if (majeurs.has(row._nom)) updated.push(row) })
+      this.toDelete.forEach(row => { if (majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
+      Cache.update(updated, deleted)
+
+      if (this.phase3) await this.phase3(this.args) // peut ajouter des résultas
+    }
+
     return this.result
   }
 
@@ -1476,7 +1484,117 @@ export class Operation {
     if (row) this.toDelete.push(row)
     return row
   }
-    
+
+  async nvChat (args, xavatarE, xavatarI) {
+    /*
+    xavatarI et xavatarE : depuis AcceptionSponsoring
+    - `idI idsI` : id du chat, côté _interne_.
+    - `idE idsE` : id du chat, côté _externe_.
+    - `ccKI` : clé cc du chat cryptée par la clé K du compte de I.
+    - `ccPE` : clé cc cryptée par la clé **publique** de l'avatar E.
+    - `naccI` : [nomI, cleI] crypté par la clé cc
+    - `naccE` : [nomE, cleE] crypté par la clé cc
+    - `txt1` : texte 1 du chat crypté par la clé cc.
+    - `lgtxt1` : longueur du texte 1 du chat.
+    - `txt2` : texte 2 du chat crypté par la clé cc.
+    - `lgtxt2` : longueur du texte 2 du chat.
+    */
+    const avatarE = xavatarE || compile(await this.getRowAvatar(args.idE))
+    if (!avatarE) return null
+
+    const dh = Date.now()
+    const itemsI = []
+    itemsI.push({ a: 0, dh, txt: args.txt1, l: args.lgtxt1 })
+    if (args.txt2) itemsI.push({ a: 0, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
+
+    const itemsE = []
+    itemsE.push({ a: 1, dh, txt: args.txt1, l: args.lgtxt1 })
+    if (args.txt2) itemsE.push({ a: 1, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
+
+    const cvE = avatarE.cva
+    const vcvE = avatarE.vcv
+
+    const avatarI = xavatarI || compile(await this.getRowAvatar(args.idI, 'NouveauChat-1'))
+    const cvI = avatarI.cva
+    const vcvI = avatarI.vcv
+
+    let rowChatI = await this.getRowChat(args.idI, args.idsI)
+
+    if (!rowChatI) {
+      // cas normal : chatI n'existe pas
+      const versionI = compile(await this.getRowVersion(args.idI, 'NouveauChat-5', true))
+      versionI.v++
+      this.update(versionI.toRow())
+      const chatI = new Chats().init({
+        id: args.idI,
+        ids: args.idsI,
+        v: versionI.v,
+        vcv: vcvE,
+        st: 10,
+        cc: args.ccKI,
+        nacc: args.naccE,
+        cva: cvE || null,
+        items: itemsI
+      })
+      rowChatI = this.insert(chatI.toRow())
+
+      const versionE = compile(await this.getRowVersion(args.idE, 'NouveauChat-2', true))
+      versionE.v++
+      this.update(versionE.toRow())
+      const chatE = new Chats().init({
+        id: args.idE,
+        ids: args.idsE,
+        v: versionE.v,
+        vcv: vcvI,
+        st: 1,
+        cc: args.ccPE,
+        nacc: args.naccI,
+        cva: cvI || null,
+        items: itemsE
+      })
+      this.insert(chatE.toRow())
+
+      this.setRes('st', 1)
+      this.setRes('rowChat', rowChatI)
+
+      await this.majNbChat(1)
+
+    } else {
+      // chatI existe création croisée malencontreuse 
+      // soit par l'avatar E, soit par une autre session de I
+      this.setRes('st', 2)
+      this.setRes('rowChat', rowChatI)
+    }
+    return rowChatI
+  }
+
+  addChatItem (items, item) {
+    const nl = [item]
+    let lg = item.l
+    for (const it of items) {
+      lg += it.l
+      if (lg > 5000) return nl
+      nl.push(it)
+    }
+    return nl
+  }
+
+  razChatItem (items, a, dh) { 
+    // a : 0:écrit par I, 1: écrit par E
+    const nl = []
+    let lg = 0
+    for (const it of items) {
+      if (it.dh === dh && it.a === a) {
+        nl.push({a, l: 0, dh})
+      } else {
+        lg += it.l
+        if (lg > 5000) return nl
+        nl.push(it)
+      }
+    }
+    return nl
+  }
+
   async majNbChat (dnc) {
     const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
     compta.v++

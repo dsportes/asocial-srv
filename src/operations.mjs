@@ -2,7 +2,7 @@
 import { AppExc, F_SRV, A_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
-import { AuthSession, Operation, compile, Chats, Versions,
+import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
 import { limitesjour } from './api.mjs'
@@ -48,15 +48,13 @@ operations.ErreurFonc = class ErreurFonc extends Operation {
 
 /** Test d'accès à la base ***************************************
 Lecture de l'avatar du comptable
-Retour:
-- OK
+Retour: aucun
 */
 operations.PingDB = class PingDB extends Operation {
   constructor (nom) { super(nom); this.authMode = 3 }
 
   async phase1() {
     await this.getRowEspace(1)
-    this.setRes('OK', true)
   }
 }
 
@@ -130,7 +128,7 @@ POST:
   - `vd`: volume _descendant_ du Storage (download).
 
 Retour:
-- OK : true si l'enregistrement de la consommation a été faite
+- fait : true si l'enregistrement de la consommation a été faite
 */
 operations.EnregConso = class EnregConso extends Operation {
   constructor () { super('EnregConso'); this.lecture = true }
@@ -154,7 +152,7 @@ operations.EnregConso = class EnregConso extends Operation {
     const c = new Compteurs(compta.compteurs, null, args.conso)
     compta.compteurs = c.serial
     this.update(compta.toRow())
-    this.setRes('ok', true)
+    this.setRes('fait', true)
   }
 }
 
@@ -545,10 +543,19 @@ POST:
 - `rowVersion` : row de avatar en création.
 - `idt` : id de sa tribu. 0 SI compte A
 - `ids` : ids du sponsoring, hash de sa phrase de reconnaissance qui permet de retrouver le sponsoring.
-- `rowChatI` : row chat _interne_ pour le compte en création donnant le message de remerciement au sponsor.
-- `rowChatE` : row chat _externe_ pour le sponsor avec le même message. La version est obtenue par le serveur.
 - `ardx` : texte de l'ardoise du sponsoring à mettre à jour (avec statut 2 accepté), copie du texte du chat échangé.
 - `act`: élément de la map act de sa tribu. null SI compte A
+- pour les chats:
+    - `idI idsI` : id du chat, côté _interne_.
+    - `idE idsE` : id du chat, côté _externe_.
+    - `ccKI` : clé cc du chat cryptée par la clé K du compte de I.
+    - `ccPE` : clé cc cryptée par la clé **publique** de l'avatar E.
+    - `naccI` : [nomI, cleI] crypté par la clé cc
+    - `naccE` : [nomE, cleE] crypté par la clé cc
+    - `txt1` : texte 1 du chat crypté par la clé cc.
+    - `lgtxt1` : longueur du texte 1 du chat.
+    - `txt2` : texte 2 du chat crypté par la clé cc.
+    - `lgtxt2` : longueur du texte 2 du chat.
 
 Retour: rows permettant d'initialiser la session avec le nouveau compte qui se trouvera ainsi connecté.
 - `rowTribu`
@@ -574,6 +581,9 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 
   async phase2(args) {
+    const avatarE = compile(await this.getRowAvatar(args.idE))
+    if (!avatarE) throw new AppExc(F_SRV, 25)
+
     // Obtention du sponsoring et incrementation de la version du sponsor    
     const sp = compile(await this.getSponsoringIds(args.ids))
     if (!sp) throw new AppExc(F_SRV, 8)
@@ -606,24 +616,8 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     this.insert(args.rowAvatar)
     this.insert(args.rowVersion)
 
-    const chatI = compile(args.rowChatI)
-    const chatE = compile(args.rowChatE)
-    const avE = compile(await this.getRowAvatar(chatE.id, 'AcceptationSponsoring-2'))
-    const cvE = avE.cva || null
-    const vcvE = avE.vcv || 0
-
-    // Insert chatI
-    chatI.v = args.rowVersion.v
-    chatI.cva = cvE
-    chatI.vcv = vcvE
-    const rowChatI = this.insert(chatI.toRow())
+    const rowChatI = this.nvChat(args, avatarE, compile(args.rowAvatar))
     this.setRes('rowChat', rowChatI)
-
-    // Insert chatE
-    chatE.v = versionsp.v
-    chatE.vcv = 0
-    chatE.cva = null
-    this.insert(chatE.toRow())
 
     if (!ctx.sql) {
       this.setRes('credentials', ctx.config.fscredentials)
@@ -733,7 +727,7 @@ POST:
   - _valeur_ : version détenue en session. Ne retourner l'avatar que si sa version est plus récente que celle-ci.
 
 Retour:
-- `OK` : si la version de compta n'a pas changé
+- `KO` : true si la version de compta a changé
 - `rowAvatars`: array des rows des avatars dont la version est postérieure à celle indiquée en arguments.
 */
 operations.GetAvatars = class GetAvatars extends Operation {
@@ -743,13 +737,12 @@ operations.GetAvatars = class GetAvatars extends Operation {
     const id = this.session.id
     const rowCompta = await this.getRowCompta(id)
     if (rowCompta.v !== args.vcompta) {
-      this.setRes('OK', false)
+      this.setRes('KO', true)
     } else {
       for (const id in args.mapv) {
         const r = await this.getRowAvatar(parseInt(id))
         if (r && r.v > args.mapv[id]) this.addRes('rowAvatars', r)
       }
-      this.setRes('OK', true)
     }
   }
 }
@@ -1054,7 +1047,7 @@ POST:
 - `estFige` : si true, ne pas effectuer les signatures
 
 Retour:
-- `OK` : true / false si le compta ou l'avatar principal a changé de version.
+- `KO` : true si le compta ou l'avatar principal a changé de version.
 - `versions` : map pour chaque avatar / groupe :
   - _clé_ : id du groupe ou de l'avatar.
   - _valeur_ :
@@ -1087,7 +1080,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
     if (rowAvatar.v !== args.vavatar || rowCompta.v !== args.vcompta) { 
       this.setRes('rowCompta', rowCompta)
       this.setRes('rowAvatar', rowAvatar)
-      this.setRes('OK', false)
+      this.setRes('KO', true)
       return
     }
 
@@ -1163,107 +1156,6 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
     }
 
     this.setRes('versions', versions)
-    this.setRes('OK', true)
-  }
-}
-
-/*`SignaturesEtVersions` : signatures des groupes et avatars *** OBOSOLETE ***
-Si un des avatars a changé de version, retour en `OK` `false` : la liste des avatars doit être la même que celle précédemment obtenue en session.
-
-Signature par les `dlv` passées en arguments des row `versions` des avatars et membres (groupes en fait).
-
-Retourne les `versions` des avatars et groupes de la session.
-
-POST:
-- `token` : éléments d'authentification du compte.
-- `vcompta` : version de compta qui ne doit pas avoir changé
-- `mbsMap` : map des membres des groupes des avatars :
-  - _clé_ : id du groupe  
-  - _valeur_ : `{ idg, mbs: [ids], dlv }`
-- `avsMap` : map des avatars du compte 
-  - `clé` : id de l'avatar
-  - `valeur` : `{v (version connue en session), dlv}`
-- `abPlus` : array des ids des groupes auxquels s'abonner
-- `estFige` : si true, ne pas egfectuer les signatures
-
-Retour:
-- `OK` : true / false si le compta ou un des avatars a changé de version.
-- `versions` : map pour chaque avatar / groupe de :
-  - _clé_ : id du groupe ou de l'avatar.
-  - _valeur_ :
-    - `{ v }`: pour un avatar.
-    - `{ v, vols: {v1, v2, q1, q2} }` : pour un groupe.
-
-Assertions sur les rows `Comptas, Avatars, Versions`.
-*/
-operations.SignaturesEtVersions = class SignaturesEtVersions extends Operation {
-  constructor () { super('SignaturesEtVersions'); this.lecture = true }
-
-  /*
-  this.lecture = true permet de tester this.session.estFige et de ne pas procéder aux signatures
-  */
-  async phase2 (args) {
-    const signer = !this.session.estFige && !args.estFige
-    const versions = {}
-
-    // Test si "compta" a changé de version
-    const rowCompta = await this.getRowCompta(this.session.id, 'SignaturesEtVersions-1')
-    if (rowCompta.v !== args.vcompta) { this.setRes('OK', false); return }
-
-    // Test si un des avatars a changé de version et signature des avatars
-    for (const idx in args.avsMap) {
-      const id = parseInt(idx)
-      const e = args.avsMap[id]
-      const row = await this.getRowAvatar(id, 'SignaturesEtVersions-4')
-      if (row.v > e.v) { this.setRes('OK', false); return }
-
-      const va = compile(await this.getRowVersion(id, 'SignaturesEtVersions-2', true))
-      /* Un avatar "disparu" est détecté largement APRES la disparition de son compta
-      Un avatar "résilié par une autre session" s'est D'ABORD manifesté
-      par retrait de sa map de compta. Or celle-ci n'a pas changé.
-      DONC on ne devrait pas retrouver d'avatars disparus ici
-      */
-      versions[id] = { v: va.v }
-      if (signer && (va.dlv < e.dlv)) { // signature de l'avatar
-        va.dlv = e.dlv
-        this.update(va.toRow())
-      }
-    }
-
-    for (const idx in args.mbsMap) {
-      const id = parseInt(idx)
-      const e = args.mbsMap[id]
-
-      const vg = compile(await this.getRowVersion(id, 'SignaturesEtVersions-3'))
-      /* MAIS un groupe peut DISPARAITRE par l'effet du GC (sa "versions" est _zombi), 
-      BIEN AVANT que la lgr de ses membres n'aient pu être mises à jour.
-      On retourne un avis de DISPARITION pour les groupes détectés disparus
-      */
-      if (vg._zombi) {
-        versions[id] = { v: vg.v, _zombi: true }
-      } else {
-        versions[id] = { v: vg.v, vols: vg.vols }
-        if (signer && (vg.dlv < e.dlv)) { // signature de l'avatar
-          vg.dlv = e.dlv
-          this.update(vg.toRow())
-        }
-      }
-
-      for (const ids of e.mbs) {
-        const r = await this.getRowMembre(e.idg, ids)
-        if (r) { 
-          /* normalement r existe : le membre ids du groupe correspond
-          à un avatar qui l'a cité dans sa liste de groupe */
-          if (signer && (r.dlv < e.dlv)) { // signatures des membres
-            const membre = compile(r)
-            membre.dlv = e.dlv
-            this.update(membre.toRow())
-          }
-        }
-      }
-    }
-    this.setRes('versions', versions)
-    this.setRes('OK', true)
   }
 }
 
@@ -1546,7 +1438,7 @@ POST:
     `hrnd` : clé d'entrée de la map `mbtr` dans tribu2.
 
 Retour:
-- `OK` : `false` si la carte de visite a changé sur le serveur depuis la version connue en session. Il faut reboucler sur la requête jusqu'à obtenir true.
+- `KO` : true si la carte de visite a changé sur le serveur depuis la version connue en session. Il faut reboucler sur la requête jusqu'à obtenir true.
 
 Assertion sur l'existence du row `Avatars` de l'avatar et de son row `Versions`.
 */
@@ -1556,7 +1448,7 @@ operations.MajCv = class MajCv extends Operation {
   async phase2 (args) { 
     const rowAvatar = await this.getRowAvatar(args.id, 'MajCv-1')
     if (rowAvatar.v + 1 !== args.v) {
-      this.setRes('OK', false)
+      this.setRes('KO', true)
       return
     }
     const rowVersion = await this.getRowVersion(args.id, 'MajCv-2', true)
@@ -1570,7 +1462,6 @@ operations.MajCv = class MajCv extends Operation {
 
     this.update(avatar.toRow())
     this.update(version.toRow())
-    this.setRes('OK', true)
   }
 }
 
@@ -1638,15 +1529,19 @@ POST:
 - `idE idsE` : id du chat, côté _externe_.
 - `ccKI` : clé cc du chat cryptée par la clé K du compte de I.
 - `ccPE` : clé cc cryptée par la clé **publique** de l'avatar E.
-- `contcI` : contenu du chat I (contient le [nom, rnd] de E), crypté par la clé cc.
-- `contcE` : contenu du chat E (contient le [nom, rnd] de I), crypté par la clé cc.
+- `naccI` : [nomI, cleI] crypté par la clé cc
+- `naccE` : [nomE, cleE] crypté par la clé cc
+- `txt1` : texte 1 du chat crypté par la clé cc.
+- `lgtxt1` : longueur du texte 1 du chat.
+- `txt2` : texte 1 du chat crypté par la clé cc.
+- `lgtxt2` : longueur du texte 1 du chat.
 
 Retour:
 - `st` : 
-  0 : E a disparu
-  1 : chat créé avec le contenu contc.
-  2 : le chat était déjà créé, retour de chatI avec le contenu qui existait
-- `rowChat` : row du chat I créé (sauf st = 0).
+  0 : E a disparu. rowChat absent
+  1 : chat créé avec l'item txt1. rowChat a le chat I créé avec le texte txt1.
+  2 : le chat était déjà créé: rowChat est le chat I SANS le texte txt1.
+- `rowChat` : row du chat I.
 
 Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
 */
@@ -1654,90 +1549,8 @@ operations.NouveauChat = class NouveauChat extends Operation {
   constructor () { super('NouveauChat') }
 
   async phase2 (args) {
-    const avatarE = compile(await this.getRowAvatar(args.idE))
-    if (!avatarE) { this.setRes('st', 0); return }
-
-    const cvE = avatarE.cva
-    const vcvE = avatarE.vcv
-
-    const avatarI = compile(await this.getRowAvatar(args.idI, 'NouveauChat-1'))
-    const cvI = avatarI.cva
-    const vcvI = avatarI.vcv
-
-    let rowChatI = await this.getRowChat(args.idI, args.idsI)
-
-    if (!rowChatI) {
-      // cas normal : chatI n'existe pas
-      const versionI = compile(await this.getRowVersion(args.idI, 'NouveauChat-5', true))
-      versionI.v++
-      this.update(versionI.toRow())
-      const chatI = new Chats().init({
-        id: args.idI,
-        ids: args.idsI,
-        v: versionI.v,
-        vcv: vcvE,
-        r: 1, // `r` : 0:raccroché, 1:en ligne, 2:en ligne mais E est mort
-        seq: 1, // première version du chat
-        cc: args.ccKI,
-        cva: cvE || null,
-        contc: args.contcI
-      })
-      rowChatI = this.insert(chatI.toRow())
-
-      const versionE = compile(await this.getRowVersion(args.idE, 'NouveauChat-2', true))
-      versionE.v++
-      this.update(versionE.toRow())
-      const chatE = new Chats().init({
-        id: args.idE,
-        ids: args.idsE,
-        v: versionE.v,
-        vcv: vcvI,
-        r: 0, // `r` : 0:raccroché, 1:en ligne, 2:en ligne mais E est mort
-        seq: 1, // première version du chat
-        cc: args.ccPE,
-        cva: cvI || null,
-        contc: args.contcE
-      })
-      this.insert(chatE.toRow())
-
-      this.setRes('st', 1)
-      this.setRes('rowChat', rowChatI)
-
-      await this.majNbChat(1)
-
-    } else {
-      // chatI existe création croisée malencontreuse 
-      // soit par l'avatar E, soit par une autre session de I
-
-      // MAJ éventuelle de la CV dans chatI
-      if (rowChatI.vcv < vcvE) {
-        const chatI = compile(rowChatI)
-        const versionI = compile(await this.getRowVersion(args.idI, 'NouveauChat-3'))
-        versionI.v++
-        this.update(versionI.toRow())
-        chatI.vcv = vcvE
-        chatI.v = versionI.v
-        chatI.cva = cvE || null
-        rowChatI = this.update(chatI.toRow())
-      }
-
-      // MAJ éventuelle de chatE
-      const rowChatE = await this.getChatVCV(args.idE, args.idsS, vcvI)
-      if (rowChatE) {
-        const chatE = compile(rowChatE)
-        const versionE = compile(await this.getRowVersion(args.idE, 'NouveauChat-4'))
-        versionE.v++
-        this.update(versionE.toRow())
-        chatE.vcv = vcvI
-        chatE.v = versionE.v
-        chatE.cva = cvI || null
-        this.update(chatE.toRow())
-      }
-
-      this.setRes('st', 2)
-      this.setRes('rowChat', rowChatI)
-    }
-
+    const rowChatI = await this.nvChat(args)
+    if (!rowChatI) this.setRes('st', 0)
   }
 }
 
@@ -1747,17 +1560,13 @@ POST:
 - `idI idsI` : id du chat, côté _interne_.
 - `idE idsE` : id du chat, côté _externe_.
 - `ccKI` : clé cc du chat cryptée par la clé K du compte de I. _Seulement_ si en session la clé cc était cryptée par la clé publique de I.
-- `contcI` : contenu du chat I (contient le [nom, rnd] de E), crypté par la clé cc.
-- `contcE` : contenu du chat E (contient le [nom, rnd] de I), crypté par la clé cc.
-- `seq` : numéro de séquence à partir duquel `contc` a été créé.
-- `op` : 1:envoyer, 2:raccrocher
+- `txt1` : texte à ajouter crypté par la clé cc du chat.
+- `lgtxt1` : longueur du texte
+- `dh` : date-heure du chat dont le texte est à annuler.
 Retour:
 - `st` :
-  0 : chat mis à jour
-  1 : chat mis à jour avec le contenu `contc`.
-  2 : le chat existant a un contenu plus récent que celui sur lequel était basé `contc`. Retour de chatI.
-  3 : E disparu, chat zombi
-  4 : E disparu, chat non modifibale (disparaîtra si raccrocher
+  0 : E a disparu, chat zombi.
+  1 : chat mis à jour.
 - `rowChat` : row du chat I.
 
 Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
@@ -1770,135 +1579,94 @@ operations.MajChat = class MajChat extends Operation {
     const chatI = compile(rowChatI)
     const i1 = chatI.cc.length === 256 && args.ccKI
 
-    let rowChatE = await this.getRowChat(args.idE, args.idsE)
+    const rowChatE = await this.getRowChat(args.idE, args.idsE)
+    const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-2', true))
+    versionI.v++
+    this.update(versionI.toRow())
+    chatI.v = versionI.v
+    if (i1) chatI.cc = args.ccKI
 
     if (!rowChatE) {
-      /* E disparu. Maj interdite:
-      - op raccrocher (2) OU envoyer mais était raccroché: chat _zombi
-      - op envoyer : texte inchangé mais 2 -> r
-      */
-      const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-2', true))
-      versionI.v++
-      this.update(versionI.toRow())
-      chatI.v = versionI.v
-      if (args.op === 2 || chatI.r === 0) {
-        if (chatI.r) {
-          // était en ligne
-          await this.majNbChat(-1)
-        }
-        chatI._zombi = true
-        this.setRes('st', 3)
-      } else {
-        // n'était pas "raccroché" (sinon ci-dessus)
-        if (i1) chatI.cc = args.ccKI
-        chatI.r = 2
-        chatI.vcv = 0
-        chatI.cva = null
-        this.setRes('st', 4)
-      }
+      // E disparu. Maj interdite:
+      const st1 = Math.floor(chatI.st / 10)
+      chatI.st = (st1 * 10) + 2 
+      chatI.vcv = 0
+      chatI.cva = null
+      this.setRes('st', 0)
       rowChatI = this.update(chatI.toRow())
       this.setRes('rowChat', rowChatI)
       return
     }
 
+    // cas normal : maj sur chatI et chatE
     const avatarE = compile(await this.getAvatarVCV(args.idE, chatI.vcv))
     const avatarI = compile(await this.getAvatarVCV(args.idI, rowChatE.vcv))
+    const dh = Date.now()
+    const itemI = args.txt1 ? { a: 0, dh, txt: args.txt1, l: args.lgtxt1 } : null
+    const itemE = args.txt1 ? { a: 1, dh, txt: args.txt1, l: args.lgtxt1 } : null
+    const chatE = compile (rowChatE)
+    const versionE = compile(await this.getRowVersion(args.idE, 'MajChat-7', true))
+    versionE.v++
+    this.update(versionE.toRow())
+    chatE.v = versionE.v
 
-    // chat E et chat I existent (et sont synchrones)
-    if (chatI.seq > args.seq) {
-      // Maj basée sur un contenu dépassé : retour du chatI actuel
-      if (i1 || avatarE) { // chgt cv ou ccK
-        // Maj chatI
-        const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-4', true))
-        versionI.v++
-        this.update(versionI.toRow())
-        if (i1) chatI.cc = args.ccKI
-        chatI.v = versionI.v
-        if (avatarE) {
-          chatI.vcv = avatarE.vcv
-          chatI.cva = avatarE.cva
-        }
-        rowChatI = this.update(chatI.toRow())
-      }
-
-      if (avatarI) { // Maj CV de chat E
-        const chatE = compile (rowChatE)
-        const versionE = compile(await this.getRowVersion(args.idE, 'MajChat-5', true))
-        versionE.v++
-        this.update(versionE.toRow())
-        chatE.v = versionE.v
-        chatE.vcv = avatarI.vcv
-        chatE.cva = avatarI.cva
-        rowChatE = this.update(chatE.toRow())  
-      }
-      this.setRes('st', 2)
-      this.setRes('rowChat', rowChatI)
-      return
-    } 
-
-    // cas normal : maj de contc sur chatI et chatE
-    const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-6', true))
-    versionI.v++
-    this.update(versionI.toRow())
-    if (i1) chatI.cc = args.ccKI
-    chatI.v = versionI.v
-    if (args.op === 1) chatI.seq++
-    chatI.contc = args.contcI
+    const itemsI = chatI.items
+    if (args.txt1) {
+      chatI.items = this.addChatItem(itemsI, itemI)
+    } else if (args.dh) {
+      chatI.items = this.razChatItem(itemsI, 0, args.dh)
+    }
     if (avatarE) {
       chatI.vcv = avatarE.vcv
       chatI.cva = avatarE.cva
     }
-    let n = 0
-    if (chatI.r) {
-      // était en ligne
-      if (args.op === 2) n = -1 // on raccroche : -1 chat à décompter
-    } else {
-      // était raccroché
-      if (args.op === 1) n = 1
+    const st1 = Math.floor(chatI.st / 10)
+    if (st1 === 0) {
+      // était passif, redevient actif
+      chatI.st = 10 + (chatI.st % 10)
+      await this.majNbChat(1)
     }
-    if (n) await this.majNbChat(n)
-    chatI.r = args.op === 1 ? 1 : 0
     rowChatI = this.update(chatI.toRow())
-    this.setRes('st', 0)
     this.setRes('rowChat', rowChatI)
-
-    if (args.op === 1 || avatarI) {
-      // Maj de chatE (son texte OU la CV de I)
-      const chatE = compile (rowChatE)
-      const versionE = compile(await this.getRowVersion(args.idE, 'MajChat-7', true))
-      versionE.v++
-      this.update(versionE.toRow())
-      chatE.v = versionE.v
-      chatE.seq = chatI.seq
-      chatE.contc = args.contcE
-      if (avatarI) {
-        chatE.vcv = avatarI.vcv
-        chatE.cva = avatarI.cva
-      }
-      rowChatE = this.update(chatE.toRow())
+ 
+    const itemsE = chatE.items
+    if (args.txt1) {
+      chatE.items = this.addChatItem(itemsE, itemE)
+    } else if (args.dh) {
+      chatE.items = this.razChatItem(itemsE, 0, args.dh)
     }
+    if (avatarI) {
+      chatE.vcv = avatarI.vcv
+      chatE.cva = avatarI.cva
+    }
+    this.update(chatE.toRow())
   }
 }
 
-/* `MajMotsclesChat` : changer les mots clés d'un chat
+/* `PassifChat` : rend le chat passif, nombre de chat - 1, items vidé
 POST:
 - `token` : éléments d'authentification du compte.
-- `mc` : u8 des mots clés
 - `id ids` : id du chat
 
 Assertions sur le row `Chats` et la `Versions` de l'avatar id.
 */
-operations.MajMotsclesChat = class MajMotsclesChat extends Operation {
-  constructor () { super('MajMotsclesChat') }
+operations.PassifChat = class PassifChat extends Operation {
+  constructor () { super('PassifChat') }
 
   async phase2 (args) { 
-    const version = compile(await this.getRowVersion(args.id, 'MajMotsclesChat-1', true))
-    const chat = compile(await this.getRowChat(args.id, args.ids, 'MajMotsclesChat-2'))
+    const version = compile(await this.getRowVersion(args.id, 'PassifChat-1', true))
+    const chat = compile(await this.getRowChat(args.id, args.ids, 'PassifChat-2'))
     version.v++
     chat.v = version.v
-    chat.mc = args.mc
-    this.update(chat.toRow())
-    this.update(version.toRow())
+    const st1 = Math.floor(chat.st / 10)
+    if (st1 === 1) {
+      // était actif, devient passif
+      chat.st = chat.st % 10
+      chat.items = []
+      await this.majNbChat(-1)
+      this.update(chat.toRow())
+      this.update(version.toRow())  
+    }
   }
 }
 
@@ -1965,7 +1733,7 @@ operations.NouvelleTribu = class NouvelleTribu extends Operation {
   async phase2 (args) {
     const compta = compile(await this.getRowCompta(this.session.id, 'NouvelleTribu'))
     if (compta.atr.length !== ID.court(args.rowTribu.id)) {
-      this.setRes('OK', false)
+      this.setRes('KO', true)
       return
     }
     compta.v++
@@ -1975,7 +1743,6 @@ operations.NouvelleTribu = class NouvelleTribu extends Operation {
     const tribu = compile(args.rowTribu)
     this.insert(tribu.toRow())
     await this.MajSynthese(tribu)
-    this.setRes('OK', true)
   }
 }
 
@@ -2254,7 +2021,7 @@ operations.MajCvGr = class MajCvGr extends Operation {
   async phase2 (args) { 
     const rowGroupe = await this.getRowGroupe(args.id, 'MajCvGr-1')
     if (rowGroupe.v + 1 !== args.v) {
-      this.setRes('OK', false)
+      this.setRes('KO', true)
       return
     }
     const groupe = compile(rowGroupe)
@@ -2267,7 +2034,6 @@ operations.MajCvGr = class MajCvGr extends Operation {
 
     this.update(groupe.toRow())
     this.update(version.toRow())
-    this.setRes('OK', true)
   }
 }
 
@@ -3295,9 +3061,8 @@ args.dnn: nombre de notes avatar et notes des groupes hébergés)
 args.dnc
 args.dng
 args.dv2
-Retour: OK
-- true : suprresion OK
-- false : retry requis, les versions des groupes et/ou avatar ont chnagé
+Retour: KO
+- KO : si true, retry requis, les versions des groupes et/ou avatar ont chnagé
 */
 operations.SupprAvatar = class SupprAvatar extends Operation {
   constructor () { super('SupprAvatar') }
@@ -3309,7 +3074,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     for (const it of args.grps) {
       const vg = await this.getRowVersion(it.idg, 'SupprAvatar-1')
       if (vg._zombi || (vg.v !== it.vg)) { 
-        this.setRes('OK', false); return 
+        this.setRes('KO', false); return 
       }
       vgroupes[it.idg] = vg
     }
@@ -3379,7 +3144,6 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
         this.update(vgroupe.toRow())
       }
     }
-    this.setRes('OK', true)
   }
 }
 
