@@ -1053,9 +1053,10 @@ Retour:
   - _valeur_ :
     - `{ v }`: pour un avatar.
     - `{ v, vols: {v1, v2, q1, q2} }` : pour un groupe.
-- `avatars` : tows avatars ayant une nouvelle version.
-  Pour l'avatar principal, seule mpgk a pu avoir des items en moins (groupes disparus)
-- `groupes`: tous groupes ayant une nouvelle version
+  - `rowAvatars` : rows avatars ayant une nouvelle version sauf principal.
+  - `rowGroupes`: rows groupes ayant une nouvelle version
+  - `rowAvatar` : avatar principal. Si OK seule mpgk a pu avoir des items en moins (groupes disparus)
+  - `rowCompta` : compta
 
 Assertions sur les rows `Avatars (sauf le principal), Groupes (non disparus), Versions`.
 */
@@ -1132,7 +1133,8 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
           if (r) { 
             /* normalement r existe : le membre ids du groupe correspond
             à un avatar qui l'a cité dans sa liste de groupe */
-            if (signer && (r.dlv < e.dlv)) { // signatures des membres
+            if (signer && (r.dlv < e.dlv)) { 
+              // signatures des membres: la version ne change pas (la synchro de la dlv est sans intérêt)
               const membre = compile(r)
               membre.dlv = e.dlv
               this.update(membre.toRow())
@@ -1152,42 +1154,10 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
     }
     if (grDisparus) {
       avatar.v = va.v
-      this.setRes('avatar', this.update(avatar.toRow()))
+      this.setRes('rowAvatar', this.update(avatar.toRow()))
     }
 
     this.setRes('versions', versions)
-  }
-}
-
-/* *** OBOSOLETE *** ??? `EnleverGroupesAvatars` : retirer pour chaque avatar de la map ses accès aux groupes listés par numéro d'invitation
-POST:
-- `token` : éléments d'authentification du compte.
-- `mapIdNi` : map
-  - _clé_ : id d'un avatar
-  - _valeur_ : array des `ni` (numéros d'invitation) des groupes ciblés.
-*/
-operations.EnleverGroupesAvatars = class EnleverGroupesAvatars extends Operation {
-  constructor () { super('EnleverGroupesAvatars') }
-
-  async phase2 (args) {
-    for (const idx in args.mapIdNi) {
-      let maja = false
-      const id = parseInt(idx)
-      const ani = args.mapIdNi[id]
-      const avatar = compile(await this.getRowAvatar(id))
-      if (!avatar) continue
-      const version = compile(await this.getRowVersion(id))
-      if (!version || version._zombi) continue
-      version.v++
-      avatar.v = version.v
-      ani.forEach(ni => { 
-        if (avatar.lgrk[ni]) { delete avatar.lgrk[ni]; maja = true }
-      })
-      if (maja) { 
-        this.update(version.toRow())
-        this.update(avatar.toRow())
-      }
-    }
   }
 }
 
