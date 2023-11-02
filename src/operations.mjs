@@ -1149,9 +1149,9 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
     /* si compta ou avatar n'existe plus, le compte n'existe plus
     si compta ou avatar ont changé de versions, recommencer la procédure de connexion */
-    const rowCompta = this.getRowCompta(this.session.id)
+    const rowCompta = await this.getRowCompta(this.session.id)
     if (!rowCompta) throw new AppExc(F_SRV, 101)
-    const rowAvatar = this.getRowAvatar(this.session.id)
+    const rowAvatar = await this.getRowAvatar(this.session.id)
     if (!rowAvatar) throw new AppExc(F_SRV, 101)
 
     if (rowAvatar.v !== args.vavatar || rowCompta.v !== args.vcompta) { 
