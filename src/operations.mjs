@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
-import { limitesjour } from './api.mjs'
+import { limitesjour, FLAGS } from './api.mjs'
 
 export function atStart() {
   if (ctx.debug) console.log('atStart operations')
@@ -678,6 +678,82 @@ operations.ConnexionCompte = class ConnexionCompte extends Operation {
     this.setRes('rowAvatar', rowAvatar)
     const rowEspace = await this.getRowEspace(ns, 'ConnexionCompte-3')
     this.setRes('rowEspace', rowEspace)
+  }
+}
+
+/* Synchroniser une session
+
+POST:
+- args.token donne les éléments d'authentification du compte.
+- args.avv: version de l'avatar principal du compte
+- args.avmap: map du / des avatars à récupérer:
+  - clé:id, 
+  - valeur: version actuelle
+- args.grmap:  map du / des groupes à récupérer:
+  - clé: idg
+  - valeur: { mbs, v } 
+
+Retour:
+- KO : true - l'avatar principal a changé de version
+- rowAvatar : si KO dernière version du row avatar principal
+- rowAvatars rowGroupes rowVersions rowNotes rowSponsorings rowChats rowTickets rowMembres
+*/
+operations.Synchroniser = class Synchroniser extends Operation {
+  constructor () { super('Synchroniser')}
+
+  async phase2 (args) {
+    const rowAvatar = await this.getRowAvatar(this.session.id, 'Synchroniser-1')
+    if (rowAvatar.v !== args.avv) {
+      this.setRes('rowAvatar', rowAvatar)
+      this.setRes('KO', true)
+      return
+    }
+
+    for (const x in args.avmap) {
+      const id = parseInt(x)
+      const v = args.avmap[x]
+      const rowVersion = await this.getRowVersion(id)
+      if (!rowVersion) continue // en fait cet avatar a disparu et n'est plus listé dans avatar
+      if (rowVersion.v === v) continue // cet avatar était à jour en session
+      this.addRes('rowVersions', rowVersion)
+      const rowAvatar = await this.getRowAvatar(id, 'Synchroniser-2')
+      if (rowAvatar.v > v) this.addRes('rowAvatars', rowAvatar)
+
+      for (const row of await this.getAllRowsNote(id, v))
+        this.addRes('rowNotes', row)
+      for (const row of await this.getAllChat(id, v))
+        this.addRes('rowChats', row)
+      for (const row of await this.getAllRowsTicket(id, v))
+        this.addRes('rowTickets', row)
+      for (const row of await this.getAllRowsSponsoring(id, v))
+        this.addRes('rowSponsorings', row)
+    }
+
+    for (const x in args.grmap) {
+      const id = parseInt(x)
+      const mbs = args.grmap[x].mbs
+      const v = args.grmap[x].v
+      const rowVersion = await this.getRowVersion(id)
+      if (!rowVersion) continue // en fait ce groupe a disparu et n'est plus listé dans avatar
+      if (rowVersion.v === v) continue // ce groupe était à jour en session
+      this.addRes('rowVersions', rowVersion)
+      const rowGroupe = await this.getRowGroupe(id, 'Synchroniser-3')
+      if (rowGroupe.v > v) this.addRes('rowGroupes', rowGroupe)
+
+      const groupe = compile(rowGroupe)
+      let ano = false
+      let amb = false
+      for (const im of mbs) {
+        const f = groupe.flags[im]
+        if ((f & FLAGS.AM) && (f & FLAGS.DM)) amb = true
+        if ((f & FLAGS.AN) && (f & FLAGS.DN)) ano = true      
+      }
+
+      if (ano) for (const row of await this.getAllRowsNote(id, v))
+        this.addRes('rowNotes', row)
+      if (amb) for (const row of await this.getAllRowsMembre(id, v))
+        this.addRes('rowMembres', row)
+    }
   }
 }
 
