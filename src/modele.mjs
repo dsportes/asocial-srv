@@ -1505,11 +1505,11 @@ export class Operation {
     const dh = Date.now()
     const itemsI = []
     itemsI.push({ a: 0, dh, txt: args.txt1, l: args.lgtxt1 })
-    if (args.txt2) itemsI.push({ a: 0, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
+    if (args.txt2) itemsI.push({ a: 1, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
 
     const itemsE = []
     itemsE.push({ a: 1, dh, txt: args.txt1, l: args.lgtxt1 })
-    if (args.txt2) itemsE.push({ a: 1, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
+    if (args.txt2) itemsE.push({ a: 0, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
 
     const cvE = avatarE.cva
     const vcvE = avatarE.vcv
@@ -1522,13 +1522,18 @@ export class Operation {
 
     if (!rowChatI) {
       // cas normal : chatI n'existe pas
-      const versionI = compile(await this.getRowVersion(args.idI, 'NouveauChat-5', true))
-      versionI.v++
-      this.update(versionI.toRow())
+      let vI = 1
+      if (!xavatarI) {
+        // Depuis AcceptationSponsoring version I vient d'être créee
+        const versionI = compile(await this.getRowVersion(args.idI, 'NouveauChat-5', true))
+        versionI.v++
+        vI = versionI.v
+        this.update(versionI.toRow())
+      }
       const chatI = new Chats().init({
         id: args.idI,
         ids: args.idsI,
-        v: versionI.v,
+        v: vI,
         vcv: vcvE,
         st: 10,
         cc: args.ccKI,
@@ -1557,7 +1562,8 @@ export class Operation {
       this.setRes('st', 1)
       this.setRes('rowChat', rowChatI)
 
-      await this.majNbChat(1)
+      if (!xavatarI) // Si AcceptatinSponsoring, le nombre de chats est déjà fixé
+        await this.majNbChat(1)
 
     } else {
       // chatI existe création croisée malencontreuse 

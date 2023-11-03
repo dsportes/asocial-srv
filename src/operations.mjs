@@ -616,7 +616,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     this.insert(args.rowAvatar)
     this.insert(args.rowVersion)
 
-    const rowChatI = this.nvChat(args, avatarE, compile(args.rowAvatar))
+    const rowChatI = await this.nvChat(args, avatarE, compile(args.rowAvatar))
     this.setRes('rowChat', rowChatI)
 
     if (!ctx.sql) {
@@ -721,7 +721,7 @@ operations.Synchroniser = class Synchroniser extends Operation {
 
       for (const row of await this.getAllRowsNote(id, v))
         this.addRes('rowNotes', row)
-      for (const row of await this.getAllChat(id, v))
+      for (const row of await this.getAllRowsChat(id, v))
         this.addRes('rowChats', row)
       for (const row of await this.getAllRowsTicket(id, v))
         this.addRes('rowTickets', row)
