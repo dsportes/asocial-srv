@@ -1585,13 +1585,13 @@ export class Operation {
     return nl
   }
 
-  razChatItem (items, a, dh) { 
+  razChatItem (items, dh) { 
     // a : 0:écrit par I, 1: écrit par E
     const nl = []
     let lg = 0
     for (const it of items) {
-      if (it.dh === dh && it.a === a) {
-        nl.push({a, l: 0, dh})
+      if (it.dh === dh) {
+        nl.push({a: it.a, l: 0, dh, dhx: Date.now()})
       } else {
         lg += it.l
         if (lg > 5000) return nl

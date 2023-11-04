@@ -1660,7 +1660,7 @@ operations.MajChat = class MajChat extends Operation {
     if (args.txt1) {
       chatI.items = this.addChatItem(itemsI, itemI)
     } else if (args.dh) {
-      chatI.items = this.razChatItem(itemsI, 0, args.dh)
+      chatI.items = this.razChatItem(itemsI, args.dh)
     }
     if (avatarE) {
       chatI.vcv = avatarE.vcv
@@ -1679,7 +1679,7 @@ operations.MajChat = class MajChat extends Operation {
     if (args.txt1) {
       chatE.items = this.addChatItem(itemsE, itemE)
     } else if (args.dh) {
-      chatE.items = this.razChatItem(itemsE, 0, args.dh)
+      chatE.items = this.razChatItem(itemsE, args.dh)
     }
     if (avatarI) {
       chatE.vcv = avatarI.vcv
