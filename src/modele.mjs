@@ -1103,8 +1103,7 @@ export class Operation {
     */
 
     // (D) finalisation du résultat (fusion résultats phase 1 / 2)
-    if (!this.result2.KO)
-      for(const prop in this.result2) { this.result[prop] = this.result2[prop] }
+    for(const prop in this.result2) { this.result[prop] = this.result2[prop] }
     this.result.nl = this.nl
     this.result.ne = this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length
   

@@ -1477,7 +1477,7 @@ operations.ChangementPS = class ChangementPS extends Operation {
 POST:
 - `token` : éléments d'authentification du compte.
 - `id` : id de l'avatar dont la Cv est mise à jour
-- `v` : version de l'avatar incluse dans la Cv.
+- `v` : version de versions de l'avatar incluse dans la Cv.
 - `cva` : `{v, photo, info}` crypté par la clé de l'avatar.
   - SI C'EST Le COMPTE, pour dupliquer la CV,
     `idTr` : id de sa tribu (où dupliquer la CV)
@@ -1492,15 +1492,12 @@ operations.MajCv = class MajCv extends Operation {
   constructor () { super('MajCv') }
 
   async phase2 (args) { 
-    const rowAvatar = await this.getRowAvatar(args.id, 'MajCv-1')
-    if (rowAvatar.v + 1 !== args.v) {
+    const version = compile(await this.getRowVersion(args.id, 'MajCv-2', true))
+    if (version.v + 1 !== args.v) {
       this.setRes('KO', true)
       return
     }
-    const rowVersion = await this.getRowVersion(args.id, 'MajCv-2', true)
-    const avatar = compile(rowAvatar)
-    const version = compile(rowVersion)
-
+    const avatar = compile(await this.getRowAvatar(args.id, 'MajCv-1'))
     version.v++
     avatar.v = version.v
     avatar.vcv = version.v
