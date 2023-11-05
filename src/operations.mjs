@@ -1423,6 +1423,34 @@ operations.MemoCompte = class MemoCompte extends Operation {
   }
 }
 
+/* `McMemo` : changer le mémo du compte
+POST:
+- `token` : éléments d'authentification du compte.
+- `mmk` : mcMemo crypté par la clé k
+- `idk` : id du contact / groupe crypté par la clé K
+
+Assertion d'existence du row `Avatars` de l'avatar principal et de sa `Versions`.
+*/
+operations.McMemo = class McMemo extends Operation {
+  constructor () { super('McMemo') }
+
+  async phase2 (args) { 
+    const rowAvatar = await this.getRowAvatar(this.session.id, 'MemoCompte-1')
+    const rowVersion = await this.getRowVersion(this.session.id, 'MemoCompte-2', true)
+    const avatar = compile(rowAvatar)
+    const version = compile(rowVersion)
+
+    version.v++
+    avatar.v = version.v
+    if (!avatar.mcmemos) avatar.mcmemos = {}
+    if (args.mmk) avatar.mcmemos[args.idk] = args.mmk
+    else delete avatar.mcmemos[args.idk]
+
+    this.update(avatar.toRow())
+    this.update(version.toRow())
+  }
+}
+
 /* `MotsclesCompte` : changer les mots clés du compte
 POST:
 - `token` : éléments d'authentification du compte.
@@ -1543,6 +1571,8 @@ operations.ChangementPC = class ChangementPC extends Operation {
   constructor () { super('ChangementPC') }
 
   async phase2 (args) { 
+    if (args.hpc && await this.getAvatarHpc(args.hpc)) throw new AppExc(F_SRV, 26)
+
     const rowAvatar = await this.getRowAvatar(args.id, 'ChangementPC-1')
     const rowVersion = await this.getRowVersion(args.id, 'ChangementPC-2', true)
     const avatar = compile(rowAvatar)
