@@ -2116,8 +2116,8 @@ args.rowGroupe : le groupe créé
 args.rowMembre : le membre
 args.id: id de l'avatar créateur
 args.quotas : [q1, q2] attribué au groupe
-args.kegr: clé dans lgrk. Hash du rnd inverse de l'avatar crypté par le rnd du groupe.
-args.egr: élément de lgrk dans l'avatar créateur
+args.npgk: clé dans mpg du compte (hash du cryptage par la clé K du compte de `idg / idav`)
+args.empgk: élément de mpg dans le compte de l'avatar créateur
 Retour:
 */
 operations.NouveauGroupe = class NouveauGroupe extends Operation {
@@ -2128,13 +2128,13 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     const membre = compile(args.rowMembre)
     const version = new Versions().init(
       { id: groupe.id, v: 1, vols: { v1:0, v2: 0, q1: args.quotas[0], q2: args.quotas[1]} } )
-    const versionav = compile(await this.getRowVersion(args.id, 'NouveauGroupe-1', true))
-    const avatar = compile(await this.getRowAvatar(args.id, 'NouveauGroupe-2'))
+    const versionav = compile(await this.getRowVersion(this.session.id, 'NouveauGroupe-1', true))
+    const avatar = compile(await this.getRowAvatar(this.session.id, 'NouveauGroupe-2'))
 
     versionav.v++
     avatar.v = versionav.v
     if (!avatar.lgrk) avatar.lgrk = {}
-    avatar.lgrk[args.kegr] = args.egr
+    avatar.mpgk[args.npgk] = args.empgk
     this.update(avatar.toRow())
     this.update(versionav.toRow())
 
