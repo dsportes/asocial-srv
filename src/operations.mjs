@@ -1103,8 +1103,6 @@ operations.ChargerASCS = class ChargerASCS extends Operation {
 }
 
 /*`avGrSignatures` : obtention des groupes et avatars manquants et signatures
-Si un des avatars a changé de version, retour en `OK` `false` : la liste des avatars doit être la même que celle précédemment obtenue en session.
-
 Signature par les `dlv` passées en arguments des row `versions` des avatars et membres (groupes en fait).
 
 Retourne les `versions` des avatars et groupes de la session.
@@ -1174,7 +1172,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
       const e = args.avsMap[id]
 
       const row = await this.getRowAvatar(id, 'avGrSignatures-1')
-      if (row.v > e.v) this.addRes('avatars', row)
+      if (row.v > e.v) this.addRes('rowAvatars', row)
 
       const va = compile(await this.getRowVersion(id, 'avGrSignatures-2', true))
       versions[id] = { v: va.v }
@@ -1202,8 +1200,9 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
         delete avatar.mpgk[e.npgk]
         grDisparus = true
       } else {
+        versions[id] = vg
         const row = await this.getRowGroupe(id, 'avGrSignatures-4')
-        if (row.v > e.v) this.addRes('groupes', row)  
+        if (row.v > e.v) this.addRes('rowGroupes', row)  
         for (const ids of e.mbs) {
           const r = await this.getRowMembre(e.idg, ids)
           if (r) { 
@@ -2133,7 +2132,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 
     versionav.v++
     avatar.v = versionav.v
-    if (!avatar.lgrk) avatar.lgrk = {}
+    if (!avatar.mpgk) avatar.mpgk = {}
     avatar.mpgk[args.npgk] = args.empgk
     this.update(avatar.toRow())
     this.update(versionav.toRow())
