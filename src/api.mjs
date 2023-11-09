@@ -53,6 +53,12 @@ export function edit (n, t) {
   return x.join(', ')
 }
 
+export function flagListe (n) {
+  const x = []
+  for (let i = 0; i < LFLAGS.length; i++) if (n & (1 << i)) x.push(i)
+  return x
+}
+
 /*
 Ajouter un ou des flags: n |= FLAGS.HA | FLAGS.AC | FLAGS.IN
 Enlever un ou des flags: n &= ~FLAGS.AC & ~FLAGS.IN
