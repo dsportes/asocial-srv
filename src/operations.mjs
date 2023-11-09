@@ -2173,7 +2173,7 @@ args.token donne les éléments d'authentification du compte.
 args.ardg : texte de l'ardoise crypté par la clé du groupe
 args.idg : id du groupe
 Retour:
-*/
+
 operations.ArdoiseGroupe = class ArdoiseGroupe extends Operation {
   constructor () { super('ArdoiseGroupe') }
 
@@ -2189,6 +2189,7 @@ operations.ArdoiseGroupe = class ArdoiseGroupe extends Operation {
     this.update(version.toRow())
   }
 }
+*/
 
 /* Hébergement d'un groupe *****************************************************
 args.token donne les éléments d'authentification du compte.
@@ -2234,10 +2235,12 @@ operations.HebGroupe = class HebGroupe extends Operation {
       groupe.imh = args.imh
       groupe.dfh = 0
       this.update(groupe.toRow())
-      await this.augmentationVolumeCompta(args.idc, v1, 0, 0, v2, 'HebGroupe-3')
-      if (args.t === 3) { // transfert d'hébergement
-        await this.diminutionVolumeCompta (args.idd, v1, 0, 0, v2, 'HebGroupe-4')
-      }  
+      if (v1 || v2) {
+        await this.augmentationVolumeCompta(args.idc, v1, 0, 0, v2, 'HebGroupe-3')
+        if (args.t === 3) { // transfert d'hébergement
+          await this.diminutionVolumeCompta (args.idd, v1, 0, 0, v2, 'HebGroupe-4')
+        } 
+      }
     }
   }
 }
@@ -2273,7 +2276,8 @@ operations.FinHebGroupe = class FinHebGroupe extends Operation {
     groupe.idhg = null
     groupe.imh = 0
     this.update(groupe.toRow())
-    await this.diminutionVolumeCompta (args.id, v1, 0, 0, v2, 'FinHebGroupe-3')
+    if (v1 || v2)
+      await this.diminutionVolumeCompta (args.id, v1, 0, 0, v2, 'FinHebGroupe-3')
   }
 }
 
@@ -2282,11 +2286,9 @@ args.token donne les éléments d'authentification du compte.
 args.id : id du contact
 args.idg : id du groupe
 args.im: soit l'indice de l'avatar dans ast/nag s'il avait déjà participé, soit ast.length
-args.nig: hash du rnd du membre crypté par le rnd du groupe. Permet de vérifier l'absence de doublons.
-args.ardg: texte de l'ardoise du groupe crypté par la clé du groupe. 
-  Si null, le texte actuel est inchangé.
+args.nag: hash du rnd du membre crypté par le rnd du groupe. Permet de vérifier l'absence de doublons.
 args.rowMembre
-- vérification que le statut ast n'existe pas
+- vérification que le slot est libre
 - insertion du row membre, maj groupe
 Retour:
 - KO : si l'indice im est déjà attribué
@@ -2301,20 +2303,31 @@ operations.NouveauMembre = class NouveauMembre extends Operation {
     this.update(vg.toRow())
     groupe.v = vg.v
 
-    if (args.im < groupe.ast.length) {
-      if (args.nig !== groupe.nag[args.im]) {
+    if (args.im < groupe.anag.length) {
+      const sl = groupe.anag[args.im]
+      const ok = !sl || sl === 1 || sl === args.anag
+      if (!ok) {
         this.setRes('KO', true)
         return // réattribution non acceptable (opérations concurrentes) 
       }
-      groupe.ast[args.im] = 10 // réattribution correcte
+      groupe.anag[args.im] = args.nag // réattribution
+      const f = groupe.flags[args.im]
+      let nf = 0
+      /*
+        HA: 1 << 8, // **a été actif**
+        HN: 1 << 9, // **a eu accès aux notes**
+        HM: 1 << 10, // **a eu accès aux membres**
+        HE: 1 << 11 // **a pu écrire des notes**
+      */
+      if (f & FLAGS.HA) nf |= FLAGS.HA
+      if (f & FLAGS.HN) nf |= FLAGS.HN
+      if (f & FLAGS.HM) nf |= FLAGS.HM
+      if (f & FLAGS.HE) nf |= FLAGS.HE
+      groupe.flags[args.im] = nf
     } else { // première apparition
-      const a = new Uint8Array(args.im + 1)
-      groupe.ast.forEach((v, i) => { a[i] = v })
-      a[args.im] = 10
-      groupe.ast = a
-      groupe.nag.push(args.nig)
+      groupe.flags.push(0)
+      groupe.anag.push(args.nag)
     }
-    if (args.ardg) groupe.ardg = args.ardg
     this.update(groupe.toRow())
 
     const membre = compile(args.rowMembre)
