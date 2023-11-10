@@ -46,11 +46,11 @@ export const LFLAGS = [
 // function t (intl) { return intl}
 
 // t : pour intl passer $t
-export function edit (n, t) {
+export function edit (n, t, sep) {
   const x = []
   for (let i = 0; i < LFLAGS.length; i++)
     if (n & (1 << i)) x.push(t ? t('FLAGS' + i) : LFLAGS[i])
-  return x.join(', ')
+  return x.join(sep || ', ')
 }
 
 export function flagListe (n) {
