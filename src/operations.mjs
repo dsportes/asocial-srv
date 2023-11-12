@@ -2283,6 +2283,121 @@ operations.FinHebGroupe = class FinHebGroupe extends Operation {
 
 /* Nouveau membre (contact) *******************************************
 args.token donne les éléments d'authentification du compte.
+args.op : opération demandée: 
+  1: invit std, 2: modif invit std, 3: suppr invit std, 
+  4: vote pour, 5: vote contre, 6: suppr invit una 
+args.idg : id du groupe
+args.ids: indice du membre invité
+args.idm: id de l'avatar du membre invité
+args.im: indice de l'animateur invitant
+args.flags: flags PA DM DN DE de l'invité
+args.ni: numéro d'invitation pour l'avatar invité, clé dans la map invits
+args.invit: élément dans la map invits {nomg, cleg, im}` cryptée par la clé publique RSA de l'avatar.
+Retour:
+*/
+operations.InvitationGroupe = class InvitationGroupe extends Operation {
+  constructor () { super('InvitationGroupe') }
+
+  async phase2 (args) { 
+    let invitOK = false // Est-ce qu'une invitation a été déclenchée par l'opération ?
+    const groupe = compile(await this.getRowGroupe(args.idg, 'InvitationGroupe-1'))
+    const anims = groupe.anims // Set des im des animateurs
+    if (!anims.has(args.im)) throw new AppExc(F_SRV, 27)
+
+    const vg = compile(await this.getRowVersion(args.idg, 'InvitationGroupe-2', true))
+    vg.v++
+    this.update(vg.toRow())
+    groupe.v = vg.v
+    let f = groupe.flags[args.im] // flags actuel de l'invité
+    if (f & FLAGS.AC) throw new AppExc(F_SRV, 32) // est actif
+
+    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationGroupe-1'))
+    membre.v = vg.v
+    switch (args.op) {
+    case 1 : { // création d'une invitation standard
+      if (f & FLAGS.IN) throw new AppExc(F_SRV, 28) // était déjà invité
+      membre.inv = [args.im]
+      membre.flagsiv = 0
+      invitOK = true
+      break
+    }
+    case 2 : { // modification d'une invitation en cours
+      if (!(f & FLAGS.IN)) throw new AppExc(F_SRV, 29) // n'était pas invité
+      membre.inv = [args.im]
+      membre.flagsiv = 0
+      invitOK = true
+      break
+    }
+    case 3 : {
+      if (!(f & FLAGS.IN)) throw new AppExc(F_SRV, 30) // n'était pas invité
+      membre.inv = null
+      membre.flagsiv = 0
+      invitOK = false
+      break
+    }
+    case 4 : {
+      if (f & FLAGS.IN) throw new AppExc(F_SRV, 31) // était déjà invité
+      const a = new Set([args.im])
+      if (!membre.inv) membre.inv = []
+      if (args.flags === membre.flagsiv) // pas de changement des droits, votes valides
+        membre.inv.forEach(im => { if (anims.has(im)) a.add(im) })
+      if (a.size === anims.size) invitOK = true
+      membre.inv = Array.from(a)
+      membre.flagsiv = args.flags
+      break
+    }
+    case 5 : {
+      if (f & FLAGS.IN) throw new AppExc(F_SRV, 31) // était déjà invité
+      const a = new Set()
+      if (!membre.inv) membre.inv = []
+      if (args.flags === membre.flagsiv) membre.inv.forEach(im => { // reconduits les votes SAUF im (contre)
+        if (im !== args.im && anims.has(im)) a.add(im) 
+      })
+      if (a.size === anims.size) invitOK = true
+      membre.inv = Array.from(a)
+      membre.flagsiv = args.flags
+      break
+    }
+    case 6 : {
+      membre.inv = null
+      membre.flagsiv = 0
+      invitOK = false
+      break
+    }
+    }
+    if (invitOK) membre.ddi = AMJ.amjUtc()
+    this.update(membre.toRow())
+
+    const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-4'))
+    const okav = avatar.invits[args.ni]
+    if ((invitOK && !okav) || (!invitOK && okav)) {
+      const va = compile(await this.getRowVersion(args.idm, 'InvitationGroupe-5', true))
+      va.v++
+      this.update(va.toRow())
+      avatar.v = va.v
+      if (invitOK) {
+        if (!avatar.invits) avatar.invits = {}
+        avatar.invits[args.ni] = args.invit
+      } else
+        delete avatar.invits[args.ni]
+      this.update(avatar.toRow())
+    }
+
+    const delInvit = (f & FLAGS.IN) && !invitOK
+    const nf = delInvit ? 0 : args.flags
+    if (nf & FLAGS.PA) f |= FLAGS.PA; else f &= ~FLAGS.PA
+    if (nf & FLAGS.DM) f |= FLAGS.DM; else f &= ~FLAGS.DM
+    if (nf & FLAGS.DN) f |= FLAGS.DN; else f &= ~FLAGS.DN
+    if (nf & FLAGS.DE) f |= FLAGS.DE; else f &= ~FLAGS.DE
+    if (invitOK) f |= FLAGS.IN; else f &= ~FLAGS.IN
+    groupe.flags[args.im] = f
+    this.update(groupe.toRow())
+
+  }
+}
+
+/* Nouveau membre (contact) *******************************************
+args.token donne les éléments d'authentification du compte.
 args.id : id du contact
 args.idg : id du groupe
 args.im: soit l'indice de l'avatar dans ast/nag s'il avait déjà participé, soit ast.length

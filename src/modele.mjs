@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, FLAGS, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { ctx } from './server.js'
 import { b64ToU8, sha256 } from './webcrypto.mjs'
 import { SyncSession } from './ws.mjs'
@@ -986,7 +986,15 @@ export class Notes extends GenDoc { constructor() { super('notes') } }
 export class Transferts extends GenDoc { constructor() { super('transferts') } }
 export class Sponsorings extends GenDoc { constructor() { super('sponsorings') } }
 export class Chats extends GenDoc { constructor() { super('chats') } }
-export class Groupes extends GenDoc { constructor() { super('groupes') } }
+export class Groupes extends GenDoc { 
+  constructor() { super('groupes') }
+
+  get anims () {
+    const s = new Set()
+    this.flags.forEach((f, im) => { if ((f & FLAGS.AC) && (f & FLAGS.PA)) s.add(im) })
+    return s
+  }
+}
 export class Membres extends GenDoc { constructor() { super('membres') } }
 
 /** Operation *****************************************************
