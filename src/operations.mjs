@@ -2308,7 +2308,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     vg.v++
     this.update(vg.toRow())
     groupe.v = vg.v
-    let f = groupe.flags[args.im] // flags actuel de l'invité
+    let f = groupe.flags[args.ids] // flags actuel de l'invité
     if (f & FLAGS.AC) throw new AppExc(F_SRV, 32) // est actif
 
     const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationGroupe-1'))
@@ -2369,16 +2369,16 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     this.update(membre.toRow())
 
     const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-4'))
+    if (!avatar.invits) avatar.invits = {}
     const okav = avatar.invits[args.ni]
     if ((invitOK && !okav) || (!invitOK && okav)) {
       const va = compile(await this.getRowVersion(args.idm, 'InvitationGroupe-5', true))
       va.v++
       this.update(va.toRow())
       avatar.v = va.v
-      if (invitOK) {
-        if (!avatar.invits) avatar.invits = {}
+      if (invitOK)
         avatar.invits[args.ni] = args.invit
-      } else
+      else
         delete avatar.invits[args.ni]
       this.update(avatar.toRow())
     }
@@ -2390,7 +2390,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (nf & FLAGS.DN) f |= FLAGS.DN; else f &= ~FLAGS.DN
     if (nf & FLAGS.DE) f |= FLAGS.DE; else f &= ~FLAGS.DE
     if (invitOK) f |= FLAGS.IN; else f &= ~FLAGS.IN
-    groupe.flags[args.im] = f
+    groupe.flags[args.ids] = f
     this.update(groupe.toRow())
 
   }
