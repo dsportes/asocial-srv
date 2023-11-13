@@ -2168,28 +2168,28 @@ operations.MotsclesGroupe = class MotsclesGroupe extends Operation {
   }
 }
 
-/* Maj de l'ardoise du groupe *****************************************************
+/* Maj de l'ardoise d'un membre *****************************************************
 args.token donne les éléments d'authentification du compte.
 args.ardg : texte de l'ardoise crypté par la clé du groupe
 args.idg : id du groupe
+args.ids : im du membre
 Retour:
-
-operations.ArdoiseGroupe = class ArdoiseGroupe extends Operation {
-  constructor () { super('ArdoiseGroupe') }
+*/
+operations.ArdoiseMembre = class ArdoiseMembre extends Operation {
+  constructor () { super('ArdoiseMembre') }
 
   async phase2 (args) { 
-    const groupe = compile(await this.getRowGroupe(args.idg, 'ArdoiseGroupe-1'))
-    const version = compile(await this.getRowVersion(args.idg, 'ArdoiseGroupe-2', true))
+    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'ArdoiseMembre-1'))
+    const version = compile(await this.getRowVersion(args.idg, 'ArdoiseMembre-2', true))
 
     version.v++
-    groupe.v = version.v
-    groupe.ardg = args.ardg
+    membre.v = version.v
+    membre.ardg = args.ardg
 
-    this.update(groupe.toRow())
+    this.update(membre.toRow())
     this.update(version.toRow())
   }
 }
-*/
 
 /* Hébergement d'un groupe *****************************************************
 args.token donne les éléments d'authentification du compte.
@@ -2293,6 +2293,7 @@ args.im: indice de l'animateur invitant
 args.flags: flags PA DM DN DE de l'invité
 args.ni: numéro d'invitation pour l'avatar invité, clé dans la map invits
 args.invit: élément dans la map invits {nomg, cleg, im}` cryptée par la clé publique RSA de l'avatar.
+args.ardg: ardoise du membre
 Retour:
 */
 operations.InvitationGroupe = class InvitationGroupe extends Operation {
@@ -2366,6 +2367,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     }
     }
     if (invitOK) membre.ddi = AMJ.amjUtc()
+    membre.ardg = args.ardg
     this.update(membre.toRow())
 
     const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-4'))
