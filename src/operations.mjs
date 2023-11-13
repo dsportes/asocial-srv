@@ -2281,6 +2281,31 @@ operations.FinHebGroupe = class FinHebGroupe extends Operation {
   }
 }
 
+/* Fiche invitation *******************************************
+args.token donne les éléments d'authentification du compte.
+args.idg : id du groupe
+args.ids: indice du membre invité
+Retour:
+- rowMembre : avec un champ supplémentaire ext : { flags, cvg, invs: map }
+  invs : clé: im, valeur: { cva, nag }
+
+*/
+operations.InvitationFiche = class InvitationFiche extends Operation {
+  constructor () { super('InvitationFiche') }
+
+  async phase1 (args) { 
+    const groupe = compile(await this.getRowGroupe(args.idg, 'InvitationGroupe-1'))
+    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationGroupe-1'))
+    const ext = { flags: groupe.flags[args.ids], cvg: groupe.cvg, invs : {} }
+    for (const im of membre.inv) {
+      const m = compile(await this.getRowMembre(args.idg, im, 'InvitationGroupe-1'))
+      ext.invs[im] = { nag: m.nag, cva: m.cva }
+    }
+    membre.ext = ext
+    this.setRes('rowMembre', membre.toRow())
+  }
+}
+
 /* Nouveau membre (contact) *******************************************
 args.token donne les éléments d'authentification du compte.
 args.op : opération demandée: 
