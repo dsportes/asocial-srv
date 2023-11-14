@@ -2281,6 +2281,116 @@ operations.FinHebGroupe = class FinHebGroupe extends Operation {
   }
 }
 
+/* Acceptation invitation *******************************************
+args.token donne les éléments d'authentification du compte.
+args.idg : id du groupe
+args.ids: indice du membre invité
+args.id: id de l'avatar invité
+args.nag: nag du membre (pour liste noire)
+args.ni: numéro d'invitation (pour maj avatar)
+args.npgk: cle de l'entrée dans mpgk du compte (pour maj mpgk)
+args.epgk: entrée dans mpgk du compte
+args.cas: 1: acceptation, 2: refus, 3: refus et oubli, 4: refus et liste noire
+args.iam: true si accès membre
+args.ian: true si accès note
+args.ardg: ardoise du membre cryptée par la clé du groupe
+Retour:
+*/
+operations.AcceptInvitation = class AcceptInvitation extends Operation {
+  constructor () { super('AcceptInvitation') }
+
+  async phase2 (args) { 
+    const auj = AMJ.amjUtc()
+    const groupe = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
+    const rowMembre = await this.getRowMembre(args.idg, args.ids, 'AcceptInvitation-2')
+    const membre = compile(rowMembre)
+    const vg = compile(await this.getRowVersion(args.idg, 'AcceptInvitation-3'))
+    vg.v++
+    groupe.v = vg.v
+    membre.v = vg.v
+    membre.ardg = args.ardg
+    let fl = groupe.flags[args.ids]
+    if (!(fl & FLAGS.IN)) throw new AppExc(F_SRV, 33) // pas invité
+
+    // MAJ groupe et membre, et comptas (nombre de groupes)
+    switch (args.cas) {
+    case 1: { // acceptation
+      fl |= FLAGS.AC | FLAGS.HA
+      membre.fac = 0
+      if (!membre.dac) membre.dac = auj
+      fl &= ~FLAGS.IN
+      if (args.iam && (fl & FLAGS.DM)) {
+        fl |= FLAGS.AM | FLAGS.HM
+        membre.fam = 0
+        if (!membre.dam) membre.dam = auj
+      }
+      if (args.ian && (fl & FLAGS.DN)) {
+        fl |= FLAGS.AN | FLAGS.HN
+        membre.fln = 0
+        if (!membre.dln) membre.dln = auj
+      }
+      if (fl & FLAGS.DE) {
+        fl |= FLAGS.HE
+        membre.fen = 0
+        if (!membre.den) membre.den = auj
+      }
+      groupe.flags[args.ids] = fl
+      membre.flagsiv = 0
+      await this.augmentationVolumeCompta (this.session.id, 0, 0, 1, 0, 'AcceptInvitation-4')
+      break
+    }
+    case 2: { // refus, reste en contact
+      fl &= ~FLAGS.IN & ~FLAGS.PA & ~FLAGS.DN & ~FLAGS.DE & ~FLAGS.DM
+      groupe.flags[args.ids] = fl
+      membre.flagsiv = 0
+      membre.inv = null
+      break
+    }
+    case 3: { // refus et oubli
+      fl = 0
+      groupe.nag[args.ids] = !(fl & FLAGS.HA) ? 0 : 1
+      break
+    }
+    case 4: { // refus et oubli et liste noire
+      fl = 0
+      groupe.nag[args.ids] = !(fl & FLAGS.HA) ? 0 : 1
+      groupe.lnc.push(args.nag)
+      break
+    }
+    }
+    this.update(vg.toRow())
+    this.update(groupe.toRow())
+    if (args.cas <= 2) // reste contact / actif
+      this.update(membre.toRow())
+    else // oubli
+      this.delete(rowMembre)
+    
+    // Suppression de l'invitation dans l'avatar, maj du compte
+    const avatar = compile(await this.getRowAvatar(args.id, 'AcceptInvitation-5'))
+    const va = compile(await this.getRowVersion(args.id, 'AcceptInvitation-5'))
+    va.v++
+    avatar.v = va.v
+    if (avatar.invits) delete avatar.invits[args.ni]
+    if (args.cas === 1) {
+      if (this.session.id === args.id) {
+        if (!avatar.mpgk) avatar.mpgk = {}
+        avatar.mpgk[args.npgk] = args.epgk
+      } else {
+        const compte = compile(await this.getRowAvatar(this.session.id, 'AcceptInvitation-5'))
+        const vc = compile(await this.getRowVersion(this.session.id, 'AcceptInvitation-5'))
+        vc.v++
+        compte.v = vc.v
+        if (!compte.mpgk) compte.mpgk = {}
+        compte.mpgk[args.npgk] = args.epgk
+        this.update(vc.toRow())
+        this.update(compte.toRow())
+      }
+    }
+    this.update(va.toRow())
+    this.update(avatar.toRow())
+  }
+}
+
 /* Fiche invitation *******************************************
 args.token donne les éléments d'authentification du compte.
 args.idg : id du groupe
