@@ -175,6 +175,8 @@ Une "amj" peut être interprtée comme Loc (locale) ou Utc, ce qu'il faut spéci
 quand on l'utilise pour signifier un instant.
 */
 export class AMJ {
+  static max = 20991231
+  
   static lx = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
   // Dernier jour du mois M de l'année A (nombre de jours du mois)
