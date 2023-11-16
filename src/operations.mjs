@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
-import { limitesjour, FLAGS } from './api.mjs'
+import { limitesjour, FLAGS /*, edit*/ } from './api.mjs'
 
 export function atStart() {
   if (ctx.debug) console.log('atStart operations')
@@ -691,7 +691,9 @@ POST:
   - valeur: version actuelle
 - args.grmap:  map du / des groupes à récupérer:
   - clé: idg
-  - valeur: { mbs, v } 
+  - valeur: { mbs, v, mb, no } 
+    - mb : true si la session A les membres
+    - no : true si la session A les notes
 
 Retour:
 - KO : true - l'avatar principal a changé de version
@@ -733,6 +735,8 @@ operations.Synchroniser = class Synchroniser extends Operation {
       const id = parseInt(x)
       const mbs = args.grmap[x].mbs
       const v = args.grmap[x].v
+      const mb = args.grmap[x].mb
+      const no = args.grmap[x].no
       const rowVersion = await this.getRowVersion(id)
       if (!rowVersion) continue // en fait ce groupe a disparu et n'est plus listé dans avatar
       if (rowVersion.v === v) continue // ce groupe était à jour en session
@@ -749,10 +753,16 @@ operations.Synchroniser = class Synchroniser extends Operation {
         if ((f & FLAGS.AN) && (f & FLAGS.DN)) ano = true      
       }
 
-      if (ano) for (const row of await this.getAllRowsNote(id, v))
-        this.addRes('rowNotes', row)
-      if (amb) for (const row of await this.getAllRowsMembre(id, v))
-        this.addRes('rowMembres', row)
+      if (ano) { // chargement intégral si n'avait pas les notes, incrémental sinon
+        const vx = no ? v : 0
+        for (const row of await this.getAllRowsNote(id, vx)) 
+          this.addRes('rowNotes', row)
+      }
+      if (amb) {
+        const vx = mb ? v : 0
+        for (const row of await this.getAllRowsMembre(id, vx))
+          this.addRes('rowMembres', row)
+      }
     }
   }
 }
@@ -2588,24 +2598,82 @@ operations.NouveauMembre = class NouveauMembre extends Operation {
   }
 }
 
-/* Maj du commentaire d'un membre *******************************************
+/* Maj des droits d'un membre *******************************************
 args.token donne les éléments d'authentification du compte.
-args.id : id du groupe
+args.idg : id du groupe
 args.ids : ids du membre
-args.infok
+args.nvflags : nouveau flags. Peuvent changer PA DM DN DE AM AN
 Retour:
 */
-operations.MajInfoMembre = class MajInfoMembre extends Operation {
-  constructor () { super('MajInfoMembre') }
+operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
+  constructor () { super('MajDroitsMembre') }
 
   async phase2 (args) { 
-    const membre = compile(await this.getRowMembre(args.id, args.ids, 'MajInfoMembre-1'))
-    const vg = compile(await this.getRowVersion(args.id, 'MajInfoMembre-2', true))
+    const groupe = compile(await this.getRowGroupe(args.idg, 'MajDroitsMembre-1'))
+    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'MajDroitsMembre-1'))
+    const vg = compile(await this.getRowVersion(args.idg, 'MajDroitsMembre-2', true))
     vg.v++
     this.update(vg.toRow())
+    groupe.v = vg.v
     membre.v = vg.v
-    membre.infok = args.infok
-    this.update(membre.toRow())
+    let majm = false
+
+    let f = groupe.flags[args.ids]
+    // console.log('f avant:' + edit(f))
+    const amav = (f & FLAGS.DM) && (f & FLAGS.AM)
+    const lnav = (f & FLAGS.DN) && (f & FLAGS.AN)
+    const enav = (f & FLAGS.DE) && (f & FLAGS.AN)
+
+    const nf = args.nvflags
+    // console.log('nf:' + edit(nf))
+    const amap = (nf & FLAGS.DM) && (nf & FLAGS.AM)
+    const lnap = (nf & FLAGS.DN) && (nf & FLAGS.AN)
+    const enap = (nf & FLAGS.DE) && (nf & FLAGS.AN)
+
+    if ((nf & FLAGS.PA) !== (f & FLAGS.PA)) 
+      f ^= FLAGS.PA
+    if ((nf & FLAGS.DM) !== (f & FLAGS.DM)) 
+      f ^= FLAGS.DM
+    if ((nf & FLAGS.DN) !== (f & FLAGS.DN)) 
+      f ^= FLAGS.DN
+    if ((nf & FLAGS.DE) !== (f & FLAGS.DE)) 
+      f ^= FLAGS.DE
+    if ((nf & FLAGS.AM) !== (f & FLAGS.AM)) 
+      f ^= FLAGS.AM
+    if ((nf & FLAGS.AN) !== (f & FLAGS.AN)) 
+      f ^= FLAGS.AN
+
+    if (amav !== amap) {
+      if (amap) {
+        f |= FLAGS.HM
+        membre.fam = 0
+        if (!membre.dam) membre.dam = ctx.auj
+      } else membre.fam = ctx.auj
+      majm = true
+    }
+
+    if (lnav !== lnap) {
+      if (lnap) { 
+        f |= FLAGS.HN
+        if (nf & FLAGS.DE) f |= FLAGS.HE
+        membre.fln = 0
+        if (!membre.dln) membre.dln = ctx.auj
+      } else membre.fln = ctx.auj
+      majm = true
+    }
+
+    if (enav !== enap) {
+      if (enap) { 
+        membre.fen = 0
+        if (!membre.den) membre.den = ctx.auj
+      } else membre.fen = ctx.auj
+      majm = true
+    }
+
+    // console.log('f après:' + edit(f))
+    groupe.flags[args.ids] = f
+    this.update(groupe.toRow())
+    if (majm) this.update(membre.toRow())
   }
 }
 

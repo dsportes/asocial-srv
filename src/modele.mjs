@@ -991,7 +991,10 @@ export class Groupes extends GenDoc {
 
   get anims () {
     const s = new Set()
-    this.flags.forEach((f, im) => { if ((f & FLAGS.AC) && (f & FLAGS.PA)) s.add(im) })
+    for (let im = 1; im < this.flags.length; im++) { 
+      const f = this.flags[im]
+      if ((f & FLAGS.AC) && (f & FLAGS.PA)) s.add(im) 
+    }
     return s
   }
 }
