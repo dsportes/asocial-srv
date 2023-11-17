@@ -1169,7 +1169,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
       return
     }
 
-    const avatar = compile(rowCompta)
+    const avatar = compile(rowAvatar)
 
     /* Traitement des avatars SAUF le principal
     Un avatar n'a pas pu disparaître:
@@ -1207,7 +1207,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
       const vg = compile(await this.getRowVersion(id, 'avGrSignatures-3'))
       if (vg._zombi) {
-        delete avatar.mpgk[e.npgk]
+        if (avatar.mpgk) delete avatar.mpgk[e.npgk]
         grDisparus = true
       } else {
         versions[id] = vg
@@ -2305,16 +2305,29 @@ args.iam: true si accès membre
 args.ian: true si accès note
 args.ardg: ardoise du membre cryptée par la clé du groupe
 Retour:
+- disparu: true si le groupe a disparu
 */
 operations.AcceptInvitation = class AcceptInvitation extends Operation {
   constructor () { super('AcceptInvitation') }
 
   async phase2 (args) { 
+    const vg = compile(await this.getRowVersion(args.idg))
+    if (!vg || vg._zombi) { // groupe disparu depuis
+      // Suppression de l'invitation dans l'avatar, maj du compte
+      const avatar = compile(await this.getRowAvatar(args.id, 'AcceptInvitation-5'))
+      const va = compile(await this.getRowVersion(args.id, 'AcceptInvitation-5'))
+      va.v++
+      avatar.v = va.v
+      delete avatar.invits[args.ni]
+      this.update(va.toRow())
+      this.update(avatar.toRow())
+      this.setRes('disparu', true)
+      return
+    }
     const auj = AMJ.amjUtc()
     const groupe = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
     const rowMembre = await this.getRowMembre(args.idg, args.ids, 'AcceptInvitation-2')
     const membre = compile(rowMembre)
-    const vg = compile(await this.getRowVersion(args.idg, 'AcceptInvitation-3'))
     vg.v++
     groupe.v = vg.v
     membre.v = vg.v
@@ -2677,24 +2690,95 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
   }
 }
 
-/* Maj des mots clés d'un membre *******************************************
+/* Oublier un membre *******************************************
 args.token donne les éléments d'authentification du compte.
-args.id : id du groupe
+args.idg : id du groupe
 args.ids : ids du membre
-args.mc
+args.npgk : entrée dans la table mpg
+args.cas : 
+  - 1 : (moi) retour en simple contact
+  - 2 : (moi) m'oublier
+  - 3 : (moi) m'oublier définitivement
+  - 4 : oublier le membre (qui est simple contact pas invité)
+  - 5 : oublier définitivement le membre
 Retour:
 */
-operations.MajMCMembre = class MajMCMembre extends Operation {
-  constructor () { super('MajMCMembre') }
+operations.OublierMembre = class OublierMembre extends Operation {
+  constructor () { super('OublierMembre') }
 
   async phase2 (args) { 
-    const membre = compile(await this.getRowMembre(args.id, args.ids, 'MajMCMembre-1'))
-    const vg = compile(await this.getRowVersion(args.id, 'MajMCMembre-2', true))
+    const rowGroupe = await this.getRowGroupe(args.idg, 'OublierMembre-1')
+    const groupe = compile(rowGroupe)
+    const rowMembre = await this.getRowMembre(args.idg, args.ids, 'OublierMembre-2')
+    const membre = compile(rowMembre)
+    const vg = compile(await this.getRowVersion(args.idg, 'OublierMembre-3', true))
     vg.v++
-    this.update(vg.toRow())
     membre.v = vg.v
-    membre.mc = args.mc
-    this.update(membre.toRow())
+    groupe.v = vg.v
+
+    let majm = 0
+    let delgr = false
+    let f = groupe.flags[args.ids]
+    // console.log('f avant:' + edit(f))
+
+    if (args.cas <= 3) {
+      if (f & FLAGS.AC) {
+        // Volume compta
+        // Retrait de mpgk
+        await this.diminutionVolumeCompta (this.session.id, 0, 0, 1, 0, 'OublierMembre-4')
+        const avatar = compile(await this.getRowAvatar(this.session.id, 'OublierMembre-5'))
+        const va = compile(await this.getRowVersion(this.session.id, 'OublierMembre-6'))
+        va.v++
+        avatar.v = va.v
+        delete avatar.mpgk[args.npgk]
+        this.update(va.toRow())
+        this.update(avatar.toRow())
+      }
+      if (args.cas === 1)
+        f &= ~FLAGS.AC & ~FLAGS.IN & ~FLAGS.AM & ~FLAGS.AN & ~FLAGS.PA & ~FLAGS.DM & ~FLAGS.DN & ~FLAGS.DE
+      else f = 0
+      // console.log('f après:' + edit(f))
+      groupe.flags[args.ids] = f
+      if (!groupe.aActifs) {
+        // il n'y a plus d'actifs : suppression du groupe
+        vg.dlv = ctx.auj
+        majm = 2
+        delgr = true
+      }
+    }
+
+    if (!delgr) switch (args.cas) {
+    case 1 : { // (moi) retour en simple contact
+      if (!membre.fac) {
+        membre.fac = ctx.auj
+        majm = 1
+      }
+      break
+    }
+    case 4 : // oublier le membre (qui est simple contact pas invité)
+    case 2 : { // (moi) m'oublier
+      groupe.flags[args.ids] = 0
+      groupe.anag[args.ids] = (f & FLAGS.HA) ? 1 : 0
+      majm = 2
+      break
+    }
+    case 5 : // oublier définitivement le membre
+    case 3 : { // (moi) m'oublier définitivement
+      const nag = groupe.anag[args.ids]
+      groupe.lnc.push(nag)
+      groupe.flags[args.ids] = 0
+      groupe.anag[args.ids] = (f & FLAGS.HA) ? 1 : 0
+      majm = 2
+      break
+    }
+    }
+
+    this.update(vg.toRow())
+    if (delgr) this.delete(rowGroupe)
+    else this.update(groupe.toRow())
+
+    if (majm === 1) this.update(membre.toRow())
+    if (majm === 2) this.delete(rowMembre)
   }
 }
 

@@ -997,6 +997,14 @@ export class Groupes extends GenDoc {
     }
     return s
   }
+
+  get aActifs () {
+    for (let im = 1; im < this.flags.length; im++) { 
+      const f = this.flags[im]
+      if (f & FLAGS.AC) return true 
+    }
+    return false
+  }
 }
 export class Membres extends GenDoc { constructor() { super('membres') } }
 
