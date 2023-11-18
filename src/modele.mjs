@@ -1697,7 +1697,7 @@ export class Operation {
     qv.nc += dnc
     qv.ng += dng
     const v1 = qv.nn + qv.nc + qv.ng
-    if (v1 > qv.q1) throw new AppExc(F_SRV, 55, [v1, qv.q1])
+    if (v1 > qv.q1 * UNITEV1) throw new AppExc(F_SRV, 55, [v1, qv.q1])
     qv.v2 += dv2
     if (qv.v2 > qv.q2 * UNITEV2) throw new AppExc(F_SRV, 56, [qv.v2, qv.q2])
     const ser = new Compteurs(compta.compteurs, qv).serial

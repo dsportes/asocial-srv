@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
-import { limitesjour, FLAGS /*, edit*/ } from './api.mjs'
+import { limitesjour, FLAGS, edit } from './api.mjs'
 
 export function atStart() {
   if (ctx.debug) console.log('atStart operations')
@@ -2324,7 +2324,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       this.setRes('disparu', true)
       return
     }
-    const auj = AMJ.amjUtc()
+    const auj = ctx.auj
     const groupe = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
     const rowMembre = await this.getRowMembre(args.idg, args.ids, 'AcceptInvitation-2')
     const membre = compile(rowMembre)
@@ -2427,11 +2427,11 @@ operations.InvitationFiche = class InvitationFiche extends Operation {
   constructor () { super('InvitationFiche') }
 
   async phase1 (args) { 
-    const groupe = compile(await this.getRowGroupe(args.idg, 'InvitationGroupe-1'))
-    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationGroupe-1'))
+    const groupe = compile(await this.getRowGroupe(args.idg, 'InvitationFiche-1'))
+    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationFiche-1'))
     const ext = { flags: groupe.flags[args.ids], cvg: groupe.cvg, invs : {} }
     for (const im of membre.inv) {
-      const m = compile(await this.getRowMembre(args.idg, im, 'InvitationGroupe-1'))
+      const m = compile(await this.getRowMembre(args.idg, im, 'InvitationFiche-1'))
       ext.invs[im] = { nag: m.nag, cva: m.cva }
     }
     membre.ext = ext
@@ -2524,7 +2524,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       break
     }
     }
-    if (invitOK) membre.ddi = AMJ.amjUtc()
+    if (invitOK) membre.ddi = ctx.auj
     membre.ardg = args.ardg
     this.update(membre.toRow())
 
@@ -2580,7 +2580,7 @@ operations.NouveauMembre = class NouveauMembre extends Operation {
 
     if (args.im < groupe.anag.length) {
       const sl = groupe.anag[args.im]
-      const ok = !sl || sl === 1 || sl === args.anag
+      const ok = !sl || sl === 1 || sl === args.nag
       if (!ok) {
         this.setRes('KO', true)
         return // réattribution non acceptable (opérations concurrentes) 
@@ -2683,8 +2683,8 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
       majm = true
     }
 
-    // console.log('f après:' + edit(f))
-    groupe.flags[args.ids] = f
+    console.log('f après:' + edit(f))
+    // groupe.flags[args.ids] = f
     this.update(groupe.toRow())
     if (majm) this.update(membre.toRow())
   }
@@ -2719,7 +2719,7 @@ operations.OublierMembre = class OublierMembre extends Operation {
     let majm = 0
     let delgr = false
     let f = groupe.flags[args.ids]
-    // console.log('f avant:' + edit(f))
+    console.log('f avant:' + edit(f))
 
     if (args.cas <= 3) {
       if (f & FLAGS.AC) {
@@ -2737,7 +2737,7 @@ operations.OublierMembre = class OublierMembre extends Operation {
       if (args.cas === 1)
         f &= ~FLAGS.AC & ~FLAGS.IN & ~FLAGS.AM & ~FLAGS.AN & ~FLAGS.PA & ~FLAGS.DM & ~FLAGS.DN & ~FLAGS.DE
       else f = 0
-      // console.log('f après:' + edit(f))
+      console.log('f après:' + edit(f))
       groupe.flags[args.ids] = f
       if (!groupe.aActifs) {
         // il n'y a plus d'actifs : suppression du groupe
