@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
-import { limitesjour, FLAGS, edit } from './api.mjs'
+import { limitesjour, FLAGS /*, edit */ } from './api.mjs'
 
 export function atStart() {
   if (ctx.debug) console.log('atStart operations')
@@ -2683,7 +2683,7 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
       majm = true
     }
 
-    console.log('f après:' + edit(f))
+    // console.log('f après:' + edit(f))
     // groupe.flags[args.ids] = f
     this.update(groupe.toRow())
     if (majm) this.update(membre.toRow())
@@ -2719,7 +2719,7 @@ operations.OublierMembre = class OublierMembre extends Operation {
     let majm = 0
     let delgr = false
     let f = groupe.flags[args.ids]
-    console.log('f avant:' + edit(f))
+    // console.log('f avant:' + edit(f))
 
     if (args.cas <= 3) {
       if (f & FLAGS.AC) {
@@ -2737,7 +2737,7 @@ operations.OublierMembre = class OublierMembre extends Operation {
       if (args.cas === 1)
         f &= ~FLAGS.AC & ~FLAGS.IN & ~FLAGS.AM & ~FLAGS.AN & ~FLAGS.PA & ~FLAGS.DM & ~FLAGS.DN & ~FLAGS.DE
       else f = 0
-      console.log('f après:' + edit(f))
+      // console.log('f après:' + edit(f))
       groupe.flags[args.ids] = f
       if (!groupe.aActifs) {
         // il n'y a plus d'actifs : suppression du groupe
