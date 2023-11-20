@@ -1765,11 +1765,13 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   constructor () { super('NouvelAvatar') }
 
   async phase2 (args) {
-    const rowCompta = await this.getRowCompta(this.session.id, 'NouvelAvatar')
-    const compta = compile(rowCompta)
-    compta.v++
-    compta.mavk[args.kx] = args.vx
-    this.update(compta.toRow())
+    const compte = compile(await this.getRowAvatar(this.session.id, 'NouvelAvatar-1'))
+    const vc = compile(await this.getRowVersion(this.session.id, 'NouvelAvatar-2'))
+    vc.v++
+    compte.v = vc.v
+    compte.mavk[args.kx] = args.vx
+    this.update(vc.toRow())
+    this.update(compte.toRow())
 
     this.insert(args.rowVersion)
     this.insert(args.rowAvatar)
@@ -2762,10 +2764,19 @@ operations.OublierMembre = class OublierMembre extends Operation {
       majm = 2
       break
     }
-    case 5 : // oublier définitivement le membre
     case 3 : { // (moi) m'oublier définitivement
       const nag = groupe.anag[args.ids]
+      if (!groupe.lnc) groupe.lnc = []
       groupe.lnc.push(nag)
+      groupe.flags[args.ids] = 0
+      groupe.anag[args.ids] = (f & FLAGS.HA) ? 1 : 0
+      majm = 2
+      break
+    }
+    case 5 : {// oublier définitivement le membre
+      const nag = groupe.anag[args.ids]
+      if (!groupe.lna) groupe.lna = []
+      groupe.lna.push(nag)
       groupe.flags[args.ids] = 0
       groupe.anag[args.ids] = (f & FLAGS.HA) ? 1 : 0
       majm = 2
