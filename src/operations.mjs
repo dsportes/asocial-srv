@@ -2816,10 +2816,8 @@ operations.ModeSimple = class ModeSimple extends Operation {
       if (!gr.msu) gr.msu = []
       const s = new Set(gr.msu)
       s.add(args.ids)
-      const an = new Set() // set des im des animateurs
-      gr.ast.forEach((s, im) => { if (s === 32) an.add(im) })
       let ok = true
-      an.forEach(im => { if (!s.has(im)) ok = false })
+      gr.anims.forEach(im => { if (!s.has(im)) ok = false })
       if (ok) {
         // tous les animateurs ont voté pour
         gr.msu = null
