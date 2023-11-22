@@ -5,7 +5,7 @@ import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
-import { limitesjour, FLAGS /*, edit */ } from './api.mjs'
+import { limitesjour, FLAGS, edit } from './api.mjs'
 
 export function atStart() {
   if (ctx.debug) console.log('atStart operations')
@@ -2634,13 +2634,13 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
     let majm = false
 
     let f = groupe.flags[args.ids]
-    // console.log('f avant:' + edit(f))
+    console.log('f avant:' + edit(f))
     const amav = (f & FLAGS.DM) && (f & FLAGS.AM)
     const lnav = (f & FLAGS.DN) && (f & FLAGS.AN)
     const enav = (f & FLAGS.DE) && (f & FLAGS.AN)
 
     const nf = args.nvflags
-    // console.log('nf:' + edit(nf))
+    console.log('nf:' + edit(nf))
     const amap = (nf & FLAGS.DM) && (nf & FLAGS.AM)
     const lnap = (nf & FLAGS.DN) && (nf & FLAGS.AN)
     const enap = (nf & FLAGS.DE) && (nf & FLAGS.AN)
@@ -2685,8 +2685,8 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
       majm = true
     }
 
-    // console.log('f après:' + edit(f))
-    // groupe.flags[args.ids] = f
+    console.log('f après:' + edit(f))
+    groupe.flags[args.ids] = f
     this.update(groupe.toRow())
     if (majm) this.update(membre.toRow())
   }
