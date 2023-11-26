@@ -3263,7 +3263,9 @@ operations.ExcluNote = class ExcluNote extends Operation {
 /* Changer les mots clés d'une note ***********************
 args.token: éléments d'authentification du compte.
 args.id ids: identifiant de la note
-args.chg: Map de clé im et de value motsclés (Uint8Array)
+args.hgc: si mc perso d'une note de groupe, id dans la map mc
+args.mc: mots clés perso
+args.mc0: mots clés du groupe
 Retour: rien
 */
 operations.McNote = class McNote extends Operation {
@@ -3276,9 +3278,10 @@ operations.McNote = class McNote extends Operation {
     this.update(v.toRow())
     if (ID.estGroupe(note.id)) {
       const mc = note.mc ? decode(note.mc) : {}
-      for(const im in args.chg) mc[im] = args.chg[im]
+      if (args.mc0) mc['0'] = args.mc0
+      if (args.mc) mc[args.hgc] = args.mc
       note.mc = encode(mc)
-    } else note.mc = args.chg['0']
+    } else note.mc = args.mc
     note.v = v.v
     this.update(note.toRow())
   }
