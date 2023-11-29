@@ -3178,10 +3178,6 @@ operations.NouvelleNote = class NouvelleNote extends Operation {
 args.token: éléments d'authentification du compte.
 args.id ids: identifiant de la note (dont celle du groupe pour un note de groupe)
 args.txts : nouveau texte encrypté
-args.prot : protégé en écriture
-args.idc : compta à qui imputer le volume
-  - pour une note personelle, id du compte de l'avatar
-  - pour une note de groupe : id du "compte" de l'hébergeur idhg du groupe
 Retour: rien
 */
 operations.MajNote = class MajNote extends Operation {
@@ -3194,27 +3190,6 @@ operations.MajNote = class MajNote extends Operation {
     this.update(v.toRow())
     
     note.txts = args.txts
-    note.p = args.prot ? 1 : 0
-    note.v = v.v
-    this.update(note.toRow())
-  }
-}
-
-/* Note temporaire / permanente *************************************************
-args.token: éléments d'authentification du compte.
-args.id ids: identifiant de la note
-args.st : aaaammjj ou 99999999
-Retour: rien
-*/
-operations.TempNote = class TempNote extends Operation {
-  constructor () { super('TempNote') }
-
-  async phase2 (args) { 
-    const note = compile(await this.getRowNote(args.id, args.ids, 'TempNote-1'))
-    const v = compile(await this.getRowVersion(note.id, 'TempNote-2', true))
-    v.v++
-    this.update(v.toRow())
-    if (note.st !== 99999999) note.st = args.st
     note.v = v.v
     this.update(note.toRow())
   }
@@ -3336,15 +3311,18 @@ operations.SupprNote = class SupprNote extends Operation {
     note.v = v.v
     note._zombi = true
     this.update(note.toRow())
-    this.idfp = await this.setFpurge(args.id, this.lidf)
+    if (this.lidf.length)
+      this.idfp = await this.setFpurge(args.id, this.lidf)
   }
 
   async phase3 (args) {
     try {
-      const org = await this.org(ID.ns(args.id))
-      const idi = args.id % d14  
-      await ctx.storage.delFiles(org, idi, this.lidf)
-      await this.unsetFpurge(this.idfp)
+      if (this.lidf.length) {
+        const org = await this.org(ID.ns(args.id))
+        const idi = args.id % d14  
+        await ctx.storage.delFiles(org, idi, this.lidf)
+        await this.unsetFpurge(this.idfp)
+      }
     } catch (e) { 
       // trace
     }
