@@ -3165,9 +3165,9 @@ operations.NouvelleNote = class NouvelleNote extends Operation {
       v = await this.majVolumeGr (note.id, 1, 0, false, 'NouvelleNote-1')
     } else {
       v = compile(await this.getRowVersion(note.id, 'NouvelleNote-2', true))
-      v.v++
-      this.update(v.toRow())
     }
+    v.v++
+    this.update(v.toRow())
     note.v = v.v
     this.insert(note.toRow())
     await this.augmentationVolumeCompta(args.idc, 1, 0, 0, 0, 'NouvelleNote-2')
@@ -3304,9 +3304,10 @@ operations.SupprNote = class SupprNote extends Operation {
       v = await this.majVolumeGr(args.id, -1, -dv2, false, 'SupprNote-1') // version du groupe (mise à jour)
     } else {
       v = compile(await this.getRowVersion(args.id, 'SupprNote-2', true)) // version de l'avatar
-      v.v++
-      this.update(v.toRow())
     }
+    v.v++
+    this.update(v.toRow())
+
     await this.diminutionVolumeCompta(args.idc, 1, 0, 0, dv2, 'SupprNote-3')
     note.v = v.v
     note._zombi = true
@@ -3387,7 +3388,8 @@ operations.PutUrl = class PutUrl extends Operation {
   async phase2 (args) {
     if (args.dv2 > 0) {
       if (ID.estGroupe(args.id)) {
-        await this.majVolumeGr (args.id, 0, args.dv2, true, 'PutUrl-2')
+        // Pour provoquer une exception de dépassement éventuel
+        await this.majVolumeGr (args.id, 0, args.dv2, false, 'PutUrl-2')
       }
       const h = compile(await this.getRowCompta(args.idh, 'PutUrl-1'))
       const c = decode(h.compteurs)
@@ -3439,7 +3441,7 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
     this.update(note.toRow())
 
     if (ID.estGroupe(args.id)) {
-      await this.majVolumeGr (args.id, 0, dv2, false, 'ValiderUpload-3')
+      await this.majVolumeGr (args.id, 0, dv2, true, 'ValiderUpload-3')
     }
     const h = compile(await this.getRowCompta(args.idh, 'ValiderUpload-4'))
     h.qv.v2 += dv2
@@ -3487,7 +3489,7 @@ operations.SupprFichier = class SupprFichier extends Operation {
     this.update(note.toRow())
 
     if (ID.estGroupe(args.id)) {
-      await this.majVolumeGr (args.id, 0, dv2, false, 'SupprFichier-3')
+      await this.majVolumeGr (args.id, 0, dv2, true, 'SupprFichier-3')
     }
 
     const h = compile(await this.getRowCompta(args.idh, 'ValiderUpload-4'))

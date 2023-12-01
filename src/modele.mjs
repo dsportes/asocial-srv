@@ -1652,7 +1652,7 @@ export class Operation {
   Refuse si le volume est ex expansion et qu'il dépasse le quota
   L'objet version du groupe est mis à jour et retourné
   */
-  async majVolumeGr (idg, dv1, dv2, simu, assert) {
+  async majVolumeGr (idg, dv1, dv2, maj, assert) {
     const vg = compile(await this.getRowVersion(idg, assert))
     if (dv1 > 0 && vg.vols.v1 + dv1 > vg.vols.q1 * UNITEV1) 
       throw new AppExc(F_SRV, 65, [edvol(vg.vols.v1 + dv1), edvol(vg.vols.q1 * UNITEV1)])
@@ -1660,7 +1660,7 @@ export class Operation {
       throw new AppExc(F_SRV, 65, [edvol(vg.vols.v2 + dv2), edvol(vg.vols.q2 * UNITEV2)])
     if (dv1 !== 0) vg.vols.v1 += dv1
     if (dv2 !== 0) vg.vols.v2 += dv2
-    if (!simu) {
+    if (maj) {
       vg.v++
       this.update(vg.toRow())
     }
