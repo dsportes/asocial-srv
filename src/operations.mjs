@@ -3178,6 +3178,7 @@ operations.NouvelleNote = class NouvelleNote extends Operation {
 args.token: éléments d'authentification du compte.
 args.id ids: identifiant de la note (dont celle du groupe pour un note de groupe)
 args.txts : nouveau texte encrypté
+args.aut : auteur de la note pour un groupe
 Retour: rien
 */
 operations.MajNote = class MajNote extends Operation {
@@ -3190,6 +3191,11 @@ operations.MajNote = class MajNote extends Operation {
     this.update(v.toRow())
     
     note.txts = args.txts
+    if (args.aut) {
+      const nl = [args.aut]
+      if (note.auts) note.auts.forEach(t => { if (t !== args.aut) nl.push(t) })
+      note.auts = nl
+    }
     note.v = v.v
     this.update(note.toRow())
   }
@@ -3413,6 +3419,7 @@ operations.PutUrl = class PutUrl extends Operation {
 args.token: éléments d'authentification du compte.
 args.id, ids : de la note
 args.idh : id de l'hébergeur pour une note groupe
+args.aut: im de l'auteur (pour une note de groupe)
 args.idf : identifiant du fichier
 args.emap : entrée (de clé idf) de la map des fichiers attachés [lg, data]
 args.lidf : liste des fichiers à supprimer
@@ -3437,6 +3444,11 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
     note.mfas = encode(map)
     let v = 0; for (const idf in map) v += map[idf][0]
     const dv2 = v - note.v2 // variation de v2
+    if (args.aut) {
+      const nl = [args.aut]
+      if (note.auts) note.auts.forEach(t => { if (t !== args.aut) nl.push(t) })
+      note.auts = nl
+    }
     note.v2 = v
     this.update(note.toRow())
 
@@ -3447,7 +3459,7 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
     h.qv.v2 += dv2
     const q = h.qv.q2 * UNITEV2
     if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
-    h.compteurs = new Compteurs(h.compteurs).setqv(h.qv).serial
+    h.compteurs = new Compteurs(h.compteurs, h.qv).serial
     h.v++
     this.update(h.toRow())
     
@@ -3468,6 +3480,7 @@ args.token: éléments d'authentification du compte.
 args.id, ids : de la note
 args.idh : id de l'hébergeur pour une note groupe
 args.idf : identifiant du fichier à supprimer
+args.aut: im de l'auteur (pour une note de groupe)
 Retour: aucun
 */
 operations.SupprFichier = class SupprFichier extends Operation {
@@ -3485,6 +3498,11 @@ operations.SupprFichier = class SupprFichier extends Operation {
     note.mfas = encode(map)
     let v = 0; for (const idf in map) v += map[idf][0]
     const dv2 = v - note.v2 // variation de v2
+    if (args.aut) {
+      const nl = [args.aut]
+      if (note.auts) note.auts.forEach(t => { if (t !== args.aut) nl.push(t) })
+      note.auts = nl
+    }
     note.v2 = v
     this.update(note.toRow())
 
@@ -3496,7 +3514,7 @@ operations.SupprFichier = class SupprFichier extends Operation {
     h.qv.v2 += dv2
     const q = h.qv.q2 * UNITEV2
     if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
-    h.compteurs = new Compteurs(h.compteurs).setqv(h.qv).serial
+    h.compteurs = new Compteurs(h.compteurs, h.qv).serial
     h.v++
     this.update(h.toRow())
 
