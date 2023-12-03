@@ -1123,7 +1123,7 @@ POST:
 - `vavatar`: version de l'avatar principal du compte qui ne doit pas avoir changé
 - `mbsMap` : map des membres des groupes des avatars :
   - _clé_ : id du groupe  
-  - _valeur_ : `{ idg, v, npgk, mbs: [ids], dlv }`
+  - _valeur_ : `{ idg, v, npgks: [npgk], mbs: [ids], dlv }`
 - `avsMap` : map des avatars du compte 
   - `clé` : id de l'avatar
   - `valeur` : `{v (version connue en session), dlv}`
@@ -1207,7 +1207,8 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
       const vg = compile(await this.getRowVersion(id, 'avGrSignatures-3'))
       if (vg._zombi) {
-        if (avatar.mpgk) delete avatar.mpgk[e.npgk]
+        if (avatar.mpgk) 
+          e.npgks.forEach(npgk => {avatar.mpgk[npgk]})
         grDisparus = true
       } else {
         versions[id] = vg
