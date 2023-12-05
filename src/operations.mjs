@@ -3200,7 +3200,9 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
       await this.majVolumeGr (args.id, 0, dv2, true, 'ValiderUpload-3')
     }
     const h = compile(await this.getRowCompta(args.idh, 'ValiderUpload-4'))
+    if (isNaN(h.qv.v2)) h.qv.v2 = 0
     h.qv.v2 += dv2
+    if (h.qv.v2 < 0) h.qv.v2 = 0
     const q = h.qv.q2 * UNITEV2
     if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
     h.compteurs = new Compteurs(h.compteurs, h.qv).serial
@@ -3255,7 +3257,9 @@ operations.SupprFichier = class SupprFichier extends Operation {
     }
 
     const h = compile(await this.getRowCompta(args.idh, 'ValiderUpload-4'))
+    if (isNaN(h.qv.v2)) h.qv.v2 = 0
     h.qv.v2 += dv2
+    if (h.qv.v2 < 0) h.qv.v2 = 0
     const q = h.qv.q2 * UNITEV2
     if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
     h.compteurs = new Compteurs(h.compteurs, h.qv).serial
