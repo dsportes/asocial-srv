@@ -2855,7 +2855,7 @@ operations.ModeSimple = class ModeSimple extends Operation {
 
 /* ItemChatgr : ajout / effacement d'un item *************************************************
 args.token: éléments d'authentification du compte.
-args.chatit : row de la note
+args.chatit : item
 args.idg: id du groupe
 args.im args.dh : pour une suppression
 Retour: rien
