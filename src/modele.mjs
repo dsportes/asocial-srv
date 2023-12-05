@@ -74,13 +74,13 @@ export const collsExp2 = ['fpurges', 'gcvols', 'tribus', 'comptas', 'avatars', '
 
 export const collsExpA = ['notes', 'transferts', 'sponsorings', 'chats', 'tickets']
 
-export const collsExpG = ['notes', 'transferts', 'membres']
+export const collsExpG = ['notes', 'transferts', 'membres', 'chatgrs']
 
 export const majeurs = new Set(['tribus', 'comptas', 'versions', 'avatars', 'groupes'])
 
 export const syncs = new Set(['singletons', 'espaces', 'tribus', 'comptas', 'versions'])
 
-export const sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres'])
+export const sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs'])
 
 /* Cache ************************************************************************
 Cache des objets majeurs "tribus comptas avatars groupes" 
@@ -283,7 +283,8 @@ export class GenDoc {
     chats: ['id', 'ids', 'v', 'vcv', '_data_'],
     tickets: ['id', 'ids', 'v', '_data_'],
     groupes: ['id', 'v', 'dfh', '_data_'],
-    membres: ['id', 'ids', 'v', 'vcv', 'dlv', '_data_']
+    membres: ['id', 'ids', 'v', 'vcv', 'dlv', '_data_'],
+    chatgrs: ['id', 'ids', 'v', '_data_']
   }
 
   get _attrs () { return GenDoc._attrs[this._nom] }
@@ -306,6 +307,7 @@ export class GenDoc {
     case 'tickets' : { obj = new Tickets(); break }
     case 'groupes' : { obj = new Groupes(); break }
     case 'membres' : { obj =  new Membres(); break }
+    case 'chatgrs' : { obj =  new Chatgrs(); break }
     }
     obj._nom = nom
     return obj
@@ -927,7 +929,7 @@ export class GenDoc {
   */
   static async scollDoc (transaction, nom, id, v) {
     const p = GenDoc._collPath(nom, id)
-    // INDEX simple sur (chats sponsorings notes membres) v
+    // INDEX simple sur (chats sponsorings notes membres chatgrs) v
     const q = ctx.fs.collection(p).where('v', '>', v)
     const qs = await transaction.get(q)
     if (qs.empty) return []
@@ -1007,6 +1009,7 @@ export class Groupes extends GenDoc {
   }
 }
 export class Membres extends GenDoc { constructor() { super('membres') } }
+export class Chatgrs extends GenDoc { constructor() { super('chatgrs') } }
 
 /** Operation *****************************************************
 authMode == 3 : SANS TOKEN, pings et accès non authentifiés (recherche phrase de sponsoring)
@@ -1361,11 +1364,22 @@ export class Operation {
     return await this.scoll('membres', id, v)
   }
 
+  async getAllRowsChatgr(id, v) {
+    return await this.scoll('chatgrs', id, v)
+  }
+
   async getRowMembre (id, ids, assert) {
     const rm = await GenDoc.get(this.transaction, 'membres', id, ids)
     if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [id, ids])
     if (rm) this.nl++
     return rm
+  }
+
+  async getRowChatgr (id, assert) {
+    const rc = await GenDoc.get(this.transaction, 'chatgrs', id, 1)
+    if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [id, 1])
+    if (rc) this.nl++
+    return rc
   }
 
   async setFpurge (idag, lidf) {
@@ -1590,6 +1604,32 @@ export class Operation {
       this.setRes('rowChat', rowChatI)
     }
     return rowChatI
+  }
+
+  addChatgrItem (items, item) {
+    const nl = [item]
+    let lg = item.l
+    for (const it of items) {
+      lg += it.l
+      if (lg > 5000) return nl
+      nl.push(it)
+    }
+    return nl
+  }
+
+  razChatgrItem (items, im, dh) { 
+    const nl = []
+    let lg = 0
+    for (const it of items) {
+      if (it.dh === dh && it.im === im) {
+        nl.push({im: it.im, l: 0, dh, dhx: Date.now()})
+      } else {
+        lg += it.l
+        if (lg > 5000) return nl
+        nl.push(it)
+      }
+    }
+    return nl
   }
 
   addChatItem (items, item) {

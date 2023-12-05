@@ -1,9 +1,9 @@
 // import { encode, decode } from '@msgpack/msgpack'
-import { AppExc, F_SRV, A_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
+import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Versions,
-  Transferts, Gcvols, trace } from './modele.mjs'
+  Transferts, Gcvols, Chatgrs, trace } from './modele.mjs'
 import { sleep } from './util.mjs'
 import { limitesjour, FLAGS, edit } from './api.mjs'
 
@@ -762,6 +762,8 @@ operations.Synchroniser = class Synchroniser extends Operation {
         const vx = mb ? v : 0
         for (const row of await this.getAllRowsMembre(id, vx))
           this.addRes('rowMembres', row)
+        for (const row of await this.getAllRowsChatgr(id, vx))
+          this.addRes('rowChatgrs', row)
       }
     }
   }
@@ -996,7 +998,7 @@ operations.ChargerSponsorings = class ChargerSponsorings extends Operation {
   }
 }
 
-/* `ChargerMembres` : retourne les membres du groupe id et de version postérieure à v
+/* `chargerMembresChatgrs` : retourne les membres du groupe id et de version postérieure à v
 POST:
 - `token` : éléments d'authentification du compte.
 - `id` : du groupe
@@ -1005,11 +1007,13 @@ POST:
 Retour:
 - `rowMembres` : array des rows `Membres` de version postérieure à `v`.
 */
-operations.ChargerMembres = class ChargerMembres extends Operation {
-  constructor () { super('ChargerMembres'); this.lecture = true}
+operations.chargerMembresChatgrs = class chargerMembresChatgrs extends Operation {
+  constructor () { super('chargerMembresChatgrs'); this.lecture = true}
 
   async phase2 (args) { 
     this.setRes('rowMembres', await this.getAllRowsMembre(args.id, args.v))
+    const rch = await this.getAllRowsChatgrs(args.id, args.v)
+    if (rch.length === 1) this.setRes('rowChatgr', rch[0])
   }
 }
 
@@ -2156,6 +2160,12 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     groupe.v = version.v
     this.insert(groupe.toRow())
     this.insert(membre.toRow())
+    const chatgr = new Chatgrs()
+    chatgr.items = []
+    chatgr.id = groupe.id
+    chatgr.ids = 1
+    chatgr.v = version.v
+    this.insert(chatgr.toRow())
   }
 }
 
@@ -2301,6 +2311,7 @@ args.cas: 1: acceptation, 2: refus, 3: refus et oubli, 4: refus et liste noire
 args.iam: true si accès membre
 args.ian: true si accès note
 args.ardg: ardoise du membre cryptée par la clé du groupe
+args.chatit: item de chat (copie de l'ardoise)
 Retour:
 - disparu: true si le groupe a disparu
 */
@@ -2331,6 +2342,14 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     membre.ardg = args.ardg
     let fl = groupe.flags[args.ids]
     if (!(fl & FLAGS.IN)) throw new AppExc(F_SRV, 33) // pas invité
+
+    if (args.chatit) {
+      const chatgr = compile(await this.getRowChatgr(args.idg, 'AcceptInvitation-9'))
+      chatgr.v = vg.v
+      args.chatit.dh = Date.now()
+      chatgr.items = this.addChatgrItem(chatgr.items, args.chatit)
+      this.update(chatgr.toRow())
+    }
 
     // MAJ groupe et membre, et comptas (nombre de groupes)
     switch (args.cas) {
@@ -2524,6 +2543,14 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (invitOK) membre.ddi = ctx.auj
     membre.ardg = args.ardg
     this.update(membre.toRow())
+
+    if (args.chatit) {
+      const chatgr = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-9'))
+      chatgr.v = vg.v
+      args.chatit.dh = Date.now()
+      chatgr.items = this.addChatgrItem(chatgr.items, args.chatit)
+      this.update(chatgr.toRow())
+    }
 
     const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-4'))
     if (!avatar.invits) avatar.invits = {}
@@ -2826,327 +2853,43 @@ operations.ModeSimple = class ModeSimple extends Operation {
   }
 }
 
-/* Changement de statut d'un membre d'un groupe
-args.token donne les éléments d'authentification du compte.
-args.id: id du groupe 
-args.ids: ids du membre cible
-args.ida: id de l'avatar du membre cible
-args.idc: id du COMPTE de ida, en cas de fin d'hébergement par résiliation / oubli
-args.ima: ids (imdice membre) du demandeur de l'opération
-args.idh: id du compte hébergeur
-args.kegr: clé du membre dans lgrk. Hash du rnd inverse de l'avatar crypté par le rnd du groupe.
-args.egr: élément du groupe dans lgrk de l'avatar invité 
-  (invitations seulement). Crypté par la clé RSA publique de l'avatar
-args.laa: 0:lecteur, 1:auteur, 2:animateur
-args.ardg: ardoise du groupe cryptée par la clé du groupe. null si inchangé.
-args.dlv: pour les acceptations d'invitation
-args.fn: fonction à appliquer
-  0 - maj de l'ardoise seulement, rien d'autre ne change
-  1 - invitation
-  2 - modification d'invitation
-  3 - acceptation d'invitation
-  4 - refus d'invitation
-  5 - modification du rôle laa (actif)
-  6 - résiliation
-  7 - oubli
-Retour: code d'anomalie
-1 - situation inchangée, c'était déjà l'état actuel
-2 - changement de laa impossible, membre non actif
-3 - refus d'invitation impossible, le membre n'est pas invité
-4 - acceptation d'invitation impossible, le membre n'est pas invité
-5 - modification d'invitation impossible, le membre n'est pas invité
-7 - le membre est actif, invitation impossible
-8 - le membre a disparu, opération impossible
+/* ItemChatgr : ajout / effacement d'un item *************************************************
+args.token: éléments d'authentification du compte.
+args.chatit : row de la note
+args.idg: id du groupe
+args.im args.dh : pour une suppression
+Retour: rien
+
+Remarque: la création de Chatgr quand il n'existe pas n'est pas utile.
+Ce n'est qu'une commodité dans une phase de test qui n'a plus lieu d'être.
 */
-operations.StatutMembre = class StatutMembre extends Operation {
-  constructor () { super('StatutMembre') }
+operations.ItemChatgr = class ItemChatgr extends Operation {
+  constructor () { super('ItemChatgr') }
 
-  /* Met à jour (si nécessaire) lgrk de l'avatar:
-  - si del, supprime l'élément
-  - sinon insère egr (clé ni) - ne met pas à jour s'il existe déjà en clé K
-  */
-  async updAv (del) {
-    const av = compile(await this.getRowAvatar(this.args.ida, 'StatutMembre-1'))
-    const va = compile(await this.getRowVersion(this.args.ida, 'StatutMembre-2', true))
-    va.v++
-    av.v = va.v
-    let done = false
-    if (!av.lgrk) av.lgrk = {}
-    if (del) {
-      if (av.lgrk[this.args.kegr]) {
-        delete av.lgrk[this.args.kegr]
-        done = true
-      }
+  async phase2 (args) { 
+    let ins = false
+    const vg = compile(await this.getRowVersion(args.idg))
+    if (!vg || vg._zombi) return
+    vg.v++
+    this.update(vg.toRow())
+
+    let chatgr = compile(await this.getRowChatgr(args.idg))
+    if (!chatgr) {
+      chatgr = new Chatgrs()
+      chatgr.id = args.idg
+      chatgr.ids = 1
+      chatgr.items = []
+      ins = true
+    }
+    chatgr.v = vg.v
+
+    if (args.chatit) {
+      args.chatit.dh = Date.now()
+      chatgr.items = this.addChatgrItem(chatgr.items, args.chatit)
     } else {
-      const x = av.lgrk[this.args.kegr]
-      if (!x || (x.length === 256 && this.args.egr !== 256)) {
-        av.lgrk[this.args.kegr] = this.args.egr
-        done = true
-      }
+      chatgr.items = this.razChatgrItem(chatgr.items, args.im, args.dh)
     }
-    if (done) {
-      this.update(va.toRow())
-      this.update(av.toRow())
-    }
-  }
-
-  /* Groupe sans membre actif - résiliation du dernier actif */
-  async delGroupe () { // ICI versions dlv
-    await this.updAv(true)
-    // ICI versions dlv
-    this.delete(this.mb.toRow())
-    this.vg._zombi = true 
-    this.vg.dlv = this.auj
-    this.dgr = true
-  }
-
-  async invitSimple () {
-    this.gr.ast[this.args.ids] = 60 + this.args.laa
-    this.ugr = true
-    this.mb.ddi = this.auj
-    this.mb.inv = null
-    this.umb = true
-    await this.updAv()
-  }
-
-  async invitation () {
-    if (this.cas === 6) { // déjà invité
-      this.setRes('code', 1)
-      return
-    }  
-    if (this.cas === 3) { // actif
-      this.setRes('code', 1)
-      return
-    }  
-
-    if (!this.gr.msu) {
-      //mode simple
-      await this.invitSimple()
-      return
-    }
-    // mode unanime
-    const an = new Set() // set des im des animateurs
-    this.gr.ast.forEach((s, im) => {
-      if (s === 32) an.add(im)
-    })
-    if (an.size === 1) {
-      await this.invitSimple()
-      return
-    }
-
-    if (this.st >= 70 && this.st <= 72) {
-      if (this.st % 10 !== this.args.laa) {
-        // Changt de laa, suppression des validations antérieures
-        this.mb.inv = []
-      } 
-    }
-    const s2 = new Set(this.mb.inv || [])
-    s2.add(this.args.ima)
-    this.mb.inv = Array.from(s2)
-    // Manque-t-il des animateurs dans la liste de validation ?
-    let mq = false
-    an.forEach(im => { if (!s2.has(im)) mq = true })
-    if (mq) {
-      this.gr.ast[this.args.ids] = 70 + this.args.laa
-      this.ugr = true
-      this.umb = true
-    } else {
-      await this.invitSimple()
-    }
-  }
-
-  async modifInvitation () {
-    if (this.args.laa !== 9) {
-      if (this.cas !== 6) {
-        this.setRes('code', 4)
-        return
-      }  
-      if (this.st % 10 !== this.args.laa) {
-        this.gr.ast[this.args.ids] = 60 + this.args.laa
-        this.ugr = true
-      }
-    } else { // laa = 9 . ANNULATION d'invitation
-      if (this.cas !== 6) return
-      this.gr.ast[this.args.ids] = this.mb.dfa ? 40 : 10
-      this.ugr = true
-      await this.updAv(true)
-    }
-  }
-
-  async acceptation () {
-    if (this.cas !== 6) {
-      this.setRes('code', 4)
-      return
-    }
-    this.mb.dlv = this.args.dlv
-    if (!this.mb.dda) this.mb.dda = this.auj
-    this.gr.ast[this.args.ids] = 30 + (this.st % 10)
-    this.ugr = true
-  }
-
-  async refus () {
-    if (this.cas !== 6) {
-      this.setRes('code', 3)
-      return
-    }
-    this.gr.ast[this.args.ids] = this.mb.dfa ? 40 : 10
-    this.ugr = true
-    await this.updAv(true)
-  }
-
-  async modifActif () {
-    if (this.cas !== 3) {
-      this.setRes('code', 2)
-      return
-    }
-    if (this.st % 10 === this.args.laa) {
-      this.setRes('code', 1)
-      return
-    }
-    this.gr.ast[this.args.ids] = 30 + this.args.laa
-    this.ugr = true
-  }
-
-  statsGr () {
-    const r = { 
-      setInv: new Set(), // set des invités
-      na: 0, // nombre d'animateurs
-      nm: 0 // nombre de membres actif
-    }
-    this.gr.ast.forEach((s, ids) => {
-      if (s >= 60 && s <= 62) r.setInv.add(ids)
-      if (s >= 30 && s <= 32) r.nm++
-      if (s === 32) r.na++
-    })
-    return r
-  }
-
-  async resOubli (stats) {
-    // Traitement des invités résilié / contact et de l'hébergeur
-    if (this.st === 32 && stats.na === 1 && stats.setInv.size) { 
-      /* résiliation du dernier animateur avec des invités
-      les invités redeviennent contact ou résilié,
-      ils ne peuvent plus accepter l'invitation (bof DISCUTABLE)
-      */
-      for (const ids of stats.setInv) {
-        const mbi = compile(await this.getRowMembre(this.args.id, ids, 'StatutMembre-3'))
-        this.gr.ast[ids] = mbi.dfa ? 50 : 10
-      }
-    }
-
-    if (this.mb.ids === this.gr.imh) {
-      /* résiliation de l'hébergeur : rendu du volume à son compte */
-      const dv1 = this.vg.vols.v1
-      const dv2 = this.vg.vols.v2
-      await this.diminutionVolumeCompta (this.args.idh, dv1, 0, 0, dv2, 'StatutMembre-4')
-    }
-  }
-
-  async resiliation () {
-    switch (this.cas) {
-    case 5:
-    case 4:
-    case 1:
-    case 0: { // résiliation ne changeant rien
-      break
-    }
-    case 3: { // fin d'activité
-      const stats = this.statsGr()
-
-      await this.resOubli(stats)
-
-      if (stats.nm > 1) {
-        this.mb.dfa = this.auj
-        this.gr.ast[this.args.ids] = 50
-        this.ugr = true
-        this.umb = true
-        await this.updAv(true)
-      } else {
-        await this.delGroupe()
-      }
-      break
-    }
-    case 6: { // traité comme annulation d'invitation
-      this.gr.ast[this.args.ids] = this.mb.dfa ? 50 : 10
-      this.ugr = true
-      this.mb.inv = null
-      this.umb = true
-      await this.updAv(true)
-      break
-    }
-    case 7: { // retour à l'état avant pré-invitation
-      this.gr.ast[this.args.ids] = this.dfa ? 50 : (this.mb.ddi ? 40 : 10)
-      this.ugr = true
-      this.mb.inv = null
-      this.umb = true
-      break
-    }
-    }
-  }
-
-  async oubli () {
-    this.gr.ast[this.args.ids] = 0
-    const stats = this.statsGr()
-    await this.resOubli(stats)
-    if (stats.nm === 0) {
-      // oubli du dernier membre actif, suppression du groupe
-      await this.delGroupe()
-    } else {
-      this.ugr = true
-      this.delete(this.mb.toRow())
-      await this.updAv(true)  
-    }
-  }
-
-  async phase2 (args) {
-    this.auj = Date.now()
-    this.umb = false
-    this.ugr = false
-    this.dgr = false
-    this.gr = compile(await this.getRowGroupe(args.id))
-    if (!this.gr) {
-      if (args.fn === 7) {
-        this.setRes('code', 1)
-        return
-      } else throw new AppExc(A_SRV, 9, [args.id])
-    }
-    this.st = this.gr.ast[args.ids]
-    this.cas = Math.floor(this.st / 10)
-    if (this.cas === 0 && args.fn !== 7) {
-      this.setRes('code', 8)
-      return
-    }
-
-    this.mb = compile(await this.getRowMembre(args.id, args.ids))
-    if (!this.mb) {
-      if (args.fn === 7 && this.st === 0) {
-        this.setRes('code', 1)
-        return
-      } else throw new AppExc(A_SRV, 10, [args.id, args.ids])
-    }
-    this.vg = compile(await this.getRowVersion(args.id, 'StatutMembre-5', true))
-    this.vg.v++
-    this.gr.v = this.vg.v
-    this.mb.v = this.vg.v
-
-    switch (args.fn) {
-    case 1: { await this.invitation(); break }
-    case 2: { await this.modifInvitation(); break }
-    case 3: { await this.acceptation(); break }
-    case 4: { await this.refus(); break }
-    case 5: { await this.modifActif(); break }
-    case 6: { await this.resiliation(); break }
-    case 7: { await this.oubli(); break }
-    }
-
-    if (args.ardg) {
-      this.gr.ardg = args.ardg
-      this.ugr = true
-    }
-
-    if (this.umb || this.ugr || this.dgr) this.update(this.vg.toRow())
-    if (this.umb) this.update(this.mb.toRow())
-    if (this.ugr) this.update(this.gr.toRow())
+    if (ins) this.insert(chatgr.toRow()); else this.update(chatgr.toRow())
   }
 }
 
