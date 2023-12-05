@@ -14,3 +14,4 @@ DELETE FROM sponsorings;
 DELETE FROM groupes;
 DELETE FROM membres;
 DELETE FROM versions;
+DELETE from chatsgr;

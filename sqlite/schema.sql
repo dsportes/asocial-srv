@@ -130,3 +130,11 @@ CREATE TABLE IF NOT EXISTS "membres" (
 CREATE INDEX "membres_id_v" ON "membres" ( "id", "v" );
 CREATE INDEX "membres_id_vcv" ON "membres" ( "id", "vcv" );
 CREATE INDEX "membres_dlv" ON "membres" ( "dlv" );
+CREATE TABLE IF NOT EXISTS "chatgrs" (
+  "id"	INTEGER,
+  "ids"  INTEGER,
+  "v" INTEGER,
+  "_data_"	BLOB,
+  PRIMARY KEY("id", "ids")
+);
+CREATE INDEX "chatgrs_id_v" ON "chatgrs" ( "id", "v" );

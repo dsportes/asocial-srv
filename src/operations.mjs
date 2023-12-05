@@ -1007,12 +1007,12 @@ POST:
 Retour:
 - `rowMembres` : array des rows `Membres` de version postérieure à `v`.
 */
-operations.chargerMembresChatgrs = class chargerMembresChatgrs extends Operation {
-  constructor () { super('chargerMembresChatgrs'); this.lecture = true}
+operations.ChargerMembresChatgrs = class ChargerMembresChatgrs extends Operation {
+  constructor () { super('ChargerMembresChatgrs'); this.lecture = true}
 
   async phase2 (args) { 
     this.setRes('rowMembres', await this.getAllRowsMembre(args.id, args.v))
-    const rch = await this.getAllRowsChatgrs(args.id, args.v)
+    const rch = await this.getAllRowsChatgr(args.id, args.v)
     if (rch.length === 1) this.setRes('rowChatgr', rch[0])
   }
 }

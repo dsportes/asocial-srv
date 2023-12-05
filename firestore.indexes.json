@@ -355,6 +355,28 @@
       "collectionGroup": "membres",
       "fieldPath": "_data_",
       "indexes": []
+    },
+
+    {
+      "collectionGroup": "chatgrs",
+      "fieldPath": "id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "chatgrs",
+      "fieldPath": "ids",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "chatgrs",
+      "fieldPath": "v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "chatgrs",
+      "fieldPath": "_data_",
+      "indexes": []
     }
+
   ]
 }
