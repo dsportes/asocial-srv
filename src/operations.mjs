@@ -2191,29 +2191,6 @@ operations.MotsclesGroupe = class MotsclesGroupe extends Operation {
   }
 }
 
-/* Maj de l'ardoise d'un membre *****************************************************
-args.token donne les éléments d'authentification du compte.
-args.ardg : texte de l'ardoise crypté par la clé du groupe
-args.idg : id du groupe
-args.ids : im du membre
-Retour:
-*/
-operations.ArdoiseMembre = class ArdoiseMembre extends Operation {
-  constructor () { super('ArdoiseMembre') }
-
-  async phase2 (args) { 
-    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'ArdoiseMembre-1'))
-    const version = compile(await this.getRowVersion(args.idg, 'ArdoiseMembre-2', true))
-
-    version.v++
-    membre.v = version.v
-    membre.ardg = args.ardg
-
-    this.update(membre.toRow())
-    this.update(version.toRow())
-  }
-}
-
 /* Hébergement d'un groupe *****************************************************
 args.token donne les éléments d'authentification du compte.
 args.action : 1 à 5
@@ -2310,8 +2287,7 @@ args.epgk: entrée dans mpgk du compte
 args.cas: 1: acceptation, 2: refus, 3: refus et oubli, 4: refus et liste noire
 args.iam: true si accès membre
 args.ian: true si accès note
-args.ardg: ardoise du membre cryptée par la clé du groupe
-args.chatit: item de chat (copie de l'ardoise)
+args.chatit: item de chat
 Retour:
 - disparu: true si le groupe a disparu
 */
@@ -2339,7 +2315,6 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     vg.v++
     groupe.v = vg.v
     membre.v = vg.v
-    membre.ardg = args.ardg
     let fl = groupe.flags[args.ids]
     if (!(fl & FLAGS.IN)) throw new AppExc(F_SRV, 33) // pas invité
 
@@ -2434,21 +2409,33 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
 args.token donne les éléments d'authentification du compte.
 args.idg : id du groupe
 args.ids: indice du membre invité
+args.ivpar : indice du membre invitant
+args.dh: date-heure de l'item de chat d'invitation
 Retour:
-- rowMembre : avec un champ supplémentaire ext : { flags, cvg, invs: map }
+- rowMembre : avec un champ supplémentaire ext : { flags, cvg, invs: map, chatg }
+  chatg: texte du chat crypté par la clé du groupe
   invs : clé: im, valeur: { cva, nag }
-
 */
 operations.InvitationFiche = class InvitationFiche extends Operation {
   constructor () { super('InvitationFiche') }
 
   async phase1 (args) { 
     const groupe = compile(await this.getRowGroupe(args.idg, 'InvitationFiche-1'))
-    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationFiche-1'))
+    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationFiche-2'))
     const ext = { flags: groupe.flags[args.ids], cvg: groupe.cvg, invs : {} }
     for (const im of membre.inv) {
-      const m = compile(await this.getRowMembre(args.idg, im, 'InvitationFiche-1'))
+      const m = compile(await this.getRowMembre(args.idg, im, 'InvitationFiche-3'))
       ext.invs[im] = { nag: m.nag, cva: m.cva }
+    }
+    ext.chatg = null
+    if (args.ivpar) {
+      const chatgr = compile(await this.getRowChatgr(args.idg, 'InvitationFiche-4'))
+      if (chatgr) {
+        for (let i = 0; i < chatgr.items.length; i++) {
+          const it = chatgr.items[i]
+          if (it.im === args.ivpar && it.dh === args.dh) { ext.chatg = it.t; break }
+        }
+      }
     }
     membre.ext = ext
     this.setRes('rowMembre', membre.toRow())
@@ -2466,8 +2453,8 @@ args.idm: id de l'avatar du membre invité
 args.im: indice de l'animateur invitant
 args.flags: flags PA DM DN DE de l'invité
 args.ni: numéro d'invitation pour l'avatar invité, clé dans la map invits
-args.invit: élément dans la map invits {nomg, cleg, im}` cryptée par la clé publique RSA de l'avatar.
-args.ardg: ardoise du membre
+args.invit: élément dans la map invits {nomg, cleg, im, ivpar, dh}` cryptée par la clé publique RSA de l'avatar.
+args.chatit: item de chat du groupe (mot de bienvenue)
 Retour:
 */
 operations.InvitationGroupe = class InvitationGroupe extends Operation {
@@ -2484,7 +2471,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     this.update(vg.toRow())
     groupe.v = vg.v
     let f = groupe.flags[args.ids] // flags actuel de l'invité
-    if (f & FLAGS.AC) throw new AppExc(F_SRV, 32) // est actif
+    if (f & FLAGS.AC) throw new AppExc(F_SRV, 32) // est déjà actif
 
     const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationGroupe-1'))
     membre.v = vg.v
@@ -2503,14 +2490,14 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       invitOK = true
       break
     }
-    case 3 : {
+    case 3 : { // suppr invit std
       if (!(f & FLAGS.IN)) throw new AppExc(F_SRV, 30) // n'était pas invité
       membre.inv = null
       membre.flagsiv = 0
       invitOK = false
       break
     }
-    case 4 : {
+    case 4 : { // vote pour
       if (f & FLAGS.IN) throw new AppExc(F_SRV, 31) // était déjà invité
       const a = new Set([args.im])
       if (!membre.inv) membre.inv = []
@@ -2521,7 +2508,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       membre.flagsiv = args.flags
       break
     }
-    case 5 : {
+    case 5 : { // vote contre
       if (f & FLAGS.IN) throw new AppExc(F_SRV, 31) // était déjà invité
       const a = new Set()
       if (!membre.inv) membre.inv = []
@@ -2533,7 +2520,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       membre.flagsiv = args.flags
       break
     }
-    case 6 : {
+    case 6 : { // suppr. vote unanime
       membre.inv = null
       membre.flagsiv = 0
       invitOK = false
@@ -2541,13 +2528,11 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     }
     }
     if (invitOK) membre.ddi = ctx.auj
-    membre.ardg = args.ardg
     this.update(membre.toRow())
 
     if (args.chatit) {
       const chatgr = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-9'))
       chatgr.v = vg.v
-      args.chatit.dh = Date.now()
       chatgr.items = this.addChatgrItem(chatgr.items, args.chatit)
       this.update(chatgr.toRow())
     }
