@@ -1651,11 +1651,8 @@ POST:
 - `lgtxt1` : longueur du texte
 - `dh` : date-heure du chat dont le texte est à annuler.
 Retour:
-- `st` :
-  0 : E a disparu, chat zombi.
-  1 : chat mis à jour.
-- `rowChat` : row du chat I.
-
+- `disp` : true : E a disparu, chat zombi.
+- `rowChat`: chat I
 Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
 */
 operations.MajChat = class MajChat extends Operation {
@@ -1679,7 +1676,7 @@ operations.MajChat = class MajChat extends Operation {
       chatI.st = (st1 * 10) + 2 
       chatI.vcv = 0
       chatI.cva = null
-      this.setRes('st', 0)
+      this.setRes('disp', true)
       rowChatI = this.update(chatI.toRow())
       this.setRes('rowChat', rowChatI)
       return
@@ -1722,6 +1719,8 @@ operations.MajChat = class MajChat extends Operation {
     } else if (args.dh) {
       chatE.items = this.razChatItem(itemsE, args.dh)
     }
+    const stE1 = Math.floor(chatE.st / 10)
+    chatE.st = (stE1 * 10) + 1
     if (avatarI) {
       chatE.vcv = avatarI.vcv
       chatE.cva = avatarI.cva
@@ -1735,6 +1734,8 @@ POST:
 - `token` : éléments d'authentification du compte.
 - `id ids` : id du chat
 
+Retour
+- disp: true si E a disparu
 Assertions sur le row `Chats` et la `Versions` de l'avatar id.
 */
 operations.PassifChat = class PassifChat extends Operation {
@@ -1745,6 +1746,16 @@ operations.PassifChat = class PassifChat extends Operation {
     const chat = compile(await this.getRowChat(args.id, args.ids, 'PassifChat-2'))
     version.v++
     chat.v = version.v
+    const rowChatE = await this.getRowChat(args.idE, args.idsE)
+    if (!rowChatE) {
+      // E disparu. Maj interdite:
+      const st1 = Math.floor(chat.st / 10)
+      chat.st = (st1 * 10) + 2 
+      chat.vcv = 0
+      chat.cva = null
+      this.setRes('disp', true)
+    }
+
     const st1 = Math.floor(chat.st / 10)
     if (st1 === 1) {
       // était actif, devient passif
