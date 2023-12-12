@@ -1611,17 +1611,16 @@ operations.ChangementPC = class ChangementPC extends Operation {
 
 /* `NouveauChat` : création d'un nouveau Chat
 POST:
-- `token` : éléments d'authentification du compte.
-- `idI idsI` : id du chat, côté _interne_.
-- `idE idsE` : id du chat, côté _externe_.
-- `ccKI` : clé cc du chat cryptée par la clé K du compte de I.
-- `ccPE` : clé cc cryptée par la clé **publique** de l'avatar E.
-- `naccI` : [nomI, cleI] crypté par la clé cc
-- `naccE` : [nomE, cleE] crypté par la clé cc
-- `txt1` : texte 1 du chat crypté par la clé cc.
-- `lgtxt1` : longueur du texte 1 du chat.
-- `txt2` : texte 1 du chat crypté par la clé cc.
-- `lgtxt2` : longueur du texte 1 du chat.
+args.token: éléments d'authentification du compte.
+args.idI idsI : id du chat, côté interne
+args.idE idsE : id du chat côté externe
+args.ccKI : clé cc cryptée par la clé K du compte de I
+args.ccPE ! clé cc cryptée par la clé publique de l'avatar E
+args.contc : contenu du chat crypté par la clé cc
+args.naccI: na de I crypté par la clé du chat
+args.naccE: na de I crypté par la clé du chat
+args.txt1: texte crypté par la clé cc
+args.lgtxt1: lg du texte
 
 Retour:
 - `st` : 
@@ -1732,7 +1731,8 @@ operations.MajChat = class MajChat extends Operation {
 /* `PassifChat` : rend le chat passif, nombre de chat - 1, items vidé
 POST:
 - `token` : éléments d'authentification du compte.
-- `id ids` : id du chat
+- `idI idsI` : id du chat
+- idE idsE
 
 Retour
 - disp: true si E a disparu
@@ -1742,29 +1742,42 @@ operations.PassifChat = class PassifChat extends Operation {
   constructor () { super('PassifChat') }
 
   async phase2 (args) { 
-    const version = compile(await this.getRowVersion(args.id, 'PassifChat-1', true))
-    const chat = compile(await this.getRowChat(args.id, args.ids, 'PassifChat-2'))
+    const version = compile(await this.getRowVersion(args.idI, 'PassifChat-1', true))
+    const chat = compile(await this.getRowChat(args.idI, args.idsI, 'PassifChat-2'))
     version.v++
     chat.v = version.v
     const rowChatE = await this.getRowChat(args.idE, args.idsE)
+    let stI = Math.floor(chat.st / 10)
+    let stE = chat.st % 10
     if (!rowChatE) {
       // E disparu. Maj interdite:
-      const st1 = Math.floor(chat.st / 10)
-      chat.st = (st1 * 10) + 2 
+      stE = 2
       chat.vcv = 0
       chat.cva = null
       this.setRes('disp', true)
     }
 
-    const st1 = Math.floor(chat.st / 10)
-    if (st1 === 1) {
+    if (stI === 1) {
       // était actif, devient passif
-      chat.st = chat.st % 10
+      stI = 0
       chat.items = []
       await this.majNbChat(-1)
-      this.update(chat.toRow())
-      this.update(version.toRow())  
+      if (rowChatE) {
+        // l'autre nétait pas disparu, MAJ de son st
+        const versionE = compile(await this.getRowVersion(args.idE, 'PassifChat-1', true))
+        versionE.v++
+        const chatE = compile(rowChatE)
+        chatE.v = versionE.v
+        const stE1 = Math.floor(chatE.st / 10)
+        chatE.st = stE1 * 10
+        this.update(chatE.toRow())
+        this.update(versionE.toRow())      
+      }
     }
+    chat.st = (stI * 10) + stE
+    this.update(chat.toRow())
+    this.update(version.toRow())  
+
   }
 }
 

@@ -1596,7 +1596,6 @@ export class Operation {
 
       if (!xavatarI) // Si AcceptatinSponsoring, le nombre de chats est déjà fixé
         await this.majNbChat(1)
-
     } else {
       // chatI existe création croisée malencontreuse 
       // soit par l'avatar E, soit par une autre session de I
