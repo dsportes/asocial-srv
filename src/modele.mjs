@@ -1747,7 +1747,7 @@ export class Operation {
 
   /* lcSynt = ['qc', 'q1', 'q2', 'ac', 'a1', 'a2', 'cj', 
   'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
-*/
+  */
   /* Mise à jour de Synthese suite à une mise à jour d'une tribu */
   async MajSynthese (tribu, noupd) {
     let synt = this.synt

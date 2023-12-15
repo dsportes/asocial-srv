@@ -3321,18 +3321,24 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
   async phase2 (args) { 
     const estCpt = args.id === args.idc
     const vgroupes = {}
+    const vavatarp = compile(await this.getRowVersion(args.idc, 'SupprAvatar-7'))
+    const avatarp = compile(await this.getRowAvatar(args.idc, 'SupprAvatar-7'))
+    const va = compile(await this.getRowVersion(args.id, 'SupprAvatar-6'))
+    if (vavatarp.v !== args.vap) { this.setRes('KO', true); return }
+    if (!estCpt) {
+      if (va.v !== args.va) { this.setRes('KO', true); return }
+    }
 
     for (const it of args.grps) {
       const vg = await this.getRowVersion(it.idg, 'SupprAvatar-1')
       if (vg._zombi || (vg.v !== it.vg)) { 
-        this.setRes('KO', false); return 
+        this.setRes('KO', true); return 
       }
       vgroupes[it.idg] = vg
     }
 
     // résiliation de l'avatar par sa 'versions' (s'il ne l'était pas déjà)
     // ICI versions dlv
-    const va = compile(await this.getRowVersion(args.id, 'SupprAvatar-6'))
     if (!va._zombi) {
       va.version++
       va.dlv = ctx.auj
@@ -3343,13 +3349,27 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     if (estCpt) {
       this.delete(await this.getRowCompta(args.idc, 'SupprAvatar-2'))
       // suppression de l'entrée du compte dans tribu
-      const tribu = compile(await this.getRowTribu(args.idt, 'SupprAvatar-3'))
-      delete tribu.act[args.it]
-      tribu.v++
-      await this.MajSynthese(tribu)
-      this.update(tribu.row())
+      if (args.idt) {
+        const tribu = compile(await this.getRowTribu(args.idt, 'SupprAvatar-3'))
+        tribu.act[args.it] = null
+        tribu.v++
+        await this.MajSynthese(tribu)
+        this.update(tribu.toRow())
+      }
+      if (!vavatarp._zombi) {
+        vavatarp.v++
+        vavatarp._zombi = true
+        vavatarp.dlv = ctx.auj
+        this.update(vavatarp.toRow())
+        this.delete({ _nom: 'avatars', id: args.idc })
+      }
     } else {
       await this.diminutionVolumeCompta(args.idc, args.dnn, args.dnc, args.dng, args.dv2, 'SupprAvatar-9')
+      vavatarp.v++
+      avatarp.v = vavatarp.v
+      delete avatarp.mavk[args.idk]
+      this.update(avatarp.toRow())
+      this.update(vavatarp.toRow())
     }
   
     // MAJ des chats "externes"
@@ -3360,7 +3380,8 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
         const vchatE = compile(await this.getRowVersion(idE, 'SupprAvatar-4'), true)
         vchatE.v++
         chatE.v = vchatE.v
-        chatE.st = 1
+        const stI = Math.floor(chatE.st / 100)
+        chatE.st = (stI * 10) + 2
         chatE.cva = null
         this.update(vchatE.toRow())
         this.update(chatE.toRow())
@@ -3383,7 +3404,8 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
           this.delete({ _nom: 'membres', id: it.idg, ids: it.im })
           const groupe = compile(await this.getRowGroupe(it.idg, 'SupprAvatar-5'))
           groupe.v = vgroupe.v
-          groupe.ast[it.im] = 0
+          groupe.flags[it.im] = 0
+          groupe.anag[it.im] = 0
           if (groupe.imh === it.im) {
             // c'était l'hébergeur
             groupe.dfh = args.dfh
