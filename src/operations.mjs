@@ -2108,10 +2108,10 @@ operations.ChangerTribu = class ChangerTribu extends Operation {
       nasp: args.nasp,
       stn: args.stn,
       notif: args.notif,
-      q1: c.q1,
-      q2: c.q2,
-      v1: c.v1,
-      v2: c.v2
+      q1: c.q1 || 0,
+      q2: c.q2 || 0,
+      v1: c.v1 || 0,
+      v2: c.v2 || 0
     }
     apTribu.v++
     apTribu.act.push(e)
