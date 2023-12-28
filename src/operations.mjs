@@ -1954,16 +1954,19 @@ operations.SetSponsor = class SetSponsor extends Operation {
 
   async phase2 (args) {
     const compta = compile(await this.getRowCompta(args.idc, 'SetNotifC-1'))
-    const tribu = compile(await this.getRowTribu(args.idt, 'SetNotifC-1'))
-    tribu.v++
-    const e = tribu.act[compta.it]
-    if (!e || e.vide) return
-    e.nasp = args.nasp
-    tribu.act[compta.it] = e
-    this.update(tribu.toRow())
-    await this.MajSynthese(tribu)
+    if (args.idt && compta.it) {
+      const tribu = compile(await this.getRowTribu(args.idt, 'SetNotifC-1'))
+      const e = tribu ? tribu.act[compta.it] : null
+      if (e && !e.vide) {
+        tribu.v++
+        e.nasp = args.nasp
+        tribu.act[compta.it] = e
+        this.update(tribu.toRow())
+        await this.MajSynthese(tribu)
+      }
+    }
     compta.v++
-    compta.sp = args.nasp ? 1 : 0
+    compta.sp = args.estSp ? 1 : 0
     this.update(compta.toRow())
   }
 }
