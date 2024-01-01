@@ -2957,12 +2957,12 @@ operations.MajNote = class MajNote extends Operation {
   }
 }
 
-/* Note temporaire / permanente *************************************************
+/* Note protection contre l'écriture **************************
 args.token: éléments d'authentification du compte.
 args.id ids: identifiant de la note
 args.p : 0 / 1
 Retour: rien
-*/
+
 operations.ProtNote = class ProtNote extends Operation {
   constructor () { super('ProtNote') }
 
@@ -2976,6 +2976,7 @@ operations.ProtNote = class ProtNote extends Operation {
     this.update(note.toRow())
   }
 }
+*/
 
 /* Changer l'exclusivité d'écriture d'une note ***********************
 args.token: éléments d'authentification du compte.
