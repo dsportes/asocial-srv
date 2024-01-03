@@ -434,7 +434,7 @@ operations.GetSynthese = class GetSynthese extends Operation {
 POST:
 - `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
 - `rowSponsoring` : row Sponsoring, SANS la version (qui est calculée par le serveur).
-
+args.credits: nouveau credits du compte si non null
 Retour: rien
 
 Exceptions:
@@ -459,6 +459,12 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
     this.insert(sp.toRow())
     this.update(version.toRow())
+    if (args.credits) {
+      const compta = compile(await this.getRowCompta(this.session.id, 'AjoutSponsoring-2'))
+      compta.v++
+      compta.credits = args.credits
+      this.update(compta.toRow())
+    }
   }
 }
 
