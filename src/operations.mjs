@@ -1893,7 +1893,7 @@ POST:
 - `id` : id de la tribu
 - `idc` : id du compte
 - `notif` : notification du compte cryptée par la clé de la tribu
-- `stn` : 0:simple 1:lecture 2:mi,imal, 9:aucune
+- `stn` : 0:simple 1:lecture 2:accès minimal, 9:aucune
 
 Assertion sur l'existence du row `Tribus` de la tribu et `Comptas` du compte.
 */
