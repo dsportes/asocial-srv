@@ -112,6 +112,7 @@ class Cache {
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
         Cache.orgs.set(x.row.id, x.row.org)
+      // if (nom === 'comptas') console.log('CACHE get 1', op.nomop, op.nex, x.row.v, x.row._data_.length)
       return x.row
     }
     const n = await GenDoc.getV(op.transaction, nom, id, 0)
@@ -122,6 +123,7 @@ class Cache {
     }
     if (n && n._nom === 'espaces' && !Cache.orgs.has(n.id))
       Cache.orgs.set(n.id, n.org)
+    // if (nom === 'comptas') console.log('CACHE get 2', op.nomop, op.nex, n.v, n._data_.length)
     return n
   }
 
@@ -156,11 +158,12 @@ class Cache {
   Enrichissement de la cache APRES le commit de la transaction avec
   tous les rows créés, mis à jour ou accédés (en ayant obtenu la "dernière")
   */
-  static update (newRows, delRowPaths) { // set des path des rows supprimés
+  static update (op, newRows, delRowPaths) { // set des path des rows supprimés
     for(const row of newRows) {
       if (sousColls.has(row._nom)) continue
       const k = row._nom + '/' + row.id
       const x = Cache.map.get(k)
+      // if (row._nom === 'comptas') console.log('CACHE update', op.nomop, op.nex, row.v, row._data_.length, x ? x.row.v : '???')
       if (x) {
         if (x.row.v < row.v) x.row = row
       } else {
@@ -244,7 +247,7 @@ class Cache {
     }
     if (row) {
       op.nl++
-      Cache.update([row], [])
+      Cache.update(op, [row], [])
       return row.org
     }
     return null
@@ -1038,6 +1041,8 @@ export class Operation {
 
   /* Exécution de l'opération */
   async run (args) {
+    if (!Operation.nex) Operation.nex = 1
+    this.nex = Operation.nex++
     this.args = args
     if (this.authMode <= 2) { // Sinon ce sont des "pings" (echo, test erreur, pingdb, recherche phrase sponsoring)
       const t = args.token
@@ -1136,7 +1141,7 @@ export class Operation {
       this.toInsert.forEach(row => { if (majeurs.has(row._nom)) updated.push(row) })
       this.toUpdate.forEach(row => { if (majeurs.has(row._nom)) updated.push(row) })
       this.toDelete.forEach(row => { if (majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-      Cache.update(updated, deleted)
+      Cache.update(this, updated, deleted)
 
       if (this.phase3) await this.phase3(this.args) // peut ajouter des résultas
     }
@@ -1594,8 +1599,14 @@ export class Operation {
       this.setRes('st', 1)
       this.setRes('rowChat', rowChatI)
 
-      if (!xavatarI) // Si AcceptatinSponsoring, le nombre de chats est déjà fixé
-        await this.majNbChat(1)
+      if (!xavatarI) { // Si AcceptatinSponsoring, le nombre de chats est déjà fixé
+        const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
+        compta.v++
+        compta.qv.nc += 1
+        const c = new Compteurs(this.compta.compteurs, this.compta.qv)
+        compta.compteurs = c.serial
+        this.update(compta.toRow())
+      }
     } else {
       // chatI existe création croisée malencontreuse 
       // soit par l'avatar E, soit par une autre session de I
@@ -1656,35 +1667,6 @@ export class Operation {
       }
     }
     return nl
-  }
-
-  async majNbChat (dnc) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
-    compta.v++
-    compta.qv.nc += dnc
-    const c = new Compteurs(compta.compteurs, compta.qv)
-    compta.compteurs = c.serial
-    this.update(compta.toRow())
-  }
-
-  async majNbNote (dnn) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'majNbNote-1'))
-    compta.v++
-    const qv = compta.qv
-    qv.nn += dnn
-    const c = new Compteurs(compta.compteurs, qv)
-    compta.compteurs = c.serial
-    this.update(compta.toRow())
-  }
-
-  async majNbGroupe (dng) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'majNbGroupe-1'))
-    compta.v++
-    const qv = compta.qv
-    qv.ng += dng
-    const c = new Compteurs(compta.compteurs, qv)
-    compta.compteurs = c.serial
-    this.update(compta.toRow())
   }
 
   /* Met à jour les volumes du groupe TODO

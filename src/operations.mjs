@@ -221,16 +221,28 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
 POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `credits` : credits crypté par la clé K du compte
+- `v`: version de compta de la dernière incorporation des crédits
 
-Retour: rien
+Retour:
+- KO: true - La version v est en régression, refaire l'incorporation des crédits.
 */
 operations.MajCredits = class MajCredits extends Operation {
   constructor () { super('MajCredits') }
 
   async phase2(args) {
     const compta = compile(await this.getRowCompta(this.session.id, 'MajCredits-1'))
+    if (compta.v !== args.v) {
+      this.setRes('KO', true)
+      return
+    }
+    if (compta.v !== args.v) {
+      this.setRes('KO', true)
+      return
+    }
     compta.v++
     compta.credits = args.credits
+    // console.log('CREDITS MajCredits', compta.v, compta.credits.length)
+    compta.dons = null
     this.update(compta.toRow())
   }
 }
@@ -241,16 +253,23 @@ POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `credits` : credits crypté par la clé K du compte
 - `rowTicket` : nouveau row tickets pour le Comptable
+- v: version de compta
 
-Retour: rien
+Retour: 
+- KO : true si régression de version de compta
 */
 operations.PlusTicket = class PlusTicket extends Operation {
   constructor () { super('PlusTicket') }
 
   async phase2(args) {
     const compta = compile(await this.getRowCompta(this.session.id, 'PlusTicket-1'))
+    if (compta.v !== args.v) {
+      this.setRes('KO', true)
+      return
+    }
     compta.v++
     compta.credits = args.credits
+    console.log('CREDITS PlusTicket', compta.v, compta.credits.length)
     this.update(compta.toRow())
     const idc = ID.duComptable(this.session.ns)
     const version = compile(await this.getRowVersion(idc, 'PlusTicket-2'))
@@ -268,8 +287,10 @@ POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `credits` : credits crypté par la clé K du compte
 - `ids` : du ticket
+- v: version de compta
 
-Retour: rien
+Retour: 
+- KO: true si régression de version de compta
 */
 operations.MoinsTicket = class MoinsTicket extends Operation {
   constructor () { super('MoinsTicket') }
@@ -286,8 +307,13 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
     this.update(ticket.toRow())
 
     const compta = compile(await this.getRowCompta(this.session.id, 'MoinsTicket-3'))
+    if (compta.v !== args.v) {
+      this.setRes('KO', true)
+      return
+    }
     compta.v++
     compta.credits = args.credits
+    console.log('CREDITS MoinsTicket', compta.v, compta.credits.length)
     this.update(compta.toRow())
   }
 }
@@ -311,6 +337,24 @@ operations.RafraichirTickets = class RafraichirTickets extends Operation {
       const rowTicket = await this.getRowTicketV(idc, ids, v)
       if (rowTicket) this.addRes('rowTickets', rowTicket)
     }
+  }
+}
+
+/* `EstAutonome` : indique si l'avatar donné en argument est 
+l'avatar principal d'un compte autonome
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `id` : id de l'avatar
+
+Retour: 
+- `estA`: true si avatar principal d'un compte autonome
+*/
+operations.EstAutonome = class EstAutonome extends Operation {
+  constructor () { super('EstAutonome') }
+
+  async phase1(args) {
+    const compta = compile(await this.getRowCompta(args.id))
+    this.setRes('estA', compta && !compta.it)
   }
 }
 
@@ -434,8 +478,11 @@ operations.GetSynthese = class GetSynthese extends Operation {
 POST:
 - `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
 - `rowSponsoring` : row Sponsoring, SANS la version (qui est calculée par le serveur).
-args.credits: nouveau credits du compte si non null
-Retour: rien
+- `credits`: nouveau credits du compte si non null
+- `v`: version de compta si credits
+
+Retour:
+- KO: true - si régression de version de compta
 
 Exceptions:
 - `F_SRV 7` : un sponsoring identifié par une même phrase (du moins son hash) existe déjà.
@@ -461,8 +508,13 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     this.update(version.toRow())
     if (args.credits) {
       const compta = compile(await this.getRowCompta(this.session.id, 'AjoutSponsoring-2'))
+      if (compta.v !== args.v) {
+        this.setRes('KO', true)
+        return
+      }
       compta.v++
       compta.credits = args.credits
+      console.log('CREDITS AjoutSponsoring', compta.v, compta.credits.length)
       this.update(compta.toRow())
     }
   }
@@ -1655,13 +1707,26 @@ POST:
 - `txt1` : texte à ajouter crypté par la clé cc du chat.
 - `lgtxt1` : longueur du texte
 - `dh` : date-heure du chat dont le texte est à annuler.
+Si don:
+- `credits`: nouveau credits de compta du compte incorporant le don
+- `crDon`: don crypté par RSA du bénéficiaire idE à ajouter dans son compta.dons
+- `v`: version de compta du compte
+
 Retour:
-- `disp` : true : E a disparu, chat zombi.
+- `KO`: true si régression de version de compta du compte- `disp` : true : E a disparu, chat zombi.
 - `rowChat`: chat I
 Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
 */
 operations.MajChat = class MajChat extends Operation {
   constructor () { super('MajChat') }
+
+  async getCompta() {
+    if (!this.compta) {
+      this.compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
+      this.compta.v++
+      this.updCompta = false
+    }
+  }
 
   async phase2 (args) {
     let rowChatI = await this.getRowChat(args.idI, args.idsI,'MajChat-1')
@@ -1710,10 +1775,13 @@ operations.MajChat = class MajChat extends Operation {
       chatI.cva = avatarE.cva
     }
     const st1 = Math.floor(chatI.st / 10)
-    if (st1 === 0) {
-      // était passif, redevient actif
+    if (st1 === 0) { // était passif, redevient actif
       chatI.st = 10 + (chatI.st % 10)
-      await this.majNbChat(1)
+      await this.getCompta()
+      this.compta.qv.nc += 1
+      const c = new Compteurs(this.compta.compteurs, this.compta.qv)
+      this.compta.compteurs = c.serial
+      this.updCompta = true
     }
     rowChatI = this.update(chatI.toRow())
     this.setRes('rowChat', rowChatI)
@@ -1731,6 +1799,24 @@ operations.MajChat = class MajChat extends Operation {
       chatE.cva = avatarI.cva
     }
     this.update(chatE.toRow())
+
+    if (args.credits) {
+      await this.getCompta()
+      if (this.compta.v !== args.v + 1) {
+        this.setRes('KO', true)
+        return
+      }
+      this.compta.credits = args.credits
+      this.updCompta = true
+
+      const comptaE = compile(await this.getRowCompta(args.idE, 'MajChat-9'))
+      if (!comptaE.dons) comptaE.dons = [args.crDon]
+      else comptaE.dons.push(args.crDon)
+      comptaE.v++
+      const r2 = comptaE.toRow()
+      this.update(r2)
+    }
+    if (this.updCompta) this.update(this.compta.toRow())
   }
 }
 
@@ -1746,6 +1832,15 @@ Assertions sur le row `Chats` et la `Versions` de l'avatar id.
 */
 operations.PassifChat = class PassifChat extends Operation {
   constructor () { super('PassifChat') }
+
+  async dimNbChat () {
+    const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
+    compta.v++
+    compta.qv.nc -= 1
+    const c = new Compteurs(compta.compteurs, compta.qv)
+    compta.compteurs = c.serial
+    this.update(compta.toRow())
+  }
 
   async phase2 (args) { 
     const version = compile(await this.getRowVersion(args.idI, 'PassifChat-1', true))
@@ -1767,7 +1862,7 @@ operations.PassifChat = class PassifChat extends Operation {
       // était actif, devient passif
       stI = 0
       chat.items = []
-      await this.majNbChat(-1)
+      await this.dimNbChat()
       if (rowChatE) {
         // l'autre nétait pas disparu, MAJ de son st
         const versionE = compile(await this.getRowVersion(args.idE, 'PassifChat-1', true))

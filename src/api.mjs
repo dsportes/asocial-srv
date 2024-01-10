@@ -475,8 +475,8 @@ export class Compteurs {
   dec : niveau de découvert autorisé.
     - compta A : montant monétaire en c
     - compte O : pourcentage de consommation excessive tolérée
-  dhdec : date-heure d'attribution du découvert
-  njdec : nombre de jours de validité
+  // dhdec : date-heure d'attribution du découvert
+  // njdec : nombre de jours de validité
 
   Pour chaque mois M à M-3, il y a un **vecteur** de 14 (X1 + X2 + X3 + X4) compteurs:
   - X1_moyennes et X2 cumuls servent au calcul au montant du mois
@@ -507,18 +507,21 @@ export class Compteurs {
   - dh: normalement absent. Utilisé pour faire des tests indépendants de la date-heure courante.
   */
   constructor (serial, qv, conso, dh) {
-    const t = dh || Date.now()
+    this.now = Date.now()
+    const t = dh || this.now
     if (serial) {
       const x = decode(serial)
       Compteurs.lp.forEach(p => { this[p] = x[p]})
       this.shift(t)
       if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
       if (conso) this.majConso(conso)
+      /*
       if (this.dec) {
         if (this.dhdec + (MSPARJOUR * this.nbj) < t) {
           this.dhdec = 0; this.dec = 0; this.njdec = 0
         }
       }
+      */
     } else { // création - Les quotas sont initialisés, les consommations et montants monétaires nuls
       this.dh0 = t
       this.dh = t
@@ -529,9 +532,9 @@ export class Compteurs {
       this.mm = new Array(Compteurs.NHM).fill(0)
       this.aboma = 0
       this.consoma = 0
-      this.dhdec = 0
-      this.njdec = 0
-      this.dec = 0
+      // this.dhdec = 0
+      // this.njdec = 0
+      // this.dec = 0
     }
   }
 
@@ -571,17 +574,19 @@ export class Compteurs {
   get cumref () {
     const x = this.dhraz ? (this.estA ? 2 : 3) : 0
     const t = this.dhraz || this.dh0
-    const r = [x, t, Math.floor((this.dh - t) / MSPARJOUR)]
+    const r = [x, t, Math.floor((this.now - t) / MSPARJOUR)]
     return r
   }
 
   // retourne [m, dhf] - montant du découvert, date-heure de fin
   // null si pas de découvert
+  /*
   get decouvert () {
     if (!this.dec) return null
     const dhf = this.dhdec + (this.njdec * MSPARJOUR)
     return dhf > this.dh ? [this.dec, dhf] : null
   }
+  */
 
   get estA () { return this.qv.qc === 0 }
 
@@ -678,7 +683,8 @@ export class Compteurs {
     const ntf = { dh: this.dh }
     if (this.qv.qc) {
       const { pcc } = this.pourcents
-      if (pcc >= 100 + this.dec) { ntf.nr = 4; ntf.texte = '%A' }
+      // if (pcc >= 100 + this.dec) { ntf.nr = 4; ntf.texte = '%A' }
+      if (pcc >= 100) { ntf.nr = 4; ntf.texte = '%A' }
       else if (pcc >= 90) { ntf.nr = 0; ntf.texte = '%B' }
     }
     return ntf
@@ -699,7 +705,8 @@ export class Compteurs {
 
   notifS (credits) { // notification de dépassement des crédits
     const ntf = { dh: Date.now() }
-    const solde = credits + this.dec - this.cumulCouts
+    // const solde = credits + this.dec - this.cumulCouts
+    const solde = credits - this.cumulCouts
     if (solde < 0) { ntf.nr = 4; ntf.texte = '%C' }
     else {
       const nbj = this.nbj(credits)
@@ -712,22 +719,22 @@ export class Compteurs {
   }
 
   /* Autorisation de découvert d'un montant d pendant nj jours
-  */
   setDecouvert (d, nj) {
     this.dhdec = AMJ.am(this.dh)
     this.njdec = nj
     this.dec = d
     return this
   }
+  */
 
   /* Lors de la transition O <-> A : raz abonnement / consommation des mois antérieurs */
   razma () {
     this.dhraz = Date.now()
     this.aboma = 0
     this.consoma = 0
-    this.dhdec = 0
-    this.njdec = 0
-    this.dec = 0
+    // this.dhdec = 0
+    // this.njdec = 0
+    // this.dec = 0
     return this
   }
 
