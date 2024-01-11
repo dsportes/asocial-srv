@@ -1469,32 +1469,6 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
   }
 }
 
-/* `MemoCompte` : changer le mémo du compte
-POST:
-- `token` : éléments d'authentification du compte.
-- `memok` : texte du mémo crypté par la clé k
-
-Assertion d'existence du row `Avatars` de l'avatar principal et de sa `Versions`.
-*/
-operations.MemoCompte = class MemoCompte extends Operation {
-  constructor () { super('MemoCompte') }
-
-  async phase2 (args) { 
-    const rowAvatar = await this.getRowAvatar(this.session.id, 'MemoCompte-1')
-    const rowVersion = await this.getRowVersion(this.session.id, 'MemoCompte-2', true)
-    const avatar = compile(rowAvatar)
-    const version = compile(rowVersion)
-
-    version.v++
-    avatar.v = version.v
-
-    avatar.memok = args.memok
-
-    this.update(avatar.toRow())
-    this.update(version.toRow())
-  }
-}
-
 /* `McMemo` : changer le mémo du compte
 POST:
 - `token` : éléments d'authentification du compte.
@@ -1507,8 +1481,8 @@ operations.McMemo = class McMemo extends Operation {
   constructor () { super('McMemo') }
 
   async phase2 (args) { 
-    const rowAvatar = await this.getRowAvatar(this.session.id, 'MemoCompte-1')
-    const rowVersion = await this.getRowVersion(this.session.id, 'MemoCompte-2', true)
+    const rowAvatar = await this.getRowAvatar(this.session.id, 'McMemo-1')
+    const rowVersion = await this.getRowVersion(this.session.id, 'McMemo-2', true)
     const avatar = compile(rowAvatar)
     const version = compile(rowVersion)
 

@@ -112,7 +112,6 @@ class Cache {
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
         Cache.orgs.set(x.row.id, x.row.org)
-      // if (nom === 'comptas') console.log('CACHE get 1', op.nomop, op.nex, x.row.v, x.row._data_.length)
       return x.row
     }
     const n = await GenDoc.getV(op.transaction, nom, id, 0)
@@ -123,7 +122,6 @@ class Cache {
     }
     if (n && n._nom === 'espaces' && !Cache.orgs.has(n.id))
       Cache.orgs.set(n.id, n.org)
-    // if (nom === 'comptas') console.log('CACHE get 2', op.nomop, op.nex, n.v, n._data_.length)
     return n
   }
 
@@ -163,7 +161,6 @@ class Cache {
       if (sousColls.has(row._nom)) continue
       const k = row._nom + '/' + row.id
       const x = Cache.map.get(k)
-      // if (row._nom === 'comptas') console.log('CACHE update', op.nomop, op.nex, row.v, row._data_.length, x ? x.row.v : '???')
       if (x) {
         if (x.row.v < row.v) x.row = row
       } else {
