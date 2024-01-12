@@ -34,9 +34,9 @@ B) compilation en Objet serveur
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, FLAGS, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { ctx } from './server.js'
-import { b64ToU8, sha256 } from './webcrypto.mjs'
+import { b64ToU8 } from './webcrypto.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6 } from './util.mjs'
+import { rnd6, sleep } from './util.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -1600,7 +1600,7 @@ export class Operation {
         const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
         compta.v++
         compta.qv.nc += 1
-        const c = new Compteurs(this.compta.compteurs, this.compta.qv)
+        const c = new Compteurs(compta.compteurs, compta.qv)
         compta.compteurs = c.serial
         this.update(compta.toRow())
       }
@@ -1808,19 +1808,21 @@ export class Operation {
       return 
     } 
 
-    const shax64 = Buffer.from(this.authData.shax).toString('base64')
-    if (ctx.config.admin.indexOf(shax64) !== -1) {
-      // session admin authentifiée
-      this.session = AuthSession.set(this.authData.sessionId, 0, true)
-      return
+    if (this.authData.shax) { // admin
+      const shax64 = Buffer.from(this.authData.shax).toString('base64')
+      if (ctx.config.admin.indexOf(shax64) !== -1) {
+        // session admin authentifiée
+        this.session = AuthSession.set(this.authData.sessionId, 0, true)
+        return
+      }
+      await sleep(3000)
+      throw new AppExc(F_SRV, 101) // pas reconnu
     }
 
     const rowCompta = await this.getComptaHps1(this.authData.hps1, true)
-    if (!rowCompta) throw new AppExc(F_SRV, 101)
-    const shay = Buffer.from(sha256(Buffer.from(this.authData.shax))).toString('base64')
+    if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 101) }
     this.compta = compile(rowCompta)
-    const sh = Buffer.from(this.compta.shay).toString('base64')
-    if (sh !== shay) throw new AppExc(F_SRV, 101)
+    if (this.compta.hpsc !== this.authData.hpsc) throw new AppExc(F_SRV, 101)
     this.session = AuthSession.set(this.authData.sessionId, this.compta.id, this.lecture)
   }
 }

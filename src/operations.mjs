@@ -269,7 +269,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
     }
     compta.v++
     compta.credits = args.credits
-    console.log('CREDITS PlusTicket', compta.v, compta.credits.length)
+    // console.log('CREDITS PlusTicket', compta.v, compta.credits.length)
     this.update(compta.toRow())
     const idc = ID.duComptable(this.session.ns)
     const version = compile(await this.getRowVersion(idc, 'PlusTicket-2'))
@@ -313,7 +313,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
     }
     compta.v++
     compta.credits = args.credits
-    console.log('CREDITS MoinsTicket', compta.v, compta.credits.length)
+    // console.log('CREDITS MoinsTicket', compta.v, compta.credits.length)
     this.update(compta.toRow())
   }
 }
@@ -514,7 +514,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       }
       compta.v++
       compta.credits = args.credits
-      console.log('CREDITS AjoutSponsoring', compta.v, compta.credits.length)
+      // console.log('CREDITS AjoutSponsoring', compta.v, compta.credits.length)
       this.update(compta.toRow())
     }
   }
@@ -639,9 +639,6 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 
   async phase2(args) {
-    const avatarE = compile(await this.getRowAvatar(args.idE))
-    if (!avatarE) throw new AppExc(F_SRV, 25)
-
     // Obtention du sponsoring et incrementation de la version du sponsor    
     const sp = compile(await this.getSponsoringIds(args.ids))
     if (!sp) throw new AppExc(F_SRV, 8)
@@ -674,8 +671,12 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     this.insert(args.rowAvatar)
     this.insert(args.rowVersion)
 
-    const rowChatI = await this.nvChat(args, avatarE, compile(args.rowAvatar))
-    this.setRes('rowChat', rowChatI)
+    if (args.idI !== 0) {
+      const avatarE = compile(await this.getRowAvatar(args.idE))
+      if (!avatarE) throw new AppExc(F_SRV, 25)  
+      const rowChatI = await this.nvChat(args, avatarE, compile(args.rowAvatar))
+      this.setRes('rowChat', rowChatI)
+    }
 
     if (!ctx.sql) {
       this.setRes('credentials', ctx.config.fscredentials)
@@ -1526,8 +1527,8 @@ operations.MotsclesCompte = class MotsclesCompte extends Operation {
 /* `ChangementPS` : changer la phrase secrète du compte
 POST:
 - `token` : éléments d'authentification du compte.
-- `hps1` : dans compta, `hps1` : hash du PBKFD de l'extrait de la phrase secrète du compte.
-- `shay` : SHA du SHA de X (PBKFD de la phrase secrète).
+-args.hps1: hash du PBKFD de la phrase secrète réduite du compte.
+- args.hpsc: hash du PBKFD de la phrase secrète complète.
 - `kx` : clé K cryptée par la phrase secrète
 
 Assertion sur l'existence du row `Comptas` du compte.
@@ -1540,7 +1541,7 @@ operations.ChangementPS = class ChangementPS extends Operation {
     
     compta.v++
     compta.hps1 = args.hps1
-    compta.shay = args.shay
+    compta.hpsc = args.hpsc
     compta.kx = args.kx
     
     this.update(compta.toRow())
