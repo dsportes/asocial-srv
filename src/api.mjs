@@ -5,6 +5,7 @@ export const version = '1'
 
 export const WSHEARTBEAT = false
 export const PINGTO = 5 // en minutes : session auto close après PINGTO minutes d'inactivité
+export const PINGTO2 = 4 // en minutes : rafraîchissement des compteurs de consommation
 
 export const MSPARJOUR = 86400 * 1000
 export const MSPARAN = 365 * MSPARJOUR
@@ -472,11 +473,6 @@ export class Compteurs {
   mm : [0..18] - coût abo + conso pour le mois M et les 17 mois antérieurs (si 0 pour un mois, le compte n'était pas créé)
   aboma : somme des coûts d'abonnement des mois antérieurs depuis la création du compte
   consoma : somme des coûts consommation des mois antérieurs depuis la création du compte
-  dec : niveau de découvert autorisé.
-    - compta A : montant monétaire en c
-    - compte O : pourcentage de consommation excessive tolérée
-  // dhdec : date-heure d'attribution du découvert
-  // njdec : nombre de jours de validité
 
   Pour chaque mois M à M-3, il y a un **vecteur** de 14 (X1 + X2 + X3 + X4) compteurs:
   - X1_moyennes et X2 cumuls servent au calcul au montant du mois
@@ -577,16 +573,6 @@ export class Compteurs {
     const r = [x, t, Math.floor((this.now - t) / MSPARJOUR)]
     return r
   }
-
-  // retourne [m, dhf] - montant du découvert, date-heure de fin
-  // null si pas de découvert
-  /*
-  get decouvert () {
-    if (!this.dec) return null
-    const dhf = this.dhdec + (this.njdec * MSPARJOUR)
-    return dhf > this.dh ? [this.dec, dhf] : null
-  }
-  */
 
   get estA () { return this.qv.qc === 0 }
 
@@ -717,15 +703,6 @@ export class Compteurs {
     }
     return ntf
   }
-
-  /* Autorisation de découvert d'un montant d pendant nj jours
-  setDecouvert (d, nj) {
-    this.dhdec = AMJ.am(this.dh)
-    this.njdec = nj
-    this.dec = d
-    return this
-  }
-  */
 
   /* Lors de la transition O <-> A : raz abonnement / consommation des mois antérieurs */
   razma () {
