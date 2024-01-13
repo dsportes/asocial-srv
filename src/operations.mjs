@@ -347,14 +347,18 @@ POST:
 - `id` : id de l'avatar
 
 Retour: 
-- `estA`: true si avatar principal d'un compte autonome
+- `st`: 
+  - 0 : pas avatar principal 
+  - 1 : avatar principal d'un compte A
+  - 2 : avatar principal d'un compte O
 */
 operations.EstAutonome = class EstAutonome extends Operation {
   constructor () { super('EstAutonome') }
 
   async phase1(args) {
     const compta = compile(await this.getRowCompta(args.id))
-    this.setRes('estA', compta && !compta.it)
+    if (!compta || !compta.mvk) { this.setRes('st', 0) }
+    this.setRes('st', compta.it ? 2 : 1)
   }
 }
 
