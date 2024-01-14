@@ -1697,7 +1697,7 @@ Retour:
 Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
 */
 operations.MajChat = class MajChat extends Operation {
-  constructor () { super('MajChat') }
+  constructor (n) { super(n || 'MajChat') }
 
   async getCompta() {
     if (!this.compta) {
@@ -1708,6 +1708,28 @@ operations.MajChat = class MajChat extends Operation {
   }
 
   async phase2 (args) {
+    await this.majchat(args)
+
+    if (args.credits) {
+      await this.getCompta()
+      if (this.compta.v !== args.v + 1) {
+        this.setRes('KO', true)
+        return
+      }
+      this.compta.credits = args.credits
+      this.updCompta = true
+
+      const comptaE = compile(await this.getRowCompta(args.idE, 'MajChat-9'))
+      if (!comptaE.dons) comptaE.dons = [args.crDon]
+      else comptaE.dons.push(args.crDon)
+      comptaE.v++
+      const r2 = comptaE.toRow()
+      this.update(r2)
+    }
+    if (this.updCompta) this.update(this.compta.toRow())
+  }
+
+  async majchat (args) {
     let rowChatI = await this.getRowChat(args.idI, args.idsI,'MajChat-1')
     const chatI = compile(rowChatI)
     const i1 = chatI.cc.length === 256 && args.ccKI
@@ -1778,24 +1800,6 @@ operations.MajChat = class MajChat extends Operation {
       chatE.cva = avatarI.cva
     }
     this.update(chatE.toRow())
-
-    if (args.credits) {
-      await this.getCompta()
-      if (this.compta.v !== args.v + 1) {
-        this.setRes('KO', true)
-        return
-      }
-      this.compta.credits = args.credits
-      this.updCompta = true
-
-      const comptaE = compile(await this.getRowCompta(args.idE, 'MajChat-9'))
-      if (!comptaE.dons) comptaE.dons = [args.crDon]
-      else comptaE.dons.push(args.crDon)
-      comptaE.v++
-      const r2 = comptaE.toRow()
-      this.update(r2)
-    }
-    if (this.updCompta) this.update(this.compta.toRow())
   }
 }
 
@@ -1858,6 +1862,107 @@ operations.PassifChat = class PassifChat extends Operation {
     this.update(chat.toRow())
     this.update(version.toRow())  
 
+  }
+}
+
+/* OP_MuterCompte: 'Mutation dy type d\'un compte'
+POST:
+- `token` : éléments d'authentification du compte.
+- 'id': id du compte à muter
+- 'st': type actuel: 1: A, 2: 0
+- `idI idsI` : id du chat, côté _interne_.
+- `idE idsE` : id du chat, côté _externe_.
+- `txt1` : texte à ajouter crypté par la clé cc du chat.
+- `lgtxt1` : longueur du texte
+
+Si st === 1:
+- `quotas`: {qc, q2, q1}
+- `trib`: { 
+  idT: id courte du compte crypté par la clé de la tribu,
+  idt: id de la tribu, 
+  cletX: cle de la tribu cryptée par la clé K du comptable,
+  cletK: cle de la tribu cryptée par la clé K du compte ou sa clé RSA.
+}
+
+Retour:
+*/
+operations.MuterCompte = class MuterCompte extends operations.MajChat {
+  constructor () { super('MuterCompte') }
+
+  async phase2 (args) {
+    await this.majchat(args)
+
+    const comptaM = compile(await this.getRowCompta(args.id, 'MuterCompte-1'))
+    comptaM.v++
+
+    if (args.st === 1) {
+      /* compte A devient O
+      - inscription dans sa tribu
+      - dans son comptaM, credits null, raz info tribu
+      - dans compteurs: remise à zéro du total abonnement et consommation des mois antérieurs (`razma()`)      */
+      const idtAp = args.trib.idt
+      const apTribu = compile(await this.getRowTribu(idtAp, 'ChangerTribu-4'))
+
+      const qv = comptaM.qv
+      qv.qc = args.quotas.qc
+      qv.q1 = args.quotas.q1
+      qv.q2 = args.quotas.q2
+      const c = new Compteurs(comptaM.compteurs, qv)
+      c.razma()
+      comptaM.compteurs = c.serial
+      comptaM.cletK = args.trib.cletK
+      comptaM.cletX = args.trib.cletX
+      comptaM.it = apTribu.act.length
+      comptaM.credits = null
+      this.update(comptaM.toRow())
+
+      apTribu.v++
+      const e = {
+        idT: args.trib.idT,
+        nasp: null,
+        stn: 0,
+        notif: null,
+        qc: qv.qc || 0,
+        q1: qv.q1 || 0,
+        q2: qv.q2 || 0,
+        ca: 0,
+        v1: qv.nc + qv.ng + qv.nn,
+        v2: qv.v2 || 0
+      }
+      apTribu.v++
+      apTribu.act.push(e)
+      this.update(apTribu.toRow())
+      await this.MajSynthese(apTribu)
+      if (ctx.sql) this.session.sync.plus(idtAp)
+  
+    } else {
+      /* compte O devient A
+      - le retirer de sa tribu actuelle
+      - raz de ses infos tribu dans comptaM
+      - credits à "true"
+      - dans compteurs: remise à zéro du total abonnement et consommation des mois antérieurs (`razma()`), raz des mois 
+      */
+      const idtAv = args.trib.idt
+      const avTribu = compile(await this.getRowTribu(idtAv, 'ChangerTribu-2'))
+  
+      avTribu.v++
+      avTribu.act[comptaM.it] = null
+      this.update(avTribu.toRow())
+      await this.MajSynthese(avTribu)
+
+      comptaM.cletK = null
+      comptaM.cletX = null
+      comptaM.it = 0
+      comptaM.credits = true
+      const c = new Compteurs(comptaM.compteurs)
+      c.razma()
+      comptaM.compteurs = c.serial
+      this.update(comptaM.toRow())
+
+      if (ctx.sql) this.session.sync.moins(args.idtAv)
+    }
+
+    if (this.updCompta) this.update(this.compta.toRow())
   }
 }
 
@@ -2054,8 +2159,8 @@ operations.SetSponsor = class SetSponsor extends Operation {
 /* `SetQuotas` : déclaration des quotas d'un compte par un sponsor de sa tribu
 POST:
 - `token` : éléments d'authentification du sponsor.
-- `idc` : id du compte sponsorisé.
-- `idt` : id de sa tribu.
+- `idc` : id du compte
+- `idt` : id de sa tribu pour un compte O
 - `[qc, q1, q2]` : ses nouveaux quotas de volume V1 et V2.
 
 Assertion sur l'existence des rows `Comptas` du compte et `Tribus` de la tribu.
@@ -2064,16 +2169,20 @@ operations.SetQuotas = class SetQuotas extends Operation {
   constructor () { super('SetQuotas') }
 
   async phase2 (args) {
-    const compta = compile(await this.getRowCompta(args.idc, 'SetNotifC-1'))
-    const tribu = compile(await this.getRowTribu(args.idt, 'SetNotifC-1'))
-    tribu.v++
-    const x = tribu.act[compta.it]
-    if (!x || x.vide) return
-    x.qc = args.q[0]
-    x.q1 = args.q[1]
-    x.q2 = args.q[2]
-    this.update(tribu.toRow())
-    await this.MajSynthese(tribu)
+    const compta = compile(await this.getRowCompta(args.idc, 'SetQuotas-1'))
+
+    if (args.idt) {
+      const tribu = compile(await this.getRowTribu(args.idt, 'SetQuotas-1'))
+      tribu.v++
+      const x = tribu.act[compta.it]
+      if (!x || x.vide) return
+      x.qc = args.q[0]
+      x.q1 = args.q[1]
+      x.q2 = args.q[2]
+      this.update(tribu.toRow())
+      await this.MajSynthese(tribu)
+    }
+
     compta.v++
     compta.qv.qc = args.q[0]
     compta.qv.q1 = args.q[1]
