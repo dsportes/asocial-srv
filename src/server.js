@@ -157,6 +157,18 @@ try { // Récupération de la configuration et définition du contexte d'exécut
   }
 
   {
+    const p = path.resolve(config.pathconfig + '/app_keys.json')
+    if (existsSync(p)) {
+      ctx.logger.info('app_keys=' + p)
+      const x = readFileSync(p)
+      const y = JSON.parse(x)
+      ctx.config.app_key = Buffer.from(y.key, 'base64')
+      ctx.config.admin = y.admin
+      ctx.config.apitk = y.apitk
+    }
+  }
+
+  {
     const p = path.resolve(config.pathconfig + '/service_account.json')
     if (existsSync(p)) {
       env['GOOGLE_APPLICATION_CREDENTIALS'] = p

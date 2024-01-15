@@ -14,9 +14,6 @@ export const config = {
 
   projectId: 'asocial-test1', // Pour Firestore et storage GC
 
-  admin:  ['tyn9fE7zrDhZ6N7GSA87GbF1ouPovsOP/dVsUNfS0zk='],
-
-  apitk: 'VldNo2aLLvXRm0Q',
   prefixop: '/op',
   prefixapp: '/app',
   pathapp: mode === 1 ? '' : './app',

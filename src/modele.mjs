@@ -34,9 +34,8 @@ B) compilation en Objet serveur
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, FLAGS, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { ctx } from './server.js'
-import { b64ToU8 } from './webcrypto.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6, sleep } from './util.mjs'
+import { rnd6, sleep, b64ToU8, decrypterSrv, crypterSrv } from './util.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -437,11 +436,13 @@ export class GenDoc {
 
   static async setRowsDoc (transaction, rows) {
     for (const row of rows) {
+      const b = row._nom === 'comptas'
       const la = GenDoc._attrs[row._nom]
       const r = {}
-      la.forEach(a => { 
+      la.forEach(a => {
         const x = row[a]
-        if (x !== null && x !== undefined) r[a] = x
+        if (b && a === '_data_') r[a] = x === undefined ? null : crypterSrv(x)
+        else r[a] = x === undefined ?  null : x
       })
       if (majeurs.has(row._nom)) {
         const v = ('' + row.v).padStart(9, '0')
@@ -462,23 +463,27 @@ export class GenDoc {
       const code = 'INS' + row._nom
       const st = stmt(code, GenDoc._insStmt(row._nom))
       const r = {}
+      const b = row._nom === 'comptas'
       la.forEach(a => {
         const x = row[a]
-        r[a] = x === undefined ?  null : x 
+        if (b && a === '_data_') r[a] = x === undefined ? null : crypterSrv(x)
+        else r[a] = x === undefined ?  null : x
       })
       st.run(r)
     }
   }
 
-  static updateRowsSql (rows) {
+  static async updateRowsSql (rows) {
     for (const row of rows) {
       const la = GenDoc._attrs[row._nom]
       const code = 'UPD' + row._nom
       const st = stmt(code, GenDoc._updStmt(row._nom))
       const r = {}
+      const b = row._nom === 'comptas'
       la.forEach(a => {
         const x = row[a]
-        r[a] = x === undefined ? null : x 
+        if (b && a === '_data_') r[a] = x === undefined ? null : crypterSrv(x)
+        else r[a] = x === undefined ?  null : x
       })
       st.run(r)
     }
@@ -958,15 +963,28 @@ export class GenDoc {
     await ctx.fs.doc(p).delete()
   }
 
+  static async decrypt (row) {
+    if (!row || row._nom !== 'comptas') return row
+    const d = row._data_
+    if (!d || d.length < 4) return row
+    const dc = await decrypterSrv(d)
+    row._data_ = dc
+    return row
+  }
+
   /* Appels de lecture UNIVERSELS */
   static async getV (transaction, nom, id, v) {
-    if (ctx.sql) return await GenDoc.getSqlV(nom, id, v)
-    else return await GenDoc.getDocV(transaction, nom, id, v)
+    let row
+    if (ctx.sql) row = await GenDoc.getSqlV(nom, id, v)
+    else row = await GenDoc.getDocV(transaction, nom, id, v)
+    return row ? await GenDoc.decrypt(row) : null
   }
 
   static async getNV (transaction, nom, id) {
-    if (ctx.sql) return await GenDoc.getSqlNV(nom, id)
-    else return await GenDoc.getDocNV(transaction, nom, id)
+    let row
+    if (ctx.sql) row = await GenDoc.getSqlNV(nom, id)
+    else row = await GenDoc.getDocNV(transaction, nom, id)
+    return row ? await GenDoc.decrypt(row) : null
   }
 
   static async get (transaction, nom, id, ids) {
@@ -1254,7 +1272,7 @@ export class Operation {
     const r = ctx.sql ? await GenDoc.getSqlComptaHps1(hps1)
       : await GenDoc.getDocComptaHps1(fake ? 'fake' : this.transaction, hps1)
     if (r) this.nl++
-    return r    
+    return GenDoc.decrypt(r)    
   }
 
   async getSponsoringIds (ids) {
