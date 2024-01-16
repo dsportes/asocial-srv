@@ -4,7 +4,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, Chatgrs, trace } from './modele.mjs'
-import { sleep } from './util.mjs'
+import { sleep, crypterRSA, crypterRaw } from './util.mjs'
 import { limitesjour, FLAGS, edit } from './api.mjs'
 
 export function atStart() {
@@ -4163,5 +4163,45 @@ operations.GCDlv = class GCDlv extends Operation {
       const msg = trace('GCGDlv-ER1-' + nom , 0, info, true)
       this.setRes('err', { err: msg })
     }
+  }
+}
+
+/* OP_TestRSA: 'Test encryption RSA'
+args.token
+args.id
+args.data
+Retour:
+- data: args.data crypré RSA par la clé publique de l'avatar
+*/
+operations.TestRSA = class TestRSA extends Operation {
+  constructor () { super('TestRSA')  }
+
+  async phase2 (args) {
+    const avatar = compile(await this.getRowAvatar(args.id, 'TestRSA-1'))
+    const pub = avatar.pub
+    const data = crypterRSA(pub, args.data)
+    this.setRes('data', new Uint8Array(data))
+  }
+}
+
+/* OP_CrypterRaw: 'Test d\'encryptage serveur d\'un buffer long',
+Le serveur créé un binaire dont,
+- les 256 premiers bytes crypte en RSA, la clé AES, IV et l'indicateur gz
+- les suivants sont le texte du buffer long crypté par la clé AES générée.
+args.token
+args.id
+args.data
+args.gz
+Retour:
+- data: "fichier" binaire auto-décryptable en ayant la clé privée RSA
+*/
+operations.CrypterRaw = class CrypterRaw extends Operation {
+  constructor () { super('CrypterRaw')  }
+
+  async phase2 (args) {
+    const avatar = compile(await this.getRowAvatar(args.id, 'TestRSA-1'))
+    const pub = avatar.pub
+    const data = crypterRaw(pub, args.data, args.gz)
+    this.setRes('data', new Uint8Array(data))
   }
 }

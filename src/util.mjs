@@ -1,6 +1,9 @@
 import crypto from 'crypto'
+import { deflateSync } from 'zlib'
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { ctx } from './server.js'
+import { AppExc, E_SRV } from './api.mjs'
+import { encode } from '@msgpack/msgpack'
 
 export function sleep (delai) {
   if (delai <= 0) return
@@ -56,3 +59,67 @@ export function sha256 (buffer) {
   return crypto.createHash('sha256').update(buffer).digest()
 }
 */
+
+export function abToPem (ab, pubpriv) { // ArrayBuffer
+  const s = fromByteArray(new Uint8Array(ab))
+  let i = 0
+  const a = ['-----BEGIN ' + pubpriv + ' KEY-----']
+  while (i < s.length) {
+    a.push(s.substring(i, i + 64))
+    i += 64
+  }
+  a.push('-----END ' + pubpriv + ' KEY-----')
+  return a.join('\n')
+}
+
+export function keyToU8 (pem, pubpriv) {
+  const d = '-----BEGIN ' + pubpriv + ' KEY-----'
+  const f = '-----END ' + pubpriv + ' KEY-----'
+  const s = pem.substring(d.length, pem.length - f.length)
+  return toByteArray(s.replace(/\n/g, ''))
+}
+
+export function crypterRSA (pub, u8) {
+  try {
+    const pubkey = abToPem(pub, 'PUBLIC')
+    const r = crypto.publicEncrypt(
+      {
+        key: pubkey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+        // sha1 et non sha256 pour compatibilité avec window.crypto.subtle
+        oaepHash: 'sha1' 
+      },
+      // We convert the data string to a buffer using `Buffer.from`
+      Buffer.from(u8)
+    )
+    return r
+  } catch (e) {
+    throw new AppExc(E_SRV, 8, [e.toString()])
+  }
+}
+
+/* Cryptage générique d'un binaire lisible par connaissance de la clé privée RSA:
+- pub: clé publique RSA (en binaire)
+- data: contenu binaire
+- gz: true s'il faut compresser avant cryptage
+Retourne un binaire dont,
+- les 256 premiers bytes crypte par la clé publique RSA { aes, iv, gz }
+  - aes: clé AES unique générée, 
+  - iv: vecteur IV utilisé,
+  - gz: true si gzippé
+- les suivants sont le texte de data, gzippé ou non, crypté par la clé AES générée.
+*/
+export function crypterRaw (pub, data, gz) {
+  const aes = new Uint8Array(crypto.randomBytes(32))
+  const arg = { aes, iv: IV, gz: gz ? true : false }
+  const x = new Uint8Array(encode(arg))
+  const hdr = crypterRSA (pub, x)
+
+  const b1 = Buffer.from(data)
+  const b2 = gz ? deflateSync(b1) : b1
+  const cipher = crypto.createCipheriv('aes-256-cbc', aes, IV)
+  const x1 = cipher.update(b2)
+  const x2 = cipher.final()
+
+  return Buffer.concat([hdr, x1, x2])
+}
