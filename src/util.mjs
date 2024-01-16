@@ -3,7 +3,6 @@ import { deflateSync } from 'zlib'
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { ctx } from './server.js'
 import { AppExc, E_SRV } from './api.mjs'
-import { encode } from '@msgpack/msgpack'
 
 export function sleep (delai) {
   if (delai <= 0) return
@@ -103,16 +102,16 @@ export function crypterRSA (pub, u8) {
 - data: contenu binaire
 - gz: true s'il faut compresser avant cryptage
 Retourne un binaire dont,
-- les 256 premiers bytes crypte par la clé publique RSA { aes, iv, gz }
-  - aes: clé AES unique générée, 
-  - iv: vecteur IV utilisé,
-  - gz: true si gzippé
+- les 256 premiers bytes cryptent par la clé publique RSA: aes, iv, gz (0 /1)
+  - 32 bytes - aes: clé AES unique générée, 
+  - 16 bytes - iv: vecteur IV utilisé,
+  - 1 byte - gz: 1 si gzippé, 0 sinon
 - les suivants sont le texte de data, gzippé ou non, crypté par la clé AES générée.
 */
 export function crypterRaw (pub, data, gz) {
   const aes = new Uint8Array(crypto.randomBytes(32))
-  const arg = { aes, iv: IV, gz: gz ? true : false }
-  const x = new Uint8Array(encode(arg))
+  const g = new Uint8Array([gz ? 1 : 0])
+  const x = Buffer.concat([Buffer.from(aes), Buffer.from(IV), Buffer.from(g)])
   const hdr = crypterRSA (pub, x)
 
   const b1 = Buffer.from(data)
