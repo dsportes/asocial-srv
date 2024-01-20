@@ -6,48 +6,66 @@ export const mode = 2
 */
 
 export const config = {
+  // path du fichier externe de configuration confidentiel
+  pathconfig: './config',
+
+  // URL externe d'appel du serveur 
   rooturl: mode === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',
 
+  // Hébergement par Google App Engine (sinon serveur node standard)
+  gae: mode === 1 ? true : false,
+  
+  // Port d'écoute si NON gae
   port: 8443, // port: 443,
   
+  // Origines autorisées
   origins: [ 'localhost:8343' ],
 
-  projectId: 'asocial-test1', // Pour Firestore et storage GC
+  // Id du projet Google : pour les providers gc_* et fs_*
+  projectId: 'asocial-test1', 
 
+  // HTTP server: configuration des paths des URL
   prefixop: '/op',
   prefixapp: '/app',
   pathapp: mode === 1 ? '' : './app',
   prefixwww: '/www',
   pathwww: mode === 1 ? '' : './www',
-  pathsql: mode === 2 ? './sqlite/test.db3' : '../sqlite/test1.db3',
+
   pathlogs: mode === 2 ? './logs' : '../logs',
-  // favicon: 'favicon.ico', 
+  
+  // Providers: db et storage
+  storage_provider: mode === 1 ? 'gc_a' : 'fs_a',
+  db_provider: mode === 1 ? 'firestore_a' : 'sqlite_a',
 
-  pathconfig: './config',
-
-  firestore: mode === 1 ? true : false,
-  gae: mode === 1 ? true : false,
-  emulator: false,
-  firestore_emulator: 'localhost:8080',
-  storage_emulator: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-
-  storage_provider: mode === 1 ? 'gc' : 'fs',
-
-  s3config: {
+  s3_a: {
     bucket: 'asocial'
   },
 
-  fsconfig: {
+  fs_a: {
     rootpath: mode === 2 ? './fsstorage' : '../fsstorage'
   },
 
-  fsbconfig: {
+  fs_b: {
     rootpath: mode === 2 ? './fsstorageb' : '../fsstorageb'
   },
 
-  gcconfig: {
-    bucket: 'asocial-test1.appspot.com' // Pour emulator
+  gc_a: {
+    bucket: 'asocial-test1.appspot.com', // Pour emulator
     // bucket: 'asocial' // Pour prod, quoi que ...
+    storage_emulator: 'http://127.0.0.1:9199' // 'http://' est REQUIS
+  },
+
+  sqlite_a: {
+    path: '../sqlite/test.db3'
+  },
+
+  sqlite_b: {
+    path: '../sqlite/test1.db3'
+  },
+
+  firestore_a: {
+    emulator: false,
+    firestore_emulator: 'localhost:8080',
   },
 
   tarifs: [

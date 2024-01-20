@@ -1,6 +1,7 @@
 import { writeFile, readFile } from 'node:fs/promises'
 import { existsSync, unlinkSync, rmSync, readdirSync, mkdirSync } from 'node:fs'
 import path from 'path'
+import { env } from 'process'
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsCommand } from '@aws-sdk/client-s3'
 import { /* getSignedUrl, */ S3RequestPresigner } from '@aws-sdk/s3-request-presigner'
@@ -53,6 +54,7 @@ export class FsProvider {
     const data = Buffer.from(new Date().toISOString())
     const p = path.resolve(this.rootpath, 'ping.txt')
     await writeFile(p, Buffer.from(data))
+    return true
   }
 
   getUrl (org, id, idf) { return storageUrl (org, id, idf) }
@@ -166,6 +168,7 @@ export class S3Provider {
     const bucketParams = { Bucket: this.bucketName, Key: objectKey, Body: data }
     const putCmd = new PutObjectCommand(bucketParams)
     await this.s3.send(putCmd)
+    return true
   }
 
   async getUrl (org, id, idf) {
@@ -287,7 +290,12 @@ export class S3Provider {
 
 /* GcProvider ********************************************************************/
 export class GcProvider {
-  constructor (c) {
+  constructor (cfg) {
+    if (cfg.storage_emulator) {
+      env['STORAGE_EMULATOR_HOST'] = cfg.storage_emulator
+      ctx.logger.info('STORAGE_EMULATOR_HOST=' +  cfg.storage_emulator)
+    }
+
     // Imports the Google Cloud client library
     // const {Storage} = require('@google-cloud/storage')
     // For more information on ways to initialize Storage, please see
@@ -301,8 +309,8 @@ export class GcProvider {
     this.bucket = new Storage(opt).bucket(c.bucket)
     */
 
-    this.bucket = new Storage().bucket(c.bucket)
-    if (!ctx.config.emulator) {
+    this.bucket = new Storage().bucket(cfg.bucket)
+    if (!cfg.storage_emulator) {
       const cors = {
         // origin: ctx.config.origins2,
         origin: ['*'],
@@ -317,6 +325,7 @@ export class GcProvider {
   async ping () {
     const fileName = 'ping.txt'
     await this.bucket.file(fileName).save(Buffer.from(new Date().toISOString()))
+    return true
   }
 
   async getUrl (org, id, idf) {

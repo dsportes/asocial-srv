@@ -7,7 +7,7 @@ import Database from 'better-sqlite3'
 import { collsExp1, collsExp2, majeurs, collsExpA, collsExpG, sousColls, GenDoc, compile } from './modele.mjs'
 import { d14, ID } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
-import { getStorageProvider /* Firestore */ } from './server.js'
+import { getStorageProvider, getDBProvider } from './server.js'
 import { Firestore } from '@google-cloud/firestore'
 import { createInterface } from 'readline'
 

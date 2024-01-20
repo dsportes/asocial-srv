@@ -1,5 +1,40 @@
 import { /* mode,*/ config } from './config.mjs' // Avant Providers DB
 
+import http from 'http'
+import https from 'https'
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'path'
+import { exit, env } from 'process'
+import { parseArgs } from 'node:util'
+
+import winston from 'winston'
+// eslint-disable-next-line no-unused-vars
+// import { LoggingWinston } from '@google-cloud/logging-winston'
+
+import express from 'express'
+import { WebSocketServer } from 'ws'
+import { encode, decode } from '@msgpack/msgpack'
+
+import { faviconb64 } from './favicon.mjs'
+import { toByteArray } from './base64.mjs'
+import { decode3, FsProvider, S3Provider, GcProvider } from './storage.mjs'
+import { SqliteProvider } from './sqlite.mjs'
+import { FirestoreProvider } from './firestore.mjs'
+import { UExport, UTest, UStorage } from './export.mjs'
+import { atStart, operations } from './operations.mjs'
+import { SyncSession, startWs } from './ws.mjs'
+import { Tarif, version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV, AMJ } from './api.mjs'
+
+export const ctx = { 
+  config: config,
+  logger: null,
+  storage: null, // provider de storage
+  db: null, // provider de database
+  auj: 0, // aujourd'hui : AMJ de la dernière opération invoquée
+  utils: '', // paramètres de import / export
+  args: {}
+}
+
 function getHP (url) {
   let origin = url
   let i = origin.indexOf('://')
@@ -12,62 +47,25 @@ function getHP (url) {
   return [hn, po]
 }
 
-export const ctx = { 
-  config: config,
-  logger: null,
-  port: 0,
-  fs: null, 
-  sql: null, 
-  lastSql: [],
-  auj: 0,
-  utils: '',
-  args: {}
-}
-
-// import Database from 'better-sqlite3'
-// webpack ne build pas correctement
-import { Database } from './loadreq.mjs'
-
-/*
-if (!config.firestore) {
-  const db = Database(mode === 2 ? './test.db3' : '../test.db3')
-  const row = db.prepare('SELECT * FROM users WHERE id = ?').get(1)
-  console.log(row.id, row.name)
-}
-*/
-
-import http from 'http'
-import https from 'https'
-import { existsSync, readFileSync } from 'node:fs'
-import path from 'path'
-import { exit, env } from 'process'
-import { parseArgs } from 'node:util'
-
-import { Firestore } from '@google-cloud/firestore'
-import winston from 'winston'
-
-// eslint-disable-next-line no-unused-vars
-// import { LoggingWinston } from '@google-cloud/logging-winston'
-
-import express from 'express'
-import { WebSocketServer } from 'ws'
-import { encode, decode } from '@msgpack/msgpack'
-
-import { faviconb64 } from './favicon.mjs'
-import { toByteArray } from './base64.mjs'
-import { decode3, FsProvider, S3Provider, GcProvider } from './storage.mjs'
-import { UExport, UTest, UStorage } from './export.mjs'
-import { atStart, operations } from './operations.mjs'
-import { SyncSession, startWs } from './ws.mjs'
-import { Tarif, version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV, AMJ } from './api.mjs'
-
-export function getStorageProvider (stcode) {
-  const t = stcode.substring(0, 2)
-  const cfg = config[stcode + 'config']
+export function getStorageProvider (codeProvider) {
+  const cfg = config[codeProvider]
+  if (!cfg) return null
+  const t = codeProvider.substring(0, codeProvider.indexOf('_'))
   switch (t) {
   case 'fs' : { return new FsProvider(cfg) }
   case 's3' : { return new S3Provider(cfg) }
   case 'gc' : { return new GcProvider(cfg) }
+  }
+  return null
+}
+
+export function getDBProvider (codeProvider) {
+  const cfg = config[codeProvider]
+  if (!cfg) return null
+  const t = codeProvider.substring(0, codeProvider.indexOf('_'))
+  switch (t) {
+  case 'sqlite' : { return new SqliteProvider(cfg) }
+  case 'firestore' : { return new FirestoreProvider(cfg) }
   }
   return null
 }
@@ -145,17 +143,7 @@ try { // Récupération de la configuration et définition du contexte d'exécut
     ctx.logger.info('GOOGLE_CLOUD_PROJECT=' + config.projectId)
   }
 
-  if (config.emulator && config.firestore_emulator) {
-    env['FIRESTORE_EMULATOR_HOST'] = config.firestore_emulator
-    ctx.logger.info('FIRESTORE_EMULATOR_HOST=' +  config.firestore_emulator)
-    ctx.config.emulator = config.firestore_emulator
-  }
-
-  if (config.emulator && config.storage_emulator) {
-    env['STORAGE_EMULATOR_HOST'] = config.storage_emulator
-    ctx.logger.info('STORAGE_EMULATOR_HOST=' +  config.storage_emulator)
-  }
-
+  // Setup des fichiers de configuration confidentiels
   {
     const p = path.resolve(config.pathconfig + '/app_keys.json')
     if (existsSync(p)) {
@@ -210,53 +198,23 @@ try { // Récupération de la configuration et définition du contexte d'exécut
     }
   }
 
-  ctx.port = env.PORT || config.port
-  ctx.logger.info('PORT=' + ctx.port)
-  if (config.rooturl) {
-    const [hn, po] = getHP(config.rooturl)
-    const pox = config.gae || po === 0 ? ctx.port : po
-    config.origins.push(hn + ':' + pox)
-    config.origins.push(hn)
-  }
+  if (!ctx.utils) {
+    ctx.logger.info('DB=' + config.db_provider)
+    ctx.db = getDBProvider(config.db_provider)
+    if (!ctx.db) {
+      ctx.logger.error('DB provider non trouvé:' + config.db_provider)
+      exit(1)
+    }
+    await ctx.db.ping()
 
-  if (!config.favicon) {
-    ctx.favicon = Buffer.from(toByteArray(faviconb64))
-  } else {
-    ctx.favicon = readFileSync(path.resolve(config.pathconfig + '/' + config.favicon))
-    // writeFileSync('./faviconb64', ctx.favicon)
+    ctx.logger.info('Storage=' + config.storage_provider)
+    ctx.storage = getStorageProvider(config.storage_provider)
+    if (!ctx.storage) {
+      ctx.logger.error('Storage provider non trouvé:' + config.storage_provider)
+      exit(1)
+    }
+    await ctx.storage.ping()
   }
-
-  if (config.firestore) {
-    // Ne marche PAS
-    // const opt = { projectId: config.projectId, keyFilename: './config/service_account.json' }
-    // ctx.fs = new Firestore(opt)
-    ctx.fs = new Firestore()
-    {
-      const dr = ctx.fs.doc('singletons/ping')
-      await dr.set({ dh: new Date().toISOString() })
-    }
-    ctx.sql = null
-    ctx.logger.info('DB=Firestore')
-  } else {
-    const p = path.resolve(config.pathsql)
-    if (!existsSync(p)) {
-      ctx.logger.info('DB (créée)=' + p)
-    } else {
-      ctx.logger.info('DB=' + p)
-    }
-    const options = {
-      verbose: (msg) => {
-        if (ctx.debug) ctx.logger.debug(msg)
-        ctx.lastSql.unshift(msg)
-        if (ctx.lastSql.length > 3) ctx.lastSql.length = 3
-      } 
-    }
-    ctx.sql = Database(p, options)
-    ctx.fs = null
-  }
-  ctx.storage = getStorageProvider(config.storage_provider)
-  await ctx.storage.ping()
-  ctx.logger.info('Storage=' + config.storage_provider)
 
 } catch (e) {
   ctx.logger.error(e.toString())
@@ -279,7 +237,6 @@ if (ctx.utils) {
 }
 
 //***************************************************************************
-
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
   res.status(status).set({
@@ -288,6 +245,23 @@ function setRes(res, status, respType) {
     'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-API-version'
   })
   return res.type(respType ? respType : 'application/octet-stream')
+}
+
+// Configuration express
+ctx.port = env.PORT || config.port
+ctx.logger.info('PORT=' + ctx.port)
+if (config.rooturl) {
+  const [hn, po] = getHP(config.rooturl)
+  const pox = config.gae || po === 0 ? ctx.port : po
+  config.origins.push(hn + ':' + pox)
+  config.origins.push(hn)
+}
+
+if (!config.favicon) {
+  ctx.favicon = Buffer.from(toByteArray(faviconb64))
+} else {
+  ctx.favicon = readFileSync(path.resolve(config.pathconfig + '/' + config.favicon))
+  // writeFileSync('./faviconb64', ctx.favicon)
 }
 
 const app = express()
@@ -312,7 +286,7 @@ app.use('/', (req, res, next) => {
     next()
 })
 
-//*** fs ou sql ****
+//*** fs 
 app.get('/fs', (req, res) => {
   setRes(res, 200, 'text/plain').send(ctx.fs ? 'true' : 'false')
 })
@@ -396,7 +370,7 @@ if (typeof(PhusionPassenger) !== 'undefined') {
 }
 
 try {
-  if (ctx.sql) startWs()
+  if (ctx.db.hasWS) startWs()
 
   let server
   switch (ctx.mode) {
@@ -553,7 +527,7 @@ async function operation(req, res) {
     } else {
       // erreur non trappée : mise en forme en AppExc
       httpst = 403
-      const xx = (e.stack ? e.stack + '\n' : '') + (ctx.sql ? ctx.lastSql.join('\n') : '')
+      const xx = (e.stack ? e.stack + '\n' : '') + (ctx.db ? ctx.db.excInfo() : '')
       s = new AppExc(E_SRV, 0, [e.message], xx).toString()
     }
     if (ctx.debug) ctx.logger.debug(pfx + ' ' + httpst + ' : ' + s)

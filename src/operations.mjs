@@ -682,10 +682,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
       this.setRes('rowChat', rowChatI)
     }
 
-    if (!ctx.sql) {
-      this.setRes('credentials', ctx.config.fscredentials)
-      this.setRes('emulator', ctx.config.emulator)
-    }
+    ctx.db.setSyncData(this)
 
     const ns = ID.ns(this.session.id)
     const rowEspace = await this.getRowEspace(ns, 'AcceptationSponsoring-4')
@@ -724,10 +721,8 @@ operations.ConnexionCompte = class ConnexionCompte extends Operation {
   async phase2 () {
     const id = this.session.id
     const ns = ID.ns(id)
-    if (!ctx.sql) {
-      this.setRes('credentials', ctx.config.fscredentials)
-      this.setRes('emulator', ctx.config.emulator)
-    }
+
+    ctx.db.setSyncData(this)
 
     if (!id) {
       this.setRes('admin', true)
@@ -936,7 +931,7 @@ operations.GetTribu = class GetTribu extends Operation {
   async phase2 (args) {
     const rowTribu = await this.getRowTribu(args.id, 'GetTribu-1')
     this.setRes('rowTribu', rowTribu)
-    if (ctx.sql && args.setC) this.session.sync.setTribuCId(args.id)
+    if (ctx.db.hasWS && args.setC) this.session.sync.setTribuCId(args.id)
   }
 }
 
@@ -949,7 +944,7 @@ operations.AboTribuC = class AboTribuC extends Operation {
   constructor () { super('AboTribuC') }
 
   async phase2 (args) {
-    if (ctx.sql) this.session.sync.setTribuCId(args.id)
+    if (ctx.db.hasWS) this.session.sync.setTribuCId(args.id)
   }
 }
 
@@ -1933,7 +1928,7 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       apTribu.act.push(e)
       this.update(apTribu.toRow())
       await this.MajSynthese(apTribu)
-      if (ctx.sql) this.session.sync.plus(idtAp)
+      if (ctx.db.hasWS) this.session.sync.plus(idtAp)
   
     } else {
       /* compte O devient A
@@ -1959,7 +1954,7 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       comptaM.compteurs = c.serial
       this.update(comptaM.toRow())
 
-      if (ctx.sql) this.session.sync.moins(args.idtAv)
+      if (ctx.db.hasWS) this.session.sync.moins(args.idtAv)
     }
 
     if (this.updCompta) this.update(this.compta.toRow())
@@ -2310,7 +2305,7 @@ operations.ChangerTribu = class ChangerTribu extends Operation {
     const rowTribu = this.update(apTribu.toRow())
     await this.MajSynthese(apTribu)
     this.setRes('rowTribu', rowTribu)
-    if (ctx.sql) this.session.sync.setTribuCId(args.idtAp)
+    if (ctx.db.hasWS) this.session.sync.setTribuCId(args.idtAp)
   }
 }
 
