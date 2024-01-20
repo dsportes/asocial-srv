@@ -1,4 +1,4 @@
-import { /* mode,*/ config } from './config.mjs'
+import { /* mode,*/ config } from './config.mjs' // Avant Providers DB
 
 function getHP (url) {
   let origin = url
