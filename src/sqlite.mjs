@@ -7,16 +7,18 @@ import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID } from './api.mjs'
 
 export class SqliteProvider {
-  constructor (cfg) {
+  constructor (cfg, site) {
+    this.site = site
+    this.appKey = ctx.site(site)
     const p = path.resolve(cfg.path)
     if (!existsSync(p)) {
-      ctx.logger.info('Path DB (créée)=' + p)
+      ctx.logger.info('Path DB (création)= [' + p + ']')
     } else {
-      ctx.logger.info('Path DB=' + p)
+      ctx.logger.info('Path DB= [' + p+ ']')
     }
     const options = {
       verbose: (msg) => {
-        if (ctx.debug) ctx.logger.debug(msg)
+        if (ctx.mondebug) ctx.logger.debug(msg)
         this.lastSql.unshift(msg)
         if (this.lastSql.length > 3) this.lastSql.length = 3
       } 
@@ -54,7 +56,7 @@ export class SqliteProvider {
     let s = this.cachestmt[code]
     if (!s) {
       if (!sql) return null
-      s = ctx.sql.prepare(sql)
+      s = this.sql.prepare(sql)
       this.cachestmt[code] = s
     }
     return s
@@ -116,7 +118,7 @@ export class SqliteProvider {
 
   async insertRows (op, rows) {
     for (const row of rows) {
-      const r = prepRow(row)
+      const r = prepRow(op, row)
       const code = 'INS' + row._nom
       const st = this._stmt(code, GenDoc._insStmt(row._nom))
       st.run(r)
@@ -127,7 +129,7 @@ export class SqliteProvider {
     for (const row of rows) {
       const code = 'UPD' + row._nom
       const st = this._stmt(code, GenDoc._updStmt(row._nom))
-      const r = prepRow(row)
+      const r = prepRow(op, row)
       st.run(r)
     }
   }
@@ -141,7 +143,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = nom
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -155,7 +157,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = nom
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -168,7 +170,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = nom
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -181,7 +183,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'avatars'
       op.nl++
-      return compile(decryptRow(row))
+      return compile(decryptRow(op, row))
     }
     return null
   }
@@ -194,7 +196,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'chats'
       op.nl++
-      return compile(decryptRow(row))
+      return compile(decryptRow(op, row))
     }
     return null
   }
@@ -207,7 +209,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'tickets'
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -220,7 +222,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'membres'
       op.nl++
-      return compile(decryptRow(row))
+      return compile(decryptRow(op, row))
     }
     return null
   }
@@ -231,7 +233,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'comptas'
       op.nl++
-      return compile(decryptRow(row))
+      return compile(decryptRow(op, row))
     }
     return null
   }
@@ -242,7 +244,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'avatars'
       op.nl++
-      return compile(decryptRow(row))
+      return compile(decryptRow(op, row))
     }
     return null
   }
@@ -253,7 +255,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'sponsorings'
       op.nl++
-      return compile(decryptRow(row))
+      return compile(decryptRow(op, row))
     }
     return null
   }
@@ -295,7 +297,7 @@ export class SqliteProvider {
     const r = []
     rows.forEach(row => {
       row._nom = nom
-      r.push(decryptRow(row))
+      r.push(decryptRow(op, row))
     })
     op.nl += r.length
     return r
@@ -312,7 +314,7 @@ export class SqliteProvider {
     const r = []
     rows.forEach(row => {
       row._nom = nom
-      r.push(decryptRow(row))
+      r.push(decryptRow(op, row))
     })
     op.nl += r.length
     return r
@@ -329,7 +331,7 @@ export class SqliteProvider {
     const r = []
     rows.forEach(row => {
       row._nom = nom
-      r.push(decryptRow(row))
+      r.push(decryptRow(op, row))
     })
     op.nl += r.length
     return r
@@ -378,7 +380,7 @@ export class SqliteProvider {
     const row = st.get({ id: ns })
     if (row) {
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }

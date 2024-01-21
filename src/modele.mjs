@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
+import { AMJ, ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { ctx } from './server.js'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8 } from './util.mjs'
@@ -79,14 +79,14 @@ class Cache {
     const k = nom + '/' + id
     const x = Cache.map.get(k)
     if (x) { // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
-      const n = await ctx.db.getV(op, nom, id, x.row.v)
+      const n = await this.db.getV(op, nom, id, x.row.v)
       x.lru = Date.now()
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
         Cache.orgs.set(x.row.id, x.row.org)
       return x.row
     }
-    const n = await ctx.db.getV(op, nom, id, 0)
+    const n = await op.db.getV(op, nom, id, 0)
     if (n) { // dernière version si elle existe
       const y = { lru: Date.now(), row: n }
       this.map.set(k, y)
@@ -103,20 +103,20 @@ class Cache {
   et qu'on la recharge le cas échéant.
   PAR PRINCIPE, elle est retardée: convient pour checker une restriction éventuelle
   */
-  static async getEspaceLazy (ns) {
+  static async getEspaceLazy (op, ns) {
     const now = Date.now()
     const k = 'espaces/' + ns
     let x = Cache.map.get(k)
     if (x) {
       if ((now - x.lru) > PINGTO * 60000) {
         // Le row connu a plus de 5 minutes - if faut revérifier la version
-        const e = await ctx.db.getV(Cache.opFake, 'espaces', ns, x.row.v)
+        const e = await op.db.getV(Cache.opFake, 'espaces', ns, x.row.v)
         if (e) x.row = e
         x.lru = now
         if (!Cache.orgs.has(x.row.id)) Cache.orgs.set(x.row.id, x.row.org)
       }
     } else {
-      const e = await ctx.db.getV(Cache.opFake, 'espaces', ns, 0)
+      const e = await op.db.getV(Cache.opFake, 'espaces', ns, 0)
       if (!e) return null
       x = { lru: Date.now(), row: e }
       this.map.set(k, x)
@@ -158,7 +158,7 @@ class Cache {
   }
 
   static async getCheckpoint (op) { 
-    const x = await ctx.db.getCheckpoint(op, Cache.checkpoint.v)
+    const x = await op.db.getCheckpoint(op, Cache.checkpoint.v)
     if (x) {
       Cache.checkpoint.v = x.v
       Cache.checkpoint._data_ = x._data_
@@ -171,7 +171,7 @@ class Cache {
     x.v = Date.now()
     const _data_ = new Uint8Array(encode(x))
     const ins = !Cache.checkpoint._data_
-    await ctx.db.setCheckpoint (op, x.v, _data_, ins)
+    await op.db.setCheckpoint (op, x.v, _data_, ins)
     Cache.checkpoint.v = x.v
     Cache.checkpoint._data_ = _data_
   }
@@ -180,7 +180,7 @@ class Cache {
     const ns = id < 100 ? id : ID.ns(id)
     const org = Cache.orgs.get(ns)
     if (org) return org
-    const row = await ctx.db.org(op, ns)
+    const row = await op.db.org(op, ns)
     if (row) {
       Cache.update(op, [row], [])
       return row.org
@@ -212,10 +212,15 @@ Une opération a deux phases :
   -abMoins : array des ids à désabonner: désabonnements après la phase 2 (après commit)
 */
 export class Operation {
-  constructor (nomop) { this.nomop = nomop, this.authMode = 0, this.lecture = false }
+  constructor (nomop) { 
+    this.nomop = nomop, this.authMode = 0, this.lecture = false 
+  }
 
   /* Exécution de l'opération */
   async run (args) {
+    this.db = ctx.db
+    this.storage = ctx.storage
+    this.auj = AMJ.amjUtc()
     if (!Operation.nex) Operation.nex = 1
     this.nex = Operation.nex++
     this.args = args
@@ -241,19 +246,19 @@ export class Operation {
 
     if (!this.result.KO && this.phase2) {
 
-      if (ctx.db.hasWS && this.session && args.abPlus && args.abPlus.length) {
+      if (this.db.hasWS && this.session && args.abPlus && args.abPlus.length) {
         args.abPlus.forEach(id => { this.session.sync.plus(id) })
         args.abPlus.length = 0
       }
 
-      await ctx.db.doTransaction(this)
+      await this.db.doTransaction(this)
 
       /* Fin de l'opération :
       - (A) suppressions éventuelles des abonnements (sql seulement)
       - (B) envoi en synchronisation des rows modifiés (sql seulement)
       */
 
-      if (!this.result2.KO && ctx.db.hasWS) {
+      if (!this.result2.KO && this.db.hasWS) {
         // (A) suppressions éventuelles des abonnements
         if (this.session) {
           if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.session.sync.moins(id) })
@@ -299,47 +304,47 @@ export class Operation {
     this.phase = 2
     await this.phase2(this.args)
     if (!this.result2.KO) {
-      if (this.toInsert.length) await this.insertRows(this, this.toInsert)
-      if (this.toUpdate.length) await this.updateRows(this, this.toUpdate)
-      if (this.toDelete.length) await this.deleteRows(this, this.toDelete)
+      if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
+      if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
+      if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
     }
   }
 
-  async delAvGr (id) { await ctx.db.delAvGr(this, id)}
+  async delAvGr (id) { await this.db.delAvGr(this, id)}
 
-  async coll (nom) { return await ctx.db.coll(this, nom) }
+  async coll (nom) { return await this.db.coll(this, nom) }
 
-  async collNs (nom, ns) { return ctx.db.collNs(this, nom, ns) }
+  async collNs (nom, ns) { return this.db.collNs(this, nom, ns) }
 
-  async scoll (nom, id, v) { return ctx.db.scoll(nom, id, v) }
+  async scoll (nom, id, v) { return this.db.scoll(nom, id, v) }
 
-  async delScoll (nom, id) { return ctx.db.delScollSql(this, nom, id) }
+  async delScoll (nom, id) { return this.db.delScollSql(this, nom, id) }
 
-  async getVersionsDlv (dlvmin, dlvmax) { return ctx.db.getVersionsDlv(dlvmin, dlvmax) }
+  async getVersionsDlv (dlvmin, dlvmax) { return this.db.getVersionsDlv(dlvmin, dlvmax) }
 
-  async getMembresDlv (dlvmax) {return ctx.db.getMembresDlv(dlvmax) }
+  async getMembresDlv (dlvmax) {return this.db.getMembresDlv(dlvmax) }
 
-  async getGroupesDfh (dfh) { return ctx.db.getGroupesDfh(dfh) }
+  async getGroupesDfh (dfh) { return this.db.getGroupesDfh(dfh) }
 
-  async getGcvols (ns) { return ctx.db.collNs(this, 'gcvols', ns) }
+  async getGcvols (ns) { return this.db.collNs(this, 'gcvols', ns) }
 
-  async setVdlv (id, dlv) { return ctx.db.setVdlv(this, id, dlv) }
+  async setVdlv (id, dlv) { return this.db.setVdlv(this, id, dlv) }
 
-  async getAvatarVCV (id, vcv) { return ctx.db.getAvatarVCV(this, id, vcv) }
+  async getAvatarVCV (id, vcv) { return this.db.getAvatarVCV(this, id, vcv) }
 
-  async getChatVCV (id, ids, vcv) { return ctx.db.getChatVCV(this, id, ids, vcv) }
+  async getChatVCV (id, ids, vcv) { return this.db.getChatVCV(this, id, ids, vcv) }
 
-  async getRowTicketV (id, ids, v) { return ctx.db.getRowTicketV(this, id, ids, v) }
+  async getRowTicketV (id, ids, v) { return this.db.getRowTicketV(this, id, ids, v) }
 
-  async getMembreVCV (id, ids, vcv) { return ctx.db.getMembreVCV(this, id, ids, vcv) }
+  async getMembreVCV (id, ids, vcv) { return this.db.getMembreVCV(this, id, ids, vcv) }
 
-  async getAvatarHpc (hpc) { return ctx.db.getAvatarHpc(this, hpc) }
+  async getAvatarHpc (hpc) { return this.db.getAvatarHpc(this, hpc) }
 
-  async getComptaHps1 (hps1) { return ctx.db.getComptaHps1(hps1) }
+  async getComptaHps1 (hps1) { return this.db.getComptaHps1(hps1) }
 
-  async getSponsoringIds (ids) {return ctx.db.getSponsoringIds(ids) }
+  async getSponsoringIds (ids) {return this.db.getSponsoringIds(ids) }
 
-  async getAllRowsTribu () { return ctx.db.collNs(this, 'tribus', this.session.ns) }
+  async getAllRowsTribu () { return this.db.collNs(this, 'tribus', this.session.ns) }
 
   async getAllRowsNote(id, v) { return await this.scoll('notes', id, v) }
 
@@ -356,37 +361,37 @@ export class Operation {
   async getAllRowsChatgr(id, v) { return await this.scoll('chatgrs', id, v) }
 
   async getRowNote (id, ids, assert) {
-    const rs = await ctx.db.get(this, 'notes', id, ids)
+    const rs = await this.db.get(this, 'notes', id, ids)
     if (assert && !rs) throw assertKO('getRowNote/' + assert, 7, [id, ids])
     return rs
   }
 
   async getRowChat (id, ids, assert) {
-    const rc = await ctx.db.get(this, 'chats', id, ids)
+    const rc = await this.db.get(this, 'chats', id, ids)
     if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [id, ids])
     return rc
   }
  
   async getRowTicket (id, ids, assert) {
-    const rc = await ctx.db.get(this, 'tickets', id, ids)
+    const rc = await this.db.get(this, 'tickets', id, ids)
     if (assert && !rc) throw assertKO('getRowTicket/' + assert, 17, [id, ids])
     return rc
   }
 
   async getRowSponsoring (id, ids, assert) {
-    const rs = await ctx.db.get(this, 'sponsorings', id, ids)
+    const rs = await this.db.get(this, 'sponsorings', id, ids)
     if (assert && !rs) throw assertKO('getRowSponsoring/' + assert, 13, [id, ids])
     return rs
   }
 
   async getRowMembre (id, ids, assert) {
-    const rm = await ctx.db.get(this, 'membres', id, ids)
+    const rm = await this.db.get(this, 'membres', id, ids)
     if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [id, ids])
     return rm
   }
 
   async getRowChatgr (id, assert) {
-    const rc = await ctx.db.get(this.transaction, 'chatgrs', id, 1)
+    const rc = await this.db.get(this.transaction, 'chatgrs', id, 1)
     if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [id, 1])
     return rc
   }
@@ -425,7 +430,7 @@ export class Operation {
 
   async getRowVersion (id, assert, nonZombi) {
     const v = await Cache.getRow(this, 'versions', id)
-    if ((assert && !v) || (nonZombi && v && v.dlv && v.dlv <= ctx.auj))
+    if ((assert && !v) || (nonZombi && v && v.dlv && v.dlv <= this.auj))
       throw assertKO('getRowVersion/' + assert, 14, [id])
     return v
   }
@@ -448,30 +453,30 @@ export class Operation {
     const ns = ID.ns(idag)
     const id = (ns * d14) + (x % d14)
     const _data_ = new Uint8Array(encode({ id, idag, lidf }))
-    ctx.db.setFpurge(this, id, _data_)
+    this.db.setFpurge(this, id, _data_)
     return id
   }
 
   async unsetFpurge (id) {
-    await ctx.db.unsetFpurge(this, id) 
+    await this.db.unsetFpurge(this, id) 
   }
 
   async listeFpurges () {
-    const r = ctx.db.listeFpurges(this)
+    const r = this.db.listeFpurges(this)
     return r
   }
 
   async listeTransfertsDlv (dlv) {
-    const r = ctx.db.listeTransfertsDlv(this, dlv)
+    const r = this.db.listeTransfertsDlv(this, dlv)
     return r
   }
 
   async purgeTransferts (id, ids) {
-    await ctx.db.purgeTransferts (this, id, ids)
+    await this.db.purgeTransferts (this, id, ids)
   }
 
   async purgeDlv (nom, dlv) { // nom: sponsorings, versions
-    return ctx.db.purgeDlv (this, nom, dlv)
+    return this.db.purgeDlv (this, nom, dlv)
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
@@ -798,9 +803,9 @@ export class Operation {
 
     if (this.authData.shax) { // admin
       const shax64 = Buffer.from(this.authData.shax).toString('base64')
-      if (ctx.config.admin.indexOf(shax64) !== -1) {
+      if (ctx.adminKey.indexOf(shax64) !== -1) {
         // session admin authentifiée
-        this.session = AuthSession.set(this.authData.sessionId, 0, true)
+        this.session = AuthSession.set(this, 0, true)
         return
       }
       await sleep(3000)
@@ -811,7 +816,7 @@ export class Operation {
     if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 101) }
     this.compta = compile(rowCompta)
     if (this.compta.hpsc !== this.authData.hpsc) throw new AppExc(F_SRV, 101)
-    this.session = AuthSession.set(this.authData.sessionId, this.compta.id, this.lecture)
+    this.session = AuthSession.set(this, this.compta.id, this.lecture)
   }
 }
 
@@ -830,9 +835,9 @@ export class AuthSession {
     this.ttl = Date.now() + AuthSession.ttl
   }
 
-  setEspace (noExcFige) {
+  setEspace (op) {
     if (!this.id) return this
-    const esp = Cache.getEspaceLazy(this.ns)
+    const esp = Cache.getEspaceLazy(op, this.ns)
     this.notifG = null
     if (!esp) { 
       this.notifG = {
@@ -843,12 +848,13 @@ export class AuthSession {
     } else this.notifG = esp.notif
     if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
     if (this.notifG && this.notifG.nr === 1) this.estFige = true
-    if (noExcFige || !this.estFige) return this
+    if (op.lecture || !this.estFige) return this
     throw AppExc.notifG(this.notifG)
   }
 
   // Retourne la session identifiée par sessionId et en prolonge la durée de vie
-  static get (sessionId, noExcFige) {
+  static get (op) {
+    const sessionId = op.authData.sessionId
     const t = Date.now()
     if (t - AuthSession.dernierePurge > AuthSession.ttl / 10) {
       AuthSession.map.forEach((s, k) => {
@@ -857,7 +863,7 @@ export class AuthSession {
     }
     const s = AuthSession.map.get(sessionId)
     if (s) {
-      s.setEspace(noExcFige)
+      s.setEspace(op)
       s.ttl = t + AuthSession.ttl
       if (s.sync) s.sync.pingrecu()
       return s
@@ -866,9 +872,10 @@ export class AuthSession {
   }
 
   // Enregistre la session avec l'id du compte de la session
-  static set (sessionId, id, noExcFige) {
+  static set (op, id, noExcFige) {
+    const sessionId = op.authData.sessionId
     let sync = null
-    if (ctx.sql) {
+    if (op.db.hasWS) {
       sync = SyncSession.get(sessionId)
       if (!sync) throw new AppExc(E_SRV, 4)
       if (id) sync.setCompte(id)

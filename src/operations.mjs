@@ -1,14 +1,14 @@
 // import { encode, decode } from '@msgpack/msgpack'
 import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
-import { ctx } from './server.js'
+
 import { AuthSession, Operation, compile, Versions,
   Transferts, Gcvols, Chatgrs, trace } from './modele.mjs'
 import { sleep, crypterRSA, crypterRaw } from './util.mjs'
 import { limitesjour, FLAGS, edit } from './api.mjs'
 
 export function atStart() {
-  if (ctx.debug) console.log('atStart operations')
+  // console.log('atStart operations')
 }
 
 export const operations = {}
@@ -682,7 +682,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
       this.setRes('rowChat', rowChatI)
     }
 
-    ctx.db.setSyncData(this)
+    this.db.setSyncData(this)
 
     const ns = ID.ns(this.session.id)
     const rowEspace = await this.getRowEspace(ns, 'AcceptationSponsoring-4')
@@ -722,7 +722,7 @@ operations.ConnexionCompte = class ConnexionCompte extends Operation {
     const id = this.session.id
     const ns = ID.ns(id)
 
-    ctx.db.setSyncData(this)
+    this.db.setSyncData(this)
 
     if (!id) {
       this.setRes('admin', true)
@@ -931,7 +931,7 @@ operations.GetTribu = class GetTribu extends Operation {
   async phase2 (args) {
     const rowTribu = await this.getRowTribu(args.id, 'GetTribu-1')
     this.setRes('rowTribu', rowTribu)
-    if (ctx.db.hasWS && args.setC) this.session.sync.setTribuCId(args.id)
+    if (this.db.hasWS && args.setC) this.session.sync.setTribuCId(args.id)
   }
 }
 
@@ -944,7 +944,7 @@ operations.AboTribuC = class AboTribuC extends Operation {
   constructor () { super('AboTribuC') }
 
   async phase2 (args) {
-    if (ctx.db.hasWS) this.session.sync.setTribuCId(args.id)
+    if (this.db.hasWS) this.session.sync.setTribuCId(args.id)
   }
 }
 
@@ -1928,7 +1928,7 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       apTribu.act.push(e)
       this.update(apTribu.toRow())
       await this.MajSynthese(apTribu)
-      if (ctx.db.hasWS) this.session.sync.plus(idtAp)
+      if (this.db.hasWS) this.session.sync.plus(idtAp)
   
     } else {
       /* compte O devient A
@@ -1954,7 +1954,7 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       comptaM.compteurs = c.serial
       this.update(comptaM.toRow())
 
-      if (ctx.db.hasWS) this.session.sync.moins(args.idtAv)
+      if (this.db.hasWS) this.session.sync.moins(args.idtAv)
     }
 
     if (this.updCompta) this.update(this.compta.toRow())
@@ -2305,7 +2305,7 @@ operations.ChangerTribu = class ChangerTribu extends Operation {
     const rowTribu = this.update(apTribu.toRow())
     await this.MajSynthese(apTribu)
     this.setRes('rowTribu', rowTribu)
-    if (ctx.db.hasWS) this.session.sync.setTribuCId(args.idtAp)
+    if (this.db.hasWS) this.session.sync.setTribuCId(args.idtAp)
   }
 }
 
@@ -2519,7 +2519,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       this.setRes('disparu', true)
       return
     }
-    const auj = ctx.auj
+    const auj = this.auj
     const groupe = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
     const rowMembre = await this.getRowMembre(args.idg, args.ids, 'AcceptInvitation-2')
     const membre = compile(rowMembre)
@@ -2738,7 +2738,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       break
     }
     }
-    if (invitOK) membre.ddi = ctx.auj
+    if (invitOK) membre.ddi = this.auj
     this.update(membre.toRow())
 
     if (args.chatit) {
@@ -2880,8 +2880,8 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
       if (amap) {
         f |= FLAGS.HM
         membre.fam = 0
-        if (!membre.dam) membre.dam = ctx.auj
-      } else membre.fam = ctx.auj
+        if (!membre.dam) membre.dam = this.auj
+      } else membre.fam = this.auj
       majm = true
     }
 
@@ -2890,16 +2890,16 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
         f |= FLAGS.HN
         if (nf & FLAGS.DE) f |= FLAGS.HE
         membre.fln = 0
-        if (!membre.dln) membre.dln = ctx.auj
-      } else membre.fln = ctx.auj
+        if (!membre.dln) membre.dln = this.auj
+      } else membre.fln = this.auj
       majm = true
     }
 
     if (enav !== enap) {
       if (enap) { 
         membre.fen = 0
-        if (!membre.den) membre.den = ctx.auj
-      } else membre.fen = ctx.auj
+        if (!membre.den) membre.den = this.auj
+      } else membre.fen = this.auj
       majm = true
     }
 
@@ -2962,7 +2962,7 @@ operations.OublierMembre = class OublierMembre extends Operation {
       groupe.flags[args.ids] = f
       if (!groupe.aActifs) {
         // il n'y a plus d'actifs : suppression du groupe
-        vg.dlv = ctx.auj
+        vg.dlv = this.auj
         majm = 2
         delgr = true
       }
@@ -2971,7 +2971,7 @@ operations.OublierMembre = class OublierMembre extends Operation {
     if (!delgr) switch (args.cas) {
     case 1 : { // (moi) retour en simple contact
       if (!membre.fac) {
-        membre.fac = ctx.auj
+        membre.fac = this.auj
         majm = 1
       }
       break
@@ -3268,7 +3268,7 @@ operations.SupprNote = class SupprNote extends Operation {
       if (this.lidf.length) {
         const org = await this.org(ID.ns(args.id))
         const idi = args.id % d14  
-        await ctx.storage.delFiles(org, idi, this.lidf)
+        await this.storage.delFiles(org, idi, this.lidf)
         await this.unsetFpurge(this.idfp)
       }
     } catch (e) { 
@@ -3315,7 +3315,7 @@ operations.GetUrl = class GetUrl extends Operation {
   async phase1 (args) {
     const org = await this.org(ID.ns(args.id))
     const idi = args.id % d14
-    const url = await ctx.storage.getUrl(org, idi, args.idf)
+    const url = await this.storage.getUrl(org, idi, args.idf)
     this.setRes('getUrl', url)
   }
 }
@@ -3348,9 +3348,9 @@ operations.PutUrl = class PutUrl extends Operation {
 
     const org = await this.org(ID.ns(args.id))
     const idi = args.id % d14
-    const url = await ctx.storage.putUrl(org, idi, args.idf)
+    const url = await this.storage.putUrl(org, idi, args.idf)
     this.setRes('putUrl', url)
-    const dlv = AMJ.amjUtcPlusNbj(ctx.auj, 5)
+    const dlv = AMJ.amjUtcPlusNbj(this.auj, 5)
     const tr = new Transferts().init({ id: args.id, ids: args.idf, dlv })
     this.insert(tr.toRow())
   }
@@ -3413,7 +3413,7 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
     if (args.lidf && args.lidf.length) {
       const org = await this.org(ID.ns(args.id))
       const idi = args.id % d14
-      await ctx.storage.delFiles(org, idi, args.lidf)
+      await this.storage.delFiles(org, idi, args.lidf)
     }
   }
 }
@@ -3470,7 +3470,7 @@ operations.SupprFichier = class SupprFichier extends Operation {
     try {
       const org = await this.org(ID.ns(args.id))
       const idi = args.id % d14  
-      await ctx.storage.delFiles(org, idi, [args.idf])
+      await this.storage.delFiles(org, idi, [args.idf])
       await this.unsetFpurge(this.idfp)
     } catch (e) { 
       // trace
@@ -3529,7 +3529,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     // ICI versions dlv
     if (!va._zombi) {
       va.version++
-      va.dlv = ctx.auj
+      va.dlv = this.auj
       va._zombi = true
       this.update(va.toRow())
     }
@@ -3547,7 +3547,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
       if (!vavatarp._zombi) {
         vavatarp.v++
         vavatarp._zombi = true
-        vavatarp.dlv = ctx.auj
+        vavatarp.dlv = this.auj
         this.update(vavatarp.toRow())
         this.delete({ _nom: 'avatars', id: args.idc })
       }
@@ -3586,7 +3586,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
         vgroupe.v++
         if (it.suppr) {
           // ICI versions dlv
-          vgroupe.dlv = ctx.auj
+          vgroupe.dlv = this.auj
           vgroupe._zombi = true
         } else {
           this.delete({ _nom: 'membres', id: it.idg, ids: it.im })
@@ -3997,7 +3997,7 @@ operations.GCPag = class GCPag extends Operation {
         // purge des fichiers
         const org = await this.org(id)
         const idi = id % d14
-        await ctx.storage.delId(org, idi)
+        await this.storage.delId(org, idi)
         this.setRes('stats', st)
 
         // validation des purges
@@ -4069,7 +4069,7 @@ operations.GCFpu = class GCFpu extends Operation {
           try {
             const org = await this.org(ID.ns(fpurge.idag))
             const idi = fpurge.idag % d14   
-            await ctx.storage.delFiles(org, idi, fpurge.lidf)
+            await this.storage.delFiles(org, idi, fpurge.lidf)
             await this.unsetFpurge(fpurge.id)
           } catch (e) {
             // trace
@@ -4101,7 +4101,7 @@ operations.GCTra = class GCTra extends Operation {
 
   async phase1 () {
     try {
-      const lst = await this.listeTransfertsDlv(ctx.auj)
+      const lst = await this.listeTransfertsDlv(this.auj)
 
       for (const [id, idf] of lst) {
         if (id && idf) {
@@ -4110,7 +4110,7 @@ operations.GCTra = class GCTra extends Operation {
             const ns = ID.ns(id)
             const org = await this.org(ns)
             const idi = id % d14        
-            await ctx.storage.delFiles(org, idi, [idf])
+            await this.storage.delFiles(org, idi, [idf])
             await this.purgeTransferts(id, idf)
           } catch (e) {
             // trace
@@ -4145,10 +4145,10 @@ operations.GCDlv = class GCDlv extends Operation {
   async phase1 () {
     let nom = 'sponsorings'
     try {
-      const nbs = await this.purgeDlv(nom, ctx.auj)
+      const nbs = await this.purgeDlv(nom, this.auj)
 
       nom = 'versions'
-      const dlv = AMJ.amjUtcPlusNbj(ctx.auj, - (2 * limitesjour.dlv))
+      const dlv = AMJ.amjUtcPlusNbj(this.auj, - (2 * limitesjour.dlv))
       const nbv = await this.purgeDlv(nom, dlv)
 
       this.setRes('stats', { nbs, nbv })

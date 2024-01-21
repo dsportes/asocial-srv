@@ -1,58 +1,99 @@
-export const mode = 2
+/* eslint-disable no-unused-vars */
+
+const optA = 2
 /*
 1:GAE 
-2:Test usuel
-3:Test local après build
+2:Test local sans build
+3:Test local avec build
 */
 
-export const config = {
-  // path du fichier externe de configuration confidentiel
-  pathconfig: './config',
+const optB = 1
 
+const keys0 = {
+  app: 'app_keys.json',
+  favicon: 'favicon.ico',
+  firebase_config: 'firebase_config.json',
+  pub: 'fullchain.pem',
+  priv: 'privkey.pem',
+  s3_config: 's3_config.json',
+  service_account: 'service_account.json'
+}
+
+const keys1 = {
+  app: 'app_keys.json',
+  favicon: 'favicon.ico',
+  firebase_config: 'firebase_config.json',
+  service_account: 'service_account.json'
+}
+
+const keys2 = {
+  app: 'app_keys.json',
+  favicon: 'favicon.ico',
+  firebase_config: 'firebase_config.json',
+  pub: 'fullchain.pem',
+  priv: 'privkey.pem',
+  s3_config: 's3_config.json'
+}
+
+const env1 = {
+  GOOGLE_CLOUD_PROJECT: 'asocial-test1',
+  GOOGLE_APPLICATION_CREDENTIALS: '@service_account',
+  STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
+  FIRESTORE_EMULATOR_HOST: 'localhost:8080'
+}
+
+const run1 = {
+  site: 'A',
   // URL externe d'appel du serveur 
-  rooturl: mode === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',
-
-  // Hébergement par Google App Engine (sinon serveur node standard)
-  gae: mode === 1 ? true : false,
-  
+  rooturl: optA === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',
   // Port d'écoute si NON gae
-  port: 8443, // port: 443,
-  
+  port: optA !== 1 ? 8443 : 0, // port: 443,
   // Origines autorisées
   origins: [ 'localhost:8343' ],
+  // Provider DB
+  storage_provider: optA === 1 ? 'gc_a' : 'fs_a',
+  // Provider Storage
+  db_provider: optA === 1 ? 'firestore_a' : 'sqlite_a',
+}
 
-  // Id du projet Google : pour les providers gc_* et fs_*
-  projectId: 'asocial-test1', 
+export const config = {
+  // Paramètres fonctionnels
+  tarifs: [
+    { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
+    { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
+    { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
+  ],
 
   // HTTP server: configuration des paths des URL
   prefixop: '/op',
   prefixapp: '/app',
-  pathapp: mode === 1 ? '' : './app',
+  pathapp: optA === 1 ? '' : './app',
   prefixwww: '/www',
-  pathwww: mode === 1 ? '' : './www',
+  pathwww: optA === 1 ? '' : './www',
+  pathlogs: optA === 2 ? './logs' : '../logs',
+  pathkeys: './keys',
 
-  pathlogs: mode === 2 ? './logs' : '../logs',
-  
-  // Providers: db et storage
-  storage_provider: mode === 1 ? 'gc_a' : 'fs_a',
-  db_provider: mode === 1 ? 'firestore_a' : 'sqlite_a',
+  keys: keys1,
+
+  env: env1,
+
+  run: run1,
 
   s3_a: {
     bucket: 'asocial'
   },
 
   fs_a: {
-    rootpath: mode === 2 ? './fsstorage' : '../fsstorage'
+    rootpath: optA === 2 ? './fsstorage' : '../fsstorage'
   },
 
   fs_b: {
-    rootpath: mode === 2 ? './fsstorageb' : '../fsstorageb'
+    rootpath: optA === 2 ? './fsstorageb' : '../fsstorageb'
   },
 
   gc_a: {
     bucket: 'asocial-test1.appspot.com', // Pour emulator
     // bucket: 'asocial' // Pour prod, quoi que ...
-    storage_emulator: 'http://127.0.0.1:9199' // 'http://' est REQUIS
   },
 
   sqlite_a: {
@@ -64,14 +105,6 @@ export const config = {
   },
 
   firestore_a: {
-    emulator: false,
-    firestore_emulator: 'localhost:8080',
-  },
-
-  tarifs: [
-    { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
-  ]
+  }
 
 }

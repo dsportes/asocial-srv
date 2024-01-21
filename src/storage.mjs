@@ -1,7 +1,6 @@
 import { writeFile, readFile } from 'node:fs/promises'
 import { existsSync, unlinkSync, rmSync, readdirSync, mkdirSync } from 'node:fs'
 import path from 'path'
-import { env } from 'process'
 
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsCommand } from '@aws-sdk/client-s3'
 import { /* getSignedUrl, */ S3RequestPresigner } from '@aws-sdk/s3-request-presigner'
@@ -11,7 +10,7 @@ import { formatUrl } from '@aws-sdk/util-format-url'
 
 import { encode, decode } from '@msgpack/msgpack'
 
-import { ctx /*, Storage */ } from './server.js'
+import { ctx } from './server.js'
 import { Storage } from '@google-cloud/storage'
 
 import { b64ToU8, u8ToB64, crypterSrv, decrypterSrv } from './util.mjs'
@@ -41,7 +40,7 @@ function stream2buffer(stream) {
 }
 
 function storageUrl (org, id, idf) {
-  return ctx.config.rooturl + '/storage/' + encode3(org, id, idf)
+  return ctx.rooturl + '/storage/' + encode3(org, id, idf)
 }
 
 /* FsProvider ********************************************************************/
@@ -155,7 +154,7 @@ export class FsProvider {
 /* S3Provider ********************************************************************/
 export class S3Provider {
   constructor (config) {
-    this.config = ctx.config.s3_config
+    this.config = ctx.keys.s3_config
     this.s3 = new S3Client(this.config)
     this.config.sha256 = Hash.bind(null, 'sha256')
     this.signer = new S3RequestPresigner(this.config)
@@ -179,7 +178,7 @@ export class S3Provider {
     getReq.headers.host = `${ getReq.hostname }:${ getReq.port }`
     const url = await this.signer.presign(getReq)
     const getUrl = formatUrl(url)
-    if (ctx.debug) ctx.logger.debug('getURL:' + getUrl)
+    if (ctx.mondebug) ctx.logger.debug('getURL:' + getUrl)
     return getUrl
   }
 
@@ -192,7 +191,7 @@ export class S3Provider {
     putReq.headers.host = `${ putReq.hostname }:${ putReq.port }`
     const url = await this.signer.presign(putReq)
     const putUrl = formatUrl(url)
-    if (ctx.debug) ctx.logger.debug('putURL:' + putUrl)
+    if (ctx.mondebug) ctx.logger.debug('putURL:' + putUrl)
     return putUrl
   }
 
@@ -291,11 +290,6 @@ export class S3Provider {
 /* GcProvider ********************************************************************/
 export class GcProvider {
   constructor (cfg) {
-    if (cfg.storage_emulator) {
-      env['STORAGE_EMULATOR_HOST'] = cfg.storage_emulator
-      ctx.logger.info('STORAGE_EMULATOR_HOST=' +  cfg.storage_emulator)
-    }
-
     // Imports the Google Cloud client library
     // const {Storage} = require('@google-cloud/storage')
     // For more information on ways to initialize Storage, please see
@@ -308,9 +302,9 @@ export class GcProvider {
     }
     this.bucket = new Storage(opt).bucket(c.bucket)
     */
-
+    this.emulator = ctx['STORAGE_EMULATOR_HOST']
     this.bucket = new Storage().bucket(cfg.bucket)
-    if (!cfg.storage_emulator) {
+    if (!this.emulator) {
       const cors = {
         // origin: ctx.config.origins2,
         origin: ['*'],
@@ -329,7 +323,7 @@ export class GcProvider {
   }
 
   async getUrl (org, id, idf) {
-    if (ctx.emulator) {
+    if (this.emulator) {
       const url = storageUrl (org, id, idf)
       // console.log(url)
       return url  
@@ -348,7 +342,7 @@ export class GcProvider {
   }
 
   async putUrl (org, id, idf) {
-    if (ctx.emulator) {
+    if (this.emulator) {
       const url = storageUrl (org, id, idf)
       // console.log(url)
       return url  

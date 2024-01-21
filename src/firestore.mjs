@@ -1,18 +1,16 @@
 import { Firestore } from '@google-cloud/firestore'
-import { env } from 'process'
+
 import { decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID } from './api.mjs'
 
 export class FirestoreProvider {
-  constructor (cfg) {
-    if (cfg.firestore_emulator) {
-      env['FIRESTORE_EMULATOR_HOST'] = cfg.firestore_emulator
-      ctx.logger.info('FIRESTORE_EMULATOR_HOST=' +  cfg.firestore_emulator)
-      ctx.config.emulator = cfg.firestore_emulator
-    }
-
+  constructor (cfg, site) {
+    this.site = site
+    this.appKey = ctx.site(site)
+    this.emulator = ctx['FIRESTORE_EMULATOR_HOST']
+    this.fscredentials = ctx.keys.firebase_config
     this.fs = new Firestore()
   }
 
@@ -29,8 +27,8 @@ export class FirestoreProvider {
   }
 
   setSyncData (op) {
-    op.setRes('credentials', ctx.config.fscredentials)
-    op.setRes('emulator', ctx.config.emulator)
+    op.setRes('credentials', this.fscredentials)
+    op.setRes('emulator', this.emulator)
   }
 
   async doTransaction (op) {
@@ -82,7 +80,7 @@ export class FirestoreProvider {
 
   async setRows (op, rows) {
     for (const row of rows) {
-      const r = prepRow(row)
+      const r = prepRow(op, row)
       if (GenDoc.majeurs.has(row._nom)) {
         const v = ('' + row.v).padStart(9, '0')
         r.id_v = row.id + v
@@ -114,7 +112,7 @@ export class FirestoreProvider {
       if (row) {
         row._nom = nom
         op.nl++
-        return decryptRow(row)
+        return decryptRow(op, row)
       }
       return null
     }
@@ -130,7 +128,7 @@ export class FirestoreProvider {
       row = ds.data()
       row._nom = nom
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -152,7 +150,7 @@ export class FirestoreProvider {
       row = ds.data()
       row._nom = nom
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -173,7 +171,7 @@ export class FirestoreProvider {
       row = ds.data()
       row._nom = nom
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -188,7 +186,7 @@ export class FirestoreProvider {
     if (qs.empty) return null
     const row = qs.docs[0].data()
     op.nl++
-    return compile(decryptRow(row))
+    return compile(decryptRow(op, row))
   }
 
   /* Retourne LE chat si sa CV est MOINS récente que celle détenue en session (de version vcv)
@@ -205,7 +203,7 @@ export class FirestoreProvider {
     if (!row) return null
     row._nom = 'chats'
     op.nl++
-    return compile(decryptRow(row))
+    return compile(decryptRow(op, row))
   }
 
   /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
@@ -222,7 +220,7 @@ export class FirestoreProvider {
     if (row) {
       row._nom = 'tickets'
       op.nl++
-      return decryptRow(row)
+      return decryptRow(op, row)
     }
     return null
   }
@@ -241,7 +239,7 @@ export class FirestoreProvider {
     if (!row) return null
     row._nom = 'membres'
     op.nl++
-    return compile(decryptRow(row))
+    return compile(decryptRow(op, row))
   }
 
   async getComptaHps1(op, hps1) {
@@ -261,7 +259,7 @@ export class FirestoreProvider {
     if (!row) return null
     row._nom = 'comptas'
     op.nl++
-    return compile(decryptRow(row))
+    return compile(decryptRow(op, row))
   }
 
   async getAvatarHpc(op, hpc) {
@@ -281,7 +279,7 @@ export class FirestoreProvider {
     if (!row) return null
     row._nom = 'avatars'
     op.nl++
-    return compile(decryptRow(row))
+    return compile(decryptRow(op, row))
   }
 
   async getSponsoringIds(op, ids) {
@@ -300,7 +298,7 @@ export class FirestoreProvider {
     if (!row) return null
     row._nom = 'sponsorings'
     op.nl++
-    return compile(decryptRow(row))
+    return compile(decryptRow(op, row))
   }
 
   /* Retourne l'array des ids des "versions" dont la dlv est entre min et max incluses */
@@ -443,7 +441,7 @@ export class FirestoreProvider {
     const ds = await dr.get()
     if (ds.exists) {
       op.nl++
-      return decryptRow(ds.data())
+      return decryptRow(op, ds.data())
     }
     return null
   }

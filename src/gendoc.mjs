@@ -28,22 +28,22 @@ export function compile (row) {
   return d
 }
 
-export async function decryptRow (row) {
+export async function decryptRow (op,row) {
   if (!row || !GenDoc.rowCryptes.has(row._nom)) return row
   const d = row._data_
   if (!d || d.length < 4) return row
-  const dc = await decrypterSrv(d)
+  const dc = await decrypterSrv(op.db.appKey)
   row._data_ = dc
   return row
 }
 
-export async function prepRow (row) {
+export async function prepRow (op, row) {
   const b = GenDoc.rowCryptes.has(row._nom)
   const la = GenDoc._attrs[row._nom]
   const r = {}
   la.forEach(a => {
     const x = row[a]
-    if (b && a === '_data_') r[a] = x === undefined ? null : crypterSrv(x)
+    if (b && a === '_data_') r[a] = x === undefined ? null : crypterSrv(op.db.appKey, x)
     else r[a] = x === undefined ?  null : x
   })
   return r

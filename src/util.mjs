@@ -1,7 +1,6 @@
 import crypto from 'crypto'
 import { deflateSync } from 'zlib'
 import { toByteArray, fromByteArray } from './base64.mjs'
-import { ctx } from './server.js'
 import { AppExc, E_SRV } from './api.mjs'
 
 export function sleep (delai) {
@@ -35,8 +34,7 @@ export function b64ToU8 (s) {
 
 const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
 
-export function crypterSrv (buffer) {
-  const k = ctx.config.app_key
+export function crypterSrv (k, buffer) {
   const cipher = crypto.createCipheriv('aes-256-cbc', k, IV)
   const x0 = Buffer.from([k[0], k[1], k[2], k[3]])
   const x1 = cipher.update(buffer)
@@ -44,8 +42,7 @@ export function crypterSrv (buffer) {
   return Buffer.concat([x0, x1, x2])
 }
 
-export function decrypterSrv (b) {
-  const k = ctx.config.app_key
+export function decrypterSrv (k, b) {
   if (b[0] !== k[0] || b[1] !== k[1] || b[2] !== k[2] || b[3] !== k[3]) return b
   const decipher = crypto.createDecipheriv('aes-256-cbc', k, IV)
   const x1 = decipher.update(b.slice(4))
