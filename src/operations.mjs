@@ -2,8 +2,8 @@
 import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 
-import { AuthSession, Operation, compile, Versions,
-  Transferts, Gcvols, Chatgrs, trace } from './modele.mjs'
+import { AuthSession, Operation, trace} from './modele.mjs'
+import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw } from './util.mjs'
 import { limitesjour, FLAGS, edit } from './api.mjs'
 

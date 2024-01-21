@@ -28,12 +28,12 @@ export function compile (row) {
   return d
 }
 
-export async function decryptRow (op,row) {
+export async function decryptRow (op, row) {
   if (!row || !GenDoc.rowCryptes.has(row._nom)) return row
   const d = row._data_
   if (!d || d.length < 4) return row
-  const dc = await decrypterSrv(op.db.appKey)
-  row._data_ = dc
+  const dc = await decrypterSrv(op.db.appKey, d)
+  row._data_ = new Uint8Array(dc)
   return row
 }
 

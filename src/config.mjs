@@ -22,6 +22,8 @@ const keys0 = {
 const keys1 = {
   app: 'app_keys.json',
   favicon: 'favicon.ico',
+  pub: 'fullchain.pem',
+  priv: 'privkey.pem',
   firebase_config: 'firebase_config.json',
   service_account: 'service_account.json'
 }
@@ -97,11 +99,11 @@ export const config = {
   },
 
   sqlite_a: {
-    path: '../sqlite/test.db3'
+    path: './sqlite/test.db3'
   },
 
   sqlite_b: {
-    path: '../sqlite/test1.db3'
+    path: './sqlite/test1.db3'
   },
 
   firestore_a: {

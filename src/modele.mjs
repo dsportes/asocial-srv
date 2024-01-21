@@ -316,15 +316,15 @@ export class Operation {
 
   async collNs (nom, ns) { return this.db.collNs(this, nom, ns) }
 
-  async scoll (nom, id, v) { return this.db.scoll(nom, id, v) }
+  async scoll (nom, id, v) { return this.db.scoll(this, nom, id, v) }
 
   async delScoll (nom, id) { return this.db.delScollSql(this, nom, id) }
 
-  async getVersionsDlv (dlvmin, dlvmax) { return this.db.getVersionsDlv(dlvmin, dlvmax) }
+  async getVersionsDlv (dlvmin, dlvmax) { return this.db.getVersionsDlv(this, dlvmin, dlvmax) }
 
-  async getMembresDlv (dlvmax) {return this.db.getMembresDlv(dlvmax) }
+  async getMembresDlv (dlvmax) {return this.db.getMembresDlv(this, dlvmax) }
 
-  async getGroupesDfh (dfh) { return this.db.getGroupesDfh(dfh) }
+  async getGroupesDfh (dfh) { return this.db.getGroupesDfh(this, dfh) }
 
   async getGcvols (ns) { return this.db.collNs(this, 'gcvols', ns) }
 
@@ -340,9 +340,9 @@ export class Operation {
 
   async getAvatarHpc (hpc) { return this.db.getAvatarHpc(this, hpc) }
 
-  async getComptaHps1 (hps1) { return this.db.getComptaHps1(hps1) }
+  async getComptaHps1 (hps1) { return this.db.getComptaHps1(this, hps1) }
 
-  async getSponsoringIds (ids) {return this.db.getSponsoringIds(ids) }
+  async getSponsoringIds (ids) {return this.db.getSponsoringIds(this, ids) }
 
   async getAllRowsTribu () { return this.db.collNs(this, 'tribus', this.session.ns) }
 
@@ -792,7 +792,7 @@ export class Operation {
   - compta: l'objet compilé correspondant
   */
   async auth () {
-    const s = AuthSession.get(this.authData.sessionId, this.lecture)
+    const s = AuthSession.get(this)
     if (!this.authMode && s) {
       // la session est connue dans l'instance, OK
       this.session = s

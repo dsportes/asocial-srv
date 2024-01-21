@@ -39,7 +39,7 @@ class Context {
 export const ctx = new Context()
 
 // Running dans GAE
-ctx.gae = (!env['GAE_DEPLOYMENT_ID'])
+ctx.gae = !(!env['GAE_DEPLOYMENT_ID'])
 ctx.mondebug = (env.NODE_ENV === 'mondebug')
 
 ctx.cmdargs = ctx.gae ? null : parseArgs({
@@ -138,7 +138,7 @@ try {
   // Chargement des fichiers de configuration confidentiels
   for (const kn in config.keys) {
     const nf = config.keys[kn]
-    const p = path.resolve(config.pathkeys + nf)
+    const p = path.resolve(config.pathkeys + '/' + nf)
     if (existsSync(p)) {
       ctx.logger.info('KEY ' + nf + '= [' + p + ']')
       const x = readFileSync(p)
@@ -151,18 +151,24 @@ try {
 
   // Variables d'environnement
   for (const n in config.env) {
-    let v = config.env[n]
-    if (v.startsWith('@')) 
-      v = ctx.keys[v.substring(1)]
-    env[n] = v
-    ctx.env[n] = v
-    ctx.logger.info('ENV ' + n + '=[' + v + ']')
+    const v = config.env[n]
+    if (v.startsWith('@')) {
+      const nf = config.keys[v.substring(1)]
+      const p = path.resolve(config.pathkeys + '/' + nf)
+      env[n] = p
+      ctx.env[n] = ctx.keys[v.substring(1)]
+      ctx.logger.info('ENV ' + n + '=@ [' + p + ']')
+    } else {
+      env[n] = v
+      ctx.env[n] = v
+      ctx.logger.info('ENV ' + n + '= [' + v + ']')
+    }
   }
 
   if (!ctx.cmdargs.outil) {
     const site = config.run.site
     ctx.logger.info('SITE= [' + site + ']')
-    ctx.appKey = ctx.keys.app.site(site)
+    ctx.appKey = ctx.site(site)
     ctx.rooturl = config.run.rooturl
     ctx.logger.info('ROOTURL= [' + ctx.rooturl + ']')
     ctx.port = env.PORT || config.run.port
@@ -177,7 +183,7 @@ try {
     }
 
     ctx.logger.info('DB= [' + config.run.db_provider + ']')
-    ctx.db = getDBProvider(config.run.db_provider)
+    ctx.db = getDBProvider(config.run.db_provider, site)
     if (!ctx.db) {
       ctx.logger.error('DB provider non trouvé:' + config.db_provider)
       exit(1)
@@ -185,7 +191,7 @@ try {
     await ctx.db.ping()
 
     ctx.logger.info('Storage= [' + config.run.storage_provider + ']')
-    ctx.storage = getStorageProvider(config.storage_provider)
+    ctx.storage = getStorageProvider(config.run.storage_provider)
     if (!ctx.storage) {
       ctx.logger.error('Storage provider non trouvé:' + config.storage_provider)
       exit(1)
@@ -297,7 +303,7 @@ app.put('/storage/:arg', async (req, res) => {
 })
 
 //**** appels des opérations ****
-app.use(ctx.config.prefixop + '/:operation', async (req, res) => {
+app.use(config.prefixop + '/:operation', async (req, res) => {
   // push the data to body
   const body = [];
   req.on('data', (chunk) => {
@@ -363,7 +369,7 @@ try {
   case 1 : {
     // Création en https avec un certificat et sa clé de signature
     const port = ctx.port
-    server = https.createServer({key: ctx.priv, cert: ctx.pub}, app).listen(port, () => {
+    server = https.createServer({key: ctx.keys.priv, cert: ctx.keys.pub}, app).listen(port, () => {
       ctx.logger.info('HTTPS écoute [' + port + ']')
       try {
         atStart()
