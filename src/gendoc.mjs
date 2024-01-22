@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS } from './api.mjs'
+import { FLAGS, d14 } from './api.mjs'
 import { ctx } from './server.js'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
@@ -49,9 +49,22 @@ export async function prepRow (op, row) {
   return r
 }
 
+export function changeNS (row, nsin, nsout) {
+  if (nsin === nsout) return row
+  const id = GenDoc.collsExp1.indexOf(row._nom) !== -1 ? 
+    nsout : ((row.id % d14) + (nsout * d14))
+  if (row._data_) {
+    const d = decode(row._data_)
+    d.id = id
+    row._data_ = encode(d)
+  }
+  row.id = nsout
+  return row
+}
+
 export class GenDoc {
   /* Descriptifs des collections et sous-collection */
-  static collsExp1 = ['espaces', 'tickets', 'syntheses']
+  static collsExp1 = ['espaces', 'syntheses']
 
   static collsExp2 = ['fpurges', 'gcvols', 'tribus', 'comptas', 'avatars', 'groupes', 'versions']
 
@@ -63,7 +76,7 @@ export class GenDoc {
 
   static syncs = new Set(['singletons', 'espaces', 'tribus', 'comptas', 'versions'])
 
-  static sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs'])
+  static sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
 
   static rowCryptes = new Set(['comptas'])
   

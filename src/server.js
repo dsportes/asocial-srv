@@ -130,8 +130,8 @@ export function getDBProvider (codeProvider, site) {
   if (!cfg) return null
   const t = codeProvider.substring(0, codeProvider.indexOf('_'))
   switch (t) {
-  case 'sqlite' : { return new SqliteProvider(cfg, site) }
-  case 'firestore' : { return new FirestoreProvider(cfg, site) }
+  case 'sqlite' : { return new SqliteProvider(cfg, site, codeProvider) }
+  case 'firestore' : { return new FirestoreProvider(cfg, site, codeProvider) }
   }
   return null
 }

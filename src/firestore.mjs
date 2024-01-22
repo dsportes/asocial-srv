@@ -6,13 +6,16 @@ import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID } from './api.mjs'
 
 export class FirestoreProvider {
-  constructor (cfg, site) {
+  constructor (cfg, site, code) {
+    this.code = code
     this.site = site
     this.appKey = Buffer.from(ctx.site(site), 'base64')
     this.emulator = ctx['FIRESTORE_EMULATOR_HOST']
     this.fscredentials = ctx.keys.firebase_config
     this.fs = new Firestore()
   }
+
+  get type () { return 'firestore' }
 
   get hasWS () { return false }
 
@@ -56,13 +59,13 @@ export class FirestoreProvider {
   /* deleteRows : les rows n'ont que { _nom, id, ids } */
   async deleteRows (op, rows) {
     for (const row of rows) {
-      const p = GenDoc._path(row._nom, row.id, row.ids)
+      const p = FirestoreProvider._path(row._nom, row.id, row.ids)
       await op.transaction.delete(this.fs.doc(p))
     }
   }
 
   async setVdlv (id, dlv) {
-    const p = GenDoc._path('versions', id)
+    const p = FirestoreProvider._path('versions', id)
     const doc = await this.fs.get(p)
     const row = doc.data()
     row.dlv = dlv
@@ -89,7 +92,7 @@ export class FirestoreProvider {
           r.id_vcv = row.id + vcv  
         }
       }
-      const p = GenDoc._path(row._nom, r.id, r.ids)
+      const p = FirestoreProvider._path(row._nom, r.id, r.ids)
       await op.transaction.set(this.fs.doc(p), r)
     }
   }
@@ -137,7 +140,7 @@ export class FirestoreProvider {
   */
   async getNV (op, nom, id) {
     let row = null
-    const p = GenDoc._path(nom, id)
+    const p = FirestoreProvider._path(nom, id)
     const dr = this.fs.doc(p) // dr: DocumentReference
     // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
     let ds
@@ -158,7 +161,7 @@ export class FirestoreProvider {
   /* Retourne LE row de la sous-collection nom / id / ids (SANS se préoccuper de la version) */
   async get (op, nom, id, ids) {
     let row = null
-    const p = GenDoc._path(nom, id, ids)
+    const p = FirestoreProvider._path(nom, id, ids)
     const dr = this.fs.doc(p) // dr: DocumentReference
     // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
     let ds
@@ -192,7 +195,7 @@ export class FirestoreProvider {
   /* Retourne LE chat si sa CV est MOINS récente que celle détenue en session (de version vcv)
   */
   async getChatVCV (op, id, ids, vcv) {
-    const p = GenDoc._path('chats', id, ids)
+    const p = FirestoreProvider._path('chats', id, ids)
     // INDEX simple sur chats vcv
     const q = this.fs.collection(p).where('vcv', '>', vcv)
     const qs = await op.transaction.get(q)
@@ -209,7 +212,7 @@ export class FirestoreProvider {
   /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
   */
   async getRowTicketV (op, id, ids, v) {
-    const p = GenDoc._path('tickets', id, ids)
+    const p = FirestoreProvider._path('tickets', id, ids)
     // INDEX simple sur chats vcv
     const q = this.fs.collection(p).where('v', '>', v)
     const qs = await op.transaction.get(q)
@@ -228,7 +231,7 @@ export class FirestoreProvider {
   /* Retourne LE membre si sa CV est MOINS récente que celle détenue en session (de version vcv)
   */
   async getMembreVCV (op, id, ids, vcv) {
-    const p = GenDoc._path('membres', id, ids)
+    const p = FirestoreProvider._path('membres', id, ids)
     // INDEX simple sur membres vcv
     const q = this.fs.collection(p).where('vcv', '>', vcv)
     const qs = await op.transaction.get(q)
@@ -243,7 +246,7 @@ export class FirestoreProvider {
   }
 
   async getComptaHps1(op, hps1) {
-    const p = GenDoc._collPath('comptas')
+    const p = FirestoreProvider._collPath('comptas')
     // INDEX simple sur comptas hps1
     const q = this.fs.collection(p).where('hps1', '==', hps1)
     let qs
@@ -263,7 +266,7 @@ export class FirestoreProvider {
   }
 
   async getAvatarHpc(op, hpc) {
-    const p = GenDoc._collPath('avatars')
+    const p = FirestoreProvider._collPath('avatars')
     // INDEX simple sur avatars hpc
     const q = this.fs.collection(p).where('hpc', '==', hpc)
     let qs
@@ -303,7 +306,7 @@ export class FirestoreProvider {
 
   /* Retourne l'array des ids des "versions" dont la dlv est entre min et max incluses */
   async getVersionsDlv (op, dlvmin, dlvmax) {
-    const p = GenDoc._collPath('versions')
+    const p = FirestoreProvider._collPath('versions')
     // INDEX simple sur versions dlv
     const q = this.fs.collection(p).where('dlv', '>=', dlvmin).where('dlv', '<=', dlvmax) 
     const qs = await q.get()
@@ -327,7 +330,7 @@ export class FirestoreProvider {
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
   est inférieure ou égale à dfh */
   static async getGroupesDfh(op, dfh) {
-    const p = GenDoc._collPath('groupes')
+    const p = FirestoreProvider._collPath('groupes')
     // INDEX simple sur groupes dfh
     const q = this.fs.collection(p).where('dfh', '>', 0).where('dfh', '<=', dfh) 
     const qs = await q.get()
@@ -339,7 +342,7 @@ export class FirestoreProvider {
   
   /* Retourne la collection 'nom' : pour la liste des espaces */
   static async coll (op, nom) {
-    const p = GenDoc._collPath(nom)
+    const p = FirestoreProvider._collPath(nom)
     const q = this.fs.collection(p)
     const qs = await op.transaction.get(q)
     if (qs.empty) return []
@@ -357,7 +360,7 @@ export class FirestoreProvider {
   async collNs (op, nom, ns) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
-    const p = GenDoc._collPath(nom)
+    const p = FirestoreProvider._collPath(nom)
     // INDEX simple sur les collections id (avatars, groupes, versions ...) ! PAS les sous-collections
     const q = this.fs.collection(p).where('id', '>=', ns1).where('id', '<', ns2) 
     let qs
@@ -383,7 +386,7 @@ export class FirestoreProvider {
   Chargement des chats sponsorings notes membres
   */
   async scoll (op, nom, id, v) {
-    const p = GenDoc._collPath(nom, id)
+    const p = FirestoreProvider._collPath(nom, id)
     // INDEX simple sur (chats sponsorings notes membres chatgrs) v
     const q = this.fs.collection(p).where('v', '>', v)
     const qs = await op.transaction.get(q)
@@ -400,7 +403,7 @@ export class FirestoreProvider {
 
   async delScoll (op, nom, id) {
     let n = 0
-    const p = GenDoc._collPath(nom, id)
+    const p = FirestoreProvider._collPath(nom, id)
     const q = this.fs.collection(p)
     const qs = await q.get()
     if (!qs.empty) {
@@ -449,20 +452,20 @@ export class FirestoreProvider {
   }
 
   async setFpurge (op, id, _data_) {
-    const p = GenDoc._path('fpurges', id)
+    const p = FirestoreProvider._path('fpurges', id)
     await op.op.transaction.set(this.fs.doc(p), { id, _data_})
     op.ne++
   }
 
   async unsetFpurge (op, id) {
-    const p = GenDoc._path('fpurges', id)
+    const p = FirestoreProvider._path('fpurges', id)
     await this.fs.doc(p).delete()
     op.ne++
   }
 
   async listeFpurges (op) {
     const r = []
-    const p = GenDoc._collPath('fpurges')
+    const p = FirestoreProvider._collPath('fpurges')
     const q = this.fs.collection(p)
     const qs = await q.get()
     if (!qs.empty) {
@@ -477,7 +480,7 @@ export class FirestoreProvider {
 
   async listeTransfertsDlv (op, dlv) {
     const r = []
-    const p = GenDoc._collPath('transferts')
+    const p = FirestoreProvider._collPath('transferts')
     const q = this.fs.collection(p).where('dlv', '<=', dlv)
     const qs = await q.get()
     if (!qs.empty) {
@@ -491,14 +494,14 @@ export class FirestoreProvider {
   }
 
   async purgeTransferts (op, id, ids) {
-    const p = GenDoc._path('transferts', id, ids)
+    const p = FirestoreProvider._path('transferts', id, ids)
     await this.fs.doc(p).delete()
     op.ne++
   }
 
   async purgeDlv (op, nom, dlv) { // nom: sponsorings, versions
     let n = 0
-    const p = GenDoc._collPath(nom)
+    const p = FirestoreProvider._collPath(nom)
     const q = this.fs.collection(p).where('dlv', '<=', dlv)
     const qs = await q.get()
     if (!qs.empty) {
@@ -506,5 +509,73 @@ export class FirestoreProvider {
     }
     op.ne += n
     return n
+  }
+
+  // Util: suppression d'un ns
+  _queryExp2 (ns, nom) {
+    const min = ns * d14
+    const max = (ns + 1) * d14
+    if (!GenDoc.majeurs.has(nom)) {
+      return this.fs.collection(nom)
+        .where('id', '>=', min)
+        .where('id', '<', max)
+    }
+    return this.fs.collection(nom)
+      .where('id_v', '>=', min + '000000000')
+      .where('id_v', '<', max + '000000000')
+  }
+
+  async deleteNS(log, log2, ns) {
+    let n = 0
+    // ['espaces', 'syntheses']
+    for (const nom of GenDoc.collsExp1) { 
+      const p = FirestoreProvider._path(nom, ns)
+      await this.fs.doc(p).delete()
+      log(`delete ${nom} - ${n} rows`)
+    }
+
+    /* Les documents "versions" têtes de leurs sous-collections (notes, chats ...)
+    NE DOIVENT PAS être détruits AVANT leurs sous-collections qui sinon
+    deviendraient inaccessibles */
+    const lpavgr = []
+    // ['fpurges', 'gcvols', 'tribus', 'comptas', 'avatars', 'groupes', 'versions']
+    for (const nom of GenDoc.collsExp2) { 
+      n = 0
+      const query = this._queryExp2(ns, nom)
+      const qs = await query.get()
+      for (const doc of qs.docs) {
+        if (nom === 'versions') {
+          const id = doc.get('id')
+          lpavgr.push(id)
+        } else { 
+          n++
+          await doc.ref.delete() 
+        }
+      }
+      if (nom !== 'versions') log(`delete ${nom} - ${n} rows`)
+    } 
+    
+    let na = 0, ng = 0, nra = 0, nrg = 0
+    for (const id of lpavgr) {
+      const g = ID.estGroupe(id)
+      const p = 'versions/' + id
+      // ['notes', 'transferts', 'sponsorings', 'chats', 'tickets']
+      // OU ['notes', 'transferts', 'membres', 'chatgrs']
+      const c = g ? GenDoc.collsExpG : GenDoc.collsExpA
+      for (const nom of c) { 
+        const query = this.fs.collection(p + '/' + nom)
+        const qs = await query.get()
+        for (const doc of qs.docs) { 
+          if (g) nrg++; else nra++
+          await doc.ref.delete()
+        }
+      }
+      if (g) ng++; else na++
+      // versions lui-même
+      await this.fs.doc(p).delete()
+      log2(`delete ${p}`)
+    }
+    log(`\rdelete ${na} avatars - ${nra} rows`)
+    log(`delete ${ng} groupes - ${nrg} rows`)
   }
 }

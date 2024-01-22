@@ -7,7 +7,8 @@ import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID } from './api.mjs'
 
 export class SqliteProvider {
-  constructor (cfg, site) {
+  constructor (cfg, site, code) {
+    this.code = code
     this.site = site
     this.appKey = Buffer.from(ctx.site(site), 'base64')
     const p = path.resolve(cfg.path)
@@ -27,6 +28,8 @@ export class SqliteProvider {
     this.lastSql = []
     this.cachestmt = { }
   }
+
+  get type () { return 'sqlite' }
 
   get hasWS () { return true }
 
@@ -436,5 +439,29 @@ export class SqliteProvider {
     const n = info.changes
     op.ne += n
     return n
+  }
+
+  async deleteNS(log, log2, ns) {
+    const min = ns * d14
+    const max = (ns + 1) * d14
+    const dels = {}
+    GenDoc.collsExp1.forEach(nom => {
+      dels[nom] = this.sql.prepare(
+        `DELETE FROM ${nom} WHERE id = ${ns};`)
+    })
+    GenDoc.collsExp2.forEach(nom => {
+      dels[nom] = this.sql.prepare(
+        `DELETE FROM ${nom} WHERE id >= ${min} AND id < ${max};`)
+    })
+    GenDoc.sousColls.forEach(nom => {
+      dels[nom] = this.sql.prepare(
+        `DELETE FROM ${nom} WHERE id >= ${min} AND id < ${max};`)
+    })
+
+    for (const nom in GenDoc._attrs) {
+      const st = dels[nom]
+      const info = st.run({})
+      log(`delete ${nom} - ${info.changes} rows`)
+    }
   }
 }

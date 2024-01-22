@@ -3,8 +3,8 @@ import { stdin, stdout } from 'node:process'
 import { createInterface } from 'readline'
 
 import { getStorageProvider, getDBProvider, ctx } from './server.js'
-import { AMJ } from './api.mjs'
-import { compile } from './gendoc.mjs'
+import { AMJ, ID } from './api.mjs'
+import { compile, GenDoc, changeNS } from './gendoc.mjs'
 
 function prompt (q) {
   return new Promise((resolve) => {
@@ -85,8 +85,8 @@ export class Outils {
       this.cfg = {}
       switch (this.outil) {
       case 'export-db' : {
-        this.setCfg('in', true)
-        this.setCfg('out', true)
+        this.setCfg('in', true, true)
+        this.setCfg('out', true, true)
         await this.exportDb()
         break
       }
@@ -106,6 +106,11 @@ export class Outils {
         await this.testSt()
         break
       }
+      case 'purge-db' : {
+        this.setCfg('in', true, true)
+        await this.purgeDb()
+        break
+      }
       default : {
         throw 'Premier argument attendu: export-db export-st test-db test-st. Trouvé [' + this.outil + ']'
       }
@@ -120,20 +125,20 @@ export class Outils {
 
   log (l) { stdout.write(l + '\n') }
 
-  setCfg (io, db) {
+  setCfg (io, db, s) {
     const e = {}
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
-    if (x.length !== (db ? 4 : 3)) 
-      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,doda,sqlite_a' + (db ? ',A' : '')
+    if (x.length !== (s ? 4 : 3)) 
+      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,doda,sqlite_a' + (s ? ',A' : '')
     e.ns = parseInt(x[0])
     if (e.ns < 10 || e.ns > 59)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (db ? ',site' : '') + '. ns [' + e.ns + ']: doit être 10 et 60'
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (s ? ',site' : '') + '. ns [' + e.ns + ']: doit être 10 et 60'
     e.org = x[1]
     if (!e.org)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (db ? ',site' : '') + '. org [' + e.org + ']: non trouvé'
-    if (db) {
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (s ? ',site' : '') + '. org [' + e.org + ']: non trouvé'
+    if (s) {
       e.appKey = ctx.site(x[3])
       e.site = x[3]
       if (!e.appKey)
@@ -142,13 +147,23 @@ export class Outils {
     e.pname = x[2]
     e.prov = db ? getDBProvider(x[2], e.site) : getStorageProvider(x[2])
     if (!e.prov)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (db ? ',site' : '') + '. provider [' + x[2] + ']: non trouvé'
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (s ? ',site' : '') + '. provider [' + x[2] + ']: non trouvé'
     this.cfg[io] = e
   }
 
   async exportDb() {
     const cin = this.cfg.in
     const cout = this.cfg.out
+    const pin = cin.prov
+    const pout = cout.prov
+ 
+    if (pin.type === 'firestore' && pout.type === 'firestore') {
+      if (pin.code !== pout.code)
+        throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre' 
+    }
+    if ((cin.ns === cout.ns) && (pin.code === pout.code)) 
+      throw 'Il n\'est pas possible d\'exporter un ns d`une base dans la même base sans changer de ns' 
+
     let msg = 'export-db:'
     msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
@@ -157,6 +172,51 @@ export class Outils {
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
+    // Opérations fake qui permettent de passer appKey aux méthodes decryptRow / preoRow
+    const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0}
+    const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0}
+    const scollIds = []
+
+    // CHANGER le nom de l'org dans espaces !!!
+
+    for (const nom of GenDoc.collsExp1) {
+      const row = await pin.getNV(opin, nom, cin.ns)
+      const row2 = changeNS(row, cin.ns, cout.ns)
+      await pout.insertRows(opout, [row2])
+      this.log(`export ${nom}`)
+    }
+
+    for (const nom of GenDoc.collsExp2) {
+      const v = nom === 'versions'
+      const rows = await pin.collNs(opin, nom, cin.ns)
+      for (const row of rows) {
+        if (v) scollIds.push(row.id)
+        const row2 = changeNS(row, cin.ns, cout.ns)
+        await pout.insertRows(opout, [row2])
+      }
+      this.log(`export ${nom} - ${rows.length}`)
+    }
+
+    let n = 0
+    const stats = {}
+    GenDoc.sousColls.forEach(nom => { stats[nom] = 0 })
+    for (const id of scollIds) {
+      n++
+      const sc = ID.estGroupe(id) ? GenDoc.collsExpG : GenDoc.collsExpA
+      for (const nom of sc) {
+        const rows = await pin.scoll(opin, nom, id, 0)
+        for (const row of rows) {
+          stats[nom]++
+          const row2 = changeNS(row, cin.ns, cout.ns)
+          await pout.insertRows(opout, [row2])
+        }
+      }
+      this.log2(`export ${id} ${scollIds.length} / ${n}`)
+    }
+    this.log2(`export ${scollIds.length} détails: OK`)
+    const lg = []
+    GenDoc.sousColls.forEach(nom => { lg.push(nom + ':' + stats[nom]) })
+    this.log(`\nexport ${scollIds.length} Versions : ${n} ` + lg.join('  '))
   }
 
   async exportSt() {
@@ -197,6 +257,19 @@ export class Outils {
 
   }
 
+  async purgeDb() {
+    const cin = this.cfg.in
+    let msg = 'purge-db:'
+    msg += ' ns:' + cin.ns
+    msg += ' org:' + cin.org
+    msg += ' provider:' + cin.pname
+    const resp = await prompt(msg + '\nValider (o/N) ?')
+    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
+
+    const p = cin.prov
+    await p.deleteNS(this.log, this.log2, cin.ns)
+  }
+
 }
 
 class OpTest1 extends OpSimple {
@@ -210,4 +283,3 @@ class OpTest1 extends OpSimple {
     console.log(espace.org)
   }
 }
-
