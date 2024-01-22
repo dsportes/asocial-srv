@@ -52,6 +52,8 @@ ctx.cmdargs = ctx.gae ? null : parseArgs({
   }
 })
 
+const util = ctx.cmdargs.positionals.length > 0
+
 // Setup Logging ***********************************************
 function setLogger () {
   const BUGGOOGLEWINSTON = true
@@ -165,7 +167,7 @@ try {
     }
   }
 
-  if (!ctx.cmdargs.outil) {
+  if (!util) {
     const site = config.run.site
     ctx.logger.info('SITE= [' + site + ']')
     ctx.appKey = ctx.site(site)
@@ -205,13 +207,13 @@ try {
 }
 
 // Utils ********************************************************
-if (ctx.cmdargs.outil) {
+if (util) {
   const [n, msg] = await new Outils().run()
   if (!n) {
     ctx.logger.info(msg)
     exit(0)
   } else {
-    ctx.logger.info(msg)
+    ctx.logger.error(msg)
     exit(n)
   }
 }
@@ -498,7 +500,7 @@ async function operation(req, res) {
       const xx = (e.stack ? e.stack + '\n' : '') + (ctx.db ? ctx.db.excInfo() : '')
       s = new AppExc(E_SRV, 0, [e.message], xx).toString()
     }
-    if (ctx.debug) ctx.logger.debug(pfx + ' ' + httpst + ' : ' + s)
+    if (ctx.mondebug) ctx.logger.debug(pfx + ' ' + httpst + ' : ' + s)
     setRes(res, httpst).send(Buffer.from(s))
   }
 }

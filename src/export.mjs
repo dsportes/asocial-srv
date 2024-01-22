@@ -1,8 +1,10 @@
 
 import { stdin, stdout } from 'node:process'
+import { createInterface } from 'readline'
+
 import { getStorageProvider, getDBProvider, ctx } from './server.js'
 import { AMJ } from './api.mjs'
-import { createInterface } from 'readline'
+import { compile } from './gendoc.mjs'
 
 function prompt (q) {
   return new Promise((resolve) => {
@@ -77,6 +79,7 @@ class OpSimple {
 export class Outils {
   async run () {
     try {
+      this.log('======================================================')
       this.args = ctx.cmdargs
       this.outil = this.args.positionals[0]
       this.cfg = {}
@@ -94,7 +97,7 @@ export class Outils {
         break
       }
       case 'test-db' : {
-        this.setCfg('in', false)
+        this.setCfg('in', true)
         await this.testDb()
         break
       }
@@ -107,7 +110,7 @@ export class Outils {
         throw 'Premier argument attendu: export-db export-st test-db test-st. Trouvé [' + this.outil + ']'
       }
       }
-      return [0, '']
+      return [0, this.outil + ' OK']
     } catch (e) {
       return [1, e]
     }
@@ -119,10 +122,10 @@ export class Outils {
 
   setCfg (io, db) {
     const e = {}
-    const arg = this.args[io]
+    const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
-    if (x.length !== db ? 4 : 3) 
+    if (x.length !== (db ? 4 : 3)) 
       throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,doda,sqlite_a' + (db ? ',A' : '')
     e.ns = parseInt(x[0])
     if (e.ns < 10 || e.ns > 59)
@@ -134,12 +137,12 @@ export class Outils {
       e.appKey = ctx.site(x[3])
       e.site = x[3]
       if (!e.appKey)
-        throw 'Argument --' + io + ' : Attendu: ns,org,provider,site . Pas de key pour le site [' + e.x[3] + ']'
+        throw 'Argument --' + io + ' : Attendu: ns,org,provider,site . site [' + e.x[3] + '] inconnu'
     }
     e.pname = x[2]
-    e.prov = db ? getDBProvider(x[2], e.appKey) : getStorageProvider(x[2])
+    e.prov = db ? getDBProvider(x[2], e.site) : getStorageProvider(x[2])
     if (!e.prov)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (db ? ',site' : '') + '. provider [' + e.x[2] + ']: non trouvé'
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (db ? ',site' : '') + '. provider [' + x[2] + ']: non trouvé'
     this.cfg[io] = e
   }
 
@@ -147,12 +150,12 @@ export class Outils {
     const cin = this.cfg.in
     const cout = this.cfg.out
     let msg = 'export-db:'
-    msg += cin.ns === cout.ns ? ' ns:' + cin.ns : 'ns:' + cin.ns + '=>' + cout.ns
+    msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
     msg += cin.site === cout.site ? ' site:' + cin.site : ' site:' + cin.site + '=>' + cout.site
     const resp = await prompt(msg + '\nValider (o/N) ?')
-    if (resp === 'n' || resp === 'N') throw 'Exécution interrompue.'
+    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
   }
 
@@ -160,11 +163,11 @@ export class Outils {
     const cin = this.cfg.in
     const cout = this.cfg.out
     let msg = 'export-st:'
-    msg += cin.ns === cout.ns ? ' ns:' + cin.ns : 'ns:' + cin.ns + '=>' + cout.ns
+    msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
-    if (resp === 'n' || resp === 'N') throw 'Exécution interrompue.'
+    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
   }
 
@@ -176,8 +179,11 @@ export class Outils {
     msg += ' provider:' + cin.pname
     msg += ' site:' + cin.site
     const resp = await prompt(msg + '\nValider (o/N) ?')
-    if (resp === 'n' || resp === 'N') throw 'Exécution interrompue.'
+    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
+    const op = new OpTest1(this.cfg.in.prov, null)
+    op.args = cin
+    await op.phase2(cin)
   }
 
   async testSt() {
@@ -187,9 +193,21 @@ export class Outils {
     msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
-    if (resp === 'n' || resp === 'N') throw 'Exécution interrompue.'
+    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
   }
 
-} 
+}
+
+class OpTest1 extends OpSimple {
+  constructor (provider) {
+    super(provider, null)
+  }
+
+  async phase2 (args) {
+    const row = await this.db.org(this, args.ns)
+    const espace = compile(row)
+    console.log(espace.org)
+  }
+}
 

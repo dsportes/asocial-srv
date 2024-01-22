@@ -79,7 +79,7 @@ class Cache {
     const k = nom + '/' + id
     const x = Cache.map.get(k)
     if (x) { // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
-      const n = await this.db.getV(op, nom, id, x.row.v)
+      const n = await op.db.getV(op, nom, id, x.row.v)
       x.lru = Date.now()
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
@@ -129,7 +129,7 @@ class Cache {
   Enrichissement de la cache APRES le commit de la transaction avec
   tous les rows créés, mis à jour ou accédés (en ayant obtenu la "dernière")
   */
-  static update (op, newRows, delRowPaths) { // set des path des rows supprimés
+  static update (newRows, delRowPaths) { // set des path des rows supprimés
     for(const row of newRows) {
       if (GenDoc.sousColls.has(row._nom)) continue
       const k = row._nom + '/' + row.id
@@ -182,7 +182,7 @@ class Cache {
     if (org) return org
     const row = await op.db.org(op, ns)
     if (row) {
-      Cache.update(op, [row], [])
+      Cache.update([row], [])
       return row.org
     }
     return null
@@ -291,7 +291,7 @@ export class Operation {
       this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
       this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
       this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-      Cache.update(this, updated, deleted)
+      Cache.update(updated, deleted)
 
       if (this.phase3) await this.phase3(this.args) // peut ajouter des résultas
     }
@@ -792,7 +792,7 @@ export class Operation {
   - compta: l'objet compilé correspondant
   */
   async auth () {
-    const s = AuthSession.get(this)
+    const s = await AuthSession.get(this)
     if (!this.authMode && s) {
       // la session est connue dans l'instance, OK
       this.session = s
@@ -805,7 +805,7 @@ export class Operation {
       const shax64 = Buffer.from(this.authData.shax).toString('base64')
       if (ctx.adminKey.indexOf(shax64) !== -1) {
         // session admin authentifiée
-        this.session = AuthSession.set(this, 0, true)
+        this.session = await AuthSession.set(this, 0, true)
         return
       }
       await sleep(3000)
@@ -816,7 +816,7 @@ export class Operation {
     if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 101) }
     this.compta = compile(rowCompta)
     if (this.compta.hpsc !== this.authData.hpsc) throw new AppExc(F_SRV, 101)
-    this.session = AuthSession.set(this, this.compta.id, this.lecture)
+    this.session = await AuthSession.set(this, this.compta.id, this.lecture)
   }
 }
 
@@ -835,9 +835,9 @@ export class AuthSession {
     this.ttl = Date.now() + AuthSession.ttl
   }
 
-  setEspace (op) {
+  async setEspace (op) {
     if (!this.id) return this
-    const esp = Cache.getEspaceLazy(op, this.ns)
+    const esp = await Cache.getEspaceLazy(op, this.ns)
     this.notifG = null
     if (!esp) { 
       this.notifG = {
@@ -853,7 +853,7 @@ export class AuthSession {
   }
 
   // Retourne la session identifiée par sessionId et en prolonge la durée de vie
-  static get (op) {
+  static async get (op) {
     const sessionId = op.authData.sessionId
     const t = Date.now()
     if (t - AuthSession.dernierePurge > AuthSession.ttl / 10) {
@@ -863,7 +863,7 @@ export class AuthSession {
     }
     const s = AuthSession.map.get(sessionId)
     if (s) {
-      s.setEspace(op)
+      await s.setEspace(op)
       s.ttl = t + AuthSession.ttl
       if (s.sync) s.sync.pingrecu()
       return s
@@ -872,7 +872,7 @@ export class AuthSession {
   }
 
   // Enregistre la session avec l'id du compte de la session
-  static set (op, id, noExcFige) {
+  static async set (op, id, noExcFige) {
     const sessionId = op.authData.sessionId
     let sync = null
     if (op.db.hasWS) {
@@ -881,7 +881,7 @@ export class AuthSession {
       if (id) sync.setCompte(id)
       sync.pingrecu()
     }
-    const s = new AuthSession(sessionId, id, sync).setEspace(noExcFige)
+    const s = await new AuthSession(sessionId, id, sync).setEspace(op, noExcFige)
     AuthSession.map.set(sessionId, s)
     s.ttl = Date.now() + AuthSession.ttl
     return s

@@ -2,7 +2,7 @@ import { Firestore } from '@google-cloud/firestore'
 
 import { decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
-import { GenDoc, prepRow, decryptRow } from './gendoc.mjs'
+import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID } from './api.mjs'
 
 export class FirestoreProvider {
@@ -26,9 +26,9 @@ export class FirestoreProvider {
     return ''
   }
 
-  setSyncData (op) {
-    op.setRes('credentials', this.fscredentials)
-    op.setRes('emulator', this.emulator)
+  setSyncData(op) {
+    op.setRes('credentials', ctx.keys.firebase_config)
+    op.setRes('emulator', ctx.env.FIRESTORE_EMULATOR_HOST || null)
   }
 
   async doTransaction (op) {
@@ -80,7 +80,7 @@ export class FirestoreProvider {
 
   async setRows (op, rows) {
     for (const row of rows) {
-      const r = prepRow(op, row)
+      const r = await prepRow(op, row)
       if (GenDoc.majeurs.has(row._nom)) {
         const v = ('' + row.v).padStart(9, '0')
         r.id_v = row.id + v
@@ -186,7 +186,7 @@ export class FirestoreProvider {
     if (qs.empty) return null
     const row = qs.docs[0].data()
     op.nl++
-    return await decryptRow(op, row)
+    return compile(await decryptRow(op, row))
   }
 
   /* Retourne LE chat si sa CV est MOINS récente que celle détenue en session (de version vcv)
@@ -203,7 +203,7 @@ export class FirestoreProvider {
     if (!row) return null
     row._nom = 'chats'
     op.nl++
-    return await decryptRow(op, row)
+    return compile(await decryptRow(op, row))
   }
 
   /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
@@ -239,7 +239,7 @@ export class FirestoreProvider {
     if (!row) return null
     row._nom = 'membres'
     op.nl++
-    return await decryptRow(op, row)
+    return compile(await decryptRow(op, row))
   }
 
   async getComptaHps1(op, hps1) {
@@ -441,7 +441,9 @@ export class FirestoreProvider {
     const ds = await dr.get()
     if (ds.exists) {
       op.nl++
-      return await decryptRow(op, ds.data())
+      const row = ds.data()
+      row._nom = 'espaces'
+      return await decryptRow(op, row)
     }
     return null
   }

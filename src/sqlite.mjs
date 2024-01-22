@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { Database } from './loadreq.mjs'
 import { decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
-import { GenDoc, prepRow, decryptRow } from './gendoc.mjs'
+import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID } from './api.mjs'
 
 export class SqliteProvider {
@@ -36,6 +36,10 @@ export class SqliteProvider {
 
   excInfo () {
     return this.lastSql.join('\n')
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  setSyncData(op) {
   }
 
   async doTransaction (op) {
@@ -105,7 +109,7 @@ export class SqliteProvider {
   deleteRows (op, rows) {
     for (const row of rows) {
       const code = 'DEL' + row._nom
-      const st = this._stmt(code, GenDoc._delStmt(row._nom))
+      const st = this._stmt(code, this._delStmt(row._nom))
       st.run(row) // row contient id et ids
     }
   }
@@ -118,9 +122,9 @@ export class SqliteProvider {
 
   async insertRows (op, rows) {
     for (const row of rows) {
-      const r = prepRow(op, row)
+      const r = await prepRow(op, row)
       const code = 'INS' + row._nom
-      const st = this._stmt(code, GenDoc._insStmt(row._nom))
+      const st = this._stmt(code, this._insStmt(row._nom))
       st.run(r)
     }
   }
@@ -128,8 +132,8 @@ export class SqliteProvider {
   async updateRows (op, rows) {
     for (const row of rows) {
       const code = 'UPD' + row._nom
-      const st = this._stmt(code, GenDoc._updStmt(row._nom))
-      const r = prepRow(op, row)
+      const st = this._stmt(code, this._updStmt(row._nom))
+      const r = await prepRow(op, row)
       st.run(r)
     }
   }
@@ -183,7 +187,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'avatars'
       op.nl++
-      return await decryptRow(op, row)
+      return compile(await decryptRow(op, row))
     }
     return null
   }
@@ -196,7 +200,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'chats'
       op.nl++
-      return await decryptRow(op, row)
+      return compile(await decryptRow(op, row))
     }
     return null
   }
@@ -222,7 +226,7 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'membres'
       op.nl++
-      return await decryptRow(op, row)
+      return compile(await decryptRow(op, row))
     }
     return null
   }
@@ -379,6 +383,7 @@ export class SqliteProvider {
     const st = this._stmt('SELORG', 'SELECT * FROM espaces WHERE id = @id')
     const row = st.get({ id: ns })
     if (row) {
+      row._nom = 'espaces'
       op.nl++
       return await decryptRow(op, row)
     }
