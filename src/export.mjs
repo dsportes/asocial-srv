@@ -82,6 +82,7 @@ export class Outils {
       this.log('======================================================')
       this.args = ctx.cmdargs
       this.outil = this.args.positionals[0]
+      this.simu = this.args.values.simulation
       this.cfg = {}
       switch (this.outil) {
       case 'export-db' : {
@@ -235,14 +236,48 @@ export class Outils {
   }
 
   async exportSt() {
+    const espaces = '                                                                           '
     const cin = this.cfg.in
     const cout = this.cfg.out
     let msg = 'export-st:'
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
+    msg += this.simu ? ' SIMULATION' : ' !!! REEL !!!'
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
+    const pin = cin.prov
+    const pout = cout.prov
+    const ids = await pin.listIds(cin.org)
+    if (!ids.length) {
+      this.log('Terminé : aucun fichier à exporter')
+      return
+    }
+
+    let nbav = 0, nbgr = 0, nbfav = 0, volav = 0, nbfgr = 0, volgr = 0, n = 0
+    ids.forEach(id => { if (ID.estGroupe(id)) nbgr++; else nbav++ })
+    this.log(`Fichiers de ${nbav} avatar(s) et ${nbgr} groupe(s)`)
+
+    for (const id of ids) {
+      n++
+      const estG = ID.estGroupe(id)
+      const lstf = await pin.listFiles(cin.org, id)
+      if (estG) nbfgr += lstf.length; else nbfav += lstf.length
+      for (const idf of lstf) {
+        const data = await pin.getFile (cin.org, id, idf)
+        if (!data) {
+          this.log(`\r\nSTORAGE CORROMPU : fichier perdu [${cin.org}/${id}/${idf}` + espaces + '\n')
+        } else {
+          if (estG) volgr += data.length; else volav += data.length
+          if (!this.simu) await pout.putFile(cout.org, id, idf, data)
+          this.log2(`groupe/avatar ${n} / ${ids.length} - [${id}] - ${nbfav + nbfgr} fichier(s) - ${volav + volgr} bytes`)
+        }
+      }
+    }
+    this.log(`\r${nbav} avatar(s) - ${nbfav} fichier(s) - ${volav} bytes` + espaces)
+    this.log(`${nbgr} groupe(s) - ${nbfgr} fichier(s) - ${volgr} bytes`)
+    this.log(`Export ${this.simu ? 'simulé' : 'REEL'} terminé avec succès.`)
+  
   }
 
   async testDb() {
@@ -266,7 +301,9 @@ export class Outils {
     msg += ' provider:' + cin.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
-
+    const p = cin.prov
+    await p.ping()
+    this.log('\nEcriture de la date-heure dans /ping.txt')
   }
 
   async purgeDb() {
@@ -286,11 +323,17 @@ export class Outils {
     let msg = 'purge-db:'
     msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname
+    msg += this.simu ? ' SIMULATION' : ' !!! REEL !!!'
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
     const p = cin.prov
-    await p.deleteNS(this.log, this.log2, cin.org)
+    if (!this.simu) {
+      await p.delOrg(cin.org)
+      this.log('\nPurge de ' + cin.org + ' terminée')
+    } else {
+      this.log('\nPurge de ' + cin.org + ' a priori possible')
+    }
   }
 
 }

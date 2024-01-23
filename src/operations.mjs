@@ -4,7 +4,7 @@ import { encode, decode } from '@msgpack/msgpack'
 
 import { AuthSession, Operation, trace} from './modele.mjs'
 import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
-import { sleep, crypterRSA, crypterRaw } from './util.mjs'
+import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
 import { limitesjour, FLAGS, edit } from './api.mjs'
 
 export function atStart() {
@@ -4196,7 +4196,12 @@ operations.CrypterRaw = class CrypterRaw extends Operation {
   async phase2 (args) {
     const avatar = compile(await this.getRowAvatar(args.id, 'TestRSA-1'))
     const pub = avatar.pub
-    const data = crypterRaw(pub, args.data, args.gz)
+    const data = crypterRaw(this.db.appKey, pub, args.data, args.gz)
+    /*
+    const d2 = decrypterRaw(this.db.appKey, data)
+    const t = d2.toString()
+    console.log(t.substring(0, 30))
+    */
     this.setRes('data', new Uint8Array(data))
   }
 }

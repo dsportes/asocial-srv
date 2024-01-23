@@ -203,7 +203,7 @@ try {
   }
 
 } catch (e) {
-  ctx.logger.error(e.toString())
+  ctx.logger.error(e.toString() + '\n' + e.stack)
   exit(1)
 }
 
@@ -390,11 +390,11 @@ try {
   }
 
   server.on('error', (e) => { // les erreurs de création du server ne sont pas des exceptions
-    console.error('server.js : HTTP error = ' + e.message)
+    console.error('server.js : HTTP error = ' + e.message + '\n' + e.stack)
   })
 
 } catch(e) { // exception générale. Ne devrait jamais être levée
-  console.error('server.js : catch global = ' + e.message)
+  console.error('server.js : catch global = ' + e.message + '\n' + e.stack)
 }
 
 //************************************************************* 

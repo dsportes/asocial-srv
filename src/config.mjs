@@ -67,7 +67,7 @@ const run2 = {
   // Origines autorisées
   origins: [ 'localhost:8343' ],
   // Provider DB
-  storage_provider: optA === 1 ? 'gc_a' : 'fs_a',
+  storage_provider: optA === 1 ? 'gc_a' : 'fs_b',
   // Provider Storage
   db_provider: optA === 1 ? 'firestore_a' : 'sqlite_b',
 }
@@ -93,7 +93,7 @@ export const config = {
 
   env: env1,
 
-  run: run2,
+  run: run1,
 
   s3_a: {
     bucket: 'asocial'

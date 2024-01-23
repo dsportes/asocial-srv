@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { deflateSync } from 'zlib'
+import { deflateSync, inflateSync } from 'zlib'
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { AppExc, E_SRV } from './api.mjs'
 
@@ -94,28 +94,76 @@ export function crypterRSA (pub, u8) {
   }
 }
 
-/* Cryptage générique d'un binaire lisible par connaissance de la clé privée RSA:
+/* Cryptage générique d'un binaire lisible par connaissance,
+- soit de la clé privée RSA de l'avatar
+- soit de la clé du site avec comme IV les 16 premiers bytes de celle-ci.
+
 - pub: clé publique RSA (en binaire)
 - data: contenu binaire
 - gz: true s'il faut compresser avant cryptage
-Retourne un binaire dont,
-- les 256 premiers bytes cryptent par la clé publique RSA: aes, iv, gz (0 /1)
-  - 32 bytes - aes: clé AES unique générée, 
-  - 16 bytes - iv: vecteur IV utilisé,
-  - 1 byte - gz: 1 si gzippé, 0 sinon
-- les suivants sont le texte de data, gzippé ou non, crypté par la clé AES générée.
+
+Le binaire retourné a plusieurs parties:
+- soit X le descriptif du cryptage:
+  - 32 bytes: la clé AES générée
+  - 16 bytes: l'IV utilisé
+  - 1 byte: 1 si gz
+- soit p3 le cryptage de X par la clé du site avec comme IV les 16 premiers bytes de celle-ci.
+
+- tranche p1: 256 bytes - cryptage RSA de X
+- tranche p2: 1 byte - longueur de p3
+- tranche p3:
+- tranche p4: texte de data, gzippé ou non, crypté par la clé AES générée.
 */
-export function crypterRaw (pub, data, gz) {
+export function crypterRaw (k, pub, data, gz) {
   const aes = new Uint8Array(crypto.randomBytes(32))
   const g = new Uint8Array([gz ? 1 : 0])
   const x = Buffer.concat([Buffer.from(aes), Buffer.from(IV), Buffer.from(g)])
+
   const hdr = crypterRSA (pub, x)
+
+  const IVX = new Uint8Array(Buffer.from(k).subarray(0, 16))
+  const cipher1 = crypto.createCipheriv('aes-256-cbc', k, IVX)
+  const k1 = cipher1.update(x)
+  const k2 = cipher1.final()
+  const k3 = Buffer.concat([k1, k2])
+  const lk3 = Buffer.from(new Uint8Array([k3.length]))
 
   const b1 = Buffer.from(data)
   const b2 = gz ? deflateSync(b1) : b1
-  const cipher = crypto.createCipheriv('aes-256-cbc', aes, IV)
-  const x1 = cipher.update(b2)
-  const x2 = cipher.final()
+  const cipher2 = crypto.createCipheriv('aes-256-cbc', aes, IV)
+  const x1 = cipher2.update(b2)
+  const x2 = cipher2.final()
+  const r = Buffer.concat([hdr, lk3, k3, x1, x2])
+  return r
+}
 
-  return Buffer.concat([hdr, x1, x2])
+export function decrypterRaw (k, data) {
+  if (!data) return null
+  const bin = Buffer.from(data)
+  const bk = Buffer.from(k)
+
+  // const p1 = data.slice(0, 256)
+  const p2 = new Uint8Array(bin.subarray(256, 257))[0]
+  const p3 = bin.subarray(257, 257 + p2)
+  const p4 = bin.subarray(257 + p2)
+
+  if (!p4 || !p4.length) return new Uint8Array(0)
+
+  const ivx = Buffer.from(bk.subarray(0, 16))
+  const decipher1 = crypto.createDecipheriv('aes-256-cbc', bk, ivx)
+  const x1 = decipher1.update(p3)
+  const x2 = decipher1.final()
+  const b3 = Buffer.concat([x1, x2])
+
+  const aes = b3.subarray(0, 32)
+  const iv = b3.subarray(32, 48)
+  const gz = new Uint8Array(b3.subarray(48, 49))[0]
+
+  const decipher2 = crypto.createDecipheriv('aes-256-cbc', aes, iv)
+  const y1 = decipher2.update(p4)
+  const y2 = decipher2.final()
+  const r = Buffer.concat([y1, y2])
+
+  if (!gz) return r
+  return inflateSync(r)
 }
