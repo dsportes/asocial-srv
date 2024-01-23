@@ -171,6 +171,7 @@ try {
     const site = config.run.site
     ctx.logger.info('SITE= [' + site + ']')
     ctx.appKey = ctx.site(site)
+    ctx.appKeyBin = Buffer.from(ctx.appKey, 'base64')
     ctx.rooturl = config.run.rooturl
     ctx.logger.info('ROOTURL= [' + ctx.rooturl + ']')
     ctx.port = env.PORT || config.run.port
@@ -260,7 +261,7 @@ app.get('/fs', (req, res) => {
 
 //**** favicon.ico du sites ****
 app.get('/favicon.ico', (req, res) => {
-  setRes(res, 200, 'image/x-icon').send(ctx.favicon)
+  setRes(res, 200, 'image/x-icon').send(ctx.keys.favicon)
 })
 
 //**** robots.txt du sites ****

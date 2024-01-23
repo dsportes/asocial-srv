@@ -238,6 +238,7 @@ export class Operation {
     this.nl = 0
     this.ne = 0
     this.result = { dh: this.dh, sessionId: this.authData ? this.authData.sessionId : '666' }
+    this.toInsert = []; this.toUpdate = []; this.toDelete = []
 
     if (this.phase1) {
       this.phase = 1
@@ -267,7 +268,7 @@ export class Operation {
         // (B) envoi en synchronisation des rows modifiés
         const rows = []
         this.toUpdate.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
-        this.toInsert.forEach(row => { if (GenDoc.has(row._nom)) rows.push(row) })
+        this.toInsert.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
         if (rows.length) SyncSession.toSync(rows)
       }
     } else {

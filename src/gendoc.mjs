@@ -58,7 +58,7 @@ export function changeNS (row, nsin, nsout) {
     d.id = id
     row._data_ = encode(d)
   }
-  row.id = nsout
+  row.id = id
   return row
 }
 

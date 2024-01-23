@@ -58,6 +58,20 @@ const run1 = {
   db_provider: optA === 1 ? 'firestore_a' : 'sqlite_a',
 }
 
+const run2 = {
+  site: 'A',
+  // URL externe d'appel du serveur 
+  rooturl: optA === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',
+  // Port d'écoute si NON gae
+  port: optA !== 1 ? 8443 : 0, // port: 443,
+  // Origines autorisées
+  origins: [ 'localhost:8343' ],
+  // Provider DB
+  storage_provider: optA === 1 ? 'gc_a' : 'fs_a',
+  // Provider Storage
+  db_provider: optA === 1 ? 'firestore_a' : 'sqlite_b',
+}
+
 export const config = {
   // Paramètres fonctionnels
   tarifs: [
@@ -79,7 +93,7 @@ export const config = {
 
   env: env1,
 
-  run: run1,
+  run: run2,
 
   s3_a: {
     bucket: 'asocial'

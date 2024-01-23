@@ -21,13 +21,13 @@ function deserial (arg) { return decode(Buffer.from(arg)) }
 
 function encode3 (org, id, idf) {
   const x = serial([org, id, idf])
-  const y = crypterSrv(x)
+  const y = crypterSrv(ctx.appKeyBin, x)
   const z = u8ToB64(y, true)
   return z
 }
 
 export function decode3 (arg) { // retourne [org, id, idf]
-  return deserial(decrypterSrv(b64ToU8(arg)))
+  return deserial(decrypterSrv(ctx.appKeyBin, b64ToU8(arg)))
 }
 
 function stream2buffer(stream) {

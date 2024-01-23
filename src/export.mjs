@@ -85,30 +85,35 @@ export class Outils {
       this.cfg = {}
       switch (this.outil) {
       case 'export-db' : {
-        this.setCfg('in', true, true)
-        this.setCfg('out', true, true)
+        this.setCfgDb('in')
+        this.setCfgDb('out')
         await this.exportDb()
         break
       }
       case 'export-st' : {
-        this.setCfg('in', false)
-        this.setCfg('out', false)
+        this.setCfgSt('in')
+        this.setCfgSt('out')
         await this.exportSt()
         break
       }
       case 'test-db' : {
-        this.setCfg('in', true)
+        this.setCfgDb('in')
         await this.testDb()
         break
       }
       case 'test-st' : {
-        this.setCfg('in', false)
+        this.setCfgSt('in')
         await this.testSt()
         break
       }
       case 'purge-db' : {
-        this.setCfg('in', true, true)
+        this.setCfgDb('in')
         await this.purgeDb()
+        break
+      }
+      case 'purge-st' : {
+        this.setCfgSt('in')
+        await this.purgeSt()
         break
       }
       default : {
@@ -117,7 +122,8 @@ export class Outils {
       }
       return [0, this.outil + ' OK']
     } catch (e) {
-      return [1, e]
+      if (typeof e === 'string') return [1, e]
+      return [1, e.toString() + '\n' + e.stack]
     }
   }
 
@@ -125,29 +131,41 @@ export class Outils {
 
   log (l) { stdout.write(l + '\n') }
 
-  setCfg (io, db, s) {
+  setCfgDb (io) {
     const e = {}
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
-    if (x.length !== (s ? 4 : 3)) 
-      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,doda,sqlite_a' + (s ? ',A' : '')
+    if (x.length !== 3) 
+      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,sqlite_a,A + ( ns,provider,site)'
     e.ns = parseInt(x[0])
     if (e.ns < 10 || e.ns > 59)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (s ? ',site' : '') + '. ns [' + e.ns + ']: doit être 10 et 60'
-    e.org = x[1]
-    if (!e.org)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (s ? ',site' : '') + '. org [' + e.org + ']: non trouvé'
-    if (s) {
-      e.appKey = ctx.site(x[3])
-      e.site = x[3]
-      if (!e.appKey)
-        throw 'Argument --' + io + ' : Attendu: ns,org,provider,site . site [' + e.x[3] + '] inconnu'
-    }
-    e.pname = x[2]
-    e.prov = db ? getDBProvider(x[2], e.site) : getStorageProvider(x[2])
+      throw 'Argument --' + io + ' : Attendu: ns,provider,site : ns [' + e.ns + ']: doit être 10 et 60'
+    e.appKey = ctx.site(x[2])
+    e.site = x[2]
+    if (!e.appKey)
+      throw 'Argument --' + io + ' : Attendu: ns,provider,site . site [' + e.x[2] + '] inconnu'
+    e.pname = x[1]
+    e.prov = getDBProvider(x[1], e.site)
     if (!e.prov)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider' + (s ? ',site' : '') + '. provider [' + x[2] + ']: non trouvé'
+      throw 'Argument --' + io + ' : Attendu: ns,provider,site : provider [' + x[1] + ']: non trouvé'
+    this.cfg[io] = e
+  }
+
+  setCfgSt (io) {
+    const e = {}
+    const arg = this.args.values[io]
+    if (!arg) throw 'Argument --' + io + ' non trouvé'
+    const x = arg.split(',')
+    if (x.length !== 2) 
+      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: doda,fs_a'
+    e.org = x[0]
+    if (!e.org || e.org.length < 4 || e.org.length > 12)
+      throw 'Argument --' + io + ' : Attendu: org,provider : org [' + e.org + ']: est un code de 4 à 12 caractères'
+    e.pname = x[1]
+    e.prov = getStorageProvider(x[1])
+    if (!e.prov)
+      throw 'Argument --' + io + ' : Attendu: org,provider : provider [' + x[1] + ']: non trouvé'
     this.cfg[io] = e
   }
 
@@ -159,14 +177,13 @@ export class Outils {
  
     if (pin.type === 'firestore' && pout.type === 'firestore') {
       if (pin.code !== pout.code)
-        throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre' 
+        throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre Firestore' 
     }
     if ((cin.ns === cout.ns) && (pin.code === pout.code)) 
       throw 'Il n\'est pas possible d\'exporter un ns d`une base dans la même base sans changer de ns' 
 
     let msg = 'export-db:'
     msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
-    msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
     msg += cin.site === cout.site ? ' site:' + cin.site : ' site:' + cin.site + '=>' + cout.site
     const resp = await prompt(msg + '\nValider (o/N) ?')
@@ -176,8 +193,6 @@ export class Outils {
     const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0}
     const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0}
     const scollIds = []
-
-    // CHANGER le nom de l'org dans espaces !!!
 
     for (const nom of GenDoc.collsExp1) {
       const row = await pin.getNV(opin, nom, cin.ns)
@@ -223,7 +238,6 @@ export class Outils {
     const cin = this.cfg.in
     const cout = this.cfg.out
     let msg = 'export-st:'
-    msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
@@ -235,7 +249,6 @@ export class Outils {
     const cin = this.cfg.in
     let msg = 'test-db:'
     msg += ' ns:' + cin.ns
-    msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname
     msg += ' site:' + cin.site
     const resp = await prompt(msg + '\nValider (o/N) ?')
@@ -249,7 +262,6 @@ export class Outils {
   async testSt() {
     const cin = this.cfg.in
     let msg = 'test-db:'
-    msg += ' ns:' + cin.ns
     msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
@@ -258,16 +270,27 @@ export class Outils {
   }
 
   async purgeDb() {
-    const cin = this.cfg.in
+    const cin = this.outilcfg.in
     let msg = 'purge-db:'
     msg += ' ns:' + cin.ns
-    msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
     const p = cin.prov
     await p.deleteNS(this.log, this.log2, cin.ns)
+  }
+
+  async purgeSt() {
+    const cin = this.cfg.in
+    let msg = 'purge-db:'
+    msg += ' org:' + cin.org
+    msg += ' provider:' + cin.pname
+    const resp = await prompt(msg + '\nValider (o/N) ?')
+    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
+
+    const p = cin.prov
+    await p.deleteNS(this.log, this.log2, cin.org)
   }
 
 }
