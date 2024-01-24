@@ -182,6 +182,18 @@ export class SqliteProvider {
     return null
   }
   
+  async getEspaceOrg(op, org) {
+    const code = 'SELORG'
+    const st = this._stmt(code, 'SELECT * FROM espaces  WHERE org = @org')
+    const row = st.get({ org })
+    if (row) {
+      row._nom = 'espaces'
+      op.nl++
+      return await decryptRow(op, row)
+    }
+    return null
+  }
+
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   */
   async getAvatarVCV(op, id, vcv) {

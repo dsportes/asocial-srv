@@ -179,6 +179,15 @@ export class FirestoreProvider {
     return null
   }
 
+  async getEspaceOrg(op, org) {
+    const q = this.fs.collection('espaces').where('org', '==', org)
+    const qs = await op.transaction.get(q)
+    if (qs.empty) return null
+    const row = qs.docs[0].data()
+    op.nl++
+    return compile(await decryptRow(op, row))
+  }
+
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   */
   async getAvatarVCV (op, id, vcv) {

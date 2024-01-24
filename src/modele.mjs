@@ -65,7 +65,14 @@ class Cache {
 
   static checkpoint = { id: 1, v: 0, _data_: null }
 
-  static orgs = new Map()
+  static orgs = new Map() // clé: ns, value: org
+
+  static orgs2 = new Map() // clé: org, value: ns
+
+  static setNsOrg (ns, org) {
+    Cache.orgs.set(ns, org)
+    Cache.orgs2.set(org, ns)
+  }
 
   /* Obtient le row de la cache ou va le chercher.
   Si le row actuellement en cache est le plus récent on a évité une lecture effective
@@ -83,7 +90,7 @@ class Cache {
       x.lru = Date.now()
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
-        Cache.orgs.set(x.row.id, x.row.org)
+        Cache.setNsOrg(x.row.id, x.row.org)
       return x.row
     }
     const n = await op.db.getV(op, nom, id, 0)
@@ -92,7 +99,7 @@ class Cache {
       this.map.set(k, y)
     }
     if (n && n._nom === 'espaces' && !Cache.orgs.has(n.id))
-      Cache.orgs.set(n.id, n.org)
+      Cache.setNsOrg(n.id, n.org)
     return n
   }
 
@@ -113,16 +120,27 @@ class Cache {
         const e = await op.db.getV(Cache.opFake, 'espaces', ns, x.row.v)
         if (e) x.row = e
         x.lru = now
-        if (!Cache.orgs.has(x.row.id)) Cache.orgs.set(x.row.id, x.row.org)
+        if (!Cache.orgs.has(x.row.id)) Cache.setNsOrg(x.row.id, x.row.org)
       }
     } else {
       const e = await op.db.getV(Cache.opFake, 'espaces', ns, 0)
       if (!e) return null
       x = { lru: Date.now(), row: e }
-      this.map.set(k, x)
+      Cache.map.set(k, x)
     }
-    if (!Cache.orgs.has(x.row.id)) Cache.orgs.set(x.row.id, x.row.org)
+    if (!Cache.orgs.has(x.row.id)) Cache.setNsOrg(x.row.id, x.row.org)
     return compile(x.row)
+  }
+
+  static async getEspaceOrg (op, org) {
+    let ns = Cache.orgs2.get(org)
+    if (ns) return await Cache.getEspaceLazy(op, ns)
+    const row = await op.db.getEspaceOrg(op, org)
+    if (!row) return null
+    ns = row.id
+    Cache.map.set('espaces/' + ns, { lru: Date.now(), row: row })
+    Cache.setNsOrg(row.id, row.org)
+    return compile(row)
   }
 
   /*
@@ -140,7 +158,7 @@ class Cache {
         this.map.set(k, { lru: Date.now(), row: row })
       }
       if (row._nom === 'espaces' && !Cache.orgs.has(row.id))
-        Cache.orgs.set(row.id, row.org)
+        Cache.setNsOrg(row.id, row.org)
     }
     if (delRowPaths && delRowPaths.size) {
       delRowPaths.forEach(p => { Cache.map.delete(p) })
@@ -176,7 +194,7 @@ class Cache {
     Cache.checkpoint._data_ = _data_
   }
 
-  static async org (op, id) {
+  static async org (op, id) { 
     const ns = id < 100 ? id : ID.ns(id)
     const org = Cache.orgs.get(ns)
     if (org) return org
@@ -400,6 +418,8 @@ export class Operation {
   /* Depuis Cache */
 
   async org (ns) { return Cache.org(this, ns)}
+
+  async getEspaceOrg (org) { return Cache.getEspaceOrg(this, org) }
 
   async getCheckpoint () { return Cache.getCheckpoint(this) }
 
@@ -813,7 +833,10 @@ export class Operation {
       throw new AppExc(F_SRV, 101) // pas reconnu
     }
 
-    const rowCompta = await this.getComptaHps1(this.authData.hps1, true)
+    const espace = await Cache.getEspaceOrg(this, this.authData.org)
+    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 101) }
+    const hps1 = (espace.id * d14) + this.authData.hps1
+    const rowCompta = await this.getComptaHps1(hps1)
     if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 101) }
     this.compta = compile(rowCompta)
     if (this.compta.hpsc !== this.authData.hpsc) throw new AppExc(F_SRV, 101)

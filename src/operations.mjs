@@ -72,7 +72,8 @@ operations.GetPub = class GetPub extends Operation {
 }
 
 /* Recherche sponsoring ******
-args.ids : hash de la phrase de contact
+args.org : organisation
+args.hps1 : hash de la phrase de contact
 Retour:
 - rowSponsoring s'il existe
 */
@@ -80,13 +81,16 @@ operations.ChercherSponsoring = class ChercherSponsoring extends Operation {
   constructor () { super('ChercherSponsoring'); this.authMode = 3  }
 
   async phase1 (args) {
-    const row = await this.getSponsoringIds(args.ids)
+    const espace = await this.getEspaceOrg(args.org)
+    if (!espace) return
+    const ids = (espace.id * d14) + args.hps1
+    const row = await this.getSponsoringIds(ids)
     if (row) this.setRes('rowSponsoring', row)
   }
 }
 
 /* Recherche hash de phrase ******
-args.ids : hash de la phrase de contact / de connexion
+args.hps1 : ns + hps1 de la phrase de contact / de connexion
 args.t :
   - 1 : phrase de connexion(hps1 de compta)
   - 2 : phrase de sponsoring (ids)
@@ -99,17 +103,17 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 
   async phase1 (args) {
     if (args.t === 1) {
-      if (await this.getComptaHps1(args.ids)) {
+      if (await this.getComptaHps1(args.hps1)) {
         this.setRes('existe', true)
         return
       }
     } if (args.t === 2) {
-      if (await this.getSponsoringIds(args.ids)) {
+      if (await this.getSponsoringIds(args.hps1)) {
         this.setRes('existe', true)
         return
       }
     } if (args.t === 3) {
-      if (await this.getAvatarHpc(args.ids)) {
+      if (await this.getAvatarHpc(args.hps1)) {
         this.setRes('existe', true)
         return
       }
@@ -1585,7 +1589,7 @@ operations.MajCv = class MajCv extends Operation {
 /* `GetAvatarPC` : information sur l'avatar ayant une phrase de contact donnée
 POST:
 - `token` : éléments d'authentification du compte.
-- `hpc` : hash de la phrase de contact
+- `hpc` : ns + hash de la phrase de contact
 
 Retour: si trouvé,
 - `cvnapc` : `{cv, napc}` si l'avatar ayant cette phrase a été trouvée.
@@ -1607,7 +1611,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
 POST:
 - `token` : éléments d'authentification du compte.
 - `id` : de l'avatar.
-- `hpc` : hash de la phrase de contact (SUPPRESSION si null).
+- `hpc` : ns + hash de la phrase de contact (SUPPRESSION si null).
 - `napc` : `[nom, clé]` de l'avatar crypté par le PBKFD de la phrase.
 - `pck` : phrase de contact cryptée par la clé K du compte.
 
