@@ -578,7 +578,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
 
   async phase1() {
     // pseudo session pour permettre un sync
-    this.session = AuthSession.set(this.authData.sessionId, 0)
+    this.session = await AuthSession.set(this, 0)
   }
 
   async phase2(args) {
@@ -643,7 +643,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   constructor (nom) { super(nom); this.authMode = 2 }
 
   async phase1(args) {
-    this.session = AuthSession.set(this.authData.sessionId, args.rowCompta.id)
+    this.session = await AuthSession.set(this, args.rowCompta.id)
   }
 
   async phase2(args) {

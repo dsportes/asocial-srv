@@ -49,17 +49,42 @@ export async function prepRow (op, row) {
   return r
 }
 
-export function changeNS (row, nsin, nsout) {
-  if (nsin === nsout) return row
-  const id = GenDoc.collsExp1.indexOf(row._nom) !== -1 ? 
-    nsout : ((row.id % d14) + (nsout * d14))
-  if (row._data_) {
-    const d = decode(row._data_)
-    d.id = id
-    row._data_ = encode(d)
+export class NsOrg {
+  constructor (cin, cout) {
+    this.ns = cout.ns
+    this.org = cout.org
+    this.chn = cin.ns !== this.ns
+    this.ch = this.chn || cin.org !== this.org
   }
-  row.id = id
-  return row
+
+  static noms = { comptas: 'hps1', sponsorings: 'ids', avatars: 'hpc' }
+
+  chRow (row) {
+    if (!this.ch) return row
+    const n = row._nom
+    if (n === 'espaces' || n === 'syntheses') {
+      const d = decode(row._data_)
+      d.id = this.ns
+      if (n === 'espaces') d.org = this.org
+      row._data_ = encode(d)
+      row.id = this.ns
+      if (n === 'espaces') row.org = this.org
+      return row
+    }
+    if (!this.chn) return row
+    row.id = (row.id % d14) + (this.ns * d14)
+    const d = decode(row._data_)
+    d.id = row.id
+    const c = NsOrg.noms[n]
+    if (c && row[c]) {
+      const v = (row[c] % d14) + (this.ns * d14)
+      row[c] = v
+      d[c] = v
+    }
+    row._data_ = encode(d)
+    return row
+  }
+
 }
 
 export class GenDoc {

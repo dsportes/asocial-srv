@@ -231,7 +231,7 @@ Une opération a deux phases :
 */
 export class Operation {
   constructor (nomop) { 
-    this.nomop = nomop, this.authMode = 0, this.lecture = false 
+    this.nomop = nomop; this.authMode = 0; this.lecture = false 
   }
 
   /* Exécution de l'opération */

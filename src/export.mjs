@@ -4,7 +4,7 @@ import { createInterface } from 'readline'
 
 import { getStorageProvider, getDBProvider, ctx } from './server.js'
 import { AMJ, ID } from './api.mjs'
-import { compile, GenDoc, changeNS } from './gendoc.mjs'
+import { compile, GenDoc, NsOrg } from './gendoc.mjs'
 
 function prompt (q) {
   return new Promise((resolve) => {
@@ -137,19 +137,28 @@ export class Outils {
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
-    if (x.length !== 3) 
-      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,sqlite_a,A + ( ns,provider,site)'
+    
+    if (x.length !== 4) 
+      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,asso,sqlite_a,A + ( ns,org,provider,site)'
+    
     e.ns = parseInt(x[0])
     if (e.ns < 10 || e.ns > 59)
-      throw 'Argument --' + io + ' : Attendu: ns,provider,site : ns [' + e.ns + ']: doit être 10 et 60'
-    e.appKey = ctx.site(x[2])
-    e.site = x[2]
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : ns [' + e.ns + ']: doit être 10 et 60'
+    
+    e.org = x[1]
+    if (!e.org || e.org.length < 4 || e.org.length > 8)
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
+
+    e.site = x[3]
+    e.appKey = ctx.site(e.site)
     if (!e.appKey)
-      throw 'Argument --' + io + ' : Attendu: ns,provider,site . site [' + e.x[2] + '] inconnu'
-    e.pname = x[1]
-    e.prov = getDBProvider(x[1], e.site)
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site . site [' + e.site + '] inconnu'
+
+    e.pname = x[2]
+    e.prov = getDBProvider(e.pname, e.site)
     if (!e.prov)
-      throw 'Argument --' + io + ' : Attendu: ns,provider,site : provider [' + x[1] + ']: non trouvé'
+      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : provider [' + e.pname + ']: non trouvé'
+
     this.cfg[io] = e
   }
 
@@ -176,15 +185,14 @@ export class Outils {
     const pin = cin.prov
     const pout = cout.prov
  
-    if (pin.type === 'firestore' && pout.type === 'firestore') {
-      if (pin.code !== pout.code)
-        throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre Firestore' 
-    }
+    if (pin.type === 'firestore' && pout.type === 'firestore' && pin.code !== pout.code)
+      throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre Firestore' 
     if ((cin.ns === cout.ns) && (pin.code === pout.code)) 
-      throw 'Il n\'est pas possible d\'exporter un ns d`une base dans la même base sans changer de ns' 
+      throw 'Il n\'est pas possible d\'exporter un ns d\'une base dans la même base sans changer de ns' 
 
     let msg = 'export-db:'
     msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
+    msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
     msg += cin.site === cout.site ? ' site:' + cin.site : ' site:' + cin.site + '=>' + cout.site
     const resp = await prompt(msg + '\nValider (o/N) ?')
@@ -194,11 +202,11 @@ export class Outils {
     const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0}
     const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0}
     const scollIds = []
+    const ch = new NsOrg(cin, cout)
 
     for (const nom of GenDoc.collsExp1) {
       const row = await pin.getNV(opin, nom, cin.ns)
-      const row2 = changeNS(row, cin.ns, cout.ns)
-      await pout.insertRows(opout, [row2])
+      await pout.insertRows(opout, [ch.chRow(row)])
       this.log(`export ${nom}`)
     }
 
@@ -207,8 +215,7 @@ export class Outils {
       const rows = await pin.collNs(opin, nom, cin.ns)
       for (const row of rows) {
         if (v) scollIds.push(row.id)
-        const row2 = changeNS(row, cin.ns, cout.ns)
-        await pout.insertRows(opout, [row2])
+        await pout.insertRows(opout, [ch.chRow(row)])
       }
       this.log(`export ${nom} - ${rows.length}`)
     }
@@ -223,8 +230,7 @@ export class Outils {
         const rows = await pin.scoll(opin, nom, id, 0)
         for (const row of rows) {
           stats[nom]++
-          const row2 = changeNS(row, cin.ns, cout.ns)
-          await pout.insertRows(opout, [row2])
+          await pout.insertRows(opout, [ch.chRow(row)])
         }
       }
       this.log2(`export ${id} ${scollIds.length} / ${n}`)
@@ -307,7 +313,7 @@ export class Outils {
   }
 
   async purgeDb() {
-    const cin = this.outilcfg.in
+    const cin = this.cfg.in
     let msg = 'purge-db:'
     msg += ' ns:' + cin.ns
     msg += ' provider:' + cin.pname

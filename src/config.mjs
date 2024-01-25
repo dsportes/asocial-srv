@@ -5,6 +5,12 @@ const optA = 2
 1:GAE 
 2:Test local sans build
 3:Test local avec build
+
+Exemple export-db:
+node src/server.js export-db --in 32,doda,sqlite_a,A --out 24,coltes,sqlite_b,A
+
+Exemple export-st:
+
 */
 
 const optB = 1
@@ -117,7 +123,7 @@ export const config = {
   },
 
   sqlite_b: {
-    path: './sqlite/test1.db3'
+    path: './sqlite/testb.db3'
   },
 
   firestore_a: {
