@@ -254,9 +254,9 @@ app.use('/', (req, res, next) => {
     next()
 })
 
-//*** fs 
+//*** fs : retourne true si le provider DB est de type Firestore (pas de synchro WebSocket)
 app.get('/fs', (req, res) => {
-  setRes(res, 200, 'text/plain').send(ctx.fs ? 'true' : 'false')
+  setRes(res, 200, 'text/plain').send(ctx.db.type === 'firestore' ? 'true' : 'false')
 })
 
 //**** favicon.ico du sites ****
