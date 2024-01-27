@@ -175,6 +175,7 @@ class Cache {
     }
   }
 
+  /* Retourne le dernier checkpoint enregistré parle GC.*/
   static async getCheckpoint (op) { 
     const x = await op.db.getCheckpoint(op, Cache.checkpoint.v)
     if (x) {
@@ -184,6 +185,7 @@ class Cache {
     return Cache.checkpoint._data_ ? decode(Cache.checkpoint._data_) : { v: 0 }
   }
 
+  /* Enregistre en base et dans Cache le dernier objet de checkpoint défini par le GC.*/
   static async setCheckpoint (op, obj) {
     const x = obj || { v: 0 }
     x.v = Date.now()
@@ -194,6 +196,7 @@ class Cache {
     Cache.checkpoint._data_ = _data_
   }
 
+  /* Retourne le code de l'organisation pour un ns donné.*/
   static async org (op, id) { 
     const ns = id < 100 ? id : ID.ns(id)
     const org = Cache.orgs.get(ns)
