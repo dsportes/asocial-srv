@@ -4274,22 +4274,24 @@ operations.ComptaStat = class ComptaStat extends Operation {
   get sep () { return ','}
 
   processData (data) {
-    const x1 = Compteurs.X1
-    const x2 = Compteurs.X1 + Compteurs.X2
     const c = decode((decode(data)).compteurs)
     const vx = c.vd[this.mr]
     const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
-    const qc = nj ? Math.round(vx[Compteurs.QC]) : 0
-    const q1 = nj ? Math.round(vx[Compteurs.Q1]) : 0
-    const q2 = nj ? Math.round(vx[Compteurs.Q2]) : 0
-    const nl = nj ? Math.round(vx[Compteurs.NL + x1]) : 0
-    const ne = nj ? Math.round(vx[Compteurs.NE + x1]) : 0
-    const vm = nj ? Math.round(vx[Compteurs.VM + x1]) : 0
-    const vd = nj ? Math.round(vx[Compteurs.VD + x1]) : 0
-    const nn = nj ? Math.round(vx[Compteurs.NN + x2]) : 0
-    const nc = nj ? Math.round(vx[Compteurs.NC + x2]) : 0
-    const ng = nj ? Math.round(vx[Compteurs.NG + x2]) : 0
-    const v2 = nj ? Math.round(vx[Compteurs.V2 + x2]) : 0
+    if (!nj) return
+    
+    const x1 = Compteurs.X1
+    const x2 = Compteurs.X1 + Compteurs.X2
+    const qc = Math.round(vx[Compteurs.QC])
+    const q1 = Math.round(vx[Compteurs.Q1])
+    const q2 = Math.round(vx[Compteurs.Q2])
+    const nl = Math.round(vx[Compteurs.NL + x1])
+    const ne = Math.round(vx[Compteurs.NE + x1])
+    const vm = Math.round(vx[Compteurs.VM + x1])
+    const vd = Math.round(vx[Compteurs.VD + x1])
+    const nn = Math.round(vx[Compteurs.NN + x2])
+    const nc = Math.round(vx[Compteurs.NC + x2])
+    const ng = Math.round(vx[Compteurs.NG + x2])
+    const v2 = Math.round(vx[Compteurs.V2 + x2])
     this.lignes.push([nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(this.sep))
   }
 
