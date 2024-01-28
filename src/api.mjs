@@ -280,7 +280,7 @@ export class AMJ {
     return (a * 10000) + (m * 100) + AMJ.djm(a, m)
   }
 
-  // Retourne l'amj du dernier jour du mois de celle passée en argument
+  // Retourne l'amj du premier jour du mois de celle passée en argument
   static pjMois (amj) {
     const [a, m, ] = AMJ.aaaammjj(amj)
     return (a * 10000) + (m * 100) + 1
@@ -438,10 +438,10 @@ export class Compteurs {
 
   static X1 = 3 // nombre de compteurs de quotas (qc q1 q2)
   static X2 = 4 // nombre de compteurs de consommation (lect, ecr, vm, vd)
-  static X3 = 4 // nombre de compteurs de volume (notes, chats, groupes v2)
+  static X3 = 4 // nombre de compteurs de volume (notes, chats, groupes, v2)
   static X4 = 3 // nombre de compteurs techniques (ms ca cc)
 
-  static CUCONSO = 2 // indice du premier CU de consommation
+  static CUCONSO = Compteurs.X1 - 1 // indice du premier CU de consommation
   static QC = 0 // quota de consommation
   static Q1 = 1 // quota du nombre total de notes / chats / groupes.
   static Q2 = 2 // quota du volume des fichiers.
@@ -461,6 +461,8 @@ export class Compteurs {
 
   static lp = ['dh0', 'dh', 'dhraz', 'qv', 'vd', 'mm', 'aboma', 'consoma', 'dec', 'dhdec', 'njdec']
   static lqv = ['qc', 'q1', 'q2', 'nn', 'nc', 'ng', 'v2']
+
+  static cptM = ['NJ', 'QC', 'Q1', 'Q2', 'NL', 'NE', 'VM', 'VD', 'NN', 'NC', 'NG', 'V2']
 
   /*
   dh0 : date-heure de création du compte

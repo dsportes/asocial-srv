@@ -365,8 +365,12 @@ export class FirestoreProvider {
     return r
   }
 
-  /* Retourne la collection 'nom' pour un ns donné  */
-  async collNs (op, nom, ns) {
+  /* Retourne la collection de nom 'nom' 
+  SI l'option getData est true, la méthode processData 
+  de l'opération est invoquée à chaque row pour traiter son _data_
+  plutôt que d'accumuler les rows.
+  */
+  async collNs (op, nom, ns, getData) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const p = FirestoreProvider._collPath(nom)
@@ -383,10 +387,11 @@ export class FirestoreProvider {
     for (const qds of qs.docs) { 
       const x = qds.data()
       x._nom = nom
-      r.push(x)
+      const rx = await decryptRow(op, x)
+      if (!getData) r.push(rx); else op.processData(rx._data_)
     }
     op.nl += r.length
-    return r
+    return !getData ? r : null
   }
   
   /* 

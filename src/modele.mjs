@@ -247,7 +247,7 @@ export class Operation {
     this.args = args
     if (this.authMode <= 2) { // Sinon ce sont des "pings" (echo, test erreur, pingdb, recherche phrase sponsoring)
       const t = args.token
-      if (!t) throw assertKO('Operation-1', 100, ['token?'])
+      if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
       try {
         this.authData = decode(b64ToU8(t))
       } catch (e) {

@@ -5,7 +5,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { AuthSession, Operation, trace} from './modele.mjs'
 import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
-import { limitesjour, FLAGS, edit } from './api.mjs'
+import { limitesjour, FLAGS, edit, A_SRV } from './api.mjs'
 
 export function atStart() {
   // console.log('atStart operations')
@@ -3321,6 +3321,15 @@ operations.GetUrl = class GetUrl extends Operation {
     const idi = args.id % d14
     const url = await this.storage.getUrl(org, idi, args.idf)
     this.setRes('getUrl', url)
+    if (!args.idc) this.phase2 = null
+  }
+
+  async phase2 (args) {
+    const compta = compile(await this.getRowCompta(args.idc))
+    if (!compta) return
+    compta.v++
+    compta.compteurs = new Compteurs(compta.compteurs, null, { vd: args.vt }).serial
+    this.update(compta.toRow())
   }
 }
 
@@ -4165,6 +4174,39 @@ operations.GCDlv = class GCDlv extends Operation {
   }
 }
 
+/* GCstc : enregistrement des statistiquelles mensuelles comptables
+Pour chaque espace, demande le calcul / enregistrement du fichier
+de M-1 s'il n'a pas déjà été enregistré avec la clé publique du 
+Comptable de chaque espace.
+*/
+operations.GCstc = class GCstc extends Operation {
+  constructor () { super('GCstc'); this.authMode = 3  }
+
+  async phase1 () {
+    const mois = Math.floor(AMJ.djMoisPrec(this.auj) / 100)
+    const rowEspaces = await this.coll('espaces')
+    let nbstc = 0
+    let org = ''
+    for (const row of rowEspaces) {
+      try {
+        const esp = compile(row)
+        if (esp.moisStat && esp.moisStat >= mois) continue
+        org = esp.org
+        const arg = { org: esp.org, mr: 1 }
+        await new operations.ComptaStat(true).run(arg)
+        nbstc++
+      } catch (e) {
+        // trace
+        const info = e.toString()
+        const msg = trace('GCstc-ER1' , org, info, true)
+        this.setRes('err', { err: msg })
+        break
+      }
+    }
+    this.setRes('stats', { nbstc })
+  }
+}
+
 /* OP_TestRSA: 'Test encryption RSA'
 args.token
 args.id
@@ -4207,5 +4249,114 @@ operations.CrypterRaw = class CrypterRaw extends Operation {
     console.log(t.substring(0, 30))
     */
     this.setRes('data', new Uint8Array(data))
+  }
+}
+
+/* OP_ComptaStat : 'Enregistre en storage la statistique de comptabilité'
+du mois M-1 ou M-2 ou M-3 pour l'organisation org.
+args.org: code de l'organisation
+args.mr: de 1 à 3, mois relatif à la date du jour.
+Retour:
+- URL d'accès au fichier dans le storage
+
+Le dernier mois de disponibilté de la statistique comptable est enregistrée dans
+l'espace s'il est supérieur à celui existant.
+*/
+operations.ComptaStat = class ComptaStat extends Operation {
+  constructor (gc) { 
+    super('ComptaStat')
+    if (gc) {
+      this.authMode = 3 
+      this.gc = true
+    }
+  }
+
+  get sep () { return ','}
+
+  processData (data) {
+    const x1 = Compteurs.X1
+    const x2 = Compteurs.X1 + Compteurs.X2
+    const c = decode((decode(data)).compteurs)
+    const vx = c.vd[this.mr]
+    const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
+    const qc = nj ? Math.round(vx[Compteurs.QC]) : 0
+    const q1 = nj ? Math.round(vx[Compteurs.Q1]) : 0
+    const q2 = nj ? Math.round(vx[Compteurs.Q2]) : 0
+    const nl = nj ? Math.round(vx[Compteurs.NL + x1]) : 0
+    const ne = nj ? Math.round(vx[Compteurs.NE + x1]) : 0
+    const vm = nj ? Math.round(vx[Compteurs.VM + x1]) : 0
+    const vd = nj ? Math.round(vx[Compteurs.VD + x1]) : 0
+    const nn = nj ? Math.round(vx[Compteurs.NN + x2]) : 0
+    const nc = nj ? Math.round(vx[Compteurs.NC + x2]) : 0
+    const ng = nj ? Math.round(vx[Compteurs.NG + x2]) : 0
+    const v2 = nj ? Math.round(vx[Compteurs.V2 + x2]) : 0
+    this.lignes.push([nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(this.sep))
+  }
+
+  async creation () {
+    this.lignes = []
+    this.lignes.push(Compteurs.cptM.join(this.sep))
+    await this.db.collNs(this, 'comptas', this.ns, true)
+    const calc = this.lignes.join('\n')
+    this.lignes = null
+
+    const avatar = compile(await this.getRowAvatar(this.idC, 'ComptaStat-1'))
+    const fic = crypterRaw(this.db.appKey, avatar.pub, Buffer.from(calc), true)
+    await this.storage.putFile(this.args.org, ID.court(this.idC), 'C_' + this.mois, fic)
+  }
+
+  async phase1 (args) {
+    const espace = await this.getEspaceOrg(args.org)
+    if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
+    this.ns = espace.id
+    if (args.mr < 0 || args.mr > 2) args.mr = 1
+    let m = this.auj
+    if (args.mr === 1) m = AMJ.djMoisPrec(m)
+    if (args.mr === 2) m = AMJ.djMoisPrec(m)
+    if (args.mr === 3) m = AMJ.djMoisPrec(m)
+    this.mr = args.mr
+    this.mois = Math.floor(m / 100)
+
+    this.idC = ID.duComptable(this.ns)
+    this.setRes('getUrl', await this.storage.getUrl(args.org, ID.court(this.idC), 'C_' + this.mois))
+
+    if (espace.moisStat && espace.moisStat >= this.mois) {
+      this.phase2 = null
+      this.setRes('creation', false)
+    } else {
+      this.setRes('creation', true)
+      await this.creation()
+      if (args.mr === 0) this.phase2 = null
+    }
+    this.setRes('mois', this.mois)
+  }
+
+  async phase2 () {
+    const espace = compile(await this.getRowEspace(this.ns, 'ComptaStat-2'))
+    if (!espace.moisStat || espace.moisStat < this.mois) {
+      espace.moisStat = this.mois
+      espace.v++
+      this.update(espace.toRow())
+    }
+  }
+}
+
+/*****************************************
+GetUrlStat : retourne l'URL de get d'un fichier de stat mensuelle
+Comme c'est un GET, les arguments sont en string (et pas en number)
+args.token: éléments d'authentification du compte.
+args.ns : 
+args.mois
+*/
+operations.GetUrlStat = class GetUrlStat extends Operation {
+  constructor () { super('GetUrlStat'); this.lecture = true }
+
+  async phase1 (args) {
+    const ns = parseInt(args.ns)
+    const org = await this.org(ns)
+    const idC = ID.court(ID.duComptable(ns))
+    const url = await this.storage.getUrl(org, idC, 'C_' + args.mois)
+    this.setRes('getUrl', url)
+    if (!this.session.id) this.setRes('appKey', this.db.appKey)
   }
 }

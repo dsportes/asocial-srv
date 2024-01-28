@@ -322,8 +322,12 @@ export class SqliteProvider {
     return r
   }
   
-  /* Retourne la collection de nom 'nom' */
-  async collNs (op, nom, ns) {
+  /* Retourne la collection de nom 'nom' 
+  SI l'option getData est true, la méthode processData 
+  de l'opération est invoquée à chaque row pour traiter son _data_
+  plutôt que d'accumuler les rows.
+  */
+  async collNs (op, nom, ns, getData) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const code = 'COLNS' + nom
@@ -333,10 +337,11 @@ export class SqliteProvider {
     const r = []
     for (const row of rows) {
       row._nom = nom
-      r.push(await decryptRow(op, row))
+      const rx = await decryptRow(op, row)
+      if (!getData) r.push(rx); else op.processData(rx._data_)
     }
     op.nl += r.length
-    return r
+    return !getData ? r : null
   }
     
   /* Retourne la sous-collection de 'nom' du document majeur id

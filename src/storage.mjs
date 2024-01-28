@@ -39,10 +39,6 @@ function stream2buffer(stream) {
   })
 }
 
-function storageUrl (org, id, idf) {
-  return ctx.rooturl + '/storage/' + encode3(org, id, idf)
-}
-
 /* FsProvider ********************************************************************/
 export class FsProvider {
   constructor (config) {
@@ -56,9 +52,13 @@ export class FsProvider {
     return true
   }
 
-  getUrl (org, id, idf) { return storageUrl (org, id, idf) }
+  storageUrl (org, id, idf) {
+    return ctx.rooturl + '/storage/' + encode3(org, id, idf)
+  }
 
-  putUrl (org, id, idf) { return storageUrl (org, id, idf) }
+  getUrl (org, id, idf) { return this.storageUrl (org, id, idf) }
+
+  putUrl (org, id, idf) { return this.storageUrl (org, id, idf) }
 
   async getFile (org, id, idf) {
     try {
@@ -313,7 +313,9 @@ export class GcProvider {
         maxAgeSeconds: 3600
       }
       this.bucket.setCorsConfiguration([cors])
-    }
+    } /* else {
+      this.rootpath = cfg.rootpathEmulator
+    } */
   }
 
   async ping () {
@@ -322,9 +324,13 @@ export class GcProvider {
     return true
   }
 
+  storageUrl (org, id, idf) {
+    return ctx.rooturl + '/storage/' + encode3(org, id, idf)
+  }
+
   async getUrl (org, id, idf) {
     if (this.emulator) {
-      const url = storageUrl (org, id, idf)
+      const url = this.storageUrl (org, id, idf)
       // console.log(url)
       return url  
     }
@@ -343,7 +349,7 @@ export class GcProvider {
 
   async putUrl (org, id, idf) {
     if (this.emulator) {
-      const url = storageUrl (org, id, idf)
+      const url = this.storageUrl (org, id, idf)
       // console.log(url)
       return url  
     }
