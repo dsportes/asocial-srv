@@ -40,7 +40,7 @@ const keys2 = {
   firebase_config: 'firebase_config.json',
   pub: 'fullchain.pem',
   priv: 'privkey.pem',
-  s3_config: 's3_config.json'
+  s3_a: 's3_config.json'
 }
 
 const env1 = {

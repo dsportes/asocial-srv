@@ -118,9 +118,9 @@ export function getStorageProvider (codeProvider) {
   if (!cfg) return null
   const t = codeProvider.substring(0, codeProvider.indexOf('_'))
   switch (t) {
-  case 'fs' : { return new FsProvider(cfg) }
-  case 's3' : { return new S3Provider(cfg) }
-  case 'gc' : { return new GcProvider(cfg) }
+  case 'fs' : { return new FsProvider(codeProvider, cfg) }
+  case 's3' : { return new S3Provider(codeProvider, cfg) }
+  case 'gc' : { return new GcProvider(codeProvider, cfg) }
   }
   return null
 }

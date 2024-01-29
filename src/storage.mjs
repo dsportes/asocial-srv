@@ -39,26 +39,27 @@ function stream2buffer(stream) {
   })
 }
 
+/* Voir la documentation API-serveur pour des explications importantes */
+function storageUrlGenerique (org, id, idf) {
+  return ctx.rooturl + '/storage/' + encode3(org, id, idf)
+}
+
 /* FsProvider ********************************************************************/
 export class FsProvider {
-  constructor (config) {
+  constructor (codeProvider, config) {
     this.rootpath = config.rootpath
   }
 
-  async ping() {
+  async ping () {
     const data = Buffer.from(new Date().toISOString())
     const p = path.resolve(this.rootpath, 'ping.txt')
     await writeFile(p, Buffer.from(data))
     return true
   }
 
-  storageUrl (org, id, idf) {
-    return ctx.rooturl + '/storage/' + encode3(org, id, idf)
-  }
+  getUrl (org, id, idf) { return storageUrlGenerique(org, id, idf) }
 
-  getUrl (org, id, idf) { return this.storageUrl (org, id, idf) }
-
-  putUrl (org, id, idf) { return this.storageUrl (org, id, idf) }
+  putUrl (org, id, idf) { return storageUrlGenerique(org, id, idf) }
 
   async getFile (org, id, idf) {
     try {
@@ -153,8 +154,8 @@ export class FsProvider {
 
 /* S3Provider ********************************************************************/
 export class S3Provider {
-  constructor (config) {
-    this.config = ctx.keys.s3_config
+  constructor (codeProvider, config) {
+    this.config = ctx.keys[codeProvider]
     this.s3 = new S3Client(this.config)
     this.config.sha256 = Hash.bind(null, 'sha256')
     this.signer = new S3RequestPresigner(this.config)
@@ -289,7 +290,7 @@ export class S3Provider {
 
 /* GcProvider ********************************************************************/
 export class GcProvider {
-  constructor (cfg) {
+  constructor (codeProvider, cfg) {
     // Imports the Google Cloud client library
     // const {Storage} = require('@google-cloud/storage')
     // For more information on ways to initialize Storage, please see
@@ -313,9 +314,7 @@ export class GcProvider {
         maxAgeSeconds: 3600
       }
       this.bucket.setCorsConfiguration([cors])
-    } /* else {
-      this.rootpath = cfg.rootpathEmulator
-    } */
+    }
   }
 
   async ping () {
@@ -324,13 +323,9 @@ export class GcProvider {
     return true
   }
 
-  storageUrl (org, id, idf) {
-    return ctx.rooturl + '/storage/' + encode3(org, id, idf)
-  }
-
   async getUrl (org, id, idf) {
     if (this.emulator) {
-      const url = this.storageUrl (org, id, idf)
+      const url = storageUrlGenerique(org, id, idf)
       // console.log(url)
       return url  
     }
@@ -349,7 +344,7 @@ export class GcProvider {
 
   async putUrl (org, id, idf) {
     if (this.emulator) {
-      const url = this.storageUrl (org, id, idf)
+      const url = storageUrlGenerique(org, id, idf)
       // console.log(url)
       return url  
     }
