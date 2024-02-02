@@ -1,3 +1,3 @@
 Serveur de l'application **asocial**.
 
-Voir asocial-doc/README.md
+@@README de l'application - [README](https://raw.githack.com/dsportes/asocial-doc/master/readme.md)
