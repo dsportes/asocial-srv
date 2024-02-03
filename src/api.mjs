@@ -13,6 +13,7 @@ export const MSPARMOIS = 30 * MSPARJOUR
 
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
+export const d10 = 10000000000
 
 export const FLAGS = {
   AC: 1 << 0, // **est _actif_**
@@ -65,6 +66,18 @@ Ajouter un ou des flags: n |= FLAGS.HA | FLAGS.AC | FLAGS.IN
 Enlever un ou des flags: n &= ~FLAGS.AC & ~FLAGS.IN
 Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 */
+
+/* retourne un code à 6 lettres majuscules depuis l'id d'un ticket 
+id d'un ticket: aa mm rrr rrr rrr r 
+*/
+export function idTkToL6 (t) {
+  const am = Math.floor(t / d10)
+  const m = am % 100
+  const a = Math.floor(am / 100)
+  let x = String.fromCharCode(a % 2 === 0 ? 64 + m : 76 + m)
+  for (let i = 0, j = (t % d10); i < 5; i++) { x += String.fromCharCode(65 + (j % 26)); j = Math.floor(j / 26) }
+  return x
+}
 
 export const interdits = '< > : " / \\ | ? *'
 // eslint-disable-next-line no-control-regex
@@ -286,14 +299,30 @@ export class AMJ {
     return (a * 10000) + (m * 100) + 1
   }
 
-  // Retourne l'amj du dernier jour du mois précédent
+  // Retourne l'amj du dernier jour du mois précédent celle passée en argument
   static djMoisPrec (amj) {
     const [a, m, ] = AMJ.aaaammjj(amj)
     const [ap, mp] = m === 1 ? [a - 1, 12] : [a, m - 1]
     return (ap * 10000) + (mp * 100) + AMJ.djm(ap, mp)
   }
 
-  // Retourne l'amj du dernier jour du mois de celle passée en argument
+  // Retourne l'amj du dernier jour du mois M de amj, M -n ou M + n
+  static djMoisN (amj, n) {
+    if (n === 0) return AMJ.djMois(amj)
+    let m = amj
+    if (n < 0) for (let i = 0; i < -n; i++) m = AMJ.djMoisPrec(m)
+    else for (let i = 0; i < n; i++) m = AMJ.djMoisSuiv(m)
+    return m
+  }
+
+  // Retourne l'amj du dernier jour du mois suivant celle passée en argument
+  static djMoisSuiv (amj) {
+    const [a, m, ] = AMJ.aaaammjj(amj)
+    const [as, ms] = m === 12 ? [a + 1, 1] : [a, m + 1]
+    return (as * 10000) + (ms * 100) + AMJ.djm(as, ms)
+  }
+  
+  // Retourne l'amj du premier jour du mois suivant celle passée en argument
   static pjMoisSuiv (amj) {
     const [a, m, ] = AMJ.aaaammjj(amj)
     const [ap, mp] = m === 12 ? [a + 1, 1] : [a, m + 1]
@@ -461,8 +490,6 @@ export class Compteurs {
 
   static lp = ['dh0', 'dh', 'dhraz', 'qv', 'vd', 'mm', 'aboma', 'consoma', 'dec', 'dhdec', 'njdec']
   static lqv = ['qc', 'q1', 'q2', 'nn', 'nc', 'ng', 'v2']
-
-  static cptM = ['NJ', 'QC', 'Q1', 'Q2', 'NL', 'NE', 'VM', 'VD', 'NN', 'NC', 'NG', 'V2']
 
   /*
   dh0 : date-heure de création du compte

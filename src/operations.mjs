@@ -4271,14 +4271,22 @@ operations.ComptaStat = class ComptaStat extends Operation {
     }
   }
 
+  static cptM = ['IT', 'NJ', 'QC', 'Q1', 'Q2', 'NL', 'NE', 'VM', 'VD', 'NN', 'NC', 'NG', 'V2']
+
   get sep () { return ','}
 
+  /* Cette méthode est invoquée par collNs en tant que 
+  "processeur" de chaque row récupéré pour éviter son stockage en mémoire
+  puis son traitement
+  */
   processData (data) {
-    const c = decode((decode(data)).compteurs)
+    const dcomp = decode(data)
+    const c = decode(dcomp).compteurs
     const vx = c.vd[this.mr]
     const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
     if (!nj) return
     
+    const it = dcomp.it || 0 // indice tribu
     const x1 = Compteurs.X1
     const x2 = Compteurs.X1 + Compteurs.X2
     const qc = Math.round(vx[Compteurs.QC])
@@ -4292,13 +4300,13 @@ operations.ComptaStat = class ComptaStat extends Operation {
     const nc = Math.round(vx[Compteurs.NC + x2])
     const ng = Math.round(vx[Compteurs.NG + x2])
     const v2 = Math.round(vx[Compteurs.V2 + x2])
-    this.lignes.push([nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(this.sep))
+    this.lignes.push([it, nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(this.sep))
   }
 
   async creation () {
     this.lignes = []
-    this.lignes.push(Compteurs.cptM.join(this.sep))
-    await this.db.collNs(this, 'comptas', this.ns, true)
+    this.lignes.push(operations.ComptaStat.cptM.join(this.sep))
+    await this.db.collNs(this, 'comptas', this.ns, this.processData)
     const calc = this.lignes.join('\n')
     this.lignes = null
 
@@ -4312,10 +4320,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
     if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
     this.ns = espace.id
     if (args.mr < 0 || args.mr > 2) args.mr = 1
-    let m = this.auj
-    if (args.mr === 1) m = AMJ.djMoisPrec(m)
-    if (args.mr === 2) m = AMJ.djMoisPrec(m)
-    if (args.mr === 3) m = AMJ.djMoisPrec(m)
+    const m = AMJ.djMoisN(this.auj, args.mr)
     this.mr = args.mr
     this.mois = Math.floor(m / 100)
 
@@ -4343,12 +4348,105 @@ operations.ComptaStat = class ComptaStat extends Operation {
   }
 }
 
+/* OP_TicketsStat : 'Enregistre en storage la liste des tickets de M-3 désormais invariables'
+args.org: code de l'organisation
+Retour:
+- URL d'accès au fichier dans le storage
+
+Le dernier mois de disponibilté de la statistique est enregistrée dans
+l'espace s'il est supérieur à celui existant.
+*/
+operations.TicketsStat = class TicketsStat extends Operation {
+  constructor (gc) { 
+    super('TicketsStat')
+    if (gc) {
+      this.authMode = 3 
+      this.gc = true
+    }
+  }
+
+  static cptM = ['IT', 'NJ', 'QC', 'Q1', 'Q2', 'NL', 'NE', 'VM', 'VD', 'NN', 'NC', 'NG', 'V2']
+
+  get sep () { return ','}
+
+  /* Cette méthode est invoquée par collNs en tant que 
+  "processeur" de chaque row récupéré pour éviter son stockage en mémoire
+  puis son traitement
+  */
+  processData (data) {
+    const dcomp = decode(data)
+    const c = decode(dcomp).compteurs
+    const vx = c.vd[this.mr]
+    const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
+    if (!nj) return
+    
+    const it = dcomp.it || 0 // indice tribu
+    const x1 = Compteurs.X1
+    const x2 = Compteurs.X1 + Compteurs.X2
+    const qc = Math.round(vx[Compteurs.QC])
+    const q1 = Math.round(vx[Compteurs.Q1])
+    const q2 = Math.round(vx[Compteurs.Q2])
+    const nl = Math.round(vx[Compteurs.NL + x1])
+    const ne = Math.round(vx[Compteurs.NE + x1])
+    const vm = Math.round(vx[Compteurs.VM + x1])
+    const vd = Math.round(vx[Compteurs.VD + x1])
+    const nn = Math.round(vx[Compteurs.NN + x2])
+    const nc = Math.round(vx[Compteurs.NC + x2])
+    const ng = Math.round(vx[Compteurs.NG + x2])
+    const v2 = Math.round(vx[Compteurs.V2 + x2])
+    this.lignes.push([it, nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(this.sep))
+  }
+
+  async creation () {
+    this.lignes = []
+    this.lignes.push(operations.ComptaStat.cptM.join(this.sep))
+    await this.db.collNs(this, 'comptas', this.ns, this.processData)
+    const calc = this.lignes.join('\n')
+    this.lignes = null
+
+    const avatar = compile(await this.getRowAvatar(this.idC, 'ComptaStat-1'))
+    const fic = crypterRaw(this.db.appKey, avatar.pub, Buffer.from(calc), true)
+    await this.storage.putFile(this.args.org, ID.court(this.idC), 'C_' + this.mois, fic)
+  }
+
+  async phase1 (args) {
+    const espace = await this.getEspaceOrg(args.org)
+    if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
+    this.ns = espace.id
+    const m = AMJ.djMoisN(this.auj, 2)
+    this.mois = Math.floor(m / 100)
+
+    this.idC = ID.duComptable(this.ns)
+    this.setRes('getUrl', await this.storage.getUrl(args.org, ID.court(this.idC), 'T_' + this.mois))
+
+    if (espace.moisStat && espace.moisStat >= this.mois) {
+      this.phase2 = null
+      this.setRes('creation', false)
+    } else {
+      this.setRes('creation', true)
+      await this.creation()
+      if (args.mr === 0) this.phase2 = null
+    }
+    this.setRes('mois', this.mois)
+  }
+
+  async phase2 () {
+    const espace = compile(await this.getRowEspace(this.ns, 'ComptaStat-2'))
+    if (!espace.moisStat || espace.moisStat < this.mois) {
+      espace.moisStat = this.mois
+      espace.v++
+      this.update(espace.toRow())
+    }
+  }
+}
+
 /*****************************************
 GetUrlStat : retourne l'URL de get d'un fichier de stat mensuelle
 Comme c'est un GET, les arguments sont en string (et pas en number)
 args.token: éléments d'authentification du compte.
 args.ns : 
-args.mois
+args.mois :
+args.cs : code statistique C ou T
 */
 operations.GetUrlStat = class GetUrlStat extends Operation {
   constructor () { super('GetUrlStat'); this.lecture = true }
@@ -4357,7 +4455,7 @@ operations.GetUrlStat = class GetUrlStat extends Operation {
     const ns = parseInt(args.ns)
     const org = await this.org(ns)
     const idC = ID.court(ID.duComptable(ns))
-    const url = await this.storage.getUrl(org, idC, 'C_' + args.mois)
+    const url = await this.storage.getUrl(org, idC, args.cd + '_' + args.mois)
     this.setRes('getUrl', url)
     if (!this.session.id) this.setRes('appKey', this.db.appKey)
   }
