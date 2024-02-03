@@ -3,7 +3,7 @@ import { Firestore } from '@google-cloud/firestore'
 import { decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
-import { d14, ID } from './api.mjs'
+import { d14, ID, d10 } from './api.mjs'
 
 export class FirestoreProvider {
   constructor (cfg, site, code) {
@@ -388,7 +388,7 @@ export class FirestoreProvider {
       const x = qds.data()
       x._nom = nom
       const rx = await decryptRow(op, x)
-      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
+      if (!fnprocess) r.push(rx); else fnprocess(op, rx._data_)
     }
     op.nl += r.length
     return !fnprocess ? r : null
@@ -415,10 +415,43 @@ export class FirestoreProvider {
     return r
   }
 
+  /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
+  */
+  async selTickets (op, id, aamm, fnprocess) {
+    const mx = ((aamm % 10000) * d10) + 9999999999
+    const p = FirestoreProvider._collPath('tickets', id)
+    // INDEX simple sur (chats sponsorings notes membres chatgrs) v
+    const q = this.fs.collection(p).where('ids', '<=', mx)
+    const qs = await op.transaction.get(q)
+    if (qs.empty) return []
+    const r = []
+    for (const qds of qs.docs) { 
+      const x = qds.data()
+      x._nom = 'tickets'
+      const rx = await decryptRow(op, x)
+      op.nl++
+      if (!fnprocess) r.push(rx); else fnprocess(op, rx._data_)
+    }
+    return !fnprocess ? r : null
+  }
+  
   async delScoll (op, nom, id) {
     let n = 0
     const p = FirestoreProvider._collPath(nom, id)
     const q = this.fs.collection(p)
+    const qs = await q.get()
+    if (!qs.empty) {
+      for (const doc of qs.docs) { n++; doc.ref.delete() }
+    }
+    op.ne += n
+    return n
+  }
+
+  async delTickets (op, id, aamm) {
+    let n = 0
+    const mx = ((aamm % 10000) * d10) + 9999999999
+    const p = FirestoreProvider._collPath('tickets', id)
+    const q = this.fs.collection(p).where('ids', '<=', mx)
     const qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }

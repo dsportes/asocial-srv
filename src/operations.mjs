@@ -5,7 +5,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { AuthSession, Operation, trace} from './modele.mjs'
 import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
-import { limitesjour, FLAGS, edit, A_SRV } from './api.mjs'
+import { limitesjour, FLAGS, edit, A_SRV, idTkToL6 } from './api.mjs'
 
 export function atStart() {
   // console.log('atStart operations')
@@ -4174,7 +4174,7 @@ operations.GCDlv = class GCDlv extends Operation {
   }
 }
 
-/* GCstc : enregistrement des statistiquelles mensuelles comptables
+/* GCstc : enregistrement des statistiques mensuelles comptables
 Pour chaque espace, demande le calcul / enregistrement du fichier
 de M-1 s'il n'a pas déjà été enregistré avec la clé publique du 
 Comptable de chaque espace.
@@ -4183,18 +4183,33 @@ operations.GCstc = class GCstc extends Operation {
   constructor () { super('GCstc'); this.authMode = 3  }
 
   async phase1 () {
-    const mois = Math.floor(AMJ.djMoisPrec(this.auj) / 100)
+    const moisc = Math.floor(AMJ.djMoisPrec(this.auj) / 100)
+    const moist = Math.floor(AMJ.djMoisN(this.auj, -3) / 100)
     const rowEspaces = await this.coll('espaces')
     let nbstc = 0
+    let nbstt = 0
     let org = ''
+
     for (const row of rowEspaces) {
       try {
         const esp = compile(row)
-        if (esp.moisStat && esp.moisStat >= mois) continue
         org = esp.org
-        const arg = { org: esp.org, mr: 1 }
-        await new operations.ComptaStat(true).run(arg)
-        nbstc++
+        const moisesp = Math.floor((esp.dcreation || 20240101) / 100)
+        const moisespc = esp.moisStat || 0
+        const moisespt = esp.moisStatT || 0
+
+        if (moisespc < moisc && moisesp > moisc) {
+          const arg = { org: esp.org, mr: 1 }
+          await new operations.ComptaStat(true).run(arg)
+          nbstc++
+        }
+
+        if (moisespt < moist && moisesp > moist) {
+          const arg = { org: esp.org }
+          await new operations.TicketsStat(true).run(arg)
+          nbstt++
+        }
+
       } catch (e) {
         // trace
         const info = e.toString()
@@ -4203,7 +4218,7 @@ operations.GCstc = class GCstc extends Operation {
         break
       }
     }
-    this.setRes('stats', { nbstc })
+    this.setRes('stats', { nbstc, nbstt })
   }
 }
 
@@ -4279,7 +4294,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
   "processeur" de chaque row récupéré pour éviter son stockage en mémoire
   puis son traitement
   */
-  processData (data) {
+  processData (op, data) {
     const dcomp = decode(data)
     const c = decode(dcomp).compteurs
     const vx = c.vd[this.mr]
@@ -4300,7 +4315,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
     const nc = Math.round(vx[Compteurs.NC + x2])
     const ng = Math.round(vx[Compteurs.NG + x2])
     const v2 = Math.round(vx[Compteurs.V2 + x2])
-    this.lignes.push([it, nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(this.sep))
+    op.lignes.push([it, nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(op.sep))
   }
 
   async creation () {
@@ -4349,12 +4364,12 @@ operations.ComptaStat = class ComptaStat extends Operation {
 }
 
 /* OP_TicketsStat : 'Enregistre en storage la liste des tickets de M-3 désormais invariables'
+args.token: éléments d'authentification du compte.
 args.org: code de l'organisation
-Retour:
-- URL d'accès au fichier dans le storage
 
 Le dernier mois de disponibilté de la statistique est enregistrée dans
 l'espace s'il est supérieur à celui existant.
+Purge des tickets archivés
 */
 operations.TicketsStat = class TicketsStat extends Operation {
   constructor (gc) { 
@@ -4365,77 +4380,85 @@ operations.TicketsStat = class TicketsStat extends Operation {
     }
   }
 
-  static cptM = ['IT', 'NJ', 'QC', 'Q1', 'Q2', 'NL', 'NE', 'VM', 'VD', 'NN', 'NC', 'NG', 'V2']
+  static cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
 
   get sep () { return ','}
 
   /* Cette méthode est invoquée par collNs en tant que 
   "processeur" de chaque row récupéré pour éviter son stockage en mémoire
   puis son traitement
+  - `id`: id du Comptable.
+  - `ids` : numéro du ticket
+  - `v` : version du ticket.
+
+  - `dg` : date de génération.
+  - `dr`: date de réception. Si 0 le ticket est _en attente_.
+  - `ma`: montant déclaré émis par le compte A.
+  - `mc` : montant déclaré reçu par le Comptable.
+  - `refa` : texte court (32c) facultatif du compte A à l'émission.
+  - `refc` : texte court (32c) facultatif du Comptable à la réception.
+  - `di`: date d'incorporation du crédit par le compte A dans son solde.
   */
-  processData (data) {
-    const dcomp = decode(data)
-    const c = decode(dcomp).compteurs
-    const vx = c.vd[this.mr]
-    const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
-    if (!nj) return
+
+  quotes (v) {
+    if (!v) return '""'
+    const x = v.replaceAll('"', '_')
+    return '"' + x + '"'
+  }
+
+  processData (op, data) {  
+    const d = decode(data)
     
-    const it = dcomp.it || 0 // indice tribu
-    const x1 = Compteurs.X1
-    const x2 = Compteurs.X1 + Compteurs.X2
-    const qc = Math.round(vx[Compteurs.QC])
-    const q1 = Math.round(vx[Compteurs.Q1])
-    const q2 = Math.round(vx[Compteurs.Q2])
-    const nl = Math.round(vx[Compteurs.NL + x1])
-    const ne = Math.round(vx[Compteurs.NE + x1])
-    const vm = Math.round(vx[Compteurs.VM + x1])
-    const vd = Math.round(vx[Compteurs.VD + x1])
-    const nn = Math.round(vx[Compteurs.NN + x2])
-    const nc = Math.round(vx[Compteurs.NC + x2])
-    const ng = Math.round(vx[Compteurs.NG + x2])
-    const v2 = Math.round(vx[Compteurs.V2 + x2])
-    this.lignes.push([it, nj, qc, q1, q2, nl, ne, vm, vd, nn, nc, ng, v2].join(this.sep))
+    const ids = d.ids
+    const tkt = op.quotes(idTkToL6(d.ids))
+    const dg = d.dg
+    const dr = d.dr
+    const ma = d.ma
+    const mc = d.mc
+    const refa = op.quotes(d.refa)
+    const refc = op.quotes(d.refc)
+    op.lignes.push([ids, tkt, dg, dr, ma, mc, refa, refc].join(op.sep))
   }
 
   async creation () {
     this.lignes = []
-    this.lignes.push(operations.ComptaStat.cptM.join(this.sep))
-    await this.db.collNs(this, 'comptas', this.ns, this.processData)
+    this.lignes.push(operations.TicketsStat.cptM.join(this.sep))
+    await this.db.selTickets(this, this.idC, this.mois, this.processData)
     const calc = this.lignes.join('\n')
     this.lignes = null
 
-    const avatar = compile(await this.getRowAvatar(this.idC, 'ComptaStat-1'))
+    const avatar = compile(await this.getRowAvatar(this.idC, 'ComptaStatT-1'))
     const fic = crypterRaw(this.db.appKey, avatar.pub, Buffer.from(calc), true)
-    await this.storage.putFile(this.args.org, ID.court(this.idC), 'C_' + this.mois, fic)
+    await this.storage.putFile(this.args.org, ID.court(this.idC), 'T_' + this.mois, fic)
   }
 
   async phase1 (args) {
     const espace = await this.getEspaceOrg(args.org)
     if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
     this.ns = espace.id
-    const m = AMJ.djMoisN(this.auj, 2)
+    const m = AMJ.djMoisN(this.auj, -3) // 20240606
     this.mois = Math.floor(m / 100)
 
     this.idC = ID.duComptable(this.ns)
     this.setRes('getUrl', await this.storage.getUrl(args.org, ID.court(this.idC), 'T_' + this.mois))
 
-    if (espace.moisStat && espace.moisStat >= this.mois) {
-      this.phase2 = null
-      this.setRes('creation', false)
-    } else {
-      this.setRes('creation', true)
+    if (!espace.moisStatT || (espace.moisStatT < this.mois)) {
       await this.creation()
-      if (args.mr === 0) this.phase2 = null
+      this.setRes('creation', true)
+    } else {
+      this.setRes('creation', false)
+      this.phase2 = null
     }
     this.setRes('mois', this.mois)
   }
 
   async phase2 () {
-    const espace = compile(await this.getRowEspace(this.ns, 'ComptaStat-2'))
-    if (!espace.moisStat || espace.moisStat < this.mois) {
-      espace.moisStat = this.mois
+    const espace = compile(await this.getRowEspace(this.ns, 'ComptaStatT-2'))
+    if (!espace.moisStatT || (espace.moisStatT < this.mois)) {
+      espace.moisStatT = this.mois
       espace.v++
       this.update(espace.toRow())
+      await this.db.delTickets (this, this.idC, this.mois)
     }
   }
 }
@@ -4455,7 +4478,7 @@ operations.GetUrlStat = class GetUrlStat extends Operation {
     const ns = parseInt(args.ns)
     const org = await this.org(ns)
     const idC = ID.court(ID.duComptable(ns))
-    const url = await this.storage.getUrl(org, idC, args.cd + '_' + args.mois)
+    const url = await this.storage.getUrl(org, idC, args.cs + '_' + args.mois)
     this.setRes('getUrl', url)
     if (!this.session.id) this.setRes('appKey', this.db.appKey)
   }

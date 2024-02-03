@@ -4,7 +4,7 @@ import { Database } from './loadreq.mjs'
 import { decode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
-import { d14, ID } from './api.mjs'
+import { d14, ID, d10 } from './api.mjs'
 
 export class SqliteProvider {
   constructor (cfg, site, code) {
@@ -338,9 +338,9 @@ export class SqliteProvider {
     for (const row of rows) {
       row._nom = nom
       const rx = await decryptRow(op, row)
-      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
+      op.nl++
+      if (!fnprocess) r.push(rx); else fnprocess(op, rx._data_)
     }
-    op.nl += r.length
     return !fnprocess ? r : null
   }
     
@@ -361,10 +361,36 @@ export class SqliteProvider {
     return r
   }
   
+  /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
+  */
+  async selTickets (op, id, aamm, fnprocess) {
+    const mx = ((aamm % 10000) * d10) + 9999999999
+    const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND ids <= @mx')
+    const rows = st.all({ id, mx })
+    if (!rows) return []
+    const r = []
+    for (const row of rows) {
+      row._nom = 'tickets'
+      const rx = await decryptRow(op, row)
+      op.nl++
+      if (!fnprocess) r.push(rx); else fnprocess(op, rx._data_)
+    }
+    return !fnprocess ? r : null
+  }
+
   async delScoll (op, nom, id) {
     const code = 'DELSCOL'+ nom
     const st = this._stmt(code, 'DELETE FROM ' + nom + ' WHERE id = @id')
     const info = st.run({id : id})
+    op.ne += info.changes
+    return info.changes
+  }
+
+  async delTickets (op, id, aamm) {
+    const mx = ((aamm % 10000) * d10) + 9999999999
+    const code = 'DELTKT'
+    const st = this._stmt(code, 'DELETE FROM tickets WHERE id = @id AND ids <= @mx')
+    const info = st.run({id, mx})
     op.ne += info.changes
     return info.changes
   }
