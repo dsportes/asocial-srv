@@ -289,7 +289,8 @@ export class SqliteProvider {
     return r
   }
   
-  static async getMembresDlv(op, dlvmax) {
+  /* Retourne l'array des couples [id, ids] des membres ayant passé leur dlv, PAS les rows */
+  async getMembresDlv(op, dlvmax) {
     const st = this._stmt('SELMDLV', 'SELECT id, ids FROM membres WHERE dlv <= @dlvmax')
     const rows = st.all({ dlvmax })
     const r = []
@@ -298,7 +299,7 @@ export class SqliteProvider {
     return r
   }
   
-  static async getGroupesDfh(op, dfh) {
+  async getGroupesDfh(op, dfh) {
     const st = this._stmt('SELGDFH', 'SELECT id FROM groupes WHERE dfh > 0 AND dfh <= @dfh')
     const rows = st.all({ dfh })
     const r = []
@@ -414,14 +415,14 @@ export class SqliteProvider {
     return null
   }
 
-  async setCheckpoint (op, x, _data_, ins) {
+  async setCheckpoint (op, v, _data_, ins) {
     let st
     if (ins) {
       st = this._stmt('INSCHKPT', 'INSERT INTO singletons (id, v,_data_) VALUES (1, @v, @_data_)')
     } else {
       st = this._stmt('UPDCHKPT', 'UPDATE singletons SET _data_ = @_data_, v = @v WHERE id = 1')
     }
-    st.run({ v: x.v, _data_ })
+    st.run({ v, _data_ })
     op.ne++
   }
 
@@ -448,6 +449,7 @@ export class SqliteProvider {
     op.ne++
   }
 
+  /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
   async listeFpurges (op) {
     const r = []
     const st = this._stmt('SELFPURGES', 'SELECT _data_ FROM fpurges')
@@ -459,6 +461,7 @@ export class SqliteProvider {
     return r
   }
 
+  /* Retourne une liste de couples [id, ids] PAS de rows */
   async listeTransfertsDlv (op, dlv) {
     const r = []
     const st = this._stmt('SELTRADLV', 'SELECT * FROM transferts WHERE dlv <= @dlv')

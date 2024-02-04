@@ -325,7 +325,7 @@ export class FirestoreProvider {
     return r
   }
 
-  /* Retourne l'array des ids des "membres" dont la dlv est inférieure ou égale à dlvmax */
+  /* Retourne l'array des [id, ids] des "membres" dont la dlv est inférieure ou égale à dlvmax */
   async getMembresDlv (op, dlvmax) { 
     // INDEX COLECTION_GROUP sur membres dlv
     const q = this.fs.collectionGroup('membres').where('dlv', '<=', dlvmax) 
@@ -338,7 +338,7 @@ export class FirestoreProvider {
 
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
   est inférieure ou égale à dfh */
-  static async getGroupesDfh(op, dfh) {
+  async getGroupesDfh(op, dfh) {
     const p = FirestoreProvider._collPath('groupes')
     // INDEX simple sur groupes dfh
     const q = this.fs.collection(p).where('dfh', '>', 0).where('dfh', '<=', dfh) 
@@ -350,7 +350,7 @@ export class FirestoreProvider {
   }
   
   /* Retourne la collection 'nom' : pour la liste des espaces */
-  static async coll (op, nom) {
+  async coll (op, nom) {
     const p = FirestoreProvider._collPath(nom)
     const q = this.fs.collection(p)
     const qs = await op.transaction.get(q)
@@ -480,9 +480,9 @@ export class FirestoreProvider {
     return null
   }
 
-  async setCheckpoint (op, x, _data_ /*, ins */) {
+  async setCheckpoint (op, v, _data_ /*, ins */) {
     const dr = this.fs.doc('singletons/1')
-    await dr.set({ v: x.v, _data_ })
+    await dr.set({ v, _data_ })
     op.ne++
   }
 
@@ -510,6 +510,7 @@ export class FirestoreProvider {
     op.ne++
   }
 
+  /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
   async listeFpurges (op) {
     const r = []
     const p = FirestoreProvider._collPath('fpurges')
@@ -525,6 +526,7 @@ export class FirestoreProvider {
     return r
   }
 
+  /* Retourne une liste de couples [id, ids] PAS de rows */
   async listeTransfertsDlv (op, dlv) {
     const r = []
     const p = FirestoreProvider._collPath('transferts')

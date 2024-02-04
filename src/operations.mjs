@@ -2575,15 +2575,15 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       membre.inv = null
       break
     }
-    case 3: { // refus et oubli
-      fl = 0
+    case 3: { // refus et oubli      
       groupe.nag[args.ids] = !(fl & FLAGS.HA) ? 0 : 1
+      groupe.flags[args.ids] = 0
       break
     }
     case 4: { // refus et oubli et liste noire
-      fl = 0
       groupe.nag[args.ids] = !(fl & FLAGS.HA) ? 0 : 1
       groupe.lnc.push(args.nag)
+      groupe.flags[args.ids] = 0
       break
     }
     }
@@ -3719,6 +3719,20 @@ operations.GC = class GC extends Operation {
 }
 
 /* GC général enchaînant les étapes de GC spécifiques
+checkpoint _data_ :
+- `id` : 1
+- `v` : date-time de sa dernière mise à jour ou 0 s'il n'a jamais été écrit.
+
+- `start` : date-heure de lancement du dernier GC.
+- `duree` : durée de son exécution en ms.
+- `nbTaches` : nombre de taches terminées avec succès sur 6.
+- `log` : array des traces des exécutions des tâches:
+  - `nom` : nom.
+  - `retry` : numéro de retry.
+  - `start` : date-heure de lancement.
+  - `duree` : durée en ms.
+  - `err` : si sortie en exception, son libellé.
+  - `stats` : {} compteurs d'objets traités (selon la tâche).
 */
 operations.GCGen = class GCGen extends Operation {
   constructor () { super('GCGen'); this.authMode = 3  }
@@ -3774,12 +3788,13 @@ operations.GCGen = class GCGen extends Operation {
       const ckpt = await this.getCheckpoint()
       const start = Date.now()
       ckpt.dhStart = start
+      ckpt.duree = 0
       ckpt.log = []
       ckpt.nbTaches = 0
       await this.setCheckpoint(ckpt)
     }
 
-    // Récupération des fin d'hébergement
+    // Récupération des fins d'hébergement
     if (!await this.step('GCHeb')) return
 
     // Récupération des membres disparus et des groupes devenant orphelins
@@ -3797,6 +3812,9 @@ operations.GCGen = class GCGen extends Operation {
     // purges des versions ayant une dlv de plus d'un an
     // purges des sponsorings hor date
     if (!await this.step('GCDlv')) return
+
+    // statistiques "mensuelles" comptas et tickets (avec purges)
+    if (!await this.step('GCstc')) return
 
     {
       const ckpt = await this.getCheckpoint()
@@ -3895,12 +3913,12 @@ operations.GCGro = class GCGro extends Operation {
 
       const lmb = await this.getMembresDlv(auj)
       const lgr = new Map()
-      for (const [id, ids] of lmb) {
+      for (const [id, ids] of lmb) { // regroupement par groupe
         let a = lgr.get(id)
         if (!a) { a = []; lgr.set(id, a) }
         a.push(ids)
       }
-      for (const [id, a] of lgr) {
+      for (const [id, a] of lgr) { // Pour chaque groupe, a: liste des ids des membres perdus
         try {
           await new operations.GCGrotr().run({id, a, dlv: auj})
           stats.ng++
@@ -3937,26 +3955,25 @@ operations.GCGrotr = class GCGrotr extends Operation {
     if (!vg || vg._zombi || !groupe) return
     vg.v++
 
-    let nba = 0
     try {
       for (const im of a) {
-        groupe.ast[im] = 0
+        const fl = groupe.flags[im]
+        groupe.nag[args.ids] = !(fl & FLAGS.HA) ? 0 : 1
+        groupe.flags[im] = 0
         this.delete( { _nom: 'membres', id: idg, ids: im })
       }
-      groupe.ast.forEach(s => { if (s >= 30 && s <= 32) nba++ })
     } catch (e) {
       // trace : données groupe inconstante
       // mais par prudence on détruit le grope
-      const info = 'rowGroupe inconsistent (ast(?)'
-      trace('GCResmb-AL1' , idg, info)
-      nba = 0
+      const info = 'rowGroupe inconsistent'
+      trace('GCGrotr-AL1' , idg, info)
     }
 
-    if (nba) { // Il reste des membres actifs
+    if (groupe.aActifs) { // Il reste des membres actifs
       groupe.v = vg.v
       this.update(groupe.toRow())
     } else { // le groupe est à purger
-      vg.dlv = dlv // ICI versions dlv
+      vg.dlv = dlv // versions dlv
       vg._zombi = true
     }
     this.update(vg.toRow())
@@ -3987,6 +4004,7 @@ operations.GCPag = class GCPag extends Operation {
       this.lids = await this.getVersionsDlv(min, auj)
 
       for (const id of this.lids) {
+        if (ID.estComptable(id)) continue
         idref = id
         const estG = ID.estGroupe(id)
         if (estG) {
@@ -3994,6 +4012,7 @@ operations.GCPag = class GCPag extends Operation {
           st.nn += await this.delScoll('notes', id)
           st.nm += await this.delScoll('membres', id)
           st.nt += await this.delScoll('transferts', id)
+          st.nc += await this.delScoll('chatgrs', id)
         } else {
           st.na++
           // récupération éventuelle des volumes du compte (si l'avatar est un compte)
@@ -4046,18 +4065,20 @@ operations.GCPagtr = class GCPagtr extends Operation {
     if (rowCompta) {
       try {
         const compta = compile(rowCompta)
-        const gcvol = new Gcvols().init({
-          id: id,
-          cletX: compta.cletX,
-          it: compta.it
-        })
-        this.insert(gcvol.toRow())
-        this.delete(rowCompta)
+        if (compta.it) { // pour les comptes O seulment
+          const gcvol = new Gcvols().init({
+            id: id,
+            cletX: compta.cletX,
+            it: compta.it
+          })
+          this.insert(gcvol.toRow())
+          this.delete(rowCompta)
+        }
       } catch (e) {
         // volumes non récupérés pour données inconsistantes : ignorer
         // trace
         const info = e.toStriong()
-        trace('GCResco-AL1' , args.id, info)
+        trace('GCPagtr-AL1' , args.id, info)
       }
     }
   }
@@ -4066,7 +4087,7 @@ operations.GCPagtr = class GCPagtr extends Operation {
 /* GCFpu : purges des fichiers
 L'opération récupère tous les items d'id de fichiers 
 depuis `fpurges` et déclenche une purge sur le Storage.
-Les documents `fpurges` sont purgés.
+Les documents `fpurges` sont purgés. { id, idag, lidf }
 */
 operations.GCFpu = class GCFpu extends Operation {
   constructor () { super('GCFpu'); this.authMode = 3  }
@@ -4077,17 +4098,16 @@ operations.GCFpu = class GCFpu extends Operation {
       let n = 0
       for (const fpurge of lst) {
         if (fpurge.id && fpurge.idag && fpurge.lidf) {
-          const idref = fpurge.id + '/' + fpurge.idag
           n += fpurge.lidf.length
           try {
             const org = await this.org(ID.ns(fpurge.idag))
-            const idi = fpurge.idag % d14   
+            const idi = ID.court(fpurge.idag)  
             await this.storage.delFiles(org, idi, fpurge.lidf)
             await this.unsetFpurge(fpurge.id)
           } catch (e) {
             // trace
             const info = e.toString()
-            const msg = trace('GCFpu-ER2' , idref, info, true)
+            const msg = trace('GCFpu-ER2' , fpurge.id + '/' + fpurge.idag, info, true)
             this.setRes('err', msg)
             return
           }
@@ -4118,17 +4138,16 @@ operations.GCTra = class GCTra extends Operation {
 
       for (const [id, idf] of lst) {
         if (id && idf) {
-          const idref = id + '/' + idf
           try {
             const ns = ID.ns(id)
             const org = await this.org(ns)
-            const idi = id % d14        
+            const idi = ID.court(id)        
             await this.storage.delFiles(org, idi, [idf])
             await this.purgeTransferts(id, idf)
           } catch (e) {
             // trace
             const info = e.toString()
-            const msg = trace('GCTra-ER2' , idref, info, true)
+            const msg = trace('GCTra-ER2' , id + '/' + idf, info, true)
             this.setRes('err', { err: msg })
             return
           }
@@ -4153,7 +4172,7 @@ dont les `dlv` sont antérieures ou égales à aujourd'hui.
 Ces documents sont purgés.
 */
 operations.GCDlv = class GCDlv extends Operation {
-  constructor () { super('GCGCDlvTra'); this.authMode = 3  }
+  constructor () { super('GCDlv'); this.authMode = 3  }
 
   async phase1 () {
     let nom = 'sponsorings'
@@ -4198,13 +4217,13 @@ operations.GCstc = class GCstc extends Operation {
         const moisespc = esp.moisStat || 0
         const moisespt = esp.moisStatT || 0
 
-        if (moisespc < moisc && moisesp > moisc) {
+        if (moisespc < moisc && moisesp <= moisc) {
           const arg = { org: esp.org, mr: 1 }
           await new operations.ComptaStat(true).run(arg)
           nbstc++
         }
 
-        if (moisespt < moist && moisesp > moist) {
+        if (moisespt < moist && moisesp <= moist) {
           const arg = { org: esp.org }
           await new operations.TicketsStat(true).run(arg)
           nbstt++
@@ -4296,8 +4315,8 @@ operations.ComptaStat = class ComptaStat extends Operation {
   */
   processData (op, data) {
     const dcomp = decode(data)
-    const c = decode(dcomp).compteurs
-    const vx = c.vd[this.mr]
+    const c = new Compteurs(dcomp.compteurs)
+    const vx = c.vd[op.mr]
     const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
     if (!nj) return
     
@@ -4335,7 +4354,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
     if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
     this.ns = espace.id
     if (args.mr < 0 || args.mr > 2) args.mr = 1
-    const m = AMJ.djMoisN(this.auj, args.mr)
+    const m = AMJ.djMoisN(this.auj, - args.mr)
     this.mr = args.mr
     this.mois = Math.floor(m / 100)
 

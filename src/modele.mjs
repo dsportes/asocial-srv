@@ -40,8 +40,11 @@ import { GenDoc, compile, Chats } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
+  /*
   const t = new Date().toISOString()
   if (err) console.error(t + ' ' + msg); else console.log(t + ' ' +  msg)
+  */
+  if (err) ctx.logger.error(msg); else ctx.logger.info(msg)
   return msg
 }
 
@@ -426,7 +429,7 @@ export class Operation {
 
   async getCheckpoint () { return Cache.getCheckpoint(this) }
 
-  async setCheckpoint (op, obj) { return Cache.setCheckpoint(this, obj) }
+  async setCheckpoint (obj) { return Cache.setCheckpoint(this, obj) }
 
   async getRowEspace (id, assert) {
     const tr = await Cache.getRow(this, 'espaces', id)
