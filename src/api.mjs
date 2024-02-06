@@ -293,6 +293,14 @@ export class AMJ {
     return (a * 10000) + (m * 100) + AMJ.djm(a, m)
   }
 
+  /* Retourne le "mois logique d'une dlv de compte":
+  - dernier jour du mois d'une dlv si pas jour 1
+  - si amj est un jour 1, retourne le dernier jour du mois précédent
+  */
+  static dlv (amj) {
+    return amj % 100 === 1 ? AMJ.djMoisPrec(amj) : amj
+  }
+
   // Retourne l'amj du premier jour du mois de celle passée en argument
   static pjMois (amj) {
     const [a, m, ] = AMJ.aaaammjj(amj)

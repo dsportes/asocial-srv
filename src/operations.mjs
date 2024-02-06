@@ -706,6 +706,7 @@ Retour, sauf _administrateur_:
 - `rowAvatar` : row de l'avatar principal du compte
 - `rowCompta` : row compta du compte.
 - `rowEspace` : row de l'espace (informations générales / statistques de l'espace et présence de la notification générale éventuelle.
+- `dlv`: dlv récupérée sur le row versions de l'avatar principal
 - `credentials`: données d'authentification pour utilisation de l'API Firestore dans l'application cliente (absente en mode SQL)
 
 Retour, pour _administrateur_:
@@ -740,6 +741,8 @@ operations.ConnexionCompte = class ConnexionCompte extends Operation {
     this.setRes('rowAvatar', rowAvatar)
     const rowEspace = await this.getRowEspace(ns, 'ConnexionCompte-3')
     this.setRes('rowEspace', rowEspace)
+    const rowVersion = await this.getRowVersion(id, 'ConnexionCompte-4')
+    this.setRes('dlv', rowVersion.dlv)
   }
 }
 
@@ -1252,7 +1255,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
       const va = compile(await this.getRowVersion(id, 'avGrSignatures-2', true))
       versions[id] = { v: va.v }
-      if (signer && (va.dlv < e.dlv)) { // signature de l'avatar
+      if (signer && (va.dlv !== e.dlv)) { // signature de l'avatar
         va.dlv = e.dlv
         this.update(va.toRow())
       }
@@ -1285,7 +1288,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
           if (r) { 
             /* normalement r existe : le membre ids du groupe correspond
             à un avatar qui l'a cité dans sa liste de groupe */
-            if (signer && (r.dlv < e.dlv)) { 
+            if (signer && (r.dlv !== e.dlv)) { 
               // signatures des membres: la version ne change pas (la synchro de la dlv est sans intérêt)
               const membre = compile(r)
               membre.dlv = e.dlv
