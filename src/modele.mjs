@@ -686,6 +686,19 @@ export class Operation {
     return nl
   }
 
+  async propagerDlv (args) {
+    for(const id of args.lavLmb[0]) {
+      const version = compile(await this.getRowVersion(id, 'MajCredits-2'))
+      version.dlv = args.dlv
+      this.update(version.toRow())
+    }
+    for(const [idg, im] of args.lavLmb[1]) {
+      const membre = compile(await this.getRowMembre(idg, im, 'MajCredits-3'))
+      membre.dlv = args.dlv
+      this.update(membre.toRow())
+    }
+  }
+  
   /* Met à jour les volumes du groupe TODO
   Refuse si le volume est ex expansion et qu'il dépasse le quota
   L'objet version du groupe est mis à jour et retourné

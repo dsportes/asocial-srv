@@ -226,6 +226,10 @@ POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `credits` : credits crypté par la clé K du compte
 - `v`: version de compta de la dernière incorporation des crédits
+- `dlv`: nouvelle dlv calculée
+- `lavLmb`: [lav, lmb]
+  - lav: array des ids des avatars
+  - lmb: array des [idg, im] des membres
 
 Retour:
 - KO: true - La version v est en régression, refaire l'incorporation des crédits.
@@ -243,11 +247,15 @@ operations.MajCredits = class MajCredits extends Operation {
       this.setRes('KO', true)
       return
     }
+
+    const dlvAvant = compta.dlv
     compta.v++
     compta.credits = args.credits
     // console.log('CREDITS MajCredits', compta.v, compta.credits.length)
     compta.dons = null
+    compta.dlv = args.dlv
     this.update(compta.toRow())
+    if (dlvAvant !== args.dlv) this.propagerDlv(args)
   }
 }
 
@@ -488,6 +496,8 @@ POST:
 - `rowSponsoring` : row Sponsoring, SANS la version (qui est calculée par le serveur).
 - `credits`: nouveau credits du compte si non null
 - `v`: version de compta si credits
+- dlv: nouvelle dlv (si credits)
+- lavLmb
 
 Retour:
 - KO: true - si régression de version de compta
@@ -520,10 +530,12 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
         this.setRes('KO', true)
         return
       }
+      const dlvAvant = compta.dlv
       compta.v++
       compta.credits = args.credits
-      // console.log('CREDITS AjoutSponsoring', compta.v, compta.credits.length)
+      compta.dlv = args.dlv
       this.update(compta.toRow())
+      if (dlvAvant !== args.dlv) this.propagerDlv(args)  
     }
   }
 }
@@ -706,7 +718,6 @@ Retour, sauf _administrateur_:
 - `rowAvatar` : row de l'avatar principal du compte
 - `rowCompta` : row compta du compte.
 - `rowEspace` : row de l'espace (informations générales / statistques de l'espace et présence de la notification générale éventuelle.
-- `dlv`: dlv récupérée sur le row versions de l'avatar principal
 - `credentials`: données d'authentification pour utilisation de l'API Firestore dans l'application cliente (absente en mode SQL)
 
 Retour, pour _administrateur_:
@@ -741,8 +752,6 @@ operations.ConnexionCompte = class ConnexionCompte extends Operation {
     this.setRes('rowAvatar', rowAvatar)
     const rowEspace = await this.getRowEspace(ns, 'ConnexionCompte-3')
     this.setRes('rowEspace', rowEspace)
-    const rowVersion = await this.getRowVersion(id, 'ConnexionCompte-4')
-    this.setRes('dlv', rowVersion.dlv)
   }
 }
 
@@ -1190,12 +1199,13 @@ POST:
 - `token` : éléments d'authentification du compte.
 - `vcompta` : version de compta qui ne doit pas avoir changé
 - `vavatar`: version de l'avatar principal du compte qui ne doit pas avoir changé
+- `dlv` : nouvelle valeur de la dlv si elle a changé, sinon 0
 - `mbsMap` : map des membres des groupes des avatars :
   - _clé_ : id du groupe  
-  - _valeur_ : `{ idg, v, npgks: [npgk], mbs: [ids], dlv }`
+  - _valeur_ : `{ idg, v, npgks: [npgk], mbs: [ids] }`
 - `avsMap` : map des avatars du compte 
   - `clé` : id de l'avatar
-  - `valeur` : `{v (version connue en session), dlv}`
+  - `valeur` : version connue en session)
 - `abPlus` : array des ids des groupes auxquels s'abonner
 - `estFige` : si true, ne pas effectuer les signatures
 
@@ -1220,9 +1230,10 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
   */
 
   async phase2 (args) {
-    const signer = !this.session.estFige && !args.estFige
+    const fige = this.session.estFige || args.estFige
+    const signer = !fige && args.dlv
     const versions = {}
-    let grDisparus = false
+    const npgkDisp = []
 
     /* si compta ou avatar n'existe plus, le compte n'existe plus
     si compta ou avatar ont changé de versions, recommencer la procédure de connexion */
@@ -1240,7 +1251,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
     const avatar = compile(rowAvatar)
 
-    /* Traitement des avatars SAUF le principal
+    /* Traitement des avatars SAUF le principal (détecté ci-avant et KO)
     Un avatar n'a pas pu disparaître:
     - si le compte a disparu, exception ci-dessus
     - si l'avatar s'est auto-résilié, l'avatar principal l'a su avant
@@ -1248,15 +1259,15 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
     for (const idx in args.avsMap) {
       const id = parseInt(idx)
       if (this.session.id === id) continue
-      const e = args.avsMap[id]
+      const v = args.avsMap[id]
 
       const row = await this.getRowAvatar(id, 'avGrSignatures-1')
-      if (row.v > e.v) this.addRes('rowAvatars', row)
+      if (row.v > v) this.addRes('rowAvatars', row)
 
       const va = compile(await this.getRowVersion(id, 'avGrSignatures-2', true))
       versions[id] = { v: va.v }
-      if (signer && (va.dlv !== e.dlv)) { // signature de l'avatar
-        va.dlv = e.dlv
+      if (signer) { // signature de versions de l'avatar (sans changer v)
+        va.dlv = args.dlv
         this.update(va.toRow())
       }
     }
@@ -1269,6 +1280,9 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
     (ses compteurs ne sont pas impactés).
     On va mettre à jour l'avatar principal en enlevant les groupes disparus
     et le retourner en résultat.
+    - `mbsMap` : map des membres des groupes des avatars :
+      - _clé_ : id du groupe  
+      - _valeur_ : `{ idg, v, npgks: [npgk], mbs: [ids] }`
     */
     for (const idx in args.mbsMap) {
       const id = parseInt(idx)
@@ -1276,22 +1290,23 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
       const vg = compile(await this.getRowVersion(id, 'avGrSignatures-3'))
       if (vg._zombi) {
-        if (avatar.mpgk) 
-          e.npgks.forEach(npgk => {avatar.mpgk[npgk]})
-        grDisparus = true
+        e.npgks.forEach(npgk => {
+          npgkDisp.push(npgk)
+          if (avatar.mpgk) delete avatar.mpgk[npgk]
+        })
       } else {
         versions[id] = vg
         const row = await this.getRowGroupe(id, 'avGrSignatures-4')
         if (row.v > e.v) this.addRes('rowGroupes', row)  
         for (const ids of e.mbs) {
-          const r = await this.getRowMembre(e.idg, ids)
+          const r = await this.getRowMembre(id, ids)
           if (r) { 
             /* normalement r existe : le membre ids du groupe correspond
             à un avatar qui l'a cité dans sa liste de groupe */
-            if (signer && (r.dlv !== e.dlv)) { 
+            if (signer) { 
               // signatures des membres: la version ne change pas (la synchro de la dlv est sans intérêt)
               const membre = compile(r)
-              membre.dlv = e.dlv
+              membre.dlv = args.dlv
               this.update(membre.toRow())
             }
           }
@@ -1300,18 +1315,26 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
     }
 
     const va = compile(await this.getRowVersion(this.session.id, 'avGrSignatures-2', true))
-    if (grDisparus) va.v++
+    if (npgkDisp.length && !fige) va.v++
     versions[this.session.id] = { v: va.v }
-    const e = args.avsMap[this.session.id]
-    if (signer && (va.dlv < e.dlv)) { // signature de l'avatar
-      va.dlv = e.dlv
+    if (signer) { // signature de l'avatar
+      va.dlv = args.dlv
       this.update(va.toRow())
     }
-    if (grDisparus) {
-      avatar.v = va.v
-      this.setRes('rowAvatar', this.update(avatar.toRow()))
+    if (npgkDisp.length) {
+      this.setRes('npgkDisp', npgkDisp)
+      if (!fige) {
+        // MAJ de l'avatar principal avec une mpgk dont certazins éléments ont été supprimés
+        this.update(avatar.toRow())
+      }
     }
 
+    if (signer) {
+      const compta = compile(rowCompta)
+      compta.v++
+      compta.dlv = args.dlv
+      this.update(compta.toRow())
+    }
     this.setRes('versions', versions)
   }
 }
@@ -1690,6 +1713,8 @@ POST:
 - `dh` : date-heure du chat dont le texte est à annuler.
 Si don:
 - `credits`: nouveau credits de compta du compte incorporant le don
+- dlv
+- lavLmb
 - `crDon`: don crypté par RSA du bénéficiaire idE à ajouter dans son compta.dons
 - `v`: version de compta du compte
 
@@ -1718,8 +1743,13 @@ operations.MajChat = class MajChat extends Operation {
         this.setRes('KO', true)
         return
       }
+      
+      const dlvAvant = this.compta.dlv
       this.compta.credits = args.credits
+      this.compta.dlv = args.dlv
       this.updCompta = true
+      
+      if (dlvAvant !== args.dlv) this.propagerDlv(args)
 
       const comptaE = compile(await this.getRowCompta(args.idE, 'MajChat-9'))
       if (!comptaE.dons) comptaE.dons = [args.crDon]
@@ -1728,7 +1758,10 @@ operations.MajChat = class MajChat extends Operation {
       const r2 = comptaE.toRow()
       this.update(r2)
     }
-    if (this.updCompta) this.update(this.compta.toRow())
+    if (this.updCompta) {
+      this.compta.v++
+      this.update(this.compta.toRow())
+    }
   }
 
   async majchat (args) {
@@ -1981,6 +2014,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   constructor () { super('NouvelAvatar') }
 
   async phase2 (args) {
+    const compta = compile(await this.getRowCompta(this.session.id, 'NouvelAvatar-3'))
     const compte = compile(await this.getRowAvatar(this.session.id, 'NouvelAvatar-1'))
     const vc = compile(await this.getRowVersion(this.session.id, 'NouvelAvatar-2'))
     vc.v++
@@ -1989,7 +2023,9 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     this.update(vc.toRow())
     this.update(compte.toRow())
 
-    this.insert(args.rowVersion)
+    const version = compile(args.rowVersion)
+    version.dlv = compta.dlv
+    this.insert(version.toRow())
     this.insert(args.rowAvatar)
   }
 }
@@ -2358,10 +2394,16 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
   constructor () { super('NouveauGroupe') }
 
   async phase2 (args) { 
+    const compta = compile(await this.getRowCompta(this.session.id, 'NouveauMembre-3'))
     const groupe = compile(args.rowGroupe)
     const membre = compile(args.rowMembre)
+    membre.dlv = compta.dlv
     const version = new Versions().init(
-      { id: groupe.id, v: 1, vols: { v1:0, v2: 0, q1: args.quotas[0], q2: args.quotas[1]} } )
+      { id: groupe.id, 
+        v: 1,
+        dlv: AMJ.max,
+        vols: { v1:0, v2: 0, q1: args.quotas[0], q2: args.quotas[1]} 
+      })
     const versionav = compile(await this.getRowVersion(this.session.id, 'NouveauGroupe-1', true))
     const avatar = compile(await this.getRowAvatar(this.session.id, 'NouveauGroupe-2'))
 
@@ -2417,6 +2459,7 @@ args.idd : id du compte de départ en cas de transfert (5)
 args.idhg : id du compte d'arrivée en cas de transfert CRYPTE par la clé du groupe
 args.imh : im du nouvel hébergeur
 args.q1, q2 :
+args.dfh: date de fin d'hébergement
 args.action :
   AGac1: 'Je prends l\'hébergement à mon compte',
   AGac2: 'Je cesse d\'héberger ce groupe',
