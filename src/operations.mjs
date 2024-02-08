@@ -1925,10 +1925,11 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
   constructor () { super('MuterCompte') }
 
   async phase2 (args) {
-    await this.majchat(args)
+    await this.majchat(args) // fixe this.updCompta
 
     const comptaM = compile(await this.getRowCompta(args.id, 'MuterCompte-1'))
     comptaM.v++
+    comptaM.dlv = args.dlv
 
     if (args.st === 1) {
       /* compte A devient O
@@ -1974,7 +1975,8 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       /* compte O devient A
       - le retirer de sa tribu actuelle
       - raz de ses infos tribu dans comptaM
-      - credits à "true"
+      - credits à "true": pour forcer à la prochaine connexion à l'initialiser
+      au minimum prévu
       - dans compteurs: remise à zéro du total abonnement et consommation des mois antérieurs (`razma()`), raz des mois 
       */
       const idtAv = args.trib.idt
@@ -1984,6 +1986,7 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       avTribu.act[comptaM.it] = null
       this.update(avTribu.toRow())
       await this.MajSynthese(avTribu)
+      if (this.db.hasWS) this.session.sync.moins(args.idtAv)
 
       comptaM.cletK = null
       comptaM.cletX = null
@@ -1993,9 +1996,9 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       c.razma()
       comptaM.compteurs = c.serial
       this.update(comptaM.toRow())
-
-      if (this.db.hasWS) this.session.sync.moins(args.idtAv)
     }
+
+    await this.propagerDlv(args)
 
     if (this.updCompta) this.update(this.compta.toRow())
   }
@@ -2209,6 +2212,12 @@ operations.SetQuotas = class SetQuotas extends Operation {
   async phase2 (args) {
     const compta = compile(await this.getRowCompta(args.idc, 'SetQuotas-1'))
 
+    compta.v++
+    compta.qv.qc = args.q[0]
+    compta.qv.q1 = args.q[1]
+    compta.qv.q2 = args.q[2]
+    compta.compteurs = new Compteurs(compta.compteurs, compta.qv).serial
+
     if (args.idt) {
       const tribu = compile(await this.getRowTribu(args.idt, 'SetQuotas-1'))
       tribu.v++
@@ -2219,13 +2228,14 @@ operations.SetQuotas = class SetQuotas extends Operation {
       x.q2 = args.q[2]
       this.update(tribu.toRow())
       await this.MajSynthese(tribu)
+    } else {
+      // compte A: changement de dlv et propagation aux versions d'avatars et des membres
+      if (compta.dlv !== args.dlv) {
+        compta.dlv = args.dlv
+        await this.propagerDlv(args) 
+      }
     }
 
-    compta.v++
-    compta.qv.qc = args.q[0]
-    compta.qv.q1 = args.q[1]
-    compta.qv.q2 = args.q[2]
-    compta.compteurs = new Compteurs(compta.compteurs, compta.qv).serial
     this.update(compta.toRow())
   }
 }

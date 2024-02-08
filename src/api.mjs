@@ -10,6 +10,10 @@ export const PINGTO2 = 4 // en minutes : rafraîchissement des compteurs de cons
 export const MSPARJOUR = 86400 * 1000
 export const MSPARAN = 365 * MSPARJOUR
 export const MSPARMOIS = 30 * MSPARJOUR
+/* Nombre de jours sans connexion avant qu'une base locale 
+ne soit considérée comme obsolète */
+export const IDBOBS = 18 * 30
+export const IDBOBSGC = 19 * 30
 
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
@@ -715,9 +719,11 @@ export class Compteurs {
 
   /* Nombre de jours avant que le solde devienne négatif
   en prolongeant le coût d'abonnement et ceux de consommation sur les 4 derniers mois
+  raz: true pour une mutation de compte O en A. Le nombre de jours
+  ignore le coût antérieur accummulé.
   */
-  nbj (credits) {
-    const solde = credits - this.cumulCouts
+  nbj (credits, raz) {
+    const solde = raz ? credits : (credits - this.cumulCouts)
     if (solde <= 0) return 0
     const [ac, mc] = AMJ.am(this.dh)
     const cu = Tarif.cu(ac, mc)
