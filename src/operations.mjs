@@ -5,7 +5,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { AuthSession, Operation, trace} from './modele.mjs'
 import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
-import { limitesjour, FLAGS, edit, A_SRV, idTkToL6 } from './api.mjs'
+import { FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC } from './api.mjs'
 
 export function atStart() {
   // console.log('atStart operations')
@@ -450,6 +450,8 @@ POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `ns` : id de l'espace notifié.
 - `optionA` : 0 1 2.
+- dlvat: aaaammjj,
+- nbmi:
 
 Retour: rien
 
@@ -465,7 +467,9 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
     let rowEspace = await this.getRowEspace(args.ns, 'SetEspaceOptionA')
     const espace = compile(rowEspace)
     espace.v++
-    espace.opt = args.optionA || 0
+    if (args.optionA) espace.opt = args.optionA
+    if (args.dlvat) espace.dlvat = args.dlvat
+    if (args.nbmi) espace.nvmi = args.nbmi
     rowEspace = this.update(espace.toRow())
     this.setRes('rowEspace', rowEspace)
   }
@@ -2579,7 +2583,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       this.setRes('disparu', true)
       return
     }
-    const auj = this.auj
+
     const groupe = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
     const rowMembre = await this.getRowMembre(args.idg, args.ids, 'AcceptInvitation-2')
     const membre = compile(rowMembre)
@@ -2602,22 +2606,22 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     case 1: { // acceptation
       fl |= FLAGS.AC | FLAGS.HA
       membre.fac = 0
-      if (!membre.dac) membre.dac = auj
+      if (!membre.dac) membre.dac = this.auj
       fl &= ~FLAGS.IN
       if (args.iam && (fl & FLAGS.DM)) {
         fl |= FLAGS.AM | FLAGS.HM
         membre.fam = 0
-        if (!membre.dam) membre.dam = auj
+        if (!membre.dam) membre.dam = this.auj
       }
       if (args.ian && (fl & FLAGS.DN)) {
         fl |= FLAGS.AN | FLAGS.HN
         membre.fln = 0
-        if (!membre.dln) membre.dln = auj
+        if (!membre.dln) membre.dln = this.auj
       }
       if (fl & FLAGS.DE) {
         fl |= FLAGS.HE
         membre.fen = 0
-        if (!membre.den) membre.den = auj
+        if (!membre.den) membre.den = this.auj
       }
       groupe.flags[args.ids] = fl
       membre.flagsiv = 0
@@ -3598,7 +3602,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     // ICI versions dlv
     if (!va._zombi) {
       va.version++
-      va.dlv = this.auj
+      va.dlv = AMJ.amjUtcPlusNbj(this.auj, -1)
       va._zombi = true
       this.update(va.toRow())
     }
@@ -3907,12 +3911,12 @@ operations.GCHeb = class GCHeb extends Operation {
   async phase1 () {
     const stats = { nh: 0 }
     try {
-      const auj = AMJ.amjUtc()
 
-      const hb = await this.getGroupesDfh(auj)
+      const hb = await this.getGroupesDfh(this.auj)
       for (const id of hb) {
         try {
-          await new operations.GCHebtr().run({id: id, dlv: auj})
+          await new operations.GCHebtr()
+            .run({id: id, dlv: AMJ.amjUtcPlusNbj(this.auj, -1)})
           stats.nh++
         } catch (e) {
           // trace
@@ -3940,7 +3944,7 @@ operations.GCHebtr = class GCHebtr extends Operation {
     const idg = args.id
     const dlv = args.dlv
     const vg = compile(await this.getRowVersion(idg))
-    if (vg && !vg._zombi) { // ICI versions dlv
+    if (vg && !vg._zombi) { // versions dlv
       vg.v++
       vg.dlv = dlv
       vg._zombi = true
@@ -3965,9 +3969,8 @@ operations.GCGro = class GCGro extends Operation {
   async phase1 () {
     const stats = { nm: 0, ng: 0 }
     try {
-      const auj = AMJ.amjUtc()
 
-      const lmb = await this.getMembresDlv(auj)
+      const lmb = await this.getMembresDlv(this.auj)
       const lgr = new Map()
       for (const [id, ids] of lmb) { // regroupement par groupe
         let a = lgr.get(id)
@@ -3976,7 +3979,7 @@ operations.GCGro = class GCGro extends Operation {
       }
       for (const [id, a] of lgr) { // Pour chaque groupe, a: liste des ids des membres perdus
         try {
-          await new operations.GCGrotr().run({id, a, dlv: auj})
+          await new operations.GCGrotr().run({id, a, dlv: AMJ.amjUtcPlusNbj(this.auj, -1)})
           stats.ng++
           stats.nm += a.length
         } catch (e) {
@@ -4038,14 +4041,14 @@ operations.GCGrotr = class GCGrotr extends Operation {
 
 /* GCPag : Purge des sous-collections d'avatars et de groupes ***********
 L'opération récupère toutes les `id` des `versions` dont la `dlv` 
-est postérieure auj - 365 et antérieure ou égale à auj.
+est entre AMJ.min et auj (exclu).
 Dans l'ordre pour chaque id:
 - par compte, une transaction de récupération du volume 
 (si `comptas` existe encore, sinon c'est que ça a déjà été fait),
 - purge de leurs sous-collections,
 - purge de leur avatar / groupe,
 - purge de leurs fichiers,
-- set HORS TRANSACTION de la `dlv` de la `versions` à auj-800
+- set HORS TRANSACTION de la `dlv` de la `versions` à aamm
 */
 operations.GCPag = class GCPag extends Operation {
   constructor () { super('GCPag'); this.authMode = 3  }
@@ -4054,10 +4057,8 @@ operations.GCPag = class GCPag extends Operation {
     const st = { na: 0, ng: 0, nn: 0, nc: 0, ns: 0, nt: 0, nm: 0 }
     let idref = 0
     try {
-      const auj = AMJ.amjUtc()
-      const min = AMJ.amjUtcPlusNbj(auj, -limitesjour.dlv)
 
-      this.lids = await this.getVersionsDlv(min, auj)
+      this.lids = await this.getVersionsDlv(AMJ.min, this.auj)
 
       for (const id of this.lids) {
         if (ID.estComptable(id)) continue
@@ -4088,8 +4089,9 @@ operations.GCPag = class GCPag extends Operation {
         await this.storage.delId(org, idi)
         this.setRes('stats', st)
 
-        // validation des purges
-        const dlv = AMJ.amjUtcPlusNbj(auj, -(2 * limitesjour.dlv))
+        // validation des purges : dlj symbolique aamm
+        const [a1, m1, ] = AMJ.aaaammjj(this.auj)
+        const dlv = (Math.floor(a1 / 100) * 100) + m1
         await this.setVdlv(id, dlv)
 
       }
@@ -4220,8 +4222,9 @@ operations.GCTra = class GCTra extends Operation {
 }
 
 /* GCDlv : purge des sponsorings et versions obsolètes
-L'opération récupère toutes les versions de `dlv` antérieures 
-à jour j - 800. Ces documents sont purgés.
+L'opération récupère toutes les versions de `dlv` de la forme aamm 
+aamm : correspond au mois de aujourd'hui - IDBOBSGC jours
+Bref les très vielles versions définivement inutiles
 
 L'opération récupère toutes les documents `sponsorings` 
 dont les `dlv` sont antérieures ou égales à aujourd'hui. 
@@ -4236,7 +4239,8 @@ operations.GCDlv = class GCDlv extends Operation {
       const nbs = await this.purgeDlv(nom, this.auj)
 
       nom = 'versions'
-      const dlv = AMJ.amjUtcPlusNbj(this.auj, - (2 * limitesjour.dlv))
+      const [a1, m1, ] = AMJ.aaaammjj(AMJ.amjUtcDeT(Date.now() - (IDBOBSGC * 86400000)))
+      const dlv = (Math.floor(a1 / 100) * 100) + m1
       const nbv = await this.purgeDlv(nom, dlv)
 
       this.setRes('stats', { nbs, nbv })
@@ -4269,7 +4273,7 @@ operations.GCstc = class GCstc extends Operation {
       try {
         const esp = compile(row)
         org = esp.org
-        const moisesp = Math.floor((esp.dcreation || 20240101) / 100)
+        const moisesp = Math.floor((esp.dcreation) / 100)
         const moisespc = esp.moisStat || 0
         const moisespt = esp.moisStatT || 0
 

@@ -313,11 +313,11 @@ export class FirestoreProvider {
     return await decryptRow(op, row)
   }
 
-  /* Retourne l'array des ids des "versions" dont la dlv est entre min et max incluses */
+  /* Retourne l'array des ids des "versions" dont la dlv est entre min incluse et max exclu */
   async getVersionsDlv (op, dlvmin, dlvmax) {
     const p = FirestoreProvider._collPath('versions')
     // INDEX simple sur versions dlv
-    const q = this.fs.collection(p).where('dlv', '>=', dlvmin).where('dlv', '<=', dlvmax) 
+    const q = this.fs.collection(p).where('dlv', '>=', dlvmin).where('dlv', '<', dlvmax) 
     const qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id'))})
@@ -325,10 +325,10 @@ export class FirestoreProvider {
     return r
   }
 
-  /* Retourne l'array des [id, ids] des "membres" dont la dlv est inférieure ou égale à dlvmax */
+  /* Retourne l'array des [id, ids] des "membres" dont la dlv est inférieure à dlvmax */
   async getMembresDlv (op, dlvmax) { 
     // INDEX COLECTION_GROUP sur membres dlv
-    const q = this.fs.collectionGroup('membres').where('dlv', '<=', dlvmax) 
+    const q = this.fs.collectionGroup('membres').where('dlv', '<', dlvmax) 
     const qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push([qds.get('id'), qds.get('ids')])})
@@ -337,11 +337,11 @@ export class FirestoreProvider {
   }
 
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
-  est inférieure ou égale à dfh */
+  est inférieure à dfh */
   async getGroupesDfh(op, dfh) {
     const p = FirestoreProvider._collPath('groupes')
     // INDEX simple sur groupes dfh
-    const q = this.fs.collection(p).where('dfh', '>', 0).where('dfh', '<=', dfh) 
+    const q = this.fs.collection(p).where('dfh', '>', 0).where('dfh', '<', dfh) 
     const qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id')) })
@@ -551,7 +551,7 @@ export class FirestoreProvider {
   async purgeDlv (op, nom, dlv) { // nom: sponsorings, versions
     let n = 0
     const p = FirestoreProvider._collPath(nom)
-    const q = this.fs.collection(p).where('dlv', '<=', dlv)
+    const q = this.fs.collection(p).where('dlv', '<', dlv)
     const qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }

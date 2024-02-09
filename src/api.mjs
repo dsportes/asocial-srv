@@ -194,6 +194,7 @@ quand on l'utilise pour signifier un instant.
 */
 export class AMJ {
   static max = 20991231
+  static min = 20000101
   
   static lx = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 

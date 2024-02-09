@@ -279,9 +279,9 @@ export class SqliteProvider {
     return null
   }
   
-  /* Retourne l'array des ids des "versions" dont la dlv est entre min et max incluses */
+  /* Retourne l'array des ids des "versions" dont la dlv est entre min et max exclue */
   async getVersionsDlv(op, dlvmin, dlvmax) {
-    const st = this._stmt('SELVDLV', 'SELECT id FROM versions WHERE dlv >= @dlvmin AND dlv <= @dlvmax')
+    const st = this._stmt('SELVDLV', 'SELECT id FROM versions WHERE dlv >= @dlvmin AND dlv < @dlvmax')
     const rows = st.all({ dlvmin, dlvmax })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})
@@ -291,7 +291,7 @@ export class SqliteProvider {
   
   /* Retourne l'array des couples [id, ids] des membres ayant passé leur dlv, PAS les rows */
   async getMembresDlv(op, dlvmax) {
-    const st = this._stmt('SELMDLV', 'SELECT id, ids FROM membres WHERE dlv <= @dlvmax')
+    const st = this._stmt('SELMDLV', 'SELECT id, ids FROM membres WHERE dlv < @dlvmax')
     const rows = st.all({ dlvmax })
     const r = []
     if (rows) rows.forEach(row => { r.push([row.id, row.ids])})
@@ -299,8 +299,10 @@ export class SqliteProvider {
     return r
   }
   
+  /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
+  est inférieure à dfh */
   async getGroupesDfh(op, dfh) {
-    const st = this._stmt('SELGDFH', 'SELECT id FROM groupes WHERE dfh > 0 AND dfh <= @dfh')
+    const st = this._stmt('SELGDFH', 'SELECT id FROM groupes WHERE dfh > 0 AND dfh < @dfh')
     const rows = st.all({ dfh })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})
@@ -480,7 +482,7 @@ export class SqliteProvider {
   }
 
   async purgeDlv (op, nom, dlv) { // nom: sponsorings, versions
-    const st = this._stmt('DELDLV' + nom, 'DELETE FROM ' + nom + ' WHERE dlv <= @dlv')
+    const st = this._stmt('DELDLV' + nom, 'DELETE FROM ' + nom + ' WHERE dlv < @dlv')
     const info = st.run({ dlv })
     const n = info.changes
     op.ne += n
