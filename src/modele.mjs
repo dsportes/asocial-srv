@@ -349,6 +349,10 @@ export class Operation {
 
   async getMembresDlv (dlvmax) {return this.db.getMembresDlv(this, dlvmax) }
 
+  async getMembresDlvat (ns, dlvat) {return this.db.getMembresDlvat(this, ns, dlvat) }
+
+  async getVersionsDlvat (ns, dlvat) {return this.db.getVersionsDlvat(this, ns, dlvat) }
+
   async getGroupesDfh (dfh) { return this.db.getGroupesDfh(this, dfh) }
 
   async getGcvols (ns) { return this.db.collNs(this, 'gcvols', ns) }

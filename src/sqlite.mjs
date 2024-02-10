@@ -299,6 +299,32 @@ export class SqliteProvider {
     return r
   }
   
+  /* Retourne l'array des couples [id, ids] des membres du ns
+  ayant pour dlv dlvat, PAS les rows */
+  async getMembresDlvat(op, ns, dlvat) {
+    const ns1 = ns * d14
+    const ns2 = (ns + 1) * d14
+    const st = this._stmt('SELMDLVAT', 'SELECT id, ids FROM membres WHERE dlv = @dlvat AND id >= @ns1 AND id < @ns2')
+    const rows = st.all({ dlvat, ns1, ns2 })
+    const r = []
+    if (rows) rows.forEach(row => { r.push([row.id, row.ids])})
+    op.nl += r.length
+    return r
+  }
+
+  /* Retourne l'array des id des versions du ns
+  ayant pour dlv dlvat, PAS les rows */
+  async getVersionsDlvat(op, ns, dlvat) {
+    const ns1 = ns * d14
+    const ns2 = (ns + 1) * d14
+    const st = this._stmt('SELVDLVAT', 'SELECT id FROM versions WHERE dlv = @dlvat AND id >= @ns1 AND id < @ns2')
+    const rows = st.all({ dlvat, ns1, ns2 })
+    const r = []
+    if (rows) rows.forEach(row => { r.push(row.id)})
+    op.nl += r.length
+    return r
+  }
+  
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
   est inférieure à dfh */
   async getGroupesDfh(op, dfh) {
@@ -334,7 +360,7 @@ export class SqliteProvider {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const code = 'COLNS' + nom
-    const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id >= @ns1 AND ID < @ns2')
+    const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id >= @ns1 AND id < @ns2')
     const rows = st.all({ ns1, ns2 })
     if (!rows) return []
     const r = []

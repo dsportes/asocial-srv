@@ -411,7 +411,7 @@ Retour:
 Assertion sur l'existence du row Espace.
 */
 operations.GetEspace = class GetEspace extends Operation {
-  constructor () { super('GetEspace'); this.authMode = 1; this.lecture = true }
+  constructor () { super('GetEspace'); this.authMode = 4; this.lecture = true }
 
   async phase2 (args) {
     const rowEspace = await this.getRowEspace(args.ns, 'GetEspace')
@@ -469,9 +469,94 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
     espace.v++
     if (args.optionA) espace.opt = args.optionA
     if (args.dlvat) espace.dlvat = args.dlvat
-    if (args.nbmi) espace.nvmi = args.nbmi
+    if (args.nbmi) espace.nbmi = args.nbmi
     rowEspace = this.update(espace.toRow())
     this.setRes('rowEspace', rowEspace)
+  }
+}
+
+/*`GetVersionsDlvat` : liste des id des versions de ns ayant la dlvat fixée
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace
+- dlvat: aamm,
+Retour:
+- lids: array des id
+*/
+operations.GetVersionsDlvat = class GetVersionsDlvat extends Operation {
+  constructor () { super('GetVersionsDlvat')}
+
+  async phase1 (args) {
+    const lids = await this.getVersionsDlvat(args.ns, args.dlvat)
+    this.setRes('lids', lids)
+  }
+}
+
+/*`GetMembresDlvat` : liste des [id,ids] des membres de ns ayant la dlvat fixée
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace
+- dlvat: aamm,
+Retour:
+- lidids: array des id
+*/
+operations.GetMembresDlvat = class GetMembresDlvat extends Operation {
+  constructor () { super('GetMembresDlvat')}
+
+  async phase1 (args) {
+    const lidids = await this.getMembresDlvat(args.ns, args.dlvat)
+    this.setRes('lidids', lidids)
+  }
+}
+
+/*`ChangeAvDlvat` : change la dlvat dans les versions des avatars listés
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- dlvat: aamm,
+- lids: array des ids des avatars
+Retour:
+*/
+operations.ChangeAvDlvat = class ChangeAvDlvat extends Operation {
+  constructor () { super('ChangeAvDlvat')}
+
+  async phase2 (args) {
+    for(const id of args.lids) {
+      if (ID.estComptable(id)) continue
+      const version = compile(await this.getRowVersion(id))
+      if (version) {
+        version.v++
+        version.dlv = args.dlvat
+        this.update(version.toRow())
+        const compta = compile(await this.getRowCompta(id))
+        if (compta) {
+          compta.v++
+          compta.dlv = args.dlvat
+          this.update(compta.toRow())
+        }
+      }
+    }
+  }
+}
+
+/*`ChangeMbDlvat` : change la dlvat dans les membres listés
+POST:
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- dlvat: aamm,
+- lidids: array des [id, ids] des membres
+Retour:
+*/
+operations.ChangeMbDlvat = class ChangeMbDlvat extends Operation {
+  constructor () { super('ChangeMbDlvat')}
+
+  async phase2 (args) {
+    for(const [id, ids] of args.lidids) {
+      const membre = compile(await this.getRowMembre(id, ids))
+      if (membre) {
+        membre.v++
+        membre.dlv = args.dlvat
+        this.update(membre.toRow())
+      }
+    }
   }
 }
 

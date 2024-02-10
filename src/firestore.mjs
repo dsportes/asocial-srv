@@ -336,6 +336,38 @@ export class FirestoreProvider {
     return r
   }
 
+  /* Retourne l'array des couples [id, ids] des membres du ns
+  ayant pour dlv dlvat, PAS les rows */
+  async getMembresDlvat (op, ns, dlvat) { 
+    const ns1 = ns * d14
+    const ns2 = (ns + 1) * d14
+    // INDEX COLECTION_GROUP sur membres dlv
+    const q = this.fs.collectionGroup('membres')
+      .where('dlv', '==', dlvat)
+      .where('id', '>=', ns1).where('id', '<', ns2)
+    const qs = await q.get()
+    const r = []
+    if (!qs.empty) qs.forEach(qds => { r.push([qds.get('id'), qds.get('ids')])})
+    op.nl += r.length
+    return r
+  }
+  
+  /* Retourne l'array des id des versions du ns
+  ayant pour dlv dlvat, PAS les rows */
+  async getVersionsDlvat(op, ns, dlvat) {
+    const ns1 = ns * d14
+    const ns2 = (ns + 1) * d14
+    // INDEX COLECTION_GROUP sur membres dlv
+    const q = this.fs.collectionGroup('membres')
+      .where('dlv', '==', dlvat)
+      .where('id', '>=', ns1).where('id', '<', ns2)
+    const qs = await q.get()
+    const r = []
+    if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id'))})
+    op.nl += r.length
+    return r
+  }
+
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
   est inférieure à dfh */
   async getGroupesDfh(op, dfh) {
