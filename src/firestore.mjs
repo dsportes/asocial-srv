@@ -1,6 +1,6 @@
 import { Firestore } from '@google-cloud/firestore'
 
-import { decode } from '@msgpack/msgpack'
+import { decode, encode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID, d10 } from './api.mjs'
@@ -498,23 +498,22 @@ export class FirestoreProvider {
     op.ne++
   }
 
-  async getCheckpoint (op, v) { 
-    const q = this.fs.collection('singletons/1').where('v', '>', v )
+  async getSingletons (op) { 
+    const p = FirestoreProvider._collPath('singletons')
+    const q = this.fs.collection(p)
     const qs = await q.get()
-    if (!qs.empty()) for(const doc of qs.docs) {
-      const x = {
-        _data_: doc.get('_data_'),
-        v:  doc.get('v')
-      }
+    const r = []
+    for (const doc of qs.docs) { 
+      r.push(doc.get('_data_'))
       op.nl++
-      return x
     }
     return null
   }
 
-  async setCheckpoint (op, v, _data_ /*, ins */) {
-    const dr = this.fs.doc('singletons/1')
-    await dr.set({ v, _data_ })
+  async setSingleton (op, data) {
+    const p = FirestoreProvider._collPath('singletons')
+    const dr = this.fs.doc(p)
+    await dr.set({ id: data.id, v: data.v || 0, _data_: encode(data)})
     op.ne++
   }
 

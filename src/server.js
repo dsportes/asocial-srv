@@ -169,6 +169,7 @@ try {
 
   if (!util) {
     const site = config.run.site
+    ctx.croninterne = config.run.croninterne
     ctx.logger.info('SITE= [' + site + ']')
     ctx.appKey = ctx.site(site)
     ctx.appKeyBin = Buffer.from(ctx.appKey, 'base64')
@@ -348,7 +349,7 @@ try {
     server = http.createServer(app).listen(port, () => {
       ctx.logger.info('PASSENGER HTTP_SERVER écoute [' + port + ']')
       try {
-        atStart()
+        atStart(ctx)
         if (ctx.mondebug) ctx.logger.debug('Server atStart OK')
       } catch (e) {
         ctx.logger.error('Server atStart erreur : ' + e.message)
@@ -361,7 +362,7 @@ try {
     server = http.createServer(app).listen(port, () => {
       ctx.logger.info('GAE HTTP_SERVER écoute [' + port +']')
       try {
-        atStart()
+        atStart(ctx)
         if (ctx.mondebug) ctx.logger.debug('Server atStart OK')
       } catch (e) {
         ctx.logger.error('Server atStart erreur : ' + e.message)
@@ -375,7 +376,7 @@ try {
     server = https.createServer({key: ctx.keys.priv, cert: ctx.keys.pub}, app).listen(port, () => {
       ctx.logger.info('HTTPS écoute [' + port + ']')
       try {
-        atStart()
+        atStart(ctx)
         if (ctx.mondebug) ctx.logger.debug('Server atStart OK')
       } catch (e) {
         console.error('Server atStart erreur : ' + e.message)

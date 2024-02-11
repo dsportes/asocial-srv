@@ -15,6 +15,9 @@ ne soit considérée comme obsolète */
 export const IDBOBS = 18 * 30
 export const IDBOBSGC = 19 * 30
 
+// Liste des statistiques mensuelles et délai / mois courant
+export const statistiques = { moisStat: 1, moisStatT: 3 }
+
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
 export const d10 = 10000000000
@@ -282,6 +285,24 @@ export class AMJ {
     if (m === 12) return ((a + 1) * 10000) + 100 + j
     const jm = AMJ.djm(a, m + 1)
     return (a * 10000) + ((m + 1) * 100) + (j < jm ? j : jm)
+  }
+
+  static moisPlus (am, n) {
+    const a = Math.floor(am / 100)
+    const m = am % 100
+    let a2 = a
+    let m2 = m + n
+    while (m2 > 12) { a2++; m2 -= 12}
+    return (a2 * 100) + m2
+  }
+
+  static moisMoins (am, n) {
+    const a = Math.floor(am / 100)
+    const m = am % 100
+    let a2 = a
+    let m2 = m - n
+    while (m2 < 1) { a2--; m2 += 12}
+    return (a2 * 100) + m2
   }
 
   // Retourne l'amj de l'amj passée en argument - 1 mois (en restant dans les jours acceptables)

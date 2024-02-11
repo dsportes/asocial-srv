@@ -1,14 +1,21 @@
 // import { encode, decode } from '@msgpack/msgpack'
 import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
+import { ctx } from './server.js'
 
 import { AuthSession, Operation, trace} from './modele.mjs'
 import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
-import { FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC } from './api.mjs'
+import { FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC, statistiques } from './api.mjs'
+import schedule from 'node-schedule'
 
-export function atStart() {
-  // console.log('atStart operations')
+export function atStart(ctx) {
+  if (ctx.croninterne) {
+    ctx.logger.info('Scheduler started')
+    schedule.scheduleJob(ctx.croninterne, function(){
+      new operations.GCGen(true).run()
+    })
+  }
 }
 
 export const operations = {}
@@ -3863,6 +3870,16 @@ operations.GC = class GC extends Operation {
   }
 }
 
+/* Pour admin : retourne le dernier checkpoint écrit *************/
+operations.GetSingletons = class GetSingletons extends Operation {
+  constructor () { super('GetSingletons'); this.authMode = 3  }
+
+  async phase1() {
+    const a = await this.getSingletons()
+    this.setRes('singletons', a)
+  }
+}
+
 /* GC général enchaînant les étapes de GC spécifiques
 checkpoint _data_ :
 - `id` : 1
@@ -3880,106 +3897,35 @@ checkpoint _data_ :
   - `stats` : {} compteurs d'objets traités (selon la tâche).
 */
 operations.GCGen = class GCGen extends Operation {
-  constructor () { super('GCGen'); this.authMode = 3  }
-
-  static nr = 1 // 2 en prod
-
-  static att = [0, 60000, 300000] // attentes avec un retry
-
-  async step (nom) {
-    let n = 0
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const start = Date.now()
-      const op = operations[nom]
-      let ret
-      try {
-        ret = await new op().run()
-      } catch (e) {
-        // trace
-        const info = e.toString()
-        const msg = trace('GCGen-ER1-' + nom, 0, info, true)
-        ret = { err: msg }
-      }
-      const ckpt = await this.getCheckpoint()
-      const log = { 
-        nom: nom,
-        start: start,
-        duree: Date.now() - start,
-        stats: ret.stats
-      }
-      if (n) log.retry = n
-      if (ret.err) {
-        log.err = ret.err
-      } else {
-        ckpt.nbTaches++
-      }
-      ckpt.log.push(log)
-      await this.setCheckpoint(ckpt)
-
-      if (ret.err) {
-        trace('GCGen-ER2-' + nom, 0, ret.err, true)
-        n++
-        if (n === GCGen.nr) return false
-        await sleep(GCGen.att[n])
-      } else {
-        return true
-      }
-    }
-  }
+  constructor (cron) { super('GCGen'); this.authMode = cron ? 3 : 0  }
 
   async phase1 () {
-    {
-      const ckpt = await this.getCheckpoint()
-      const start = Date.now()
-      ckpt.dhStart = start
-      ckpt.duree = 0
-      ckpt.log = []
-      ckpt.nbTaches = 0
-      await this.setCheckpoint(ckpt)
-    }
+    ctx.logger.info('GC started')
 
-    // Récupération des fins d'hébergement
-    if (!await this.step('GCHeb')) return
+    // 10 Récupération des fins d'hébergement
+    !await new operations.GCHeb().run()
 
-    // Récupération des membres disparus et des groupes devenant orphelins
-    if (!await this.step('GCGro')) return
+    // 11 Récupération des membres disparus et des groupes devenant orphelins
+    !await new operations.GCGro().run()
 
-    // Purge des avatars et groupes
-    if (!await this.step('GCPag')) return
+    // 12 Purge des avatars et groupes
+    !await new operations.GCPag().run()
 
-    // Purge des fichiers (et des transferts) des transferts abandonnés
-    if (!await this.step('GCTra')) return
+    // 13 Purge des fichiers (et des transferts) des transferts abandonnés
+    !await new operations.GCTra().run()
 
-    // purges des fichiers détruits accumulés dans fpurges
-    if (!await this.step('GCFpu')) return
+    // 14 purges des fichiers détruits accumulés dans fpurges
+    !await new operations.GCFpu().run()
 
-    // purges des versions ayant une dlv de plus d'un an
+    // 15 purges des versions ayant une dlv de plus d'un an
     // purges des sponsorings hor date
-    if (!await this.step('GCDlv')) return
+    !await new operations.GCDlv().run()
 
-    // statistiques "mensuelles" comptas et tickets (avec purges)
-    if (!await this.step('GCstc')) return
+    // 20 statistiques "mensuelles" comptas (avec purges)
+    !await new operations.GCstcc().run()
 
-    {
-      const ckpt = await this.getCheckpoint()
-      ckpt.duree = Date.now() - ckpt.dhStart
-      await this.setCheckpoint(ckpt)
-      // trace de chkpt en JSON
-      const info = JSON.stringify(ckpt)
-      trace('GCGen-OK', 0, info)
-    }
-
-  }
-}
-
-/* Pour admin : retourne le dernier checkpoint écrit *************/
-operations.GetCheckpoint = class GetCheckpoint extends Operation {
-  constructor () { super('GetCheckpoint'); this.authMode = 3  }
-
-  async phase1() {
-    const ckpt = await this.getCheckpoint()
-    this.setRes('checkpoint', ckpt)
+    // 21 statistiques "mensuelles" tickets (avec purges)
+    !await new operations.GCstct().run()
   }
 }
 
@@ -3994,31 +3940,30 @@ operations.GCHeb = class GCHeb extends Operation {
   constructor () { super('GCHeb'); this.authMode = 3  }
 
   async phase1 () {
-    const stats = { nh: 0 }
-    try {
-
-      const hb = await this.getGroupesDfh(this.auj)
-      for (const id of hb) {
-        try {
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
+      try {
+        const stats = { nh: 0 }
+        const hb = await this.getGroupesDfh(this.auj)
+        for (const id of hb) {
           await new operations.GCHebtr()
             .run({id: id, dlv: AMJ.amjUtcPlusNbj(this.auj, -1)})
           stats.nh++
-        } catch (e) {
-          // trace
-          const info = e.toString()
-          const msg = trace('GCHeb-ER2' , id, info, true)
-          this.setRes('err', { err: msg })
-          break
         }
+        const data = { id: 10, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: stats
+        }
+        this.setSingleton(data)
+        break
+      } catch (e) {
+        const info = e.toString() + '\n' + e.stack
+        trace('GCHeb-ER1' , 0, info, true)
+        const data = { id: 10, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)
       }
-      this.setRes('stats', stats)
-    } catch (e) {
-      // trace
-      this.setRes('stats', stats)
-      const info = e.toString()
-      const msg = trace('GCHeb-ER1' , 0, info, true)
-      this.setRes('err', { err: msg })
-    }
   }
 }
 
@@ -4052,37 +3997,36 @@ operations.GCGro = class GCGro extends Operation {
   constructor () { super('GCGro'); this.authMode = 3  }
 
   async phase1 () {
-    const stats = { nm: 0, ng: 0 }
-    try {
-
-      const lmb = await this.getMembresDlv(this.auj)
-      const lgr = new Map()
-      for (const [id, ids] of lmb) { // regroupement par groupe
-        let a = lgr.get(id)
-        if (!a) { a = []; lgr.set(id, a) }
-        a.push(ids)
-      }
-      for (const [id, a] of lgr) { // Pour chaque groupe, a: liste des ids des membres perdus
-        try {
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
+      try {
+        const stats = { nm: 0, ng: 0 }
+        const lmb = await this.getMembresDlv(this.auj)
+        const lgr = new Map()
+        for (const [id, ids] of lmb) { // regroupement par groupe
+          let a = lgr.get(id)
+          if (!a) { a = []; lgr.set(id, a) }
+          a.push(ids)
+        }
+        for (const [id, a] of lgr) { // Pour chaque groupe, a: liste des ids des membres perdus
           await new operations.GCGrotr().run({id, a, dlv: AMJ.amjUtcPlusNbj(this.auj, -1)})
           stats.ng++
           stats.nm += a.length
-        } catch (e) {
-          // trace
-          const info = e.toString()
-          const msg = trace('GCGro-ER2' , id, info, true)
-          this.setRes('err', { err: msg })
-          break
         }
+        const data = { id: 11, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: stats
+        }
+        this.setSingleton(data)
+        break
+      } catch (e) {
+        const info = e.toString() + '\n' + e.stack
+        trace('GCGro-ER1' , 0, info, true)
+        const data = { id: 11, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)
       }
-      this.setRes('stats', stats)
-    } catch (e) {
-      // trace
-      this.setRes('stats', stats)
-      const info = e.toString()
-      const msg = trace('GCHeb-ER1' , 0, info, true)
-      this.setRes('err', { err: msg })
-    }
   }
 }
 
@@ -4139,55 +4083,58 @@ operations.GCPag = class GCPag extends Operation {
   constructor () { super('GCPag'); this.authMode = 3  }
 
   async phase1 () {
-    const st = { na: 0, ng: 0, nn: 0, nc: 0, ns: 0, nt: 0, nm: 0 }
-    let idref = 0
-    try {
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
+      try {
+        const st = { na: 0, ng: 0, nn: 0, nc: 0, ns: 0, nt: 0, nm: 0 }
+        this.lids = await this.getVersionsDlv(AMJ.min, this.auj)
+        for (const id of this.lids) {
+          if (ID.estComptable(id)) continue
+          const estG = ID.estGroupe(id)
+          if (estG) {
+            st.ng++
+            st.nn += await this.delScoll('notes', id)
+            st.nm += await this.delScoll('membres', id)
+            st.nt += await this.delScoll('transferts', id)
+            st.nc += await this.delScoll('chatgrs', id)
+          } else {
+            st.na++
+            // récupération éventuelle des volumes du compte (si l'avatar est un compte)
+            await new operations.GCPagtr().run({ id })
+            st.nn += await this.delScoll('notes', id)
+            st.nc += await this.delScoll('chats', id)
+            st.ns += await this.delScoll('sponsorings', id)
+            st.nt += await this.delScoll('transferts', id)
+          }
 
-      this.lids = await this.getVersionsDlv(AMJ.min, this.auj)
+          // purge de avatar / groupe
+          await this.delAvGr(id)
 
-      for (const id of this.lids) {
-        if (ID.estComptable(id)) continue
-        idref = id
-        const estG = ID.estGroupe(id)
-        if (estG) {
-          st.ng++
-          st.nn += await this.delScoll('notes', id)
-          st.nm += await this.delScoll('membres', id)
-          st.nt += await this.delScoll('transferts', id)
-          st.nc += await this.delScoll('chatgrs', id)
-        } else {
-          st.na++
-          // récupération éventuelle des volumes du compte (si l'avatar est un compte)
-          await new operations.GCPagtr().run({ id })
-          st.nn += await this.delScoll('notes', id)
-          st.nc += await this.delScoll('chats', id)
-          st.ns += await this.delScoll('sponsorings', id)
-          st.nt += await this.delScoll('transferts', id)
+          // purge des fichiers
+          const org = await this.org(id)
+          const idi = id % d14
+          await this.storage.delId(org, idi)
+
+          // validation des purges : dlj symbolique aamm
+          const [a1, m1, ] = AMJ.aaaammjj(this.auj)
+          const dlv = (Math.floor(a1 / 100) * 100) + m1
+          await this.setVdlv(id, dlv)
+
         }
-
-        // purge de avatar / groupe
-        await this.delAvGr(id)
-
-        // purge des fichiers
-        const org = await this.org(id)
-        const idi = id % d14
-        await this.storage.delId(org, idi)
-        this.setRes('stats', st)
-
-        // validation des purges : dlj symbolique aamm
-        const [a1, m1, ] = AMJ.aaaammjj(this.auj)
-        const dlv = (Math.floor(a1 / 100) * 100) + m1
-        await this.setVdlv(id, dlv)
-
+        const data = { id: 12, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: st
+        }
+        this.setSingleton(data)
+        break
+      } catch (e) {
+        const info = e.toString() + '\n' + e.stack
+        trace('GCPag-ER1' , 0, info, true)
+        const data = { id: 12, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)      
       }
-      this.setRes('stats', st)
-    } catch (e) {
-      this.setRes('stats', st)
-      // trace
-      const info = e.toStriong()
-      const msg = trace('GCPag-ER1' , idref, info)
-      this.setRes('err', msg)
-    }
   }
 }
 
@@ -4236,33 +4183,34 @@ operations.GCFpu = class GCFpu extends Operation {
   constructor () { super('GCFpu'); this.authMode = 3  }
 
   async phase1 () {
-    try {
-      const lst = await this.listeFpurges()
-      let n = 0
-      for (const fpurge of lst) {
-        if (fpurge.id && fpurge.idag && fpurge.lidf) {
-          n += fpurge.lidf.length
-          try {
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
+      try {
+        const lst = await this.listeFpurges()
+        const stats = {n : 0 }
+        for (const fpurge of lst) {
+          if (fpurge.id && fpurge.idag && fpurge.lidf) {
+            stats.n += fpurge.lidf.length
             const org = await this.org(ID.ns(fpurge.idag))
             const idi = ID.court(fpurge.idag)  
             await this.storage.delFiles(org, idi, fpurge.lidf)
             await this.unsetFpurge(fpurge.id)
-          } catch (e) {
-            // trace
-            const info = e.toString()
-            const msg = trace('GCFpu-ER2' , fpurge.id + '/' + fpurge.idag, info, true)
-            this.setRes('err', msg)
-            return
           }
         }
+        const data = { id: 13, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: stats
+        }
+        this.setSingleton(data)
+        break
+      } catch (e) {
+        const info = e.toString() + '\n' + e.stack
+        trace('GCFpu-ER1' , 0, info, true)
+        const data = { id: 13, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)
       }
-      this.setRes('stats', { nbf: n })
-    } catch (e) {
-      // trace
-      const info = e.toString()
-      const msg = trace('GCFpu-ER1' , 0, info, true)
-      this.setRes('err', { err: msg })
-    }
   }
 }
 
@@ -4276,33 +4224,36 @@ operations.GCTra = class GCTra extends Operation {
   constructor () { super('GCTra'); this.authMode = 3  }
 
   async phase1 () {
-    try {
-      const lst = await this.listeTransfertsDlv(this.auj)
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
+      try {
+        const stats = { n : 0 }
+        const lst = await this.listeTransfertsDlv(this.auj)
 
-      for (const [id, idf] of lst) {
-        if (id && idf) {
-          try {
+        for (const [id, idf] of lst) {
+          if (id && idf) {
+            stats.n++
             const ns = ID.ns(id)
             const org = await this.org(ns)
             const idi = ID.court(id)        
             await this.storage.delFiles(org, idi, [idf])
             await this.purgeTransferts(id, idf)
-          } catch (e) {
-            // trace
-            const info = e.toString()
-            const msg = trace('GCTra-ER2' , id + '/' + idf, info, true)
-            this.setRes('err', { err: msg })
-            return
           }
         }
+        const data = { id: 14, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: stats
+        }
+        this.setSingleton(data)
+        break
+      } catch (e) {
+        const info = e.toString() + '\n' + e.stack
+        trace('GCTra-ER1' , 0, info, true)
+        const data = { id: 14, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)
       }
-      this.setRes('stats', { nbt: lst.length })
-    } catch (e) {
-      // trace
-      const info = e.toString()
-      const msg = trace('GCTra-ER1' , 0, info, true)
-      this.setRes('err', { err: msg })
-    }
   }
 }
 
@@ -4319,70 +4270,151 @@ operations.GCDlv = class GCDlv extends Operation {
   constructor () { super('GCDlv'); this.authMode = 3  }
 
   async phase1 () {
-    let nom = 'sponsorings'
-    try {
-      const nbs = await this.purgeDlv(nom, this.auj)
+    let nom
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
+      try {
+        const stats = { nbs: 0, nbv: 0}
+        nom = 'sponsorings'
+        stats.nbs = await this.purgeDlv(nom, this.auj)
 
-      nom = 'versions'
-      const [a1, m1, ] = AMJ.aaaammjj(AMJ.amjUtcDeT(Date.now() - (IDBOBSGC * 86400000)))
-      const dlv = (Math.floor(a1 / 100) * 100) + m1
-      const nbv = await this.purgeDlv(nom, dlv)
+        nom = 'versions'
+        const [a1, m1, ] = AMJ.aaaammjj(AMJ.amjUtcDeT(Date.now() - (IDBOBSGC * 86400000)))
+        const dlv = (Math.floor(a1 / 100) * 100) + m1
+        stats.nbv = await this.purgeDlv(nom, dlv)
 
-      this.setRes('stats', { nbs, nbv })
-    } catch (e) {
-      // trace
-      const info = e.toString()
-      const msg = trace('GCGDlv-ER1-' + nom , 0, info, true)
-      this.setRes('err', { err: msg })
-    }
+        const data = { id: 15, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: stats
+        }
+        this.setSingleton(data)
+        break
+      } catch (e) {
+        const info = e.toString() + '\n' + e.stack
+        trace('GCDlv-ER1' , 0, info, true)
+        const data = { id: 15, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)
+      }
   }
 }
 
-/* GCstc : enregistrement des statistiques mensuelles comptables
+/* GCstcc : enregistrement des statistiques mensuelles comptables
 Pour chaque espace, demande le calcul / enregistrement du fichier
 de M-1 s'il n'a pas déjà été enregistré avec la clé publique du 
 Comptable de chaque espace.
 */
-operations.GCstc = class GCstc extends Operation {
-  constructor () { super('GCstc'); this.authMode = 3  }
+operations.GCstcc = class GCstcc extends Operation {
+  constructor () { super('GCstcc'); this.authMode = 3  }
+
+  prochMoisATraiter (esp, type) { // n==1 pour moisStat et n== 3 pour moisStatT
+    /* Après la date de création, après le dernier mois calculé */
+    const n = statistiques[type]
+    const moisesp = Math.floor((esp.dcreation) / 100)
+    const prc = AMJ.moisPlus(moisesp, n) // premier à calculer
+    const dmc = esp[type] || 0 // dernier mois déjà calculé
+    return prc > dmc ? prc : AMJ.moisPlus(dmc, 1)
+  }
 
   async phase1 () {
-    const moisc = Math.floor(AMJ.djMoisPrec(this.auj) / 100)
-    const moist = Math.floor(AMJ.djMoisN(this.auj, -3) / 100)
-    const rowEspaces = await this.coll('espaces')
-    let nbstc = 0
-    let nbstt = 0
-    let org = ''
+    const moisauj = Math.floor(this.auj / 100) 
+    const MS = 'moisStat'
+    const SM = statistiques[MS]
+    const MX = 3 // Pour stats on ne sait pas calculer avant M-3
 
-    for (const row of rowEspaces) {
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
       try {
-        const esp = compile(row)
-        org = esp.org
-        const moisesp = Math.floor((esp.dcreation) / 100)
-        const moisespc = esp.moisStat || 0
-        const moisespt = esp.moisStatT || 0
-
-        if (moisespc < moisc && moisesp <= moisc) {
-          const arg = { org: esp.org, mr: 1 }
-          await new operations.ComptaStat(true).run(arg)
-          nbstc++
+        const stats = { nbstc: 0 }
+        const rowEspaces = await this.coll('espaces')
+        for (const row of rowEspaces) {
+          const esp = compile(row)
+          let proch = this.prochMoisATraiter(esp, MS)
+          // dernier mois calculable: pour moisStat c'est M-1
+          const derc = AMJ.moisMoins(moisauj, SM)
+        
+          for(let mr = SM; mr < MX; mr++) {
+            if (proch > derc) break
+            proch = AMJ.moisPlus(proch, 1)
+            const arg = { org: esp.org, mr }
+            await new operations.ComptaStat(true).run(arg)
+            stats.nbstc++
+          }
         }
-
-        if (moisespt < moist && moisesp <= moist) {
-          const arg = { org: esp.org }
-          await new operations.TicketsStat(true).run(arg)
-          nbstt++
+        const data = { id: 20, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: stats
         }
-
+        this.setSingleton(data)
+        break  
       } catch (e) {
-        // trace
-        const info = e.toString()
-        const msg = trace('GCstc-ER1' , org, info, true)
-        this.setRes('err', { err: msg })
-        break
+        const info = e.toString() + '\n' + e.stack
+        trace('GCstcc-ER1' , 0, info, true)
+        const data = { id: 20, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)
       }
-    }
-    this.setRes('stats', { nbstc, nbstt })
+  }
+}
+
+/* GCstct : enregistrement des statistiques mensuelles des tickets
+Pour chaque espace, demande le calcul / enregistrement du fichier
+de M-1 s'il n'a pas déjà été enregistré avec la clé publique du 
+Comptable de chaque espace.
+*/
+operations.GCstct = class GCstct extends Operation {
+  constructor () { super('GCstcc'); this.authMode = 3  }
+
+  prochMoisATraiter (esp, type) { // n==1 pour moisStat et n== 3 pour moisStatT
+    /* Après la date de création, après le dernier mois calculé */
+    const n = statistiques[type]
+    const moisesp = Math.floor((esp.dcreation) / 100)
+    const prc = AMJ.moisPlus(moisesp, n) // premier à calculer
+    const dmc = esp[type] || 0 // dernier mois déjà calculé
+    return prc > dmc ? prc : AMJ.moisPlus(dmc, 1)
+  }
+
+  async phase1 () {
+    const moisauj = Math.floor(this.auj / 100) 
+    const MS = 'moisStatT'
+    const SM = statistiques[MS]
+    const MX = 12 // Pour statT on ne sait pas calculer avant M-12
+
+    const dh = Date.now()
+    for(let nr = 0; nr < 3; nr++)
+      try {
+        const stats = { nbstt: 0 }
+        const rowEspaces = await this.coll('espaces')
+        for (const row of rowEspaces) {
+          const esp = compile(row)
+          let proch = this.prochMoisATraiter(esp, MS)
+          // dernier mois calculable: pour moisStat c'est M-1
+          const derc = AMJ.moisMoins(moisauj, SM)
+        
+          for(let mr = SM; mr < MX; mr++) {
+            if (proch > derc) break
+            proch = AMJ.moisPlus(proch, 1)
+            const arg = { org: esp.org, mr }
+            await new operations.TicketsStat(true).run(arg)
+            stats.nbstt++
+          }
+        }
+        const data = { id: 21, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: stats
+        }
+        this.setSingleton(data)
+        break  
+      } catch (e) {
+        const info = e.toString() + '\n' + e.stack
+        trace('GCstct-ER1' , 0, info, true)
+        const data = { id: 21, v: dh, nr: nr, duree: Date.now() - dh,
+          stats: {}, exc: info
+        }
+        this.setSingleton(data)
+        sleep(nr * 10000)
+      }
   }
 }
 
@@ -4530,6 +4562,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
 /* OP_TicketsStat : 'Enregistre en storage la liste des tickets de M-3 désormais invariables'
 args.token: éléments d'authentification du compte.
 args.org: code de l'organisation
+args.mr: mois relatif
 
 Le dernier mois de disponibilté de la statistique est enregistrée dans
 l'espace s'il est supérieur à celui existant.
@@ -4600,8 +4633,8 @@ operations.TicketsStat = class TicketsStat extends Operation {
     const espace = await this.getEspaceOrg(args.org)
     if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
     this.ns = espace.id
-    const m = AMJ.djMoisN(this.auj, -3) // 20240606
-    this.mois = Math.floor(m / 100)
+    const moisauj = Math.floor(this.auj / 100)
+    this.mois = AMJ.moisMoins(moisauj, args.mr)
 
     this.idC = ID.duComptable(this.ns)
     this.setRes('getUrl', await this.storage.getUrl(args.org, ID.court(this.idC), 'T_' + this.mois))

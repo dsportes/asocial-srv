@@ -1,7 +1,7 @@
 import path from 'path'
 import { existsSync } from 'node:fs'
 import { Database } from './loadreq.mjs'
-import { decode } from '@msgpack/msgpack'
+import { decode, encode } from '@msgpack/msgpack'
 import { ctx } from './server.js'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID, d10 } from './api.mjs'
@@ -432,26 +432,25 @@ export class SqliteProvider {
     op.ne++
   }
   
-  async getCheckpoint (op, v) { 
-    // INDEX singletons v
-    const st = this._stmt('SELCHKPT', 'SELECT * FROM singletons WHERE id = 1 AND v > @v')
-    const x = st.get({ v: v })
-    if (x) {
-      op.nl++
-      return x
-    }
-    return null
+  // Retourne les data (sérialisées) des singletons
+  async getSingletons (op) { 
+    const r = []
+    const st = this._stmt('SELSINGL', 'SELECT _data_ FROM singletons')
+    const rows = st.all({ })
+    if (rows) rows.forEach(row => {
+      r.push(row._data_)
+    })
+    op.nl += r.length
+    return r
   }
 
-  async setCheckpoint (op, v, _data_, ins) {
-    let st
-    if (ins) {
-      st = this._stmt('INSCHKPT', 'INSERT INTO singletons (id, v,_data_) VALUES (1, @v, @_data_)')
-    } else {
-      st = this._stmt('UPDCHKPT', 'UPDATE singletons SET _data_ = @_data_, v = @v WHERE id = 1')
-    }
-    st.run({ v, _data_ })
-    op.ne++
+  // Stocke le singleton dont le data est donné: data.id est son id
+  async setSingleton (op, data) { 
+    let st = this._stmt('DELSINGL', 'DELETE FROM singletons WHERE id = @id')
+    st.run({ id: data.id })
+    const _data_ = encode(data)
+    st = this._stmt('INSSINGL', 'INSERT INTO singletons (id, v, _data_) VALUES (@id, @v, @_data_)')
+    st.run({ id: data.id, v: data.v || 0, _data_ })
   }
 
   async org (op, ns) {

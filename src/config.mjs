@@ -51,6 +51,8 @@ const env1 = {
 }
 
 const run1 = {
+  croninterne: optA === 1 ? false : '30 3 * * *', // A 3h30 du matin tous les jours
+
   site: 'A',
   // URL externe d'appel du serveur 
   rooturl: optA === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',
@@ -65,6 +67,8 @@ const run1 = {
 }
 
 const run2 = {
+  croninterne: optA === 1 ? false : '30 3 * * *', // '53 16 * * *'
+
   site: 'A',
   // URL externe d'appel du serveur 
   rooturl: optA === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',

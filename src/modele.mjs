@@ -178,27 +178,6 @@ class Cache {
     }
   }
 
-  /* Retourne le dernier checkpoint enregistré parle GC.*/
-  static async getCheckpoint (op) { 
-    const x = await op.db.getCheckpoint(op, Cache.checkpoint.v)
-    if (x) {
-      Cache.checkpoint.v = x.v
-      Cache.checkpoint._data_ = x._data_
-    }
-    return Cache.checkpoint._data_ ? decode(Cache.checkpoint._data_) : { v: 0 }
-  }
-
-  /* Enregistre en base et dans Cache le dernier objet de checkpoint défini par le GC.*/
-  static async setCheckpoint (op, obj) {
-    const x = obj || { v: 0 }
-    x.v = Date.now()
-    const _data_ = new Uint8Array(encode(x))
-    const ins = !Cache.checkpoint._data_
-    await op.db.setCheckpoint (op, x.v, _data_, ins)
-    Cache.checkpoint.v = x.v
-    Cache.checkpoint._data_ = _data_
-  }
-
   /* Retourne le code de l'organisation pour un ns donné.*/
   static async org (op, id) { 
     const ns = id < 100 ? id : ID.ns(id)
@@ -431,10 +410,6 @@ export class Operation {
 
   async getEspaceOrg (org) { return Cache.getEspaceOrg(this, org) }
 
-  async getCheckpoint () { return Cache.getCheckpoint(this) }
-
-  async setCheckpoint (obj) { return Cache.setCheckpoint(this, obj) }
-
   async getRowEspace (id, assert) {
     const tr = await Cache.getRow(this, 'espaces', id)
     if (assert && !tr) throw assertKO('getRowEspace/' + assert, 1, [id])
@@ -477,6 +452,10 @@ export class Operation {
     if (assert && !rg) throw assertKO('getRowGroupe/' + assert, 9, [id])
     return rg
   }
+
+  async getSingletons () { return this.db.getSingletons(this) }
+
+  async setSingleton (data) { this.db.setSingleton(this, data) }
 
   /* fpurge, transferts */
   async setFpurge (idag, lidf) {
