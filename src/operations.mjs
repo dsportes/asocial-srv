@@ -230,7 +230,7 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
 
 /* `MajCredits` : mise a jour du crédits d'un compte A
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte
 - `credits` : credits crypté par la clé K du compte
 - `v`: version de compta de la dernière incorporation des crédits
 - `dlv`: nouvelle dlv calculée
@@ -250,10 +250,6 @@ operations.MajCredits = class MajCredits extends Operation {
       this.setRes('KO', true)
       return
     }
-    if (compta.v !== args.v) {
-      this.setRes('KO', true)
-      return
-    }
 
     const dlvAvant = compta.dlv
     compta.v++
@@ -269,7 +265,7 @@ operations.MajCredits = class MajCredits extends Operation {
 /* `PlusTicket` : ajout d'un ticket à un compte A
 et ajout d'un ticket au Comptable
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte
 - `credits` : credits crypté par la clé K du compte
 - `rowTicket` : nouveau row tickets pour le Comptable
 - v: version de compta
@@ -303,7 +299,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
 /* `MoinsTicket` : retrait d'un ticket à un compte A
 et retrait d'un ticket au Comptable
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte
 - `credits` : credits crypté par la clé K du compte
 - `ids` : du ticket
 - v: version de compta
@@ -339,7 +335,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
 
 /* `RafraichirTickets` : nouvelles versions des tickets cités
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte
 - `mtk` : map des tickets. clé: ids, valeur: version détenue en session
 
 Retour: 
@@ -362,7 +358,7 @@ operations.RafraichirTickets = class RafraichirTickets extends Operation {
 /* `EstAutonome` : indique si l'avatar donné en argument est 
 l'avatar principal d'un compte autonome
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte 
 - `id` : id de l'avatar
 
 Retour: 
@@ -407,9 +403,8 @@ operations.SetNotifG = class SetNotifG extends Operation {
   }
 }
 
-/* `GetEspace` : get de l'espace du compte de la session
+/* `GetEspace` : get d'un espace par son ns
 POST:
-- `token` : éléments d'authentification du compte.
 - `ns` : id de l'espace.
 
 Retour:
@@ -418,7 +413,7 @@ Retour:
 Assertion sur l'existence du row Espace.
 */
 operations.GetEspace = class GetEspace extends Operation {
-  constructor () { super('GetEspace'); this.authMode = 4; this.lecture = true }
+  constructor () { super('GetEspace'); this.authMode = 3; this.lecture = true }
 
   async phase2 (args) {
     const rowEspace = await this.getRowEspace(args.ns, 'GetEspace')
@@ -452,7 +447,7 @@ operations.SetEspaceT = class SetEspaceT extends Operation {
   }
 }
 
-/*`SetEspaceOptionA` : changement de l'option A par le Comptable
+/*`SetEspaceOptionA` : changement de l'option A, nbmi, dlvat par le Comptable
 POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `ns` : id de l'espace notifié.
@@ -482,9 +477,9 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   }
 }
 
-/*`GetVersionsDlvat` : liste des id des versions de ns ayant la dlvat fixée
+/*`GetVersionsDlvat` : liste des id des versions d'un ns ayant la dlvat fixée
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte
 - `ns` : id de l'espace
 - dlvat: aamm,
 Retour:
@@ -499,9 +494,9 @@ operations.GetVersionsDlvat = class GetVersionsDlvat extends Operation {
   }
 }
 
-/*`GetMembresDlvat` : liste des [id,ids] des membres de ns ayant la dlvat fixée
+/*`GetMembresDlvat` : liste des [id,ids] des membres d'un ns ayant la dlvat fixée
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte
 - `ns` : id de l'espace
 - dlvat: aamm,
 Retour:
@@ -567,7 +562,7 @@ operations.ChangeMbDlvat = class ChangeMbDlvat extends Operation {
   }
 }
 
-/* `GetSynthese` : retourne la synthèse de l'espace
+/* `GetSynthese` : retourne la synthèse de l'espace ns
 POST:
 - `token` : éléments d'authentification du compte.
 - `ns` : id de l'espace.
@@ -1069,7 +1064,7 @@ Retour:
 - `rowGroupe`: row du groupe.
 
 Assertion sur l'existence du row `Groupes`.
-*/
+
 operations.GetGroupe = class GetGroupe extends Operation {
   constructor () { super('GetGroupe') }
 
@@ -1079,7 +1074,7 @@ operations.GetGroupe = class GetGroupe extends Operation {
   }
 }
 
-/* *** OBOSOLETE *** `GetGroupes` : retourne les documents groupes ayant une version plus récente que celle détenue en session
+*** OBOSOLETE *** `GetGroupes` : retourne les documents groupes ayant une version plus récente que celle détenue en session
 POST:
 - `token`: éléments d'authentification du compte.
 - `mapv` : map des versions des groupes détenues en session :
@@ -1088,7 +1083,7 @@ POST:
 
 Retour:
 - `rowGroupes` : array des rows des `Groupes` ayant une version postérieure à celle connue en session.
-*/
+
 operations.GetGroupes = class GetGroupes extends Operation {
   constructor () { super('GetGroupes'); this.lecture = true }
 
@@ -1099,6 +1094,7 @@ operations.GetGroupes = class GetGroupes extends Operation {
     }
   }
 }
+*/
 
 /* `ChargerNotes` : retourne les notes de l'avatar / groupe id et de version postérieure à v
 POST:
@@ -1464,7 +1460,7 @@ POST:
 - `token` : éléments d'authentification du compte.
 - `id` : id du groupe
 - `ids` : ids du membre
-*/
+
 operations.DisparitionMembre = class DisparitionMembre extends Operation {
   constructor () { super('DisparitionMembre') }
 
@@ -1481,6 +1477,7 @@ operations.DisparitionMembre = class DisparitionMembre extends Operation {
     this.update(version.toRow())
   }
 }
+*/
 
 /* `RafraichirCvs` : rafraîchir les cartes de visite, quand nécessaire
 Mises à jour des cartes de visite, quand c'est nécessaire, pour tous les chats et membres de la cible.
@@ -1595,7 +1592,7 @@ operations.RafraichirCvs = class RafraichirCvs extends Operation {
   }
 }
 
-/* `McMemo` : changer le mémo du compte
+/* `McMemo` : changer les mots clés et le mémo attaché à un avatar / groupe par le compte
 POST:
 - `token` : éléments d'authentification du compte.
 - `mmk` : mcMemo crypté par la clé k
@@ -1798,7 +1795,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
   }
 }
 
-/* `MajChat` : mise à jour d'un Chat
+/* `MajChat` : mise à jour d'un Chat, gère aussi un don / crédit
 POST:
 - `token` : éléments d'authentification du compte.
 - `idI idsI` : id du chat, côté _interne_.
@@ -2136,7 +2133,7 @@ POST:
 - `lm` : liste _moins_ des entrées `[kx]` à enlever.
 
 Assertion sur l'existence du row Comptas.
-*/
+
 operations.MajMavkAvatar = class MajMavkAvatar extends Operation {
   constructor () { super('MajMavkAvatar') }
 
@@ -2153,6 +2150,7 @@ operations.MajMavkAvatar = class MajMavkAvatar extends Operation {
     this.update(compta.toRow())
   }
 }
+*/
 
 /* `NouvelleTribu` : création d'une nouvelle tribu par le comptable
 POST: 
@@ -2354,7 +2352,7 @@ operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
   }
 }
 
-/* `MajNctkCompta` : mise à jour de la tribu d'un compte 
+/* `MajCletKCompta` : mise à jour de la tribu d'un compte 
 POST: 
 - `token` : éléments d'authentification du compte.
 - `nctk` : `[nom, cle]` de la la tribu du compte crypté par la clé K du compte.
@@ -2809,7 +2807,7 @@ operations.InvitationFiche = class InvitationFiche extends Operation {
   }
 }
 
-/* Nouveau membre (contact) *******************************************
+/* Invitation à un groupe *******************************************
 args.token donne les éléments d'authentification du compte.
 args.op : opération demandée: 
   1: invit std, 2: modif invit std, 3: suppr invit std, 
@@ -3205,7 +3203,7 @@ operations.ModeSimple = class ModeSimple extends Operation {
   }
 }
 
-/* ItemChatgr : ajout / effacement d'un item *************************************************
+/* ItemChatgr : ajout / effacement d'un item de chat de groupe *************************************************
 args.token: éléments d'authentification du compte.
 args.chatit : item
 args.idg: id du groupe
@@ -3433,7 +3431,7 @@ operations.SupprNote = class SupprNote extends Operation {
   }
 }
 
-/* Charger les CVs dont les versions sont postérieures à celles détenues en session ******
+/* Charger la CV dont la version est postérieure à celle détenue en session ******
 args.token: éléments d'authentification du compte.
 args.mcv : cle: id, valeur: version détenue en session (ou 0)
 Retour:
@@ -3485,7 +3483,7 @@ operations.GetUrl = class GetUrl extends Operation {
   }
 }
 
-/* Put URL ****************************************
+/* Put URL : retourne l'URL de put d'un fichier ****************************************
 args.token: éléments d'authentification du compte.
 args.id : id de la note
 args.idh : id de l'hébergeur pour une note groupe
@@ -4155,7 +4153,7 @@ operations.GCPagtr = class GCPagtr extends Operation {
     if (rowCompta) {
       try {
         const compta = compile(rowCompta)
-        if (compta.it) { // pour les comptes O seulment
+        if (compta.it) { // pour les comptes O seulement
           const gcvol = new Gcvols().init({
             id: id,
             cletX: compta.cletX,
@@ -4167,7 +4165,7 @@ operations.GCPagtr = class GCPagtr extends Operation {
       } catch (e) {
         // volumes non récupérés pour données inconsistantes : ignorer
         // trace
-        const info = e.toStriong()
+        const info = e.toString()
         trace('GCPagtr-AL1' , args.id, info)
       }
     }
