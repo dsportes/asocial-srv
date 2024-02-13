@@ -276,6 +276,11 @@ app.get('/ping', (req, res) => {
   setRes(res, 200, 'text/plain').send('V11 ' + new Date().toISOString())
 })
 
+//**** ping du site ***
+app.get('/fbcfg', (req, res) => {
+  setRes(res, 200, 'text/plain').send(JSON.stringify(ctx.keys.firebase_config))
+})
+
 app.get('/storage/:arg', async (req, res) => {
   try {
     const [org, id, idf] = decode3(req.params.arg)

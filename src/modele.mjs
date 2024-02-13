@@ -785,8 +785,10 @@ export class Operation {
   }
 
   /* Authentification ******************************************************************
-  authMode == 1 : première connexion à un compte
-  authMode == 0 : cas standard, vérification de l'authentification, voire enregistrement éventuel
+  authMode == 3 : SANS TOKEN, pings et accès non authentifiés (recherche phrase de sponsoring)
+  authMode == 2 : AVEC TOKEN, créations de compte. Elles ne sont pas authentifiées elles vont justement enregistrer leur authentification.
+  authMode == 1 : AVEC TOKEN, première connexion à un compte : this.rowComptas et this.compta sont remplis
+  authMode == 0 : AVEC TOKEN, cas standard, vérification de l'authentification, voire enregistrement éventuel
 
   **En mode SQL**, un WebSocket a été ouvert avec une sessionId : 
   dans tous les cas, même les opérations qui n'ont pas à être authentifiées, 
