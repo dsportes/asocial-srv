@@ -446,7 +446,11 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath(nom, id)
     // INDEX simple sur (chats sponsorings notes membres chatgrs) v
     const q = this.fs.collection(p).where('v', '>', v)
-    const qs = await op.transaction.get(q)
+    let qs
+    if (!op.fake && op.transaction)
+      qs = await op.transaction.get(q)
+    else
+      qs = await q.get(q)
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 

@@ -65,7 +65,12 @@
       "collectionGroup": "avatars",
       "fieldPath": "id",
       "ttl": false,
-      "indexes": []
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "avatars",
@@ -201,7 +206,12 @@
       "collectionGroup": "comptas",
       "fieldPath": "id",
       "ttl": false,
-      "indexes": []
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "comptas",
@@ -309,7 +319,12 @@
       "collectionGroup": "groupes",
       "fieldPath": "id",
       "ttl": false,
-      "indexes": []
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "groupes",
@@ -638,7 +653,12 @@
       "collectionGroup": "versions",
       "fieldPath": "id",
       "ttl": false,
-      "indexes": []
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "versions",
