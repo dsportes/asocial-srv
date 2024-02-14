@@ -199,8 +199,8 @@ export class Outils {
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
     // Opérations fake qui permettent de passer appKey aux méthodes decryptRow / preoRow
-    const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0}
-    const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0}
+    const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0, fake: true}
+    const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0, fake: true}
     const scollIds = []
     const ch = new NsOrg(cin, cout)
 

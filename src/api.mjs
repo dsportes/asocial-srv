@@ -18,6 +18,8 @@ export const IDBOBSGC = 19 * 30
 // Liste des statistiques mensuelles et délai / mois courant
 export const statistiques = { moisStat: 1, moisStatT: 3 }
 
+export const rowCryptes = new Set(['comptas'])
+
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
 export const d10 = 10000000000

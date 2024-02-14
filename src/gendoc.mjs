@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS, d14 } from './api.mjs'
+import { FLAGS, d14, rowCryptes } from './api.mjs'
 import { ctx } from './server.js'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
@@ -29,7 +29,7 @@ export function compile (row) {
 }
 
 export async function decryptRow (op, row) {
-  if (!row || !GenDoc.rowCryptes.has(row._nom)) return row
+  if (!row || !rowCryptes.has(row._nom)) return row
   const d = row._data_
   if (!d || d.length < 4) return row
   const dc = await decrypterSrv(op.db.appKey, d)
@@ -38,7 +38,7 @@ export async function decryptRow (op, row) {
 }
 
 export async function prepRow (op, row) {
-  const b = GenDoc.rowCryptes.has(row._nom)
+  const b = rowCryptes.has(row._nom)
   const la = GenDoc._attrs[row._nom]
   const r = {}
   la.forEach(a => {
@@ -102,8 +102,6 @@ export class GenDoc {
   static syncs = new Set(['singletons', 'espaces', 'tribus', 'comptas', 'versions'])
 
   static sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
-
-  static rowCryptes = new Set(['comptas'])
   
   /* Liste des attributs des (sous)collections- sauf singletons */
   static _attrs = {

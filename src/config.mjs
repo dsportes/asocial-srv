@@ -8,8 +8,14 @@ const optA = 2
 
 Exemple export-db:
 node src/server.js export-db --in 32,doda,sqlite_a,A --out 24,coltes,sqlite_b,A
+node src/server.js export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
+node src/server.js export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
 
 Exemple export-st:
+node src/server.js export-db --in doda,fs_a --out doda,gc_a
+
+Exemple purge-db
+node src/server.js purge-db --in 32,doda,firebase-a,A
 
 */
 
@@ -50,6 +56,11 @@ const env1 = {
   FIRESTORE_EMULATOR_HOST: 'localhost:8080'
 }
 
+const env2 = {
+  GOOGLE_CLOUD_PROJECT: 'asocial-test1',
+  GOOGLE_APPLICATION_CREDENTIALS: '@service_account'
+}
+
 const run1 = {
   croninterne: optA === 1 ? false : '30 3 * * *', // A 3h30 du matin tous les jours
 
@@ -82,6 +93,20 @@ const run2 = {
   db_provider: optA === 1 ? 'firestore_a' : 'sqlite_b',
 }
 
+const run3 = {
+  site: 'A',
+  // URL externe d'appel du serveur 
+  rooturl: 'https://test.sportes.fr:8443',
+  // Port d'écoute si NON gae
+  port: 8443, // port: 443,
+  // Origines autorisées
+  origins: [ 'localhost:8343' ],
+  // Provider DB
+  storage_provider: 'fs_a',
+  // Provider Storage
+  db_provider: 'firestore_a',
+}
+
 export const config = {
   // Paramètres fonctionnels
   tarifs: [
@@ -101,9 +126,9 @@ export const config = {
 
   keys: keys1,
 
-  env: env1,
+  env: env2,
 
-  run: run1,
+  run: run3,
 
   s3_a: {
     bucket: 'asocial'

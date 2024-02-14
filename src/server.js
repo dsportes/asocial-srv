@@ -255,11 +255,6 @@ app.use('/', (req, res, next) => {
     next()
 })
 
-//*** fs : retourne true si le provider DB est de type Firestore (pas de synchro WebSocket)
-app.get('/fs', (req, res) => {
-  setRes(res, 200, 'text/plain').send(ctx.db.type === 'firestore' ? 'true' : 'false')
-})
-
 //**** favicon.ico du sites ****
 app.get('/favicon.ico', (req, res) => {
   setRes(res, 200, 'image/x-icon').send(ctx.keys.favicon)
@@ -274,11 +269,6 @@ app.get('/robots.txt', (req, res) => {
 //**** ping du site ***
 app.get('/ping', (req, res) => {
   setRes(res, 200, 'text/plain').send('V11 ' + new Date().toISOString())
-})
-
-//**** ping du site ***
-app.get('/fbcfg', (req, res) => {
-  setRes(res, 200, 'text/plain').send(JSON.stringify(ctx.keys.firebase_config))
 })
 
 app.get('/storage/:arg', async (req, res) => {

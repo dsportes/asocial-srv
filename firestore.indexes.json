@@ -1,5 +1,48 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "chats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ids",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "vcv",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "membres",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ids",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "vcv",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ids",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "v",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": [
     {
       "collectionGroup": "singletons",
@@ -203,6 +246,11 @@
     {
       "collectionGroup": "chats",
       "fieldPath": "v",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
+    },
+    {
+      "collectionGroup": "chats",
+      "fieldPath": "vcv",
       "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }]
     },
     {

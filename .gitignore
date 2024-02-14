@@ -2,6 +2,7 @@ node_modules
 dist
 *.log
 config
+keys.mjs
 keys
 logs
 app

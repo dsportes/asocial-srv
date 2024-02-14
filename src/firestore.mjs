@@ -60,7 +60,10 @@ export class FirestoreProvider {
   async deleteRows (op, rows) {
     for (const row of rows) {
       const p = FirestoreProvider._path(row._nom, row.id, row.ids)
-      await op.transaction.delete(this.fs.doc(p))
+      if (!op.fake && op.transaction)
+        await op.transaction.delete(this.fs.doc(p))
+      else
+        await this.fs.doc(p).delete()
     }
   }
 
@@ -93,7 +96,10 @@ export class FirestoreProvider {
         }
       }
       const p = FirestoreProvider._path(row._nom, r.id, r.ids)
-      await op.transaction.set(this.fs.doc(p), r)
+      if (!op.fake && op.transaction)
+        await op.transaction.set(this.fs.doc(p), r)
+      else
+        await this.fs.doc(p).set(r)
     }
   }
 
@@ -106,7 +112,7 @@ export class FirestoreProvider {
       const max = id + '999999999'
       const q = this.fs.collection(nom).where('id_v', '>', min).where('id_v', '<', max)
       let qs
-      if (!op.fake) {
+      if (!op.fake && op.transaction) {
         qs = await op.transaction.get(q) // qs: QuerySnapshot
       } else {
         qs = await q.get()
@@ -122,7 +128,7 @@ export class FirestoreProvider {
 
     const dr = this.fs.doc(nom + '/' + id)
     let ds
-    if (!op.fake) {
+    if (!op.fake && op.transaction) {
       ds = await op.transaction.get(dr) // qs: QuerySnapshot
     } else {
       ds = await dr.get()
@@ -144,7 +150,7 @@ export class FirestoreProvider {
     const dr = this.fs.doc(p) // dr: DocumentReference
     // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
     let ds
-    if (!op.fake) {
+    if (!op.fake && op.transaction) {
       ds = await op.transaction.get(dr)
     } else {
       ds = await dr.get()
@@ -165,7 +171,7 @@ export class FirestoreProvider {
     const dr = this.fs.doc(p) // dr: DocumentReference
     // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
     let ds
-    if (!op.fake) {
+    if (!op.fake && op.transaction) {
       ds = await op.transaction.get(dr)
     } else {
       ds = await dr.get()
@@ -181,11 +187,16 @@ export class FirestoreProvider {
 
   async getEspaceOrg(op, org) {
     const q = this.fs.collection('espaces').where('org', '==', org)
-    const qs = await op.transaction.get(q)
+    let qs
+    if (op.transaction) 
+      qs = await op.transaction.get(q)
+    else
+      qs = await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()
+    row._nom = 'espaces'
     op.nl++
-    return compile(await decryptRow(op, row))
+    return await decryptRow(op, row)
   }
 
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
@@ -204,9 +215,9 @@ export class FirestoreProvider {
   /* Retourne LE chat si sa CV est MOINS récente que celle détenue en session (de version vcv)
   */
   async getChatVCV (op, id, ids, vcv) {
-    const p = FirestoreProvider._path('chats', id, ids)
+    const p = 'versions/' + id + '/chats'
     // INDEX simple sur chats vcv
-    const q = this.fs.collection(p).where('vcv', '>', vcv)
+    const q = this.fs.collection(p).where('ids', '==', ids).where('vcv', '>', vcv)
     const qs = await op.transaction.get(q)
     let row = null
     if (!qs.empty) {
@@ -221,9 +232,9 @@ export class FirestoreProvider {
   /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
   */
   async getRowTicketV (op, id, ids, v) {
-    const p = FirestoreProvider._path('tickets', id, ids)
-    // INDEX simple sur chats vcv
-    const q = this.fs.collection(p).where('v', '>', v)
+    const p = 'versions/' + id + '/tickets'
+    // INDEX simple sur tickets v
+    const q = this.fs.collection(p).where('ids', '==', ids).where('v', '>', v)
     const qs = await op.transaction.get(q)
     let row = null
     if (!qs.empty) {
@@ -240,9 +251,9 @@ export class FirestoreProvider {
   /* Retourne LE membre si sa CV est MOINS récente que celle détenue en session (de version vcv)
   */
   async getMembreVCV (op, id, ids, vcv) {
-    const p = FirestoreProvider._path('membres', id, ids)
+    const p = 'versions/' + id + '/membres'
     // INDEX simple sur membres vcv
-    const q = this.fs.collection(p).where('vcv', '>', vcv)
+    const q = this.fs.collection(p).where('ids', '==', ids).where('vcv', '>', vcv)
     const qs = await op.transaction.get(q)
     let row = null
     if (!qs.empty) {
@@ -259,7 +270,7 @@ export class FirestoreProvider {
     // INDEX simple sur comptas hps1
     const q = this.fs.collection(p).where('hps1', '==', hps1)
     let qs
-    if (!op.fake) {
+    if (!op.fake && op.transaction) {
       qs = await op.transaction.get(q)
     } else {
       qs = await q.get()
@@ -279,7 +290,7 @@ export class FirestoreProvider {
     // INDEX simple sur avatars hpc
     const q = this.fs.collection(p).where('hpc', '==', hpc)
     let qs
-    if (!op.fake) {
+    if (!op.fake && op.transaction) {
       qs = await op.transaction.get(q)
     } else {
       qs = await q.get()
@@ -298,7 +309,7 @@ export class FirestoreProvider {
     // INDEX COLLECTION_GROUP sur sponsorings ids
     const q = this.fs.collectionGroup('sponsorings').where('ids', '==', ids)
     let qs
-    if (!op.fake) {
+    if (!op.fake && op.transaction) {
       qs = await op.transaction.get(q)
     } else {
       qs = await q.get()
