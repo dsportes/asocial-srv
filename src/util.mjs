@@ -1,7 +1,53 @@
 import crypto from 'crypto'
+import { encode, decode } from '@msgpack/msgpack'
 import { deflateSync, inflateSync } from 'zlib'
+
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { AppExc, E_SRV } from './api.mjs'
+import { appKeyBin } from './config.mjs'
+import { FsProvider } from './storageFS.mjs'
+import { GcProvider } from './storageGC.mjs'
+import { S3Provider } from './storageS3.mjs'
+import { SqliteProvider } from './dbSqlite.mjs'
+import { FirestoreProvider } from './dbFirestore.mjs'
+
+export function getStorageProvider (codeProvider) {
+  switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
+  case 'fs' : { return new FsProvider(codeProvider) }
+  case 's3' : { return new S3Provider(codeProvider) }
+  case 'gc' : { return new GcProvider(codeProvider) }
+  }
+}
+
+export function getDBProvider (codeProvider, site) {
+  switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
+  case 'sqlite' : { return new SqliteProvider(site, codeProvider) }
+  case 'firestore' : { return new FirestoreProvider(site, codeProvider) }
+  }
+}
+
+/* Retourne le couple [hostname, port] d'une URL */
+export function getHP (url) {
+  let origin = url
+  let i = origin.indexOf('://')
+  if (i !== -1) origin = origin.substring(i + 3)
+  i = origin.indexOf('/')
+  if (i !== -1) origin = origin.substring(0, i)
+  i = origin.indexOf(':')
+  const hn = i === -1 ? origin : origin.substring(0, i)
+  const po = i === -1 ? 0 : parseInt(origin.substring(i + 1))
+  return [hn, po]
+}
+
+export function encode3 (org, id, idf) {
+  const y = crypterSrv(appKeyBin('A'), Buffer.from(encode(([org, id, idf]))))
+  const z = u8ToB64(y, true)
+  return z
+}
+
+export function decode3 (arg) { // retourne [org, id, idf]
+  return decode(Buffer.from((decrypterSrv(appKeyBin('A'), b64ToU8(arg)))))
+}
 
 export function sleep (delai) {
   if (delai <= 0) return

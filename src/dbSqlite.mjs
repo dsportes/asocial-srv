@@ -2,24 +2,24 @@ import path from 'path'
 import { existsSync } from 'node:fs'
 import { Database } from './loadreq.mjs'
 import { decode, encode } from '@msgpack/msgpack'
-import { ctx } from './server.js'
+import { config } from './server.js'
+import { app_keys } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID, d10 } from './api.mjs'
 
 export class SqliteProvider {
-  constructor (cfg, site, code) {
+  constructor (site, code) {
     this.code = code
-    this.site = site
-    this.appKey = Buffer.from(ctx.site(site), 'base64')
-    const p = path.resolve(cfg.path)
+    this.appKey = Buffer.from(app_keys.site[site], 'base64')
+    const p = path.resolve(config[code].path)
     if (!existsSync(p)) {
-      ctx.logger.info('Path DB (création)= [' + p + ']')
+      config.logger.info('Path DB (création)= [' + p + ']')
     } else {
-      ctx.logger.info('Path DB= [' + p+ ']')
+      config.logger.info('Path DB= [' + p + ']')
     }
     const options = {
       verbose: (msg) => {
-        if (ctx.mondebug) ctx.logger.debug(msg)
+        if (config.mondebug) config.logger.debug(msg)
         this.lastSql.unshift(msg)
         if (this.lastSql.length > 3) this.lastSql.length = 3
       } 

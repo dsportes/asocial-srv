@@ -1,13 +1,13 @@
 import { encode } from '@msgpack/msgpack'
 import { ID, PINGTO, WSHEARTBEAT } from './api.mjs'
-import { ctx } from './server.js'
+import { config } from './config.mjs'
 
 export function startWs () {
   // eslint-disable-next-line no-unused-vars
   const gcSessions = setInterval(() => {
     const dh1 = Date.now()
-    const max = PINGTO * 6 * 10000 * (ctx.debug ? 1000 : 1)
-    if (ctx.debug) ctx.logger.debug('PINGTO ' + max)
+    const max = PINGTO * 6 * 10000 * (config.mondebug ? 1000 : 1)
+    if (config.mondebug) config.logger.debug('PINGTO ' + max)
     SyncSession.sessionsmortes.clear()
     SyncSession.sessions.forEach((session, sessionId) => {
       const dh2 = session.dhping
@@ -43,12 +43,12 @@ export class SyncSession {
     this.compteId = 0
     this.nbpings = 0
     this.ws.onerror = (e) => {
-      ctx.logger.error(e)
+      config.logger.error(e)
       if (this.sessionId) SyncSession.sessions.delete(this.sessionId)
     }
     this.ws.onclose = (/* e */) => {
       if (this.sessionId) SyncSession.sessions.delete(this.sessionId)
-      if (ctx.debug) ctx.logger.debug('Fermeture de session détectée:' + this.sessionId)
+      if (config.mondebug) config.logger.debug('Fermeture de session détectée:' + this.sessionId)
     }
     this.ws.onmessage = (m) => {
       // seul message reçu : ping avec le sessionid
@@ -75,7 +75,7 @@ export class SyncSession {
   pingrecu (os) { 
     const d = new Date()
     this.dhping = d.getTime()
-    if (ctx.debug) ctx.logger.debug(
+    if (config.debug) config.logger.debug(
       os ? 'Ouverture de session reçue: ' : 'Ping reçu: ' +
       this.sessionId + ' / ' + d.toISOString())
   }

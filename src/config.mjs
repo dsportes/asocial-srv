@@ -1,113 +1,10 @@
-/* eslint-disable no-unused-vars */
-
-const optA = 2
-/*
-1:GAE 
-2:Test local sans build
-3:Test local avec build
-
-Exemple export-db:
-node src/server.js export-db --in 32,doda,sqlite_a,A --out 24,coltes,sqlite_b,A
-node src/server.js export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
-node src/server.js export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
-
-Exemple export-st:
-node src/server.js export-db --in doda,fs_a --out doda,gc_a
-
-Exemple purge-db
-node src/server.js purge-db --in 32,doda,firebase-a,A
-
-*/
-
-const optB = 1
-
-const keys0 = {
-  app: 'app_keys.json',
-  favicon: 'favicon.ico',
-  firebase_config: 'firebase_config.json',
-  pub: 'fullchain.pem',
-  priv: 'privkey.pem',
-  s3_config: 's3_config.json',
-  service_account: 'service_account.json'
-}
-
-const keys1 = {
-  app: 'app_keys.json',
-  favicon: 'favicon.ico',
-  pub: 'fullchain.pem',
-  priv: 'privkey.pem',
-  firebase_config: 'firebase_config.json',
-  service_account: 'service_account.json'
-}
-
-const keys2 = {
-  app: 'app_keys.json',
-  favicon: 'favicon.ico',
-  firebase_config: 'firebase_config.json',
-  pub: 'fullchain.pem',
-  priv: 'privkey.pem',
-  s3_a: 's3_config.json'
-}
-
-const env1 = {
-  GOOGLE_CLOUD_PROJECT: 'asocial-test1',
-  GOOGLE_APPLICATION_CREDENTIALS: '@service_account',
-  STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-  FIRESTORE_EMULATOR_HOST: 'localhost:8080'
-}
-
-const env2 = {
-  GOOGLE_CLOUD_PROJECT: 'asocial-test1',
-  GOOGLE_APPLICATION_CREDENTIALS: '@service_account'
-}
-
-const run1 = {
-  croninterne: optA === 1 ? false : '30 3 * * *', // A 3h30 du matin tous les jours
-
-  site: 'A',
-  // URL externe d'appel du serveur 
-  rooturl: optA === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',
-  // Port d'écoute si NON gae
-  port: optA !== 1 ? 8443 : 0, // port: 443,
-  // Origines autorisées
-  origins: [ 'localhost:8343' ],
-  // Provider DB
-  storage_provider: optA === 1 ? 'gc_a' : 'fs_a',
-  // Provider Storage
-  db_provider: optA === 1 ? 'firestore_a' : 'sqlite_a',
-}
-
-const run2 = {
-  croninterne: optA === 1 ? false : '30 3 * * *', // '53 16 * * *'
-
-  site: 'A',
-  // URL externe d'appel du serveur 
-  rooturl: optA === 1 ? 'asocial-test1.ew.r.appspot.com' : 'https://test.sportes.fr:8443',
-  // Port d'écoute si NON gae
-  port: optA !== 1 ? 8443 : 0, // port: 443,
-  // Origines autorisées
-  origins: [ 'localhost:8343' ],
-  // Provider DB
-  storage_provider: optA === 1 ? 'gc_a' : 'fs_b',
-  // Provider Storage
-  db_provider: optA === 1 ? 'firestore_a' : 'sqlite_b',
-}
-
-const run3 = {
-  site: 'A',
-  // URL externe d'appel du serveur 
-  rooturl: 'https://test.sportes.fr:8443',
-  // Port d'écoute si NON gae
-  port: 8443, // port: 443,
-  // Origines autorisées
-  origins: [ 'localhost:8343' ],
-  // Provider DB
-  storage_provider: 'fs_a',
-  // Provider Storage
-  db_provider: 'firestore_a',
-}
+import { env } from 'process'
+import { app_keys, service_account } from './keys.mjs'
+import { Tarif } from './api.mjs'
 
 export const config = {
+  mondebug: (env.NODE_ENV === 'mondebug'),
+
   // Paramètres fonctionnels
   tarifs: [
     { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
@@ -115,47 +12,66 @@ export const config = {
     { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
   ],
 
-  // HTTP server: configuration des paths des URL
+  // paramètres ayant à se retrouver en varaibles d'environnement
+  env: {
+    GOOGLE_CLOUD_PROJECT: 'asocial-test1',
+    GOOGLE_APPLICATION_CREDENTIALS: service_account,
+    STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
+    FIRESTORE_EMULATOR_HOST: 'localhost:8080'
+  },
+
+  // Configuation nommées des providers db et storage
+  s3_a: { bucket: 'asocial' },
+  fs_a: { rootpath: './fsstorage' },
+  fs_b: { rootpath: './fsstorageb' },
+  gc_a: { bucket: 'asocial-test1.appspot.com', /* fixé pour emulator ? */ },
+  sqlite_a: { path: './sqlite/test.db3' },
+  sqlite_b: { path: './sqlite/testb.db3' },
+  firestore_a: { },
+
+  // Pour HTTP server seulement: configuration des paths des URL
   prefixop: '/op',
   prefixapp: '/app',
-  pathapp: optA === 1 ? '' : './app',
+  pathapp: './app',
   prefixwww: '/www',
-  pathwww: optA === 1 ? '' : './www',
-  pathlogs: optA === 2 ? './logs' : '../logs',
+  pathwww: './www',
+  pathlogs: './logs',
   pathkeys: './keys',
 
-  keys: keys1,
-
-  env: env2,
-
-  run: run3,
-
-  s3_a: {
-    bucket: 'asocial'
-  },
-
-  fs_a: {
-    rootpath: optA === 2 ? './fsstorage' : '../fsstorage'
-  },
-
-  fs_b: {
-    rootpath: optA === 2 ? './fsstorageb' : '../fsstorageb'
-  },
-
-  gc_a: {
-    bucket: 'asocial-test1.appspot.com', // Pour emulator
-    // bucket: 'asocial' // Pour prod, quoi que ...
-  },
-
-  sqlite_a: {
-    path: './sqlite/test.db3'
-  },
-
-  sqlite_b: {
-    path: './sqlite/testb.db3'
-  },
-
-  firestore_a: {
+  run: { // Configuration du "serveur"
+    nom: 'test Sqlite',
+    croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
+  
+    site: 'A',
+    // URL externe d'appel du serveur 
+    // rooturl: 'asocial-test1.ew.r.appspot.com',
+    rooturl: 'https://test.sportes.fr:8443',
+    // Port d'écoute si NON gae
+    port: 8443,
+    // Origines autorisées
+    origins: new Set(['localhost:8343']),
+    // Provider DB
+    storage_provider: 'fs_a',
+    // Provider Storage
+    db_provider: 'sqlite_a',
+    // Running dans GAE
+    gae: !(!env['GAE_DEPLOYMENT_ID'])
   }
 
 }
+
+Tarif.tarifs = config.tarifs
+
+for (const n in config.env) env[n] = config.env[n]
+
+class Logger {
+  info (m) { console.log(m) }
+
+  error (m) { console.error(m) }
+  
+  debug (m) { console.log(m) }
+}
+
+config.logger = new Logger()
+
+export function appKeyBin (site) { return Buffer.from(app_keys.sites[site], 'base64') }

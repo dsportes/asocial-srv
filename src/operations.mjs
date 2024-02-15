@@ -1,24 +1,15 @@
 // import { encode, decode } from '@msgpack/msgpack'
 import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
-import { ctx } from './server.js'
+import { config } from './config.mjs'
+import { operations } from './cfgexpress.mjs'
 
 import { AuthSession, Operation, trace} from './modele.mjs'
 import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
 import { FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC, statistiques } from './api.mjs'
-import schedule from 'node-schedule'
 
-export function atStart(ctx) {
-  if (ctx.croninterne) {
-    ctx.logger.info('Scheduler started')
-    schedule.scheduleJob(ctx.croninterne, function(){
-      new operations.GCGen(true).run()
-    })
-  }
-}
-
-export const operations = {}
+export function fake () {} // Pour forcer l'importation des opérations
 
 /** Echo du texte envoyé ***************************************
 args.to : délai en secondes avant retour de la réponse
@@ -3898,7 +3889,7 @@ operations.GCGen = class GCGen extends Operation {
   constructor (cron) { super('GCGen'); this.authMode = cron ? 3 : 0  }
 
   async phase1 () {
-    ctx.logger.info('GC started')
+    config.logger.info('GC started')
 
     // 10 Récupération des fins d'hébergement
     !await new operations.GCHeb().run()

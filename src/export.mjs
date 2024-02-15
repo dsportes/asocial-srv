@@ -1,10 +1,46 @@
+/*
+Exemple export-db:
+node src/server.js export-db --in 32,doda,sqlite_a,A --out 24,coltes,sqlite_b,A
+node src/server.js export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
+node src/server.js export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
 
+Exemple export-st:
+node src/server.js export-db --in doda,fs_a --out doda,gc_a
+
+Exemple purge-db
+node src/server.js purge-db --in 32,doda,firebase-a,A
+*/
+import { exit } from 'process'
+import { parseArgs } from 'node:util'
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'readline'
 
-import { getStorageProvider, getDBProvider, ctx } from './server.js'
+import { getStorageProvider, getDBProvider } from './util.mjs'
+import { config } from './config.mjs'
+import { app_keys } from './keys.mjs'
 import { AMJ, ID } from './api.mjs'
 import { compile, GenDoc, NsOrg } from './gendoc.mjs'
+
+const cmdargs = parseArgs({
+  allowPositionals: true,
+  options: { 
+    outil: { type: 'string', short: 'o' },
+    in: { type: 'string' },
+    out: { type: 'string' },
+    simulation: { type: 'boolean', short: 's'}
+  }
+})
+
+const [n, msg] = await new Outils().run()
+if (!n) {
+  config.logger.info(msg)
+  exit(0)
+} else {
+  config.logger.error(msg)
+  exit(n)
+}
+
+/***************************************************************** */
 
 function prompt (q) {
   return new Promise((resolve) => {
@@ -17,7 +53,6 @@ function prompt (q) {
   })
 }
 
-// eslint-disable-next-line no-unused-vars
 class OpSimple {
   constructor (db, storage) {
     this.nl = 0
@@ -76,11 +111,23 @@ class OpSimple {
   }
 }
 
+class OpTest1 extends OpSimple {
+  constructor (provider) {
+    super(provider, null)
+  }
+
+  async phase2 (args) {
+    const row = await this.db.org(this, args.ns)
+    const espace = compile(row)
+    console.log(espace.org)
+  }
+}
+
 export class Outils {
   async run () {
     try {
       this.log('======================================================')
-      this.args = ctx.cmdargs
+      this.args = cmdargs
       this.outil = this.args.positionals[0]
       this.simu = this.args.values.simulation
       this.cfg = {}
@@ -150,7 +197,7 @@ export class Outils {
       throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
 
     e.site = x[3]
-    e.appKey = ctx.site(e.site)
+    e.appKey = app_keys.site[e.site]
     if (!e.appKey)
       throw 'Argument --' + io + ' : Attendu: ns,org,provider,site . site [' + e.site + '] inconnu'
 
@@ -342,16 +389,4 @@ export class Outils {
     }
   }
 
-}
-
-class OpTest1 extends OpSimple {
-  constructor (provider) {
-    super(provider, null)
-  }
-
-  async phase2 (args) {
-    const row = await this.db.org(this, args.ns)
-    const espace = compile(row)
-    console.log(espace.org)
-  }
 }

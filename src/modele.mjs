@@ -34,17 +34,14 @@ B) compilation en Objet serveur
 import { encode, decode } from '@msgpack/msgpack'
 import { AMJ, ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { ctx } from './server.js'
+import { config } from './config.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8 } from './util.mjs'
 import { GenDoc, compile, Chats } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
-  /*
-  const t = new Date().toISOString()
-  if (err) console.error(t + ' ' + msg); else console.log(t + ' ' +  msg)
-  */
-  if (err) ctx.logger.error(msg); else ctx.logger.info(msg)
+  if (err) config.logger.error(msg); else config.logger.info(msg)
   return msg
 }
 
@@ -828,7 +825,7 @@ export class Operation {
 
     if (this.authData.shax) { // admin
       const shax64 = Buffer.from(this.authData.shax).toString('base64')
-      if (ctx.adminKey.indexOf(shax64) !== -1) {
+      if (config.app_keys.admin.indexOf(shax64) !== -1) {
         // session admin authentifiée
         this.session = await AuthSession.set(this, 0, true)
         return

@@ -1,17 +1,18 @@
 import { Firestore } from '@google-cloud/firestore'
 
 import { decode, encode } from '@msgpack/msgpack'
-import { ctx } from './server.js'
+import { config } from './config.mjs'
+import { firebase_config, app_keys } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID, d10 } from './api.mjs'
 
 export class FirestoreProvider {
-  constructor (cfg, site, code) {
+  constructor (site, code) {
     this.code = code
     this.site = site
-    this.appKey = Buffer.from(ctx.site(site), 'base64')
-    this.emulator = ctx['FIRESTORE_EMULATOR_HOST']
-    this.fscredentials = ctx.keys.firebase_config
+    this.appKey = Buffer.from(app_keys.site(site), 'base64')
+    this.emulator = config.FIRESTORE_EMULATOR_HOST
+    this.fscredentials = firebase_config
     this.fs = new Firestore()
   }
 
@@ -30,8 +31,7 @@ export class FirestoreProvider {
   }
 
   setSyncData(op) {
-    op.setRes('credentials', ctx.keys.firebase_config)
-    op.setRes('emulator', ctx.env.FIRESTORE_EMULATOR_HOST || null)
+    op.setRes('emulator', config.FIRESTORE_EMULATOR_HOST || null)
   }
 
   async doTransaction (op) {
