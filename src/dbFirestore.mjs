@@ -10,7 +10,7 @@ export class FirestoreProvider {
   constructor (site, code) {
     this.code = code
     this.site = site
-    this.appKey = Buffer.from(app_keys.site(site), 'base64')
+    this.appKey = Buffer.from(app_keys.sites(site), 'base64')
     this.emulator = config.FIRESTORE_EMULATOR_HOST
     this.fscredentials = firebase_config
     this.fs = new Firestore()
@@ -21,9 +21,19 @@ export class FirestoreProvider {
   get hasWS () { return false }
 
   async ping () {
-    const dr = this.fs.doc('singletons/ping')
-    await dr.set({ dh: new Date().toISOString() })
-    return true
+    try {
+      let t = '?'
+      const dr = this.fs.doc('singletons/1')
+      const ds = await dr.get()
+      if (ds.exists) t = ds.get('_data_')
+      const d = new Date()
+      const v = d.getTime()
+      const _data_ = d.toISOString()
+      await dr.set({ id: 1, v, _data_ })
+      return 'OK: ' + (t || '?') + ' <=> ' + _data_
+    } catch (e) {
+      return 'KO: ' + e.toString()
+    }
   }
 
   excInfo () {
@@ -38,7 +48,7 @@ export class FirestoreProvider {
     await this.fs.runTransaction(async (transaction) => {
       // reset DANS le traitement de la transaction qui peut boucler
       op.transaction = transaction
-      await op.doPhase2()
+      await op.transac()
     })
   }
 

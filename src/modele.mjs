@@ -32,8 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { AMJ, ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
-import { ctx } from './server.js'
+import { ID, PINGTO, hash, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { config } from './config.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8 } from './util.mjs'
@@ -212,19 +211,102 @@ Une opération a deux phases :
   -abMoins : array des ids à désabonner: désabonnements après la phase 2 (après commit)
 */
 export class Operation {
-  constructor (nomop) { 
-    this.nomop = nomop; this.authMode = 0; this.lecture = false 
+  constructor (nomop, authMode) { 
+    this.nomop = nomop
+    this.authMode = authMode
   }
+
+  /* Authentification *************************************************************
+  authMode:
+  0 : pas de contrainte d'accès (public)
+  1 : le compte doit être authentifié
+  2 : et ça doit être le comptable
+  3 : administrateur technique requis
+  4: CAS PARTICULIER de la connexion - accepte 3 ou 1
+  */
+  async auth() {
+    if (this.db.hasWS) {
+      /* Récupérer la session WS afin de pouvoir lui transmettre
+      les évolutions d'abonnements */
+      this.sync = SyncSession.get(this.authData.sessionId)
+      if (!this.sync) throw new AppExc(E_SRV, 4)
+      this.sync.pingrecu()
+    }
+
+    if (this.authMode === 0) return
+
+    if (this.authMode === 3) {
+      if (this.authData.shax) { // admin
+        const shax64 = Buffer.from(this.authData.shax).toString('base64')
+        if (config.app_keys.admin.indexOf(shax64) !== -1) return
+      }
+      await sleep(3000)
+      throw new AppExc(F_SRV, 101) // pas reconnu
+    }
+
+    if (this.authMode === 4) {
+      if (this.authData.shax) { // admin
+        const shax64 = Buffer.from(this.authData.shax).toString('base64')
+        if (config.app_keys.admin.indexOf(shax64) !== -1) return
+      }
+    }
+
+    const espace = await Cache.getEspaceOrg(this, this.authData.org)
+    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+
+    const hps1 = (espace.id * d14) + this.authData.hps1
+    const rowCompta = await this.getComptaHps1(hps1)
+    if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 103) }
+    this.compta = compile(rowCompta)
+    if (this.compta.hpsc !== hash(this.authData.pcb)) throw new AppExc(F_SRV, 103)
+    this.id = this.compta.id
+    this.ns = ID.ns(this.id)
+
+    const esp = await Cache.getEspaceLazy(this, this.ns)
+    this.notifG = null
+    if (!esp) { 
+      this.notifG = {
+        nr: 2,
+        texte: 'Organisation inconnue', 
+        dh: Date.now()
+      }
+    } else 
+      this.notifG = esp.notif
+    if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
+    if (this.notifG && this.notifG.nr === 1) this.estFige = true
+
+    if (this.authMode === 1 || this.authMode === 4) return
+
+    if (this.authMode === 2) {
+      if (!ID.estComptable(this.id)) {
+        await sleep(3000)
+        throw new AppExc(F_SRV, 104) 
+      }
+      return
+    }
+    throw new AppExc(A_SRV, 19, [this.authMode]) 
+  }
+  
+  async transac () {
+    await this.auth() // this.compta est accessible
+    if (this.phase1) await this.phase1(this.args)
+    if (this.phase2) await this.phase2(this.args)
+    if (!this.result.KO) {
+      this.result.nl = this.nl
+      this.result.ne = this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length  
+      if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
+      if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
+      if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
+    }
+  }
+
+  async phase1 () {}
+
+  async phase2 () {}
 
   /* Exécution de l'opération */
   async run (args) {
-    this.db = ctx.db
-    this.storage = ctx.storage
-    this.auj = AMJ.amjUtc()
-    if (!Operation.nex) Operation.nex = 1
-    this.nex = Operation.nex++
-    this.args = args
-    if (this.authMode <= 2) { // Sinon ce sont des "pings" (echo, test erreur, pingdb, recherche phrase sponsoring)
+    if (this.authMode) { // Authentifié: 1 2 ou 3
       const t = args.token
       if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
       try {
@@ -232,61 +314,35 @@ export class Operation {
       } catch (e) {
         throw assertKO('Operation-2', 100, [e.message])
       }
-      if (this.authMode < 2) await this.auth() // this.session est OK
     }
-    this.dh = Date.now()
-    this.nl = 0
-    this.ne = 0
-    this.result = { dh: this.dh, sessionId: this.authData ? this.authData.sessionId : '666' }
+    this.result = { 
+      dh: this.dh, 
+      sessionId: this.authData ? (this.authData.sessionId || '666') : '888' 
+    }
     this.toInsert = []; this.toUpdate = []; this.toDelete = []
 
-    if (this.phase1) {
-      this.phase = 1
-      await this.phase1(args)
+    if (this.db.hasWS && this.sync && args.abPlus && args.abPlus.length) {
+      args.abPlus.forEach(id => { this.sync.plus(id) })
+      args.abPlus.length = 0
     }
 
-    if (!this.result.KO && this.phase2) {
+    if (this.phase1 || this.phase2) await this.db.doTransaction(this)
 
-      if (this.db.hasWS && this.session && args.abPlus && args.abPlus.length) {
-        args.abPlus.forEach(id => { this.session.sync.plus(id) })
-        args.abPlus.length = 0
+    if (!this.result.KO && this.db.hasWS) {
+      // (A) suppressions éventuelles des abonnements
+      if (this.session) {
+        if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.session.sync.moins(id) })
+        if (args.abPlus && args.abPlus.length) args.abPlus.forEach(id => { this.session.sync.plus(id) })
       }
-
-      await this.db.doTransaction(this)
-
-      /* Fin de l'opération :
-      - (A) suppressions éventuelles des abonnements (sql seulement)
-      - (B) envoi en synchronisation des rows modifiés (sql seulement)
-      */
-
-      if (!this.result2.KO && this.db.hasWS) {
-        // (A) suppressions éventuelles des abonnements
-        if (this.session) {
-          if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.session.sync.moins(id) })
-          if (args.abPlus && args.abPlus.length) args.abPlus.forEach(id => { this.session.sync.plus(id) })
-        }
-        // (B) envoi en synchronisation des rows modifiés
-        const rows = []
-        this.toUpdate.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
-        this.toInsert.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
-        if (rows.length) SyncSession.toSync(rows)
-      }
-    } else {
-      this.result2 = null
+      // (B) envoi en synchronisation des rows modifiés
+      const rows = []
+      this.toUpdate.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
+      this.toInsert.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
+      if (rows.length) SyncSession.toSync(rows)
     }
 
-    /* Fin de l'opération :
-    - (C) envoi en cache des objets majeurs mis à jour / supprimés
-    - (D) finalisation du résultat (fusion résultats phase 1 / 2)
-    */
-
-    // (D) finalisation du résultat (fusion résultats phase 1 / 2)
-    if (this.result2) for(const prop in this.result2) { this.result[prop] = this.result2[prop] }
-    this.result.nl = this.nl
-    this.result.ne = this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length
-  
+    /* (C) envoi en cache des objets majeurs mis à jour / supprimés */  
     if (!this.result.KO) {
-      // (C) envoi en cache des objets majeurs modifiés / ajoutés / supprimés
       const updated = [] // rows mis à jour / ajoutés
       const deleted = [] // paths des rows supprimés
       this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
@@ -298,17 +354,6 @@ export class Operation {
     }
 
     return this.result
-  }
-
-  async doPhase2 () {
-    this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.result2 = {}
-    this.phase = 2
-    await this.phase2(this.args)
-    if (!this.result2.KO) {
-      if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
-      if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
-      if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
-    }
   }
 
   async delAvGr (id) { await this.db.delAvGr(this, id)}
@@ -780,39 +825,9 @@ export class Operation {
       this.update(synt.toRow())
     }
   }
+}
 
-  /* Authentification ******************************************************************
-  authMode == 3 : SANS TOKEN, pings et accès non authentifiés (recherche phrase de sponsoring)
-  authMode == 2 : AVEC TOKEN, créations de compte. Elles ne sont pas authentifiées elles vont justement enregistrer leur authentification.
-  authMode == 1 : AVEC TOKEN, première connexion à un compte : this.rowComptas et this.compta sont remplis
-  authMode == 0 : AVEC TOKEN, cas standard, vérification de l'authentification, voire enregistrement éventuel
-
-  **En mode SQL**, un WebSocket a été ouvert avec une sessionId : 
-  dans tous les cas, même les opérations qui n'ont pas à être authentifiées, 
-  doivent porter un token pourtant sessionId afin de vérifier l'existence du socket ouvert.
-
-  Toute opération porte un `token` portant lui-même un `sessionId`, 
-  un numéro de session tiré au sort par la session et qui change à chaque déconnexion.
-  - si le serveur retrouve dans la mémoire cache l'enregistrement de la session `sessionId` :
-    - il en obtient l'id du compte,
-    - il prolonge la `ttl` de cette session dans cette cache.
-  - si le serveur ne trouve pas la `sessionId`, 
-    - soit il y en bien une mais dans une autre instance, 
-    - soit c'est une déconnexion pour dépassement de `ttl` de cette session.
-    Dans les deux cas l'authentification va être refaite avec le `token` fourni.
-
-  **`token`**
-  - `sessionId`
-  - `shax` : SHA de X, le PBKFD de la phrase complète.
-  - `hps1` : hash du PBKFD de la ligne 1 de la phrase secrète.
-
-  Le serveur recherche l'id du compte par `hps1` (index de `comptas`)
-  - vérifie que le SHA de `shax` est bien celui enregistré dans `comptas` en `shay`.
-  - inscrit en mémoire `sessionId` avec l'id du compte et un `ttl`.
-  
-  Pour une connexion, auth() positionne TOUJOURS dans le this de l'opération:
-  - compta: l'objet compilé correspondant
-  */
+/*
   async auth () {
     const s = await AuthSession.get(this)
     if (!this.authMode && s) {
@@ -911,4 +926,4 @@ export class AuthSession {
     s.ttl = Date.now() + AuthSession.ttl
     return s
   }
-}
+*/

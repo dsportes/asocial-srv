@@ -2,7 +2,7 @@ import path from 'path'
 import { existsSync } from 'node:fs'
 import { Database } from './loadreq.mjs'
 import { decode, encode } from '@msgpack/msgpack'
-import { config } from './server.js'
+import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID, d10 } from './api.mjs'
@@ -10,7 +10,7 @@ import { d14, ID, d10 } from './api.mjs'
 export class SqliteProvider {
   constructor (site, code) {
     this.code = code
-    this.appKey = Buffer.from(app_keys.site[site], 'base64')
+    this.appKey = Buffer.from(app_keys.sites[site], 'base64')
     const p = path.resolve(config[code].path)
     if (!existsSync(p)) {
       config.logger.info('Path DB (création)= [' + p + ']')
@@ -34,7 +34,23 @@ export class SqliteProvider {
   get hasWS () { return true }
 
   async ping () {
-    return true
+    try {
+      const sts = this._stmt('PINGS', 'SELECT _data_ FROM singletons WHERE id = 1')
+      const t = sts.get()
+      const d = new Date()
+      const v = d.getTime()
+      const _data_ = d.toISOString()
+      if (t) {
+        const stu = this._stmt('PINGU', 'UPDATE singletons SET _data_ = @_data_, v = @v,  WHERE id = 1')
+        stu.run({ v, _data_ })
+      } else {
+        const sti = this._stmt('PINGI', 'INSERT INTO singletons (id, v, _data_) VALUES (1, @v, @_data_)')
+        sti.run({ v, _data_ })
+      }
+      return 'OK: ' + (t || '?') + ' <=> ' + _data_
+    } catch (e) {
+      return 'KO: ' + e.toString()
+    }
   }
 
   excInfo () {
@@ -48,7 +64,7 @@ export class SqliteProvider {
   async doTransaction (op) {
     try {
       this._stmt('begin', 'BEGIN').run()
-      await op.doPhase2()
+      await op.transac()
       this._stmt('commit', 'COMMIT').run()
     } catch (e) {
       this._stmt('rollback', 'ROLLBACK').run()

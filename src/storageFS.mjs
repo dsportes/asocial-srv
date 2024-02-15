@@ -7,7 +7,7 @@ import { config } from './config.mjs'
 
 /* FsProvider ********************************************************************/
 export class FsProvider {
-  constructor (codeProvider, config) {
+  constructor (codeProvider) {
     this.rootpath = config[codeProvider].rootpath
   }
 

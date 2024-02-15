@@ -13,9 +13,11 @@ import { SyncSession, startWs } from './ws.mjs'
 import { getHP, getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress, operations } from './cfgexpress.mjs'
 
-import{ fake } from './operations'
+import{ load } from './operations.mjs'
+import{ load2 } from './operations2.mjs'
 
-fake()
+load()
+load2()
 
 let db = null, storage = null
 const keys = ['favicon.ico', 'fullchain.pem', 'privkey.pem']
@@ -30,8 +32,8 @@ try {
   if (config.run.rooturl) {
     const [hn, po] = getHP(config.run.rooturl)
     const pox = config.run.gae || po === 0 ? config.port : po
-    config.run.origins.push(hn + ':' + pox)
-    config.run.origins.push(hn)
+    config.run.origins.add(hn + ':' + pox)
+    config.run.origins.add(hn)
   }
 
   config.logger.info('DB= [' + config.run.db_provider + ']')
@@ -45,12 +47,12 @@ try {
   config.logger.info('Storage= [' + config.run.storage_provider + ']')
   storage = getStorageProvider(config.run.storage_provider)
   if (!storage) {
-    console.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
+    config.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
     exit(1)
   }
   await storage.ping()
 
-  for (const nf in keys) {
+  for (const nf of keys) {
     const p = path.resolve(config.pathkeys + '/' + nf)
     const n = nf.substring(0, nf.indexOf('.'))
     if (existsSync(p)) {
@@ -60,7 +62,7 @@ try {
   }
 
 } catch (e) {
-  console.logger.error(e.toString() + '\n' + e.stack)
+  config.logger.error(e.toString() + '\n' + e.stack)
   exit(1)
 }
 

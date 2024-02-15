@@ -5,9 +5,13 @@ import { encode, decode } from '@msgpack/msgpack'
 import { app_keys } from './keys.mjs'
 import { config } from './config.mjs'
 import { decode3, getHP } from './util.mjs'
-import { version, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
+import { version, AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
 
-export const operations = {} // Toutes les opérations
+// Toutes les opérations
+export const operations = {
+  auj: AMJ.amjUtc(),
+  nex: 1
+}
 
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
@@ -59,7 +63,7 @@ export function appExpress(db, storage) {
     setRes(res, 200, 'text/plain').send((config.run.nom ? config.run.nom + ' - ' : '') + new Date().toISOString())
   })
 
-  app.get('/storage/:arg', async (req, res) => {
+  if (config.run.rooturl) app.get('/storage/:arg', async (req, res) => {
     try {
       const [org, id, idf] = decode3(req.params.arg)
       const bytes = await storage.getFile(org, id, idf)
@@ -73,7 +77,7 @@ export function appExpress(db, storage) {
     }
   })
 
-  app.put('/storage/:arg', async (req, res) => {
+  if (config.run.rooturl) app.put('/storage/:arg', async (req, res) => {
     try {
       const [org, idcap, idf] = decode3(req.params.arg)
       const bufs = [];
@@ -134,13 +138,14 @@ function checkOrigin(req) {
 *************************************************************/
 
 async function operation(req, res, db, storage) {
-  let pfx = new Date().toISOString() // prefix de log
+  operations.auj = AMJ.amjUtc()
+  const dh = Date.now()
+  const opName = req.params.operation
   try {
     const isGet = req.method === 'GET'
-    const opName = req.params.operation
 
     if (opName === 'yo'){
-      setRes(res, 200, 'text/plain').send('yo ' + pfx)
+      setRes(res, 200, 'text/plain').send('yo ' + new Date(dh).toISOString())
       return
     }
 
@@ -148,7 +153,7 @@ async function operation(req, res, db, storage) {
     checkOrigin(req)
 
     if (opName === 'yoyo'){
-      setRes(res, 200, 'text/plain').send('yoyo ' + pfx)
+      setRes(res, 200, 'text/plain').send('yoyo ' + new Date(dh).toISOString())
       return
     }
 
@@ -186,15 +191,20 @@ async function operation(req, res, db, storage) {
       apitk = x[1]
       if (apitk !== app_keys.apitk) throw new AppExc(E_SRV, 7, [apitk || '???'])
     }
-    if (isGet) args.isGet = true
-    pfx += ' op=' + opName
-    if (config.mondebug) config.logger.debug(pfx)
+    if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString())
     const op = new opClass(opName)
+    op.isGet = isGet
     op.db = db
     op.storage = storage
+    op.auj = operations.auj
+    op.nex = operations.nex++
+    op.args = args
+    op.dh = dh
+    op.nl = 0
+    op.ne = 0
     const result = await op.run(args)
 
-    if (config.mondebug) config.logger.debug(pfx + ' 200')
+    if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString() + ' 200')
     if (isGet)
       setRes(res, 200, result.type || 'application/octet-stream').send(Buffer.from(result.bytes))
     else {
@@ -214,7 +224,7 @@ async function operation(req, res, db, storage) {
       const xx = (e.stack ? e.stack + '\n' : '') + (db ? db.excInfo() : '')
       s = new AppExc(E_SRV, 0, [e.message], xx).toString()
     }
-    if (config.mondebug) config.logger.debug(pfx + ' ' + httpst + ' : ' + s)
+    if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString() + ' ' + httpst + ' : ' + s)
     setRes(res, httpst).send(Buffer.from(s))
   }
 }

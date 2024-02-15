@@ -1,6 +1,5 @@
-/* Opérations d'écrire et de lecture du GC
-qui ne peuvent pas s'effectuer en session même avec un provider Firestore
-*/
+/* Opérations de lecture qui pourraient être exécutée en session
+si le provider est Firestore */
 
 import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
@@ -13,800 +12,555 @@ import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
 import { FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC, statistiques } from './api.mjs'
 
 // Pour forcer l'importation des opérations
-export function load () {
-  if (config.mondebug) config.logger.debug('Operations: ' + operations.auj)
+export function load2 () {
+  if (config.modebug) config.logger.debug('Operations2: ' + operations.auj)
 }
 
-/* `EnregConso` : enregistrement de la consommation courante d'une session.
-A également une fonction de "heartbeat" maintenant la session active dans le server.
-POST:
-- `token` : jeton d'authentification du compte
-- `conso` : `{ nl, ne, vm, vd }`. Peut être null (aucune consommation)
-  - `nl`: nombre absolu de lectures depuis la création du compte.
-  - `ne`: nombre d'écritures.
-  - `vm`: volume _montant_ vers le Storage (upload).
-  - `vd`: volume _descendant_ du Storage (download).
-
+/** Echo du texte envoyé ***************************************
+args.to : délai en secondes avant retour de la réponse
+args.texte : texte à renvoyer en écho OU en détail de l'erreur fonctionnelle testée
 Retour:
-- fait : true si l'enregistrement de la consommation a été faite
+- echo : texte d'entrée retourné
 */
-operations.EnregConso = class EnregConso extends Operation {
-  constructor (nom) { super(nom, 1) }
+operations.EchoTexte = class EchoTexte extends Operation {
+  constructor (nom) { super(nom, 0) }
 
   async phase2(args) {
-    if ((this.notifG && this.notifG.nr) || !args.conso) return 
-
-    this.compta.v++
-    const c = new Compteurs(this.compta.compteurs, null, args.conso)
-    this.compta.compteurs = c.serial
-    this.update(this.compta.toRow())
-    this.setRes('fait', true)
+    if (args.to) await sleep(args.to * 1000)
+    this.setRes('echo', args.texte)
   }
 }
 
-/* `CreerEspace` : création d'un nouvel espace et du comptable associé
-POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `rowEspace` : row de l'espace créé
-- `rowSynthese` : row `syntheses` créé
-- `rowAvatar` : row de l'avatar du comptable de l'espace
-- `rowTribu` : row de la tribu primitive de l'espace
-- `rowCompta` : row du compte du Comptable
-- `rowVersion`: row de la version de l'avatar (avec sa dlv)
-- `hps1` : hps1 de la phrase secrète
-
-Retour: rien
-
-Exceptions: 
-- F_SRV 12 : phrase secrète semblable déjà trouvée.
-- F_SRV 3 : Espace déjà créé.
+/** Erreur fonctionnelle simulée du texte envoyé ***************************************
+args.to : délai en secondes avant retour de la réponse
+args.texte : détail de l'erreur fonctionnelle testée
+Exception
 */
-operations.CreerEspace = class CreerEspace extends Operation {
-  constructor (nom) { super(nom, 3) }
+operations.ErreurFonc = class ErreurFonc extends Operation {
+  constructor (nom) { super(nom, 0) }
 
   async phase2(args) {
-    if (await this.getComptaHps1(args.hps1))
-      throw new AppExc(F_SRV, 12)
-    const resp = await this.getRowEspace(args.rowEspace.id)
-    if (resp) throw new AppExc(F_SRV, 3)
- 
-    this.insert(args.rowEspace)
-    this.insert(args.rowSynthese)
-    this.insert(args.rowCompta)
-    this.insert(args.rowTribu)
-    this.insert(args.rowAvatar)
-    this.insert(args.rowVersion)
+    if (args.to) await sleep(args.to * 1000)
+    throw new AppExc(F_SRV, 1, [args.texte])
   }
 }
 
-/* `ReceptionTicket` : réception d'un ticket par le Comptable
-POST:
-- `token` : jeton d'authentification du Comptable
-- `ids` : du ticket
-- `mc` : montant reçu
-- `refc` : référence du Comptable
-
-Retour: rien
+/** Test d'accès à la base ***************************************
+Lecture de l'avatar du comptable
+Retour: aucun
 */
-operations.ReceptionTicket = class ReceptionTicket extends Operation {
-  constructor (nom) { super(nom, 2) }
+operations.PingDB = class PingDB extends Operation {
+  constructor (nom) { super(nom, 0) }
 
-  async phase2(args) {
-    const version = compile(await this.getRowVersion(this.id, 'PlusTicket-2'))
-    const ticket = compile(await this.getRowTicket(this.id, args.ids, 'ReceptionTicket-1'))
-    version.v++
-    this.update(version.toRow())
-    ticket.v = version.v
-    ticket.mc = args.mc
-    ticket.refc = args.refc
-    ticket.dr = AMJ.amjUtc()
-    this.update(ticket.toRow())
+  async phase2() {
+    this.setRes(await this.db.ping())
   }
 }
 
-/* `MajCredits` : mise a jour du crédits d'un compte A
-POST:
-- `token` : jeton d'authentification du compte
-- `credits` : credits crypté par la clé K du compte
-- `v`: version de compta de la dernière incorporation des crédits
-- `dlv`: nouvelle dlv calculée
-- `lavLmb`: [lav, lmb]
-  - lav: array des ids des avatars
-  - lmb: array des [idg, im] des membres
+/* get cle publique RSA d'un avatar ******
+args.id : id de l'avatar
+Retour: 
+- pub : nul si l'avatar a disparu
+*/
+operations.GetPub = class GetPub extends Operation {
+  constructor (nom) { super(nom, 0) }
 
+  async phase2 (args) {
+    const avatar = compile(await this.getRowAvatar(args.id))
+    this.setRes('pub', avatar ? avatar.pub : null)
+  }
+}
+
+/* Recherche sponsoring ******
+args.org : organisation
+args.hps1 : hash de la phrase de contact
 Retour:
-- KO: true - La version v est en régression, refaire l'incorporation des crédits.
+- rowSponsoring s'il existe
 */
-operations.MajCredits = class MajCredits extends Operation {
-  constructor (nom) { super(nom, 1) }
+operations.ChercherSponsoring = class ChercherSponsoring extends Operation {
+  constructor (nom) { super(nom, 0) }
 
-  async phase2(args) {
-    if (this.compta.v !== args.v) {
-      this.setRes('KO', true)
-      return
+  async phase2 (args) {
+    const espace = await this.getEspaceOrg(args.org)
+    if (!espace) return
+    const ids = (espace.id * d14) + args.hps1
+    const row = await this.getSponsoringIds(ids)
+    if (row) this.setRes('rowSponsoring', row)
+  }
+}
+
+/* Recherche hash de phrase ******
+args.hps1 : ns + hps1 de la phrase de contact / de connexion
+args.t :
+  - 1 : phrase de connexion(hps1 de compta)
+Retour:
+- existe : true si le hash de la phrase existe
+*/
+operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    if (await this.getComptaHps1(args.hps1)) this.setRes('existe', true)
+  }
+}
+
+/* Recherche hash de phrase ******
+args.hps1 : ns + hps1 de la phrase de contact / de connexion
+args.t :
+  - 2 : phrase de sponsoring (ids)
+  - 3 : phrase de contact (hpc d'avatar)
+Retour:
+- existe : true si le hash de la phrase existe
+*/
+operations.ExistePhrase = class ExistePhrase extends Operation {
+  constructor (nom) { super(nom, 1)  }
+
+  async phase2 (args) {
+    if (args.t === 2) {
+      if (await this.getSponsoringIds(args.hps1)) {
+        this.setRes('existe', true)
+        return
+      }
+    } if (args.t === 3) {
+      if (await this.getAvatarHpc(args.hps1)) {
+        this.setRes('existe', true)
+        return
+      }
     }
-
-    const dlvAvant = this.compta.dlv
-    this.compta.v++
-    this.compta.credits = args.credits
-    // console.log('CREDITS MajCredits', compta.v, compta.credits.length)
-    this.compta.dons = null
-    this.compta.dlv = args.dlv
-    this.update(this.compta.toRow())
-    if (dlvAvant !== args.dlv) this.propagerDlv(args)
   }
 }
 
-/* `PlusTicket` : ajout d'un ticket à un compte A
-et ajout d'un ticket au Comptable
+/* `RafraichirTickets` : nouvelles versions des tickets cités
 POST:
 - `token` : jeton d'authentification du compte
-- `credits` : credits crypté par la clé K du compte
-- `rowTicket` : nouveau row tickets pour le Comptable
-- v: version de compta
+- `mtk` : map des tickets. clé: ids, valeur: version détenue en session
 
 Retour: 
-- KO : true si régression de version de compta
+- rowTickets: liste des rows des tickets ayant changé
 */
-operations.PlusTicket = class PlusTicket extends Operation {
-  constructor (nom) { super(nom, 1) }
-
-  async phase2(args) {
-    const compta = this.compta
-    if (compta.v !== args.v) {
-      this.setRes('KO', true)
-      return
-    }
-    compta.v++
-    compta.credits = args.credits
-    // console.log('CREDITS PlusTicket', compta.v, compta.credits.length)
-    this.update(compta.toRow())
-    const idc = ID.duComptable(this.session.ns)
-    const version = compile(await this.getRowVersion(idc, 'PlusTicket-2'))
-    version.v++
-    this.update(version.toRow())
-    const ticket = compile(args.rowTicket)
-    ticket.v = version.v
-    this.insert(ticket.toRow())
-  }
-}
-
-/* `MoinsTicket` : retrait d'un ticket à un compte A
-et retrait d'un ticket au Comptable
-POST:
-- `token` : jeton d'authentification du compte
-- `credits` : credits crypté par la clé K du compte
-- `ids` : du ticket
-- v: version de compta
-
-Retour: 
-- KO: true si régression de version de compta
-*/
-operations.MoinsTicket = class MoinsTicket extends Operation {
+operations.RafraichirTickets = class RafraichirTickets extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2(args) {
     const idc = ID.duComptable(this.ns)
-    const ticket = compile(await this.getRowTicket(idc, args.ids, 'MoinsTicket-1'))
-    if (ticket.dr) throw new AppExc(F_SRV, 24)
-    const version = compile(await this.getRowVersion(idc, 'MoinsTicket-2'))
-    version.v++
-    this.update(version.toRow())
-    ticket.v = version.v
-    ticket._zombi = true
-    this.update(ticket.toRow())
-
-    const compta = this.compta
-    if (compta.v !== args.v) {
-      this.setRes('KO', true)
-      return
+    for (const idss in args.mtk) {
+      const ids = parseInt(idss)
+      const v = args.mtk[idss]
+      const rowTicket = await this.getRowTicketV(idc, ids, v)
+      if (rowTicket) this.addRes('rowTickets', rowTicket)
     }
-    compta.v++
-    compta.credits = args.credits
-    // console.log('CREDITS MoinsTicket', compta.v, compta.credits.length)
-    this.update(compta.toRow())
   }
 }
 
-/* `SetNotifG` : déclaration d'une notification à un espace par l'administrateur
+/* `EstAutonome` : indique si l'avatar donné en argument est 
+l'avatar principal d'un compte autonome
 POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié
-- `notif` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
+- `token` : jeton d'authentification du compte 
+- `id` : id de l'avatar
 
 Retour: 
-- `rowEspace` : le row espaces mis à jour.
-
-Assertion sur l'existence du row `Espaces`.
-
-C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-Elle n'écrit QUE dans espaces.
+- `st`: 
+  - 0 : pas avatar principal 
+  - 1 : avatar principal d'un compte A
+  - 2 : avatar principal d'un compte O
 */
-operations.SetNotifG = class SetNotifG extends Operation {
-  constructor (nom) { super(nom, 3) }
-
-  async phase2 (args) {
-    const espace = compile(await this.getRowEspace(args.ns, 'SetNotifG'))
-    espace.v++
-    espace.notif = args.notif || null
-    const rowEspace = this.update(espace.toRow())
-    this.setRes('rowEspace', rowEspace)
-  }
-}
-
-/*`SetEspaceT` : déclaration du profil de volume de l'espace par l'administrateur
-POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié.
-- `t` : numéro de profil de 0 à N. Liste spécifiée dans config.mjs de l'application.
-
-Retour: rien
-
-Assertion sur l'existence du row `Espaces`.
-
-C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-Elle n'écrit QUE dans espaces.
-*/
-operations.SetEspaceT = class SetEspaceT extends Operation {
-  constructor (nom) { super(nom, 3)}
-
-  async phase2 (args) {
-    let rowEspace = await this.getRowEspace(args.ns, 'SetEspaceT')
-    const espace = compile(rowEspace)
-    espace.v++
-    espace.t = args.t || 0
-    rowEspace = this.update(espace.toRow())
-    this.setRes('rowEspace', rowEspace)
-  }
-}
-
-/*`SetEspaceOptionA` : changement de l'option A, nbmi, dlvat par le Comptable
-POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié.
-- `optionA` : 0 1 2.
-- dlvat: aaaammjj,
-- nbmi:
-
-Retour: rien
-
-Assertion sur l'existence du row `Espaces`.
-
-L'opération échappe au contrôle espace figé / clos.
-Elle n'écrit QUE dans espaces.
-*/
-operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
-  constructor (nom) { super(nom, 2)}
-
-  async phase2 (args) {
-    let rowEspace = await this.getRowEspace(args.ns, 'SetEspaceOptionA')
-    const espace = compile(rowEspace)
-    espace.v++
-    if (args.optionA) espace.opt = args.optionA
-    if (args.dlvat) espace.dlvat = args.dlvat
-    if (args.nbmi) espace.nbmi = args.nbmi
-    rowEspace = this.update(espace.toRow())
-    this.setRes('rowEspace', rowEspace)
-  }
-}
-
-/*`GetVersionsDlvat` : liste des id des versions d'un ns ayant la dlvat fixée
-POST:
-- `token` : jeton d'authentification du compte
-- `ns` : id de l'espace
-- dlvat: aamm,
-Retour:
-- lids: array des id
-*/
-operations.GetVersionsDlvat = class GetVersionsDlvat extends Operation {
-  constructor (nom) { super(nom, 0)}
-
-  async phase2 (args) {
-    const lids = await this.getVersionsDlvat(args.ns, args.dlvat)
-    this.setRes('lids', lids)
-  }
-}
-
-/*`GetMembresDlvat` : liste des [id,ids] des membres d'un ns ayant la dlvat fixée
-POST:
-- `token` : jeton d'authentification du compte
-- `ns` : id de l'espace
-- dlvat: aamm,
-Retour:
-- lidids: array des id
-*/
-operations.GetMembresDlvat = class GetMembresDlvat extends Operation {
-  constructor (nom) { super(nom, 0)}
-
-  async phase2 (args) {
-    const lidids = await this.getMembresDlvat(args.ns, args.dlvat)
-    this.setRes('lidids', lidids)
-  }
-}
-
-/*`ChangeAvDlvat` : change la dlvat dans les versions des avatars listés
-POST:
-- `token` : jeton d'authentification du compte
-- dlvat: aamm,
-- lids: array des ids des avatars
-Retour:
-*/
-operations.ChangeAvDlvat = class ChangeAvDlvat extends Operation {
-  constructor (nom) { super(nom, 1)}
-
-  async phase2 (args) {
-    for(const id of args.lids) {
-      if (ID.estComptable(id)) continue
-      const version = compile(await this.getRowVersion(id))
-      if (version) {
-        version.v++
-        version.dlv = args.dlvat
-        this.update(version.toRow())
-        const compta = compile(await this.getRowCompta(id))
-        if (compta) {
-          compta.v++
-          compta.dlv = args.dlvat
-          this.update(compta.toRow())
-        }
-      }
-    }
-  }
-}
-
-/*`ChangeMbDlvat` : change la dlvat dans les membres listés
-POST:
-- `token` : jeton d'authentification du compte
-- dlvat: aamm,
-- lidids: array des [id, ids] des membres
-Retour:
-*/
-operations.ChangeMbDlvat = class ChangeMbDlvat extends Operation {
-  constructor (nom) { super(nom, 1)}
-
-  async phase2 (args) {
-    for(const [id, ids] of args.lidids) {
-      const membre = compile(await this.getRowMembre(id, ids))
-      if (membre) {
-        membre.v++
-        membre.dlv = args.dlvat
-        this.update(membre.toRow())
-      }
-    }
-  }
-}
-
-/* `AjoutSponsoring` : déclaration d'un nouveau sponsoring par le comptable ou un sponsor
-POST:
-- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
-- `rowSponsoring` : row Sponsoring, SANS la version (qui est calculée par le serveur).
-- `credits`: nouveau credits du compte si non null
-- `v`: version de compta si credits
-- dlv: nouvelle dlv (si credits)
-- lavLmb
-
-Retour:
-- KO: true - si régression de version de compta
-
-Exceptions:
-- `F_SRV 7` : un sponsoring identifié par une même phrase (du moins son hash) existe déjà.
-
-Assertion sur l'existence du row `Versions` du compte.
-*/
-operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
-  constructor (nom) { super(nom, 1) }
-
-  async phase2 (args) {
-    const rowSp = args.rowSponsoring
-    const row = await this.getSponsoringIds(rowSp.ids)
-    if (row) throw new AppExc(F_SRV, 7)
-
-    const rowVersion = await this.getRowVersion(rowSp.id, 'AjoutSponsoring', true)
-    const version = compile(rowVersion)
-    const sp = compile(rowSp)
-
-    version.v++
-    sp.v = version.v
-
-    this.insert(sp.toRow())
-    this.update(version.toRow())
-    if (args.credits) {
-      const compta = compile(await this.getRowCompta(this.session.id, 'AjoutSponsoring-2'))
-      if (compta.v !== args.v) {
-        this.setRes('KO', true)
-        return
-      }
-      const dlvAvant = compta.dlv
-      compta.v++
-      compta.credits = args.credits
-      compta.dlv = args.dlv
-      this.update(compta.toRow())
-      if (dlvAvant !== args.dlv) this.propagerDlv(args)  
-    }
-  }
-}
-
-/* `ProlongerSponsoring` : prolongation d'un sponsoring existant
-Change la date limite de validité du sponsoring pour une date plus lointaine. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
-POST:
-- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
-- `id ids` : identifiant du sponsoring.
-- `dlv` : nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
-
-Retour: rien
-
-Assertion sur l'existence des rows `Sponsorings` et `Versions` du compte.
-*/
-operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
+operations.EstAutonome = class EstAutonome extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2(args) {
-    const sp = compile(await this.getRowSponsoring(args.id, args.ids, 'ProlongerSponsoring'))
-    if (sp.st === 0) {
-      const version = compile(await this.getRowVersion(args.id, 'ProlongerSponsoring-2'), true)
-      version.v++
-      sp.v = version.v
-      sp.dh = Date.now()
-      if (args.dlv) {
-        sp.dlv = args.dlv
-      } else {
-        sp.st = 3
-      }
-      this.update(sp.toRow())
-      this.update(version.toRow())
-    }
+    const compta = compile(await this.getRowCompta(args.id))
+    if (!compta || !compta.mvk) { this.setRes('st', 0) }
+    this.setRes('st', compta.it ? 2 : 1)
   }
 }
 
-/* `RefusSponsoring` : refus de son sponsoring par le _sponsorisé_
-Change le statut du _sponsoring_ à _refusé_. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
+/* `GetEspace` : get d'un espace par son ns
 POST:
-- `ids` : identifiant du sponsoring, hash de la phrase de contact.
-- `ardx` : justification / remerciement du _sponsorisé à stocker dans le sponsoring.
+- `ns` : id de l'espace.
 
-Retour: rien.
+Retour:
+- `rowEspace`
 
-Exceptions:
-- `F_SRV 8` : le sponsoring n'existe pas.
-
-Assertion sur l'existence du row Versions du compte sponsor.
+Assertion sur l'existence du row Espace.
 */
-operations.RefusSponsoring = class RefusSponsoring extends Operation {
+operations.GetEspace = class GetEspace extends Operation {
   constructor (nom) { super(nom, 0) }
 
-  async phase2(args) {
-    const rowSponsoring = await this.getSponsoringIds(args.ids)
-    if (!rowSponsoring) throw new AppExc(F_SRV, 8)
-
-    const rowVersion = await this.getRowVersion(rowSponsoring.id, 'RefusSponsoring', true)
-    const sp = compile(rowSponsoring)
-    const version = compile(rowVersion)
-
-    if (sp.st === 0) {
-      version.v++
-      sp.v = version.v
-      sp.ardx = args.ardx
-      sp.dh = Date.now()
-      sp.st = 1
-      this.update(sp.toRow())
-      this.update(version.toRow())
-    }
-  }
-}
-
-/* `AcceptationSponsoring` : création du compte du _sponsorisé_
-POST:
-- `token` : éléments d'authentification du compte à créer
-- `rowCompta` : row du compte à créer.
-- `rowAvatar` : row de son avatar principal.
-- `rowVersion` : row de avatar en création.
-- `idt` : id de sa tribu. 0 SI compte A
-- `ids` : ids du sponsoring, hash de sa phrase de reconnaissance qui permet de retrouver le sponsoring.
-- `ardx` : texte de l'ardoise du sponsoring à mettre à jour (avec statut 2 accepté), copie du texte du chat échangé.
-- `act`: élément de la map act de sa tribu. null SI compte A
-- pour les chats:
-    - `idI idsI` : id du chat, côté _interne_.
-    - `idE idsE` : id du chat, côté _externe_.
-    - `ccKI` : clé cc du chat cryptée par la clé K du compte de I.
-    - `ccPE` : clé cc cryptée par la clé **publique** de l'avatar E.
-    - `naccI` : [nomI, cleI] crypté par la clé cc
-    - `naccE` : [nomE, cleE] crypté par la clé cc
-    - `txt1` : texte 1 du chat crypté par la clé cc.
-    - `lgtxt1` : longueur du texte 1 du chat.
-    - `txt2` : texte 2 du chat crypté par la clé cc.
-    - `lgtxt2` : longueur du texte 2 du chat.
-
-Retour: rows permettant d'initialiser la session avec le nouveau compte qui se trouvera ainsi connecté.
-- `rowTribu`
-- `rowChat` : le chat _interne_, celui concernant le compte.
-- `credentials` : données d'authentification permettant à la session d'accéder au serveur de données Firestore.
-- `rowEspace` : row de l'espace, informations générales / statistiques de l'espace et présence de la notification générale éventuelle.
-
-Exceptions:
-- `F_SRV, 8` : il n'y a pas de sponsoring ayant ids comme hash de phrase de connexion.
-- `F_SRV, 9` : le sponsoring a déjà été accepté ou refusé ou est hors limite.
-
-Assertions:
-- existence du row `Tribus`,
-- existence du row `Versions` du compte sponsor.
-- existence du row `Avatars` du sponsorisé.
-- existence du row `Espaces`.
-*/
-operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2(args) {
-    // Obtention du sponsoring et incrementation de la version du sponsor    
-    const sp = compile(await this.getSponsoringIds(args.ids))
-    if (!sp) throw new AppExc(F_SRV, 8)
-    if (sp.st !== 0) throw new AppExc(F_SRV, 9)
-    const versionsp = compile(await this.getRowVersion(sp.id, 'AcceptationSponsoring-3'), true)
-    versionsp.v++
-    sp.v = versionsp.v
-    sp.ardx = args.ardx
-    sp.dh = Date.now()
-    sp.st = 2
-    this.update(sp.toRow())
-    this.update(versionsp.toRow())
-    
-    let it = 0
-    if (args.idt) { // C'est un compte O
-      const tribu = compile(await this.getRowTribu(args.idt, 'AcceptationSponsoring-1'))
-      tribu.act.push(args.act)
-      it = tribu.act.length - 1
-      tribu.v++
-      const rowTribu = this.update(tribu.toRow())
-      this.setRes('rowTribu', rowTribu)
-      this.MajSynthese(tribu)
-    }
-
-    const compta = compile(args.rowCompta)
-    compta.it = it
-    const rowCompta = this.insert(compta.toRow())
-    this.setRes('rowCompta', rowCompta)
-
-    this.insert(args.rowAvatar)
-    this.insert(args.rowVersion)
-
-    if (args.idI !== 0) {
-      const avatarE = compile(await this.getRowAvatar(args.idE))
-      if (!avatarE) throw new AppExc(F_SRV, 25)  
-      const rowChatI = await this.nvChat(args, avatarE, compile(args.rowAvatar))
-      this.setRes('rowChat', rowChatI)
-    }
-
-    this.db.setSyncData(this)
-
-    const ns = ID.ns(compta.id)
-    const rowEspace = await this.getRowEspace(ns, 'AcceptationSponsoring-4')
-    this.setRes('rowEspace', rowEspace)
-  }
-}
-
-/* `ConnexionCompte` : connexion authentifiée à un compte
-Enregistrement d'une session et retour des données permettant à la session cliente de s'initialiser.
-
-L'administrateur utilise cette opération pour se connecter mais le retour est différent.
-
-POST:
-- `token` : éléments d'authentification du compte.
-
-Retour, sauf _administrateur_:
-- `rowAvatar` : row de l'avatar principal du compte
-- `rowCompta` : row compta du compte.
-- `rowEspace` : row de l'espace (informations générales / statistques de l'espace et présence de la notification générale éventuelle.
-- `credentials`: données d'authentification pour utilisation de l'API Firestore dans l'application cliente (absente en mode SQL)
-
-Retour, pour _administrateur_:
-- `admin` : `true` (permet en session de reconnaître une connexion d'administration).
-- `espaces` : array des rows de tous les espaces.
-
-Assertions sur l'existence des rows `Comptas, Avatars, Espaces`.
-*/
-operations.ConnexionCompte = class ConnexionCompte extends Operation {
-  constructor (nom) { super(nom, 4) }
-
-  /* Si ce n'est pas une session admin, id != 0
-    auth() a accédé à this.compta par la clé hps1 du token, ce qui a enregistré son id 
-    comme id du compte dans this.session.id
-  */
-
-  async phase2 () {
-    const id = this.id
-    const ns = this.ns
-
-    this.db.setSyncData(this)
-
-    if (!id) {
-      this.setRes('admin', true)
-      const te = await this.getAllRowsEspace()
-      this.setRes('espaces', te)
-      return
-    }
-    this.setRes('rowCompta', this.compta.toRow())
-    const rowAvatar = await this.getRowAvatar(id, 'ConnexionCompte-2')
-    this.setRes('rowAvatar', rowAvatar)
-    const rowEspace = await this.getRowEspace(ns, 'ConnexionCompte-3')
-    this.setRes('rowEspace', rowEspace)
-  }
-}
-
-/* Mise à jour des volumes v1 v2 d'une compta dans sa tribu
-args.token donne les éléments d'authentification du compte.
-args.idt: id de la tribu
-args.it: indice du compte dans act de sa tribu
-args.v1 args.v2: volumes v1 v2
-Retour:
-*/
-operations.MajTribuVols = class MajTribuVols extends Operation {
-  constructor (nom) { super(nom, 1)}
-
   async phase2 (args) {
-    const tribu = compile(await this.getRowTribu(args.idt, 'MajTribuVols'))
-    tribu.v++
-    tribu.act[args.it].v1 = args.v1
-    tribu.act[args.it].v2 = args.v2
-    this.update(tribu.toRow())
-    await this.MajSynthese(tribu)
+    const rowEspace = await this.getRowEspace(args.ns, 'GetEspace')
+    this.setRes('rowEspace', rowEspace)
   }
 }
 
-/* `GestionAb` : gestion des abonnements
-Toutes les opérations permettent de modifier la liste des abonnements,
-- `abPlus` : liste des avatars et groupes à ajouter,
-- `abMoins` : liste des abonnements à retirer.
-
-Cette opération permet de mettre à jour la liste des abonnements de la session alors qu'elle n'a aucune autre action à effectuer.
-
+/* `GetSynthese` : retourne la synthèse de l'espace ns
 POST:
 - `token` : éléments d'authentification du compte.
-- `abPlus abMoins`.
-
-Retour: rien.
-*/
-operations.GestionAb = class GestionAb extends Operation {
-  constructor (nom) { super(nom, 1); this.phase1 = null; this.phase2 = null }
-}
-
-/*`avGrSignatures` : obtention des groupes et avatars manquants et signatures
-Signature par les `dlv` passées en arguments des row `versions` des avatars et membres (groupes en fait).
-
-Retourne les `versions` des avatars et groupes de la session.
-
-POST:
-- `token` : éléments d'authentification du compte.
-- `vcompta` : version de compta qui ne doit pas avoir changé
-- `vavatar`: version de l'avatar principal du compte qui ne doit pas avoir changé
-- `dlv` : nouvelle valeur de la dlv si elle a changé, sinon 0
-- `mbsMap` : map des membres des groupes des avatars :
-  - _clé_ : id du groupe  
-  - _valeur_ : `{ idg, v, npgks: [npgk], mbs: [ids] }`
-- `avsMap` : map des avatars du compte 
-  - `clé` : id de l'avatar
-  - `valeur` : version connue en session)
-- `abPlus` : array des ids des groupes auxquels s'abonner
-- `estFige` : si true, ne pas effectuer les signatures
+- `ns` : id de l'espace.
 
 Retour:
-- `KO` : true si le compta ou l'avatar principal a changé de version.
-- `versions` : map pour chaque avatar / groupe :
-  - _clé_ : id du groupe ou de l'avatar.
-  - _valeur_ :
-    - `{ v }`: pour un avatar.
-    - `{ v, vols: {v1, v2, q1, q2} }` : pour un groupe.
-  - `rowAvatars` : rows avatars ayant une nouvelle version sauf principal.
-  - `rowGroupes`: rows groupes ayant une nouvelle version
-  - `rowAvatar` : avatar principal. Si OK seule mpgk a pu avoir des items en moins (groupes disparus)
-  - `rowCompta` : compta
+- `rowSynthese`
 
-Assertions sur les rows `Avatars (sauf le principal), Groupes (non disparus), Versions`.
+Assertion sur l'existence du row `Syntheses`.
 */
-operations.avGrSignatures = class avGrSignatures extends Operation {
+operations.GetSynthese = class GetSynthese extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2 (args) {
-    const fige = this.estFige || args.estFige
-    const signer = !fige && args.dlv
-    const versions = {}
-    const npgkDisp = []
+    const rowSynthese = await this.getRowSynthese(args.ns, 'GetSynthese')
+    this.setRes('rowSynthese', rowSynthese)
+  }
+}
 
-    /* si compta ou avatar n'existe plus, le compte n'existe plus
-    si compta ou avatar ont changé de versions, recommencer la procédure de connexion */
-    const rowAvatar = await this.getRowAvatar(this.session.id)
-    if (!rowAvatar) throw new AppExc(F_SRV, 101)
+/* Synchroniser une session
+POST:
+- args.token donne les éléments d'authentification du compte.
+- args.avv: version de l'avatar principal du compte
+- args.avmap: map du / des avatars à récupérer:
+  - clé:id, 
+  - valeur: version actuelle
+- args.grmap:  map du / des groupes à récupérer:
+  - clé: idg
+  - valeur: { mbs, v, mb, no } 
+    - mb : true si la session A les membres
+    - no : true si la session A les notes
 
-    if (rowAvatar.v !== args.vavatar || this.compta.v !== args.vcompta) { 
-      this.setRes('rowCompta', this.compta.toRow())
+Retour:
+- KO : true - l'avatar principal a changé de version
+- rowAvatar : si KO dernière version du row avatar principal
+- rowAvatars rowGroupes rowVersions rowNotes rowSponsorings rowChats rowTickets rowMembres
+*/
+operations.Synchroniser = class Synchroniser extends Operation {
+  constructor (nom) { super(nom, 1)}
+
+  async phase2 (args) {
+    const rowAvatar = await this.getRowAvatar(this.id, 'Synchroniser-1')
+    if (rowAvatar.v !== args.avv) {
       this.setRes('rowAvatar', rowAvatar)
       this.setRes('KO', true)
       return
     }
 
-    const avatar = compile(rowAvatar)
+    for (const x in args.avmap) {
+      const id = parseInt(x)
+      const v = args.avmap[x]
+      const rowVersion = await this.getRowVersion(id)
+      if (!rowVersion) continue // en fait cet avatar a disparu et n'est plus listé dans avatar
+      if (rowVersion.v === v) continue // cet avatar était à jour en session
+      this.addRes('rowVersions', rowVersion)
+      const rowAvatar = await this.getRowAvatar(id, 'Synchroniser-2')
+      if (rowAvatar.v > v) this.addRes('rowAvatars', rowAvatar)
 
-    /* Traitement des avatars SAUF le principal (détecté ci-avant et KO)
-    Un avatar n'a pas pu disparaître:
-    - si le compte a disparu, exception ci-dessus
-    - si l'avatar s'est auto-résilié, l'avatar principal l'a su avant
-    */
-    for (const idx in args.avsMap) {
-      const id = parseInt(idx)
-      if (this.id === id) continue
-      const v = args.avsMap[id]
+      for (const row of await this.getAllRowsNote(id, v))
+        this.addRes('rowNotes', row)
+      for (const row of await this.getAllRowsChat(id, v))
+        this.addRes('rowChats', row)
+      for (const row of await this.getAllRowsTicket(id, v))
+        this.addRes('rowTickets', row)
+      for (const row of await this.getAllRowsSponsoring(id, v))
+        this.addRes('rowSponsorings', row)
+    }
 
-      const row = await this.getRowAvatar(id, 'avGrSignatures-1')
-      if (row.v > v) this.addRes('rowAvatars', row)
+    for (const x in args.grmap) {
+      const id = parseInt(x)
+      const mbs = args.grmap[x].mbs
+      const v = args.grmap[x].v
+      const mb = args.grmap[x].mb
+      const no = args.grmap[x].no
+      const rowVersion = await this.getRowVersion(id)
+      if (!rowVersion) continue // en fait ce groupe a disparu et n'est plus listé dans avatar
+      if (rowVersion.v === v) continue // ce groupe était à jour en session
+      this.addRes('rowVersions', rowVersion)
+      const rowGroupe = await this.getRowGroupe(id, 'Synchroniser-3')
+      if (rowGroupe.v > v) this.addRes('rowGroupes', rowGroupe)
 
-      const va = compile(await this.getRowVersion(id, 'avGrSignatures-2', true))
-      versions[id] = { v: va.v }
-      if (signer) { // signature de versions de l'avatar (sans changer v)
-        va.dlv = args.dlv
-        this.update(va.toRow())
+      const groupe = compile(rowGroupe)
+      let ano = false
+      let amb = false
+      for (const im of mbs) {
+        const f = groupe.flags[im]
+        if ((f & FLAGS.AM) && (f & FLAGS.DM)) amb = true
+        if ((f & FLAGS.AN) && (f & FLAGS.DN)) ano = true      
+      }
+
+      if (ano) { // chargement intégral si n'avait pas les notes, incrémental sinon
+        const vx = no ? v : 0
+        for (const row of await this.getAllRowsNote(id, vx)) 
+          this.addRes('rowNotes', row)
+      }
+      if (amb) {
+        const vx = mb ? v : 0
+        for (const row of await this.getAllRowsMembre(id, vx))
+          this.addRes('rowMembres', row)
+        for (const row of await this.getAllRowsChatgr(id, vx))
+          this.addRes('rowChatgrs', row)
       }
     }
+  }
+}
 
-    /* Un groupe peut DISPARAITRE par l'effet du GC (sa "versions" est _zombi), 
-    sans que cette disparition n'ait encore été répercutée dans mpgk des
-    avatars principaux de ses membres.
-    Le compte NE PEUT PAS être hébergeur d'un compte détecté disparu,
-    sinon le compte aurait lui-même disparu et on ne serait pas ici
-    (ses compteurs ne sont pas impactés).
-    On va mettre à jour l'avatar principal en enlevant les groupes disparus
-    et le retourner en résultat.
-    - `mbsMap` : map des membres des groupes des avatars :
-      - _clé_ : id du groupe  
-      - _valeur_ : `{ idg, v, npgks: [npgk], mbs: [ids] }`
-    */
-    for (const idx in args.mbsMap) {
-      const id = parseInt(idx)
-      const e = args.mbsMap[id]
+/* `GetAvatars` : retourne les documents avatar dont la version est postérieure à celle détenue en session
+POST:
+- `token` : éléments d'authentification du compte.
+- `vcompta` : version de compta qui ne doit pas avoir changé depuis le début de la phase de connexion. Si la version actuelle de compta est postérieure, le retour de `OK` est false.
+- `mapv` : map des avatars à charger.
+  - _clé_ : id de l'avatar, 
+  - _valeur_ : version détenue en session. Ne retourner l'avatar que si sa version est plus récente que celle-ci.
 
-      const vg = compile(await this.getRowVersion(id, 'avGrSignatures-3'))
-      if (vg._zombi) {
-        e.npgks.forEach(npgk => {
-          npgkDisp.push(npgk)
-          if (avatar.mpgk) delete avatar.mpgk[npgk]
-        })
-      } else {
-        versions[id] = vg
-        const row = await this.getRowGroupe(id, 'avGrSignatures-4')
-        if (row.v > e.v) this.addRes('rowGroupes', row)  
-        for (const ids of e.mbs) {
-          const r = await this.getRowMembre(id, ids)
-          if (r) { 
-            /* normalement r existe : le membre ids du groupe correspond
-            à un avatar qui l'a cité dans sa liste de groupe */
-            if (signer) { 
-              // signatures des membres: la version ne change pas (la synchro de la dlv est sans intérêt)
-              const membre = compile(r)
-              membre.dlv = args.dlv
-              this.update(membre.toRow())
-            }
-          }
-        }
+Retour:
+- `KO` : true si la version de compta a changé
+- `rowAvatars`: array des rows des avatars dont la version est postérieure à celle indiquée en arguments.
+*/
+operations.GetAvatars = class GetAvatars extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    if (this.compta.v !== args.vcompta) {
+      this.setRes('KO', true)
+    } else {
+      for (const id in args.mapv) {
+        const r = await this.getRowAvatar(parseInt(id))
+        if (r && r.v > args.mapv[id]) this.addRes('rowAvatars', r)
       }
     }
+  }
+}
 
-    const va = compile(await this.getRowVersion(this.id, 'avGrSignatures-2', true))
-    if (npgkDisp.length && !fige) va.v++
-    versions[this.id] = { v: va.v }
-    if (signer) { // signature de l'avatar
-      va.dlv = args.dlv
-      this.update(va.toRow())
-    }
-    if (npgkDisp.length) {
-      this.setRes('npgkDisp', npgkDisp)
-      if (!fige) {
-        // MAJ de l'avatar principal avec une mpgk dont certazins éléments ont été supprimés
-        this.update(avatar.toRow())
-      }
-    }
+/*`GetAvatar` : retourne le row le plus récent de l'avatar 
+POST:
+- `token`: éléments d'authentification du compte.
+- `id` : id de l'avatar
+Retour:
+- `rowAvatar`: row de l'avatar.
 
-    if (signer) {
-      this.compta.v++
-      this.compta.dlv = args.dlv
-      this.update(this.compta.toRow())
+Assertion sur l'existence de l'avatar.
+*/
+operations.GetAvatar = class GetAvatar extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const rowAvatar = await this.getRowAvatar(args.id, 'GetAvatar')
+    this.setRes('rowAvatar', rowAvatar)
+  }
+}
+
+/* `GetTribu` : retourne le row le plus récent de la tribu
+Et optionnellement déclare cette tribu comme _courante_, c'est à dire abonne la session à cette tribu (après détection d'un changement de tribu).
+POST:
+- `token`: éléments d'authentification du compte.
+- `id` : id de la tribu.
+- `setC`: si true, déclarer la tribu courante.
+
+Retour:
+- `rowtribu` : row de la tribu.
+
+Assertion sur l'existence du rows `Tribus`.
+*/
+operations.GetTribu = class GetTribu extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const rowTribu = await this.getRowTribu(args.id, 'GetTribu-1')
+    this.setRes('rowTribu', rowTribu)
+    if (this.sync && args.setC) this.sync.setTribuCId(args.id)
+  }
+}
+
+/* `AboTribuc` : abonnement / désabonnement de la tribu courante 
+POST:
+- `token`: éléments d'authentification du compte.
+- `id` : id de la tribu. Si 0 désabonnement.
+*/
+operations.AboTribuC = class AboTribuC extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    if (this.sync) this.sync.setTribuCId(args.id)
+  }
+}
+
+/* `ChargerNotes` : retourne les notes de l'avatar / groupe id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar ou du groupe
+- `v` : version connue en session
+
+Retour:
+- `rowNotes` : array des rows `Notes` de version postérieure à `v`.
+*/
+operations.ChargerNotes = class ChargerNotes extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) { 
+    this.setRes('rowNotes', await this.getAllRowsNote(args.id, args.v))
+  }
+}
+
+/* `ChargerChats` : retourne les chats de l'avatar id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar
+- `v` : version connue en session
+
+Retour:
+- `rowChats` : array des rows `Chats` de version postérieure à `v`.
+*/
+operations.ChargerChats = class ChargerChats extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) { 
+    this.setRes('rowChats', await this.getAllRowsChat(args.id, args.v))
+  }
+}
+
+/* `ChargerTickets` : retourne les tickets de l'avatar id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar
+- `v` : version connue en session
+
+Retour:
+- `rowChats` : array des rows `Chats` de version postérieure à `v`.
+*/
+operations.ChargerTickets = class ChargerTickets extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) { 
+    this.setRes('rowTickets', await this.getAllRowsTicket(args.id, args.v))
+  }
+}
+
+/* `ChargerSponsorings` : retourne les sponsoring de l'avatar id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar
+- `v` : version connue en session
+
+Retour:
+- `rowSponsorings` : array des rows `Sponsorings` de version postérieure à `v`.
+*/
+operations.ChargerSponsorings = class ChargerSponsorings extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) { 
+    this.setRes('rowSponsorings', await this.getAllRowsSponsoring(args.id, args.v))
+  }
+}
+
+/* `chargerMembresChatgrs` : retourne les membres du groupe id et de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : du groupe
+- `v` : version connue en session
+
+Retour:
+- `rowMembres` : array des rows `Membres` de version postérieure à `v`.
+*/
+operations.ChargerMembresChatgrs = class ChargerMembresChatgrs extends Operation {
+  constructor (nom) { super(nom, 1)}
+
+  async phase2 (args) { 
+    this.setRes('rowMembres', await this.getAllRowsMembre(args.id, args.v))
+    const rch = await this.getAllRowsChatgr(args.id, args.v)
+    if (rch.length === 1) this.setRes('rowChatgr', rch[0])
+  }
+}
+
+/* `ChargerGMS` : retourne le groupe id, ses membres et ses notes, de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : du groupe
+- `v` : version connue en session
+
+Retour: 
+- quand le groupe est _zombi, les row `Groupes, Membres, Notes` NE SONT PAS significatifs.
+- `rowGroupe` : seulement si version postérieure à `v`. 
+- `rowMembres` : array des rows `Membres` de version postérieure à `v`.
+- `rowSecrets` : array des rows `Notes` de version postérieure à `v`.
+- `vgroupe` : row version du groupe, possiblement _zombi.
+
+**Remarque** : 
+- Le GC PEUT avoir faire disparaître un groupe (son row `versions` est _zombi) AVANT que les listes des groupes (`lgr`) dans les rows avatars membres n'aient été mises à jour.
+- Quand le groupe est _zombi, les row groupe, membres, notes NE SONT PAS retournés.
+*/
+operations.ChargerGMS = class ChargerGMS extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const vgroupe = await this.getRowVersion(args.id, 'ChargerGMS')
+    const vg = compile(vgroupe)
+    this.setRes('vgroupe', vgroupe)
+    if (!vg._zombi) {
+      const rg = await this.getRowGroupe(args.id)
+      if (rg.v > args.v) this.setRes('rowGroupe', rg)
+      this.setRes('rowMembres', await this.getAllRowsMembre(args.id, args.v))
+      this.setRes('rowNotes', await this.getAllRowsNote(args.id, args.v))
     }
-    this.setRes('versions', versions)
+  }
+}
+
+/* `ChargerTribus` : retourne les tribus de l'espace
+Pour le comptable seulement
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `mvtr` : map des versions des tribus détenues en session
+  _clé_ : id de la tribu,
+  _valeur_ : version détenue en session.
+
+Retour :
+- `rowTribus`: array des rows des tribus de version postérieure à v.
+- `delids` : array des ids des tribus disparues.
+*/
+operations.ChargerTribus = class ChargerTribus extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const l = await this.getAllRowsTribu ()
+    const ids = new Set()
+    Object.keys(args.mvtr).forEach(i => ids.add(parseInt(i)))
+    const res = []
+    l.forEach(r => {
+      ids.delete(r.id)
+      const v = args.mvtr[r.id]
+      if (!v || r.v > v) res.push(r)
+    })
+    this.setRes('rowTribus', res)
+    this.setRes('delids', Array.from(ids))
+  }
+}
+
+/* `ChargerASCS` : retourne l'avatar, ses notes, chats, tickets et sponsorings, de version postérieure à v
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : de l'avatar.
+- `v` : version connue en session.
+
+Retour:
+- `rowNotes` : arrays des rows `Notes Chats Sponsorings` de version postérieure à v
+- `rowChats` :
+- `rowSponsorings` : 
+- `rowTickets` :
+- `rowAvatar` : seulement si de version postérieure à v.
+- `vavatar` : row `Versions` de l'avatar. Il PEUT être _zombi. Dans ce cas les autres rows n'ont pas de signification.
+
+Assertion sur l'existence du row `Versions` de l'avatar.
+*/
+operations.ChargerASCS = class ChargerASCS extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const vavatar = await this.getRowVersion(args.id, 'ChargerASCS')
+    const va = compile(vavatar)
+    this.setRes('vavatar', vavatar)
+    if (!va._zombi) {
+      const ra = await this.getRowAvatar(args.id)
+      if (ra.v > args.v) this.setRes('rowAvatar', ra)
+      this.setRes('rowNotes', await this.getAllRowsNote(args.id, args.v))
+      this.setRes('rowSponsorings', await this.getAllRowsSponsoring(args.id, args.v))
+      this.setRes('rowChats', await this.getAllRowsChat(args.id, args.v))
+      if (ID.estComptable(this.session.id))
+        this.setRes('rowTickets', await this.getAllRowsTicket(args.id, args.v))
+    }
   }
 }
 

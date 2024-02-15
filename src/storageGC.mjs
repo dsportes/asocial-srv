@@ -1,7 +1,7 @@
 import { Storage } from '@google-cloud/storage'
 import { encode3 } from './util.mjs'
 import { config } from './config.mjs'
-import { keys } from './keys.mjs'
+import { service_account } from './keys.mjs'
 
 const cors = {
   origin: ['*'],
@@ -21,7 +21,7 @@ export class GcProvider {
     // For more information on ways to initialize Storage, please see
     // https://googleapis.dev/nodejs/storage/latest/Storage.html
 
-    const opt = { projectId: config.projectId, credentials: keys.service_account }
+    const opt = { projectId: config.projectId, credentials: service_account }
     this.bucket = new Storage(opt).bucket(cfg.bucket)
     // this.bucket = new Storage().bucket(cfg.bucket)
 

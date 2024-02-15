@@ -43,8 +43,12 @@ export const config = {
     croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
   
     site: 'A',
-    // URL externe d'appel du serveur 
-    // rooturl: 'asocial-test1.ew.r.appspot.com',
+    /* URL externe d'appel du serveur - // rooturl: 'asocial-test1.ew.r.appspot.com'
+    Ne sert qu'à un provider de storage q peut utiliser le serveur pour 
+    délivrer une URL get / put file.
+    - storageFS
+    - storageGC en mode emulator
+    */
     rooturl: 'https://test.sportes.fr:8443',
     // Port d'écoute si NON gae
     port: 8443,

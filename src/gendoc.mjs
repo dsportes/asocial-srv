@@ -1,6 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, d14, rowCryptes } from './api.mjs'
-import { ctx } from './server.js'
+import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
 /* GenDoc **************************************************
@@ -18,7 +18,7 @@ compile / toRow forme un couple de désérilisation / sérialisation.
 export function compile (row) {
   if (!row) return null
   const d = GenDoc._new(row._nom)
-  const z = row.dlv && row.dlv <= ctx.auj
+  const z = row.dlv && row.dlv <= operations.auj
   if (z || !row._data_) {
     d._zombi = true
   } else {
@@ -176,7 +176,7 @@ export class GenDoc {
     - les "versions" qui indiquent que leur groupe / avatar a disparu
     - les "notes" détruites (le row est conservé pour synchronisation)
     */
-    const z = this.dlv && this.dlv <= ctx.auj
+    const z = this.dlv && this.dlv <= operations.auj
     if (!z && !this._zombi) {
       const d = {}
       for (const [key, value] of Object.entries(this)) if (!key.startsWith('_')) d[key] = value
