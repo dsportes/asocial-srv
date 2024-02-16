@@ -261,14 +261,15 @@ export class Operation {
     const rowCompta = await this.getComptaHps1(hps1)
     if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 103) }
     this.compta = compile(rowCompta)
-    if (this.compta.hpsc !== hash(this.authData.pcb)) throw new AppExc(F_SRV, 103)
+    const x = (hash(this.authData.pcb) % d14)
+    if (this.compta.hpsc !== x) throw new AppExc(F_SRV, 103)
     this.id = this.compta.id
     this.ns = ID.ns(this.id)
 
     const esp = await Cache.getEspaceLazy(this, this.ns)
     this.notifG = esp ? esp.notif : { nr: 2, texte: 'Organisation inconnue', dh: Date.now() }
-    if (this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
-    if (this.notifG.nr === 1) this.estFige = true
+    if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
+    if (this.notifG && this.notifG.nr === 1) this.estFige = true
 
     if (this.excFige && this.estFige) throw new AppExc(F_SRV, 105)
 
@@ -524,15 +525,13 @@ export class Operation {
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
   setRes(prop, val) {
-    const r = this.phase === 1 ? this.result : this.result2
-    r[prop] = val
+    this.result[prop] = val
     return val
   }
 
   /* AJOUTE la valeur en fin de la propriété Array 'prop' du résultat (et la retourne)*/
   addRes(prop, val) {
-    const r = this.phase === 1 ? this.result : this.result2
-    let l = r[prop]; if (!l) { l = []; r[prop] = l }
+    let l = this.result[prop]; if (!l) { l = []; this.result[prop] = l }
     l.push(val)
     return val
   }

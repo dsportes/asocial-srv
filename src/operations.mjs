@@ -159,7 +159,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
     compta.credits = args.credits
     // console.log('CREDITS PlusTicket', compta.v, compta.credits.length)
     this.update(compta.toRow())
-    const idc = ID.duComptable(this.session.ns)
+    const idc = ID.duComptable(this.ns)
     const version = compile(await this.getRowVersion(idc, 'PlusTicket-2'))
     version.v++
     this.update(version.toRow())
@@ -408,16 +408,15 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     this.insert(sp.toRow())
     this.update(version.toRow())
     if (args.credits) {
-      const compta = compile(await this.getRowCompta(this.session.id, 'AjoutSponsoring-2'))
-      if (compta.v !== args.v) {
+      if (this.compta.v !== args.v) {
         this.setRes('KO', true)
         return
       }
-      const dlvAvant = compta.dlv
-      compta.v++
-      compta.credits = args.credits
-      compta.dlv = args.dlv
-      this.update(compta.toRow())
+      const dlvAvant = this.compta.dlv
+      this.compta.v++
+      this.compta.credits = args.credits
+      this.compta.dlv = args.dlv
+      this.update(this.compta.toRow())
       if (dlvAvant !== args.dlv) this.propagerDlv(args)  
     }
   }
@@ -653,7 +652,7 @@ operations.avGrSignatures = class avGrSignatures extends Operation {
 
     /* si compta ou avatar n'existe plus, le compte n'existe plus
     si compta ou avatar ont changé de versions, recommencer la procédure de connexion */
-    const rowAvatar = await this.getRowAvatar(this.session.id)
+    const rowAvatar = await this.getRowAvatar(this.id)
     if (!rowAvatar) throw new AppExc(F_SRV, 101)
 
     if (rowAvatar.v !== args.vavatar || this.compta.v !== args.vcompta) { 
@@ -895,8 +894,8 @@ operations.McMemo = class McMemo extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const rowAvatar = await this.getRowAvatar(this.session.id, 'McMemo-1')
-    const rowVersion = await this.getRowVersion(this.session.id, 'McMemo-2', true)
+    const rowAvatar = await this.getRowAvatar(this.id, 'McMemo-1')
+    const rowVersion = await this.getRowVersion(this.id, 'McMemo-2', true)
     const avatar = compile(rowAvatar)
     const version = compile(rowVersion)
 
@@ -922,8 +921,8 @@ operations.MotsclesCompte = class MotsclesCompte extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const rowAvatar = await this.getRowAvatar(this.session.id, 'MotsclesCompte-1')
-    const rowVersion = await this.getRowVersion(this.session.id, 'MotsclesCompte-2', true)
+    const rowAvatar = await this.getRowAvatar(this.id, 'MotsclesCompte-1')
+    const rowVersion = await this.getRowVersion(this.id, 'MotsclesCompte-2', true)
     const avatar = compile(rowAvatar)
     const version = compile(rowVersion)
 
@@ -950,7 +949,7 @@ operations.ChangementPS = class ChangementPS extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const compta = compile(await this.getRowCompta(this.session.id, 'ChangementPS'))
+    const compta = compile(await this.getRowCompta(this.id, 'ChangementPS'))
     
     compta.v++
     compta.hps1 = args.hps1
@@ -1341,7 +1340,7 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
       avTribu.act[comptaM.it] = null
       this.update(avTribu.toRow())
       await this.MajSynthese(avTribu)
-      if (this.db.hasWS) this.session.sync.moins(args.idtAv)
+      if (this.sync) this.sync.moins(args.idtAv)
 
       comptaM.cletK = null
       comptaM.cletX = null
@@ -1372,8 +1371,8 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compte = compile(await this.getRowAvatar(this.session.id, 'NouvelAvatar-1'))
-    const vc = compile(await this.getRowVersion(this.session.id, 'NouvelAvatar-2'))
+    const compte = compile(await this.getRowAvatar(this.id, 'NouvelAvatar-1'))
+    const vc = compile(await this.getRowVersion(this.id, 'NouvelAvatar-2'))
     vc.v++
     compte.v = vc.v
     compte.mavk[args.kx] = args.vx
@@ -1714,8 +1713,8 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
         dlv: AMJ.max,
         vols: { v1:0, v2: 0, q1: args.quotas[0], q2: args.quotas[1]} 
       })
-    const versionav = compile(await this.getRowVersion(this.session.id, 'NouveauGroupe-1', true))
-    const avatar = compile(await this.getRowAvatar(this.session.id, 'NouveauGroupe-2'))
+    const versionav = compile(await this.getRowVersion(this.id, 'NouveauGroupe-1', true))
+    const avatar = compile(await this.getRowAvatar(this.id, 'NouveauGroupe-2'))
 
     versionav.v++
     avatar.v = versionav.v
@@ -1957,12 +1956,12 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     avatar.v = va.v
     if (avatar.invits) delete avatar.invits[args.ni]
     if (args.cas === 1) {
-      if (this.session.id === args.id) {
+      if (this.id === args.id) {
         if (!avatar.mpgk) avatar.mpgk = {}
         avatar.mpgk[args.npgk] = args.epgk
       } else {
-        const compte = compile(await this.getRowAvatar(this.session.id, 'AcceptInvitation-5'))
-        const vc = compile(await this.getRowVersion(this.session.id, 'AcceptInvitation-5'))
+        const compte = compile(await this.getRowAvatar(this.id, 'AcceptInvitation-5'))
+        const vc = compile(await this.getRowVersion(this.id, 'AcceptInvitation-5'))
         vc.v++
         compte.v = vc.v
         if (!compte.mpgk) compte.mpgk = {}
@@ -2270,8 +2269,8 @@ operations.OublierMembre = class OublierMembre extends Operation {
         // Volume compta
         // Retrait de mpgk
         await this.diminutionVolumeCompta (this.id, 0, 0, 1, 0, 'OublierMembre-4')
-        const avatar = compile(await this.getRowAvatar(this.session.id, 'OublierMembre-5'))
-        const va = compile(await this.getRowVersion(this.session.id, 'OublierMembre-6'))
+        const avatar = compile(await this.getRowAvatar(this.id, 'OublierMembre-5'))
+        const va = compile(await this.getRowVersion(this.id, 'OublierMembre-6'))
         va.v++
         avatar.v = va.v
         delete avatar.mpgk[args.npgk]
