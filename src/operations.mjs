@@ -1369,10 +1369,9 @@ POST:
 Assertion sur l'existence du row `Comptas`.
 */
 operations.NouvelAvatar = class NouvelAvatar extends Operation {
-  constructor () { super('NouvelAvatar') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'NouvelAvatar-3'))
     const compte = compile(await this.getRowAvatar(this.session.id, 'NouvelAvatar-1'))
     const vc = compile(await this.getRowVersion(this.session.id, 'NouvelAvatar-2'))
     vc.v++
@@ -1382,37 +1381,11 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     this.update(compte.toRow())
 
     const version = compile(args.rowVersion)
-    version.dlv = compta.dlv
+    version.dlv = this.compta.dlv
     this.insert(version.toRow())
     this.insert(args.rowAvatar)
   }
 }
-
-/* `MajMavkAvatar` : mise à jour de la liste des avatars d'un compte
-POST:
-- `token` : éléments d'authentification du compte.
-- `lp` : liste _plus_, array des entrées `[kx, vx]` à ajouter dans la liste (`mavk`) du compte.
-- `lm` : liste _moins_ des entrées `[kx]` à enlever.
-
-Assertion sur l'existence du row Comptas.
-
-operations.MajMavkAvatar = class MajMavkAvatar extends Operation {
-  constructor () { super('MajMavkAvatar') }
-
-  async phase2 (args) {
-    const rowCompta = await this.getRowCompta(this.session.id, 'MajMavkAvatar')
-    const compta = compile(rowCompta)
-    compta.v++
-    if (args.lp && args.lp.length) for(const [kx, vx] of args.lp) {
-      compta.mavk[kx] = vx
-    }
-    if (args.lm && args.lm.length) for(const kx of args.lm) {
-      delete compta.mavk[kx]
-    }
-    this.update(compta.toRow())
-  }
-}
-*/
 
 /* `NouvelleTribu` : création d'une nouvelle tribu par le comptable
 POST: 
@@ -1423,17 +1396,16 @@ POST:
 Assertion sur l'existence du row `Comptas` du comptable.
 */
 operations.NouvelleTribu = class NouvelleTribu extends Operation {
-  constructor () { super('NouvelleTribu') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'NouvelleTribu'))
-    if (compta.atr.length !== ID.court(args.rowTribu.id)) {
+    if (this.compta.atr.length !== ID.court(args.rowTribu.id)) {
       this.setRes('KO', true)
       return
     }
-    compta.v++
-    compta.atr.push(args.atrItem)
-    this.update(compta.toRow())
+    this.compta.v++
+    this.compta.atr.push(args.atrItem)
+    this.update(this.compta.toRow())
 
     const tribu = compile(args.rowTribu)
     this.insert(tribu.toRow())
@@ -1451,7 +1423,7 @@ POST:
 Assertion sur l'existence du row `Tribus` de la tribu.
 */
 operations.SetNotifT = class SetNotifT extends Operation {
-  constructor () { super('SetNotifT') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     const tribu = compile(await this.getRowTribu(args.id, 'SetNotifT-1'))
@@ -1474,7 +1446,7 @@ POST:
 Assertion sur l'existence du row `Tribus` de la tribu et `Comptas` du compte.
 */
 operations.SetNotifC = class SetNotifC extends Operation {
-  constructor () { super('SetNotifC') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     const compta = compile(await this.getRowCompta(args.idc, 'SetNotifC-1'))
@@ -1491,19 +1463,16 @@ operations.SetNotifC = class SetNotifC extends Operation {
 }
 
 /* `SetAtrItemComptable` : Set des quotas OU de l'info d'une tribu
-TODO : Vérifier pourquoi idc ? L'id du Comptable est déduite du ns courant ? Peut-être juste pour éviter à avaoir à calculer l'ID du comptable d'un ns sur le serveur (la méthode étant sur le client).
-
 POST:
 - `token` : éléments d'authentification du compte.
 - `id` : id de la tribu
-- `idc` : id du comptable
 - `atrItem` : élément de `atr` `{clet, info, q}` cryptés par sa clé K.
 - `quotas` : `[qc, q1, q2]` si changement des quotas, sinon null
 
 Assertion sur l'existence des rows `Comptas` du comptable et `Tribus` de la tribu.
 */
 operations.SetAtrItemComptable = class SetAtrItemComptable extends Operation {
-  constructor () { super('SetAtrItemComptable') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     if (args.quotas) {
@@ -1515,10 +1484,9 @@ operations.SetAtrItemComptable = class SetAtrItemComptable extends Operation {
       this.update(tribu.toRow())
       await this.MajSynthese(tribu)
     }
-    const compta = compile(await this.getRowCompta(args.idc, 'SetAtrItemComptable-2'))
-    compta.v++
-    compta.atr[ID.court(args.id)] = args.atrItem
-    this.update(compta.toRow())
+    this.compta.v++
+    this.compta.atr[ID.court(args.id)] = args.atrItem
+    this.update(this.compta.toRow())
   }
 }
 
@@ -1532,7 +1500,7 @@ POST:
 Assertion sur l'existence des rows `Comptas` du compte et `Tribus` de la tribu.
 */
 operations.SetSponsor = class SetSponsor extends Operation {
-  constructor () { super('SetSponsor') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     const compta = compile(await this.getRowCompta(args.idc, 'SetNotifC-1'))
@@ -1559,11 +1527,12 @@ POST:
 - `idc` : id du compte
 - `idt` : id de sa tribu pour un compte O
 - `[qc, q1, q2]` : ses nouveaux quotas de volume V1 et V2.
-
+args.dlv: si compte A, la future dlv calculée
+args.lavLmb : liste des avatars et membres à qui propager le changement de dlv
 Assertion sur l'existence des rows `Comptas` du compte et `Tribus` de la tribu.
 */
 operations.SetQuotas = class SetQuotas extends Operation {
-  constructor () { super('SetQuotas') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     const compta = compile(await this.getRowCompta(args.idc, 'SetQuotas-1'))
@@ -1604,13 +1573,12 @@ POST:
 Assertion sur l'existence du row `Comptas` du compte.
 */
 operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
-  constructor () { super('SetDhvuCompta') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'SetDhvuCompta'))
-    compta.v++
-    compta.dhvu = args.dhvu
-    this.update(compta.toRow())
+    this.compta.v++
+    this.compta.dhvu = args.dhvu
+    this.update(this.compta.toRow())
   }
 }
 
@@ -1622,35 +1590,12 @@ POST:
 Assertion sur l'existence du row `Comptas` du compte.
 */
 operations.MajCletKCompta = class MajCletKCompta extends Operation {
-  constructor () { super('MajCletKCompta') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compta = compile(await this.getRowCompta(this.session.id, 'MajCletKCompta'))
-    compta.v++
-    compta.cletK = args.cletK
-    this.update(compta.toRow())
-  }
-}
-
-/* `GetCompteursCompta` : retourne les "compteurs" d'un compte
-POST:
-- `token` : éléments d'authentification du compte demandeur.
-- `id` : id du compte dont les compteurs sont à retourner.
-
-Retour:
-- `compteurs` : objet `compteurs` enregistré dans `Comptas`.
-
-Assertion sur l'existence du row `Comptas` du compte.
-*/
-operations.GetCompteursCompta = class GetCompteursCompta extends Operation {
-  constructor () { super('GetCompteursCompta'); this.lecture = true }
-
-  async phase1 (args) {
-    const compta = compile(await this.getRowCompta(args.id, 'GetCompteursCompta'))
-    this.setRes('compteurs', compta.compteurs)
-    this.setRes('cletX', compta.cletX)
-    this.setRes('it', compta.it)
-    this.setRes('sp', compta.sp)
+    this.compta.v++
+    this.compta.cletK = args.cletK
+    this.update(this.compta.toRow())
   }
 }
 
@@ -1676,7 +1621,7 @@ Retour:
 Assertions sur l'existence du row `Comptas` compte et de ses `Tribus` _avant_ et _après_.
 */
 operations.ChangerTribu = class ChangerTribu extends Operation {
-  constructor () { super('ChangerTribu') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     const compta = compile(await this.getRowCompta(args.id, 'ChangerTribu-1'))
@@ -1714,7 +1659,7 @@ operations.ChangerTribu = class ChangerTribu extends Operation {
     const rowTribu = this.update(apTribu.toRow())
     await this.MajSynthese(apTribu)
     this.setRes('rowTribu', rowTribu)
-    if (this.db.hasWS) this.session.sync.setTribuCId(args.idtAp)
+    if (this.sync) this.sync.setTribuCId(args.idtAp)
   }
 }
 
@@ -1725,7 +1670,7 @@ args.v: version du groupe incluse dans la Cv. Si elle a changé sur le serveur, 
 args.cvg: {v, photo, info} crypté par la clé du groupe
 */
 operations.MajCvGr = class MajCvGr extends Operation {
-  constructor () { super('MajCvGr') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const rowGroupe = await this.getRowGroupe(args.id, 'MajCvGr-1')
@@ -1757,13 +1702,12 @@ args.empgk: élément de mpg dans le compte de l'avatar créateur
 Retour:
 */
 operations.NouveauGroupe = class NouveauGroupe extends Operation {
-  constructor () { super('NouveauGroupe') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const compta = compile(await this.getRowCompta(this.session.id, 'NouveauMembre-3'))
     const groupe = compile(args.rowGroupe)
     const membre = compile(args.rowMembre)
-    membre.dlv = compta.dlv
+    membre.dlv = this.compta.dlv
     const version = new Versions().init(
       { id: groupe.id, 
         v: 1,
@@ -1802,7 +1746,7 @@ args.idg : id du groupe
 Retour:
 */
 operations.MotsclesGroupe = class MotsclesGroupe extends Operation {
-  constructor () { super('MotsclesGroupe') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const groupe = compile(await this.getRowGroupe(args.idg, 'MotsclesGroupe-1'))
@@ -1859,7 +1803,7 @@ Transfert (5):
 Retour:
 */
 operations.HebGroupe = class HebGroupe extends Operation {
-  constructor () { super('HebGroupe') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const version = compile(await this.getRowVersion(args.idg, 'HebGroupe-1', true))
@@ -1879,7 +1823,7 @@ operations.HebGroupe = class HebGroupe extends Operation {
       groupe.imh = 0
       this.update(groupe.toRow())
       if (v1 || v2)
-        await this.diminutionVolumeCompta (this.session.id, v1, 0, 0, v2, 'HebGroupe-3')
+        await this.diminutionVolumeCompta (this.id, v1, 0, 0, v2, 'HebGroupe-3')
       return
     }
     
@@ -1893,7 +1837,7 @@ operations.HebGroupe = class HebGroupe extends Operation {
 
     if (v1 || v2) {
       if (args.action === 1 || args.action === 5) {
-        await this.augmentationVolumeCompta(this.session.id, v1, 0, 0, v2, 'HebGroupe-4')
+        await this.augmentationVolumeCompta(this.id, v1, 0, 0, v2, 'HebGroupe-4')
       }
       if (args.action === 5) { // transfert d'hébergement
         await this.diminutionVolumeCompta (args.idd, v1, 0, 0, v2, 'HebGroupe-5')
@@ -1919,7 +1863,7 @@ Retour:
 - disparu: true si le groupe a disparu
 */
 operations.AcceptInvitation = class AcceptInvitation extends Operation {
-  constructor () { super('AcceptInvitation') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const vg = compile(await this.getRowVersion(args.idg))
@@ -1977,7 +1921,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       }
       groupe.flags[args.ids] = fl
       membre.flagsiv = 0
-      await this.augmentationVolumeCompta (this.session.id, 0, 0, 1, 0, 'AcceptInvitation-4')
+      await this.augmentationVolumeCompta (this.id, 0, 0, 1, 0, 'AcceptInvitation-4')
       break
     }
     case 2: { // refus, reste en contact
@@ -2032,43 +1976,6 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
   }
 }
 
-/* Fiche invitation *******************************************
-args.token donne les éléments d'authentification du compte.
-args.idg : id du groupe
-args.ids: indice du membre invité
-args.ivpar : indice du membre invitant
-args.dh: date-heure de l'item de chat d'invitation
-Retour:
-- rowMembre : avec un champ supplémentaire ext : { flags, cvg, invs: map, chatg }
-  chatg: texte du chat crypté par la clé du groupe
-  invs : clé: im, valeur: { cva, nag }
-*/
-operations.InvitationFiche = class InvitationFiche extends Operation {
-  constructor () { super('InvitationFiche') }
-
-  async phase1 (args) { 
-    const groupe = compile(await this.getRowGroupe(args.idg, 'InvitationFiche-1'))
-    const membre = compile(await this.getRowMembre(args.idg, args.ids, 'InvitationFiche-2'))
-    const ext = { flags: groupe.flags[args.ids], cvg: groupe.cvg, invs : {} }
-    for (const im of membre.inv) {
-      const m = compile(await this.getRowMembre(args.idg, im, 'InvitationFiche-3'))
-      ext.invs[im] = { nag: m.nag, cva: m.cva }
-    }
-    ext.chatg = null
-    if (args.ivpar) {
-      const chatgr = compile(await this.getRowChatgr(args.idg, 'InvitationFiche-4'))
-      if (chatgr) {
-        for (let i = 0; i < chatgr.items.length; i++) {
-          const it = chatgr.items[i]
-          if (it.im === args.ivpar && it.dh === args.dh) { ext.chatg = it.t; break }
-        }
-      }
-    }
-    membre.ext = ext
-    this.setRes('rowMembre', membre.toRow())
-  }
-}
-
 /* Invitation à un groupe *******************************************
 args.token donne les éléments d'authentification du compte.
 args.op : opération demandée: 
@@ -2085,7 +1992,7 @@ args.chatit: item de chat du groupe (mot de bienvenue)
 Retour:
 */
 operations.InvitationGroupe = class InvitationGroupe extends Operation {
-  constructor () { super('InvitationGroupe') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     let invitOK = false // Est-ce qu'une invitation a été déclenchée par l'opération ?
@@ -2205,7 +2112,7 @@ Retour:
 - KO : si l'indice im est déjà attribué
 */
 operations.NouveauMembre = class NouveauMembre extends Operation {
-  constructor () { super('NouveauMembre') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const groupe = compile(await this.getRowGroupe(args.idg, 'NouveauMembre-1'))
@@ -2255,7 +2162,7 @@ args.nvflags : nouveau flags. Peuvent changer PA DM DN DE AM AN
 Retour:
 */
 operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
-  constructor () { super('MajDroitsMembre') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const groupe = compile(await this.getRowGroupe(args.idg, 'MajDroitsMembre-1'))
@@ -2341,7 +2248,7 @@ args.cas :
 Retour:
 */
 operations.OublierMembre = class OublierMembre extends Operation {
-  constructor () { super('OublierMembre') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const rowGroupe = await this.getRowGroupe(args.idg, 'OublierMembre-1')
@@ -2362,7 +2269,7 @@ operations.OublierMembre = class OublierMembre extends Operation {
       if (f & FLAGS.AC) {
         // Volume compta
         // Retrait de mpgk
-        await this.diminutionVolumeCompta (this.session.id, 0, 0, 1, 0, 'OublierMembre-4')
+        await this.diminutionVolumeCompta (this.id, 0, 0, 1, 0, 'OublierMembre-4')
         const avatar = compile(await this.getRowAvatar(this.session.id, 'OublierMembre-5'))
         const va = compile(await this.getRowVersion(this.session.id, 'OublierMembre-6'))
         va.v++
@@ -2436,7 +2343,7 @@ args.ids : ids du membre demandant le retour au mode simple.
 Retour:
 */
 operations.ModeSimple = class ModeSimple extends Operation {
-  constructor () { super('ModeSimple') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const gr = compile(await this.getRowGroupe(args.id, 'ModeSimple-1'))
@@ -2476,7 +2383,7 @@ Remarque: la création de Chatgr quand il n'existe pas n'est pas utile.
 Ce n'est qu'une commodité dans une phase de test qui n'a plus lieu d'être.
 */
 operations.ItemChatgr = class ItemChatgr extends Operation {
-  constructor () { super('ItemChatgr') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     let ins = false
@@ -2512,7 +2419,7 @@ args.idc: id du compte (note avatar) ou de l'hébergeur (note groupe)
 Retour: rien
 */
 operations.NouvelleNote = class NouvelleNote extends Operation {
-  constructor () { super('NouvelleNote') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const note = compile(args.rowNote)
@@ -2538,7 +2445,7 @@ args.aut : auteur de la note pour un groupe
 Retour: rien
 */
 operations.MajNote = class MajNote extends Operation {
-  constructor () { super('MajNote') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const note = compile(await this.getRowNote(args.id, args.ids, 'MajNote-1'))
@@ -2557,27 +2464,6 @@ operations.MajNote = class MajNote extends Operation {
   }
 }
 
-/* Note protection contre l'écriture **************************
-args.token: éléments d'authentification du compte.
-args.id ids: identifiant de la note
-args.p : 0 / 1
-Retour: rien
-
-operations.ProtNote = class ProtNote extends Operation {
-  constructor () { super('ProtNote') }
-
-  async phase2 (args) { 
-    const note = compile(await this.getRowNote(args.id, args.ids, 'ProtNote-1'))
-    const v = compile(await this.getRowVersion(note.id, 'ProtNote-2', true))
-    v.v++
-    this.update(v.toRow())
-    note.p = args.p
-    note.v = v.v
-    this.update(note.toRow())
-  }
-}
-*/
-
 /* Changer l'exclusivité d'écriture d'une note ***********************
 args.token: éléments d'authentification du compte.
 args.id ids: identifiant de la note
@@ -2585,7 +2471,7 @@ args.im : 0 / im
 Retour: rien
 */
 operations.ExcluNote = class ExcluNote extends Operation {
-  constructor () { super('ExcluNote') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const note = compile(await this.getRowNote(args.id, args.ids, 'ExcluNote-1'))
@@ -2607,7 +2493,7 @@ args.mc0: mots clés du groupe
 Retour: rien
 */
 operations.McNote = class McNote extends Operation {
-  constructor () { super('McNote') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const note = compile(await this.getRowNote(args.id, args.ids, 'McNote-1'))
@@ -2632,7 +2518,7 @@ args.ref : [rid, rids, rnom] crypté par la clé de la note. Référence d'une a
 Retour: rien
 */
 operations.RattNote = class RattNote extends Operation {
-  constructor () { super('RattNote') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const note = compile(await this.getRowNote(args.id, args.ids, 'RattNote-1'))
@@ -2654,7 +2540,7 @@ args.idc : compta à qui imputer le volume
 Retour:
 */
 operations.SupprNote = class SupprNote extends Operation {
-  constructor () { super('SupprNote') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const note = compile(await this.getRowNote(args.id, args.ids))
@@ -2693,29 +2579,6 @@ operations.SupprNote = class SupprNote extends Operation {
   }
 }
 
-/* Charger la CV dont la version est postérieure à celle détenue en session ******
-args.token: éléments d'authentification du compte.
-args.mcv : cle: id, valeur: version détenue en session (ou 0)
-Retour:
-rowCvs: liste des row Cv { _nom: 'cvs', id, _data_ }
-  _data_ : cva {v, photo, info} cryptée par la clé de son avatar
-*/
-operations.ChargerCvs = class ChargerCvs extends Operation {
-  constructor () { super('ChargerCvs'); this.lecture = true }
-
-  async phase2 (args) { 
-    for (const idx in args.mcv) {
-      const id = parseInt(idx)
-      const vcv = args.mcv[idx]
-      const avatar = await this.getAvatarVCV(id, vcv)
-      if (avatar) {
-        const _data_ = new Uint8Array(Buffer.from(encode({ cva: avatar.cva })))
-        this.addRes('rowCvs', { _nom: 'cvs', id, _data_ })
-      }
-    }
-  }
-}
-
 /*****************************************
 GetUrl : retourne l'URL de get d'un fichier
 Comme c'est un GET, les arguments sont en string (et pas en number)
@@ -2726,22 +2589,16 @@ args.idc : id du compte demandeur
 args.vt : volume du fichier (pour compta des volumes v2 transférés)
 */
 operations.GetUrl = class GetUrl extends Operation {
-  constructor () { super('GetUrl'); this.lecture = true }
+  constructor (nom) { super(nom, 1, 2); this.lecture = true }
 
-  async phase1 (args) {
+  async phase2 (args) {
     const org = await this.org(ID.ns(args.id))
     const idi = args.id % d14
     const url = await this.storage.getUrl(org, idi, args.idf)
     this.setRes('getUrl', url)
-    if (!args.idc) this.phase2 = null
-  }
-
-  async phase2 (args) {
-    const compta = compile(await this.getRowCompta(args.idc))
-    if (!compta) return
-    compta.v++
-    compta.compteurs = new Compteurs(compta.compteurs, null, { vd: args.vt }).serial
-    this.update(compta.toRow())
+    this.compta.v++
+    this.compta.compteurs = new Compteurs(this.compta.compteurs, null, { vd: args.vt }).serial
+    this.update(this.compta.toRow())
   }
 }
 
@@ -2755,7 +2612,7 @@ Retour:
 - url : url à passer sur le PUT de son contenu
 */
 operations.PutUrl = class PutUrl extends Operation {
-  constructor () { super('PutUrl') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     if (args.dv2 > 0) {
@@ -2794,7 +2651,7 @@ en relisant mafs (dont les lg).
 Retour: aucun
 */
 operations.ValiderUpload = class ValiderUpload extends Operation {
-  constructor () { super('ValiderUpload') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     const note = compile(await this.getRowNote(args.id, args.ids, 'ValiderUpload-1'))
@@ -2852,7 +2709,7 @@ args.aut: im de l'auteur (pour une note de groupe)
 Retour: aucun
 */
 operations.SupprFichier = class SupprFichier extends Operation {
-  constructor () { super('SupprFichier') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
     const note = compile(await this.getRowNote(args.id, args.ids, 'SupprFichier-1'))
@@ -2929,7 +2786,7 @@ Retour: KO
 - KO : si true, retry requis, les versions des groupes et/ou avatar ont chnagé
 */
 operations.SupprAvatar = class SupprAvatar extends Operation {
-  constructor () { super('SupprAvatar') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
     const estCpt = args.id === args.idc
@@ -3033,19 +2890,6 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
   }
 }
 
-/* Retourne la liste des gcvols de l'espace 
-args.token: éléments d'authentification du compte.
-*/
-operations.ListeGcvols = class ListeGcvols extends Operation {
-  constructor () { super('ListeGcvols')  }
-
-  async phase1() {
-    const ns = ID.ns(this.session.id)
-    const l = await this.getGcvols(ns)
-    this.setRes('gcvols', l)
-  }
-}
-
 /* Supprime un compte de sa tribu, de facto récupère le volume
 args.token: éléments d'authentification du compte.
 args.m: map :
@@ -3054,7 +2898,7 @@ args.m: map :
 args.lidc : liste des id des comptes (gcvols) à supprimer
 */
 operations.SupprComptesTribu = class SupprComptesTribu extends Operation {
-  constructor () { super('SupprComptesTribu') }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2(args) {
     for (const idx in args.m) {
@@ -3080,9 +2924,9 @@ args.lop : liste d'opérations [op, id, ids, date]
   - op:2 : dfh de groupes id
   - op:3 : dlv de membrs id / ids
 Retour:
-*/
+
 operations.ForceDlv = class ForceDlv extends Operation {
-  constructor () { super('ForceDlv'); this.authMode = 3  }
+  constructor (nom) { super(nom, 3) }
 
   async phase2(args) {
     for (const x of args.lop) {
@@ -3112,6 +2956,7 @@ operations.ForceDlv = class ForceDlv extends Operation {
     }
   }
 }
+*/
 
 /*****************************************************************************
  * GC
@@ -3120,9 +2965,9 @@ operations.ForceDlv = class ForceDlv extends Operation {
 Appel depuis une requête (pas d'attente du résultat)
 */
 operations.GC = class GC extends Operation {
-  constructor () { super('GC'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0)  }
 
-  async phase1() {
+  async phase2() {
     setTimeout(async () => {
       const op = operations.GCGen
       await new op().run()
@@ -3130,11 +2975,11 @@ operations.GC = class GC extends Operation {
   }
 }
 
-/* Pour admin : retourne le dernier checkpoint écrit *************/
+/* Pour admin : retourne les checkpoints exisztants *************/
 operations.GetSingletons = class GetSingletons extends Operation {
-  constructor () { super('GetSingletons'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0)  }
 
-  async phase1() {
+  async phase2() {
     const a = await this.getSingletons()
     this.setRes('singletons', a)
   }
@@ -3157,9 +3002,9 @@ checkpoint _data_ :
   - `stats` : {} compteurs d'objets traités (selon la tâche).
 */
 operations.GCGen = class GCGen extends Operation {
-  constructor (cron) { super('GCGen'); this.authMode = cron ? 3 : 0  }
+  constructor (nom) { super(nom, 0)  }
 
-  async phase1 () {
+  async phase2 () {
     config.logger.info('GC started')
 
     // 10 Récupération des fins d'hébergement
@@ -3197,9 +3042,9 @@ Une transaction par groupe :
 - dans le document version du groupe, dlv est positionnée à auj et zombi
 */
 operations.GCHeb = class GCHeb extends Operation {
-  constructor () { super('GCHeb'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0)  }
 
-  async phase1 () {
+  async phase2 () {
     const dh = Date.now()
     for(let nr = 0; nr < 3; nr++)
       try {
@@ -3228,7 +3073,7 @@ operations.GCHeb = class GCHeb extends Operation {
 }
 
 operations.GCHebtr = class GCHebtr extends Operation {
-  constructor () { super('GCHebtr'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0)  }
 
   async phase2 (args) {
     const idg = args.id
@@ -3254,9 +3099,9 @@ Une transaction par `groupes` :
   - la `dlv` de sa `versions` est mise à aujourd'hui (il est zombi).
 */
 operations.GCGro = class GCGro extends Operation {
-  constructor () { super('GCGro'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0) }
 
-  async phase1 () {
+  async phase2 () {
     const dh = Date.now()
     for(let nr = 0; nr < 3; nr++)
       try {
@@ -3291,7 +3136,7 @@ operations.GCGro = class GCGro extends Operation {
 }
 
 operations.GCGrotr = class GCGrotr extends Operation {
-  constructor () { super('GCGrotr'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0)  }
 
   async phase2 (args) {
     const idg = args.id // id du groupe
@@ -3340,9 +3185,9 @@ Dans l'ordre pour chaque id:
 - set HORS TRANSACTION de la `dlv` de la `versions` à aamm
 */
 operations.GCPag = class GCPag extends Operation {
-  constructor () { super('GCPag'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0)  }
 
-  async phase1 () {
+  async phase2 () {
     const dh = Date.now()
     for(let nr = 0; nr < 3; nr++)
       try {
@@ -3406,7 +3251,7 @@ Une transaction pour chaque compte : son document `comptas`,
 - le document `comptas` est purgé afin de ne pas récupérer le volume plus d'une fois.
  */
 operations.GCPagtr = class GCPagtr extends Operation {
-  constructor () { super('GCPagtr'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
     const id = args.id
@@ -3440,9 +3285,9 @@ depuis `fpurges` et déclenche une purge sur le Storage.
 Les documents `fpurges` sont purgés. { id, idag, lidf }
 */
 operations.GCFpu = class GCFpu extends Operation {
-  constructor () { super('GCFpu'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0) }
 
-  async phase1 () {
+  async phase2 () {
     const dh = Date.now()
     for(let nr = 0; nr < 3; nr++)
       try {
@@ -3481,9 +3326,9 @@ Le fichier id / idf cité dedans est purgé du Storage des fichiers.
 Les documents transferts sont purgés.
 */
 operations.GCTra = class GCTra extends Operation {
-  constructor () { super('GCTra'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0) }
 
-  async phase1 () {
+  async phase2 () {
     const dh = Date.now()
     for(let nr = 0; nr < 3; nr++)
       try {
@@ -3527,9 +3372,9 @@ dont les `dlv` sont antérieures ou égales à aujourd'hui.
 Ces documents sont purgés.
 */
 operations.GCDlv = class GCDlv extends Operation {
-  constructor () { super('GCDlv'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0)  }
 
-  async phase1 () {
+  async phase2 () {
     let nom
     const dh = Date.now()
     for(let nr = 0; nr < 3; nr++)
@@ -3566,7 +3411,7 @@ de M-1 s'il n'a pas déjà été enregistré avec la clé publique du
 Comptable de chaque espace.
 */
 operations.GCstcc = class GCstcc extends Operation {
-  constructor () { super('GCstcc'); this.authMode = 3  }
+  constructor (nom) { super(nom, 0) }
 
   prochMoisATraiter (esp, type) { // n==1 pour moisStat et n== 3 pour moisStatT
     /* Après la date de création, après le dernier mois calculé */
@@ -3577,7 +3422,7 @@ operations.GCstcc = class GCstcc extends Operation {
     return prc > dmc ? prc : AMJ.moisPlus(dmc, 1)
   }
 
-  async phase1 () {
+  async phase2 () {
     const moisauj = Math.floor(this.auj / 100) 
     const MS = 'moisStat'
     const SM = statistiques[MS]
@@ -3625,7 +3470,7 @@ de M-1 s'il n'a pas déjà été enregistré avec la clé publique du
 Comptable de chaque espace.
 */
 operations.GCstct = class GCstct extends Operation {
-  constructor () { super('GCstcc'); this.authMode = 3  }
+  constructor (nom) { super(nom, 1, 1) }
 
   prochMoisATraiter (esp, type) { // n==1 pour moisStat et n== 3 pour moisStatT
     /* Après la date de création, après le dernier mois calculé */
@@ -3636,7 +3481,7 @@ operations.GCstct = class GCstct extends Operation {
     return prc > dmc ? prc : AMJ.moisPlus(dmc, 1)
   }
 
-  async phase1 () {
+  async phase2 () {
     const moisauj = Math.floor(this.auj / 100) 
     const MS = 'moisStatT'
     const SM = statistiques[MS]
@@ -3686,7 +3531,7 @@ Retour:
 - data: args.data crypré RSA par la clé publique de l'avatar
 */
 operations.TestRSA = class TestRSA extends Operation {
-  constructor () { super('TestRSA')  }
+  constructor (nom) { super(nom, 1)  }
 
   async phase2 (args) {
     const avatar = compile(await this.getRowAvatar(args.id, 'TestRSA-1'))
@@ -3708,7 +3553,7 @@ Retour:
 - data: "fichier" binaire auto-décryptable en ayant la clé privée RSA
 */
 operations.CrypterRaw = class CrypterRaw extends Operation {
-  constructor () { super('CrypterRaw')  }
+  constructor (nom) { super(nom, 1)  }
 
   async phase2 (args) {
     const avatar = compile(await this.getRowAvatar(args.id, 'TestRSA-1'))
@@ -3735,11 +3580,8 @@ l'espace s'il est supérieur à celui existant.
 */
 operations.ComptaStat = class ComptaStat extends Operation {
   constructor (gc) { 
-    super('ComptaStat')
-    if (gc) {
-      this.authMode = 3 
-      this.gc = true
-    }
+    super('ComptaStat', gc ? 3 : 1, 1)
+    if (gc) this.gc = true
   }
 
   static cptM = ['IT', 'NJ', 'QC', 'Q1', 'Q2', 'NL', 'NE', 'VM', 'VD', 'NN', 'NC', 'NG', 'V2']
@@ -3786,7 +3628,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
     await this.storage.putFile(this.args.org, ID.court(this.idC), 'C_' + this.mois, fic)
   }
 
-  async phase1 (args) {
+  async phase2 (args) {
     const espace = await this.getEspaceOrg(args.org)
     if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
     this.ns = espace.id
@@ -3807,14 +3649,14 @@ operations.ComptaStat = class ComptaStat extends Operation {
       if (args.mr === 0) this.phase2 = null
     }
     this.setRes('mois', this.mois)
-  }
-
-  async phase2 () {
-    const espace = compile(await this.getRowEspace(this.ns, 'ComptaStat-2'))
-    if (!espace.moisStat || espace.moisStat < this.mois) {
-      espace.moisStat = this.mois
-      espace.v++
-      this.update(espace.toRow())
+    
+    if (!this.estFige) {
+      const espace = compile(await this.getRowEspace(this.ns, 'ComptaStat-2'))
+      if (!espace.moisStat || espace.moisStat < this.mois) {
+        espace.moisStat = this.mois
+        espace.v++
+        this.update(espace.toRow())
+      }
     }
   }
 }
@@ -3830,11 +3672,8 @@ Purge des tickets archivés
 */
 operations.TicketsStat = class TicketsStat extends Operation {
   constructor (gc) { 
-    super('TicketsStat')
-    if (gc) {
-      this.authMode = 3 
-      this.gc = true
-    }
+    super('TicketsStat', gc ? 3 : 1, 1)
+    if (gc) this.gc = true
   }
 
   static cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
@@ -3889,7 +3728,7 @@ operations.TicketsStat = class TicketsStat extends Operation {
     await this.storage.putFile(this.args.org, ID.court(this.idC), 'T_' + this.mois, fic)
   }
 
-  async phase1 (args) {
+  async phase2 (args) {
     const espace = await this.getEspaceOrg(args.org)
     if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
     this.ns = espace.id
@@ -3907,15 +3746,15 @@ operations.TicketsStat = class TicketsStat extends Operation {
       this.phase2 = null
     }
     this.setRes('mois', this.mois)
-  }
 
-  async phase2 () {
-    const espace = compile(await this.getRowEspace(this.ns, 'ComptaStatT-2'))
-    if (!espace.moisStatT || (espace.moisStatT < this.mois)) {
-      espace.moisStatT = this.mois
-      espace.v++
-      this.update(espace.toRow())
-      await this.db.delTickets (this, this.idC, this.mois)
+    if (!this.estFige) {
+      const espace = compile(await this.getRowEspace(this.ns, 'ComptaStatT-2'))
+      if (!espace.moisStatT || (espace.moisStatT < this.mois)) {
+        espace.moisStatT = this.mois
+        espace.v++
+        this.update(espace.toRow())
+        await this.db.delTickets (this, this.idC, this.mois)
+      }
     }
   }
 }
@@ -3929,14 +3768,14 @@ args.mois :
 args.cs : code statistique C ou T
 */
 operations.GetUrlStat = class GetUrlStat extends Operation {
-  constructor () { super('GetUrlStat'); this.lecture = true }
+  constructor (nom) { super(nom, 1) }
 
-  async phase1 (args) {
+  async phase2 (args) {
     const ns = parseInt(args.ns)
     const org = await this.org(ns)
     const idC = ID.court(ID.duComptable(ns))
     const url = await this.storage.getUrl(org, idC, args.cs + '_' + args.mois)
     this.setRes('getUrl', url)
-    if (!this.session.id) this.setRes('appKey', this.db.appKey)
+    if (!this.id) this.setRes('appKey', this.db.appKey)
   }
 }

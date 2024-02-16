@@ -283,7 +283,6 @@ export class Operation {
   
   async transac () {
     await this.auth() // this.compta est accessible
-    if (this.phase1) await this.phase1(this.args)
     if (this.phase2) await this.phase2(this.args)
     if (!this.result.KO) {
       this.result.nl = this.nl
@@ -293,8 +292,6 @@ export class Operation {
       if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
     }
   }
-
-  async phase1 () {}
 
   async phase2 () {}
 
@@ -315,18 +312,18 @@ export class Operation {
     }
     this.toInsert = []; this.toUpdate = []; this.toDelete = []
 
-    if (this.db.hasWS && this.sync && args.abPlus && args.abPlus.length) {
+    if (this.sync && args.abPlus && args.abPlus.length) {
       args.abPlus.forEach(id => { this.sync.plus(id) })
       args.abPlus.length = 0
     }
 
-    if (this.phase1 || this.phase2) await this.db.doTransaction(this)
+    if (this.phase2) await this.db.doTransaction(this)
 
     if (!this.result.KO && this.db.hasWS) {
       // (A) suppressions éventuelles des abonnements
-      if (this.session) {
-        if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.session.sync.moins(id) })
-        if (args.abPlus && args.abPlus.length) args.abPlus.forEach(id => { this.session.sync.plus(id) })
+      if (this.sync) {
+        if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.sync.moins(id) })
+        if (args.abPlus && args.abPlus.length) args.abPlus.forEach(id => { this.sync.plus(id) })
       }
       // (B) envoi en synchronisation des rows modifiés
       const rows = []
@@ -388,7 +385,7 @@ export class Operation {
 
   async getSponsoringIds (ids) {return this.db.getSponsoringIds(this, ids) }
 
-  async getAllRowsTribu () { return this.db.collNs(this, 'tribus', this.session.ns) }
+  async getAllRowsTribu () { return this.db.collNs(this, 'tribus', this.ns) }
 
   async getAllRowsNote(id, v) { return await this.scoll('notes', id, v) }
 
@@ -636,7 +633,7 @@ export class Operation {
       this.setRes('rowChat', rowChatI)
 
       if (!xavatarI) { // Si AcceptatinSponsoring, le nombre de chats est déjà fixé
-        const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
+        const compta = compile(await this.getRowCompta(this.id, 'majNbChat-1'))
         compta.v++
         compta.qv.nc += 1
         const c = new Compteurs(compta.compteurs, compta.qv)
@@ -718,7 +715,7 @@ export class Operation {
     }
   }
   
-  /* Met à jour les volumes du groupe TODO
+  /* Met à jour les volumes du groupe
   Refuse si le volume est ex expansion et qu'il dépasse le quota
   L'objet version du groupe est mis à jour et retourné
   */
@@ -820,104 +817,3 @@ export class Operation {
     }
   }
 }
-
-/*
-  async auth () {
-    const s = await AuthSession.get(this)
-    if (!this.authMode && s) {
-      // la session est connue dans l'instance, OK
-      this.session = s
-      this.ttl = Date.now() + AuthSession.ttl
-      if (this.session.sync) this.session.sync.pingrecu()
-      return 
-    } 
-
-    if (this.authData.shax) { // admin
-      const shax64 = Buffer.from(this.authData.shax).toString('base64')
-      if (config.app_keys.admin.indexOf(shax64) !== -1) {
-        // session admin authentifiée
-        this.session = await AuthSession.set(this, 0, true)
-        return
-      }
-      await sleep(3000)
-      throw new AppExc(F_SRV, 101) // pas reconnu
-    }
-
-    const espace = await Cache.getEspaceOrg(this, this.authData.org)
-    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 101) }
-    const hps1 = (espace.id * d14) + this.authData.hps1
-    const rowCompta = await this.getComptaHps1(hps1)
-    if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 101) }
-    this.compta = compile(rowCompta)
-    if (this.compta.hpsc !== this.authData.hpsc) throw new AppExc(F_SRV, 101)
-    this.session = await AuthSession.set(this, this.compta.id, this.lecture)
-  }
-}
-
-export class AuthSession {
-  static map = new Map()
-
-  static dernierePurge = 0
-
-  static ttl = PINGTO * 60000 * 10 // en test éviter les peres de session en debug TODO
-
-  constructor (sessionId, id, sync) { 
-    this.sessionId = sessionId
-    this.id = id
-    this.ns = Math.floor(this.id / d14)
-    this.sync = sync
-    this.ttl = Date.now() + AuthSession.ttl
-  }
-
-  async setEspace (op) {
-    if (!this.id) return this
-    const esp = await Cache.getEspaceLazy(op, this.ns)
-    this.notifG = null
-    if (!esp) { 
-      this.notifG = {
-        nr: 2,
-        texte: 'Organisation inconnue', 
-        dh: Date.now()
-      }
-    } else this.notifG = esp.notif
-    if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
-    if (this.notifG && this.notifG.nr === 1) this.estFige = true
-    if (op.lecture || !this.estFige) return this
-    throw AppExc.notifG(this.notifG)
-  }
-
-  // Retourne la session identifiée par sessionId et en prolonge la durée de vie
-  static async get (op) {
-    const sessionId = op.authData.sessionId
-    const t = Date.now()
-    if (t - AuthSession.dernierePurge > AuthSession.ttl / 10) {
-      AuthSession.map.forEach((s, k) => {
-        if (t > s.ttl) AuthSession.map.delete(k)
-      })
-    }
-    const s = AuthSession.map.get(sessionId)
-    if (s) {
-      await s.setEspace(op)
-      s.ttl = t + AuthSession.ttl
-      if (s.sync) s.sync.pingrecu()
-      return s
-    }
-    return false
-  }
-
-  // Enregistre la session avec l'id du compte de la session
-  static async set (op, id, noExcFige) {
-    const sessionId = op.authData.sessionId
-    let sync = null
-    if (op.db.hasWS) {
-      sync = SyncSession.get(sessionId)
-      if (!sync) throw new AppExc(E_SRV, 4)
-      if (id) sync.setCompte(id)
-      sync.pingrecu()
-    }
-    const s = await new AuthSession(sessionId, id, sync).setEspace(op, noExcFige)
-    AuthSession.map.set(sessionId, s)
-    s.ttl = Date.now() + AuthSession.ttl
-    return s
-  }
-*/
