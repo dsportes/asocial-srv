@@ -211,19 +211,24 @@ Une opération a deux phases :
   -abMoins : array des ids à désabonner: désabonnements après la phase 2 (après commit)
 */
 export class Operation {
-  constructor (nomop, authMode) { 
+  constructor (nomop, authMode, excFige) { 
     this.nomop = nomop
     this.authMode = authMode
+    this.excFige = excFige || 1
   }
 
   /* Authentification *************************************************************
   authMode:
-  0 : pas de contrainte d'accès (public)
-  1 : le compte doit être authentifié
-  2 : et ça doit être le comptable
-  3 : administrateur technique requis
-  4: CAS PARTICULIER de la connexion - accepte 3 ou 1
+    0 : pas de contrainte d'accès (public)
+    1 : le compte doit être authentifié
+    2 : et ça doit être le comptable
+    3 : administrateur technique requis
+    4 : CAS PARTICULIER de la connexion - accepte les deux, 3 ou 1
+  excFige: (toujours 0 si authMode 3)
+    1 : pas d'exception si figé. Lecture seulement ou estFige testé dans l'opération
+    2 : exception si figé
   */
+  
   async auth() {
     if (this.db.hasWS) {
       /* Récupérer la session WS afin de pouvoir lui transmettre
@@ -235,21 +240,19 @@ export class Operation {
 
     if (this.authMode === 0) return
 
+    let admin = false
+    if (this.authData.shax) { // admin
+      const shax64 = Buffer.from(this.authData.shax).toString('base64')
+      if (config.app_keys.admin.indexOf(shax64) !== -1) admin = true
+    }
+
     if (this.authMode === 3) {
-      if (this.authData.shax) { // admin
-        const shax64 = Buffer.from(this.authData.shax).toString('base64')
-        if (config.app_keys.admin.indexOf(shax64) !== -1) return
-      }
+      if (admin) return
       await sleep(3000)
       throw new AppExc(F_SRV, 101) // pas reconnu
     }
 
-    if (this.authMode === 4) {
-      if (this.authData.shax) { // admin
-        const shax64 = Buffer.from(this.authData.shax).toString('base64')
-        if (config.app_keys.admin.indexOf(shax64) !== -1) return
-      }
-    }
+    if (this.authMode === 4 && admin) return
 
     const espace = await Cache.getEspaceOrg(this, this.authData.org)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
@@ -263,25 +266,16 @@ export class Operation {
     this.ns = ID.ns(this.id)
 
     const esp = await Cache.getEspaceLazy(this, this.ns)
-    this.notifG = null
-    if (!esp) { 
-      this.notifG = {
-        nr: 2,
-        texte: 'Organisation inconnue', 
-        dh: Date.now()
-      }
-    } else 
-      this.notifG = esp.notif
-    if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
-    if (this.notifG && this.notifG.nr === 1) this.estFige = true
+    this.notifG = esp ? esp.notif : { nr: 2, texte: 'Organisation inconnue', dh: Date.now() }
+    if (this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
+    if (this.notifG.nr === 1) this.estFige = true
+
+    if (this.excFige && this.estFige) throw new AppExc(F_SRV, 105)
 
     if (this.authMode === 1 || this.authMode === 4) return
 
     if (this.authMode === 2) {
-      if (!ID.estComptable(this.id)) {
-        await sleep(3000)
-        throw new AppExc(F_SRV, 104) 
-      }
+      if (!ID.estComptable(this.id)) { await sleep(3000); throw new AppExc(F_SRV, 104) }
       return
     }
     throw new AppExc(A_SRV, 19, [this.authMode]) 

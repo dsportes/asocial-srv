@@ -1,5 +1,4 @@
-/* Opérations de lecture qui pourraient être exécutée en session
-si le provider est Firestore */
+/* Opérations de lecture */
 
 import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
@@ -128,6 +127,67 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
       }
     }
   }
+}
+
+/* `ConnexionCompte` : connexion authentifiée à un compte
+Enregistrement d'une session et retour des données permettant à la session cliente de s'initialiser.
+
+L'administrateur utilise cette opération pour se connecter mais le retour est différent.
+
+POST:
+- `token` : éléments d'authentification du compte.
+
+Retour, sauf _administrateur_:
+- `rowAvatar` : row de l'avatar principal du compte
+- `rowCompta` : row compta du compte.
+- `rowEspace` : row de l'espace (informations générales / statistques de l'espace et présence de la notification générale éventuelle.
+- `credentials`: données d'authentification pour utilisation de l'API Firestore dans l'application cliente (absente en mode SQL)
+
+Retour, pour _administrateur_:
+- `admin` : `true` (permet en session de reconnaître une connexion d'administration).
+- `espaces` : array des rows de tous les espaces.
+
+Assertions sur l'existence des rows `Comptas, Avatars, Espaces`.
+*/
+operations.ConnexionCompte = class ConnexionCompte extends Operation {
+  constructor (nom) { super(nom, 4) }
+
+  /* Si ce n'est pas une session admin, id != 0
+    auth() a accédé à this.compta par la clé hps1 du token, ce qui a enregistré son id 
+    comme id du compte dans this.session.id
+  */
+
+  async phase2 () {
+    this.db.setSyncData(this)
+
+    if (!this.id) {
+      this.setRes('admin', true)
+      this.setRes('espaces', await this.getAllRowsEspace())
+    } else {
+      this.setRes('rowCompta', this.compta.toRow())
+      const rowAvatar = await this.getRowAvatar(this.id, 'ConnexionCompte-2')
+      this.setRes('rowAvatar', rowAvatar)
+      const rowEspace = await this.getRowEspace(this.ns, 'ConnexionCompte-3')
+      this.setRes('rowEspace', rowEspace)
+    }
+  }
+}
+
+/* `GestionAb` : gestion des abonnements
+Toutes les opérations permettent de modifier la liste des abonnements,
+- `abPlus` : liste des avatars et groupes à ajouter,
+- `abMoins` : liste des abonnements à retirer.
+
+Cette opération permet de mettre à jour la liste des abonnements de la session alors qu'elle n'a aucune autre action à effectuer.
+
+POST:
+- `token` : éléments d'authentification du compte.
+- `abPlus abMoins`.
+
+Retour: rien.
+*/
+operations.GestionAb = class GestionAb extends Operation {
+  constructor (nom) { super(nom, 1); this.phase1 = null; this.phase2 = null }
 }
 
 /* `RafraichirTickets` : nouvelles versions des tickets cités
@@ -564,280 +624,6 @@ operations.ChargerASCS = class ChargerASCS extends Operation {
   }
 }
 
-/* `RetraitAccesGroupe` : retirer l'accès à un groupe pour un avatar
-POST:
-- `token` : éléments d'authentification du compte.
-- `id` : id de l'avatar.
-- `ni` : numéro d'invitation du groupe pour cet avatar.
-*/
-operations.RetraitAccesGroupe = class RetraitAccesGroupe extends Operation {
-  constructor () { super('RetraitAccesGroupe') }
-
-  async phase2 (args) {
-    const avatar = compile(await this.getRowAvatar(args.id))
-    if (!avatar) return
-    const version = compile(await this.getRowVersion(args.id))
-    if (!version || version._zombi) return
-    version.v++
-    avatar.v = version.v
-    delete avatar.lgrk[args.ni]
-    this.update(avatar.toRow())
-    this.update(version.toRow())
-  }
-}
-
-/* `DisparitionMembre` : enregistrement du statut disparu d'un membre dans son groupe
-Après détection de la disparition d'un membre.
-
-POST:
-- `token` : éléments d'authentification du compte.
-- `id` : id du groupe
-- `ids` : ids du membre
-
-operations.DisparitionMembre = class DisparitionMembre extends Operation {
-  constructor () { super('DisparitionMembre') }
-
-  async phase2 (args) {
-    const groupe = compile(await this.getRowGroupe(args.id))
-    if (!groupe) return
-    if (!groupe.ast[args.ids]) return // déjà enregistré dans le groupe
-    const version = compile(await this.getRowVersion(args.id))
-    if (!version || version._zombi) return
-    version.v++
-    groupe.v = version.v
-    groupe.ast[args.ids] = 0
-    this.update(groupe.toRow())
-    this.update(version.toRow())
-  }
-}
-*/
-
-/* `RafraichirCvs` : rafraîchir les cartes de visite, quand nécessaire
-Mises à jour des cartes de visite, quand c'est nécessaire, pour tous les chats et membres de la cible.
-
-POST:
-- `token` : éléments d'authentification du compte.
-- `estFige` : si true ne rien mettre à jour
-- `cibles` : array de : 
-
-    {
-      idE, // id de l'avatar
-      vcv, // version de la carte de visite détenue
-      lch: [[idI, idsI, idsE] ...], // liste des chats
-      lmb: [[idg, im] ...] // liste des membres
-    }
-
-Retour:
-- `nbrech` : nombre de mises à jour effectuées.
-
-Assertions sur l'existence des `Avatars Versions`.
-*/
-operations.RafraichirCvs = class RafraichirCvs extends Operation {
-  constructor () { super('RafraichirCvs'); this.lecture = true }
-
-  /* this.lecture = true pour pouvoir tester this.session.estFige
-  et ne pas mettre à jour les CV si l'espace est figer
-  */
-
-  async phase2 (args) {
-    const maj = !args.estFige && !this.session.estFige
-    let nr = 0
-    const avIs = {}
-    const avEs = {}
-    const vIs = {}
-    const vEs = {}
-    const vmb = {}
-    for (const c of args.cibles) {
-      let avE = avEs[c.idE]
-      if (avE !== false) {
-        avE = await this.getAvatarVCV(c.idE, c.vcv)
-        if (avE) avEs[c.idE] = avE; else avEs[c.idE] = false
-      }
-
-      if (avE) {
-        // maj des CV (quand nécessaire) dans tous les chats et membres de la cible
-        for(const x of c.lch) {
-          const [idI, idsI, idsE] = x
-          const chI = await this.getChatVCV(idI, idsI, avE.vcv)
-          if (chI) {
-            // Maj de chI
-            let vI = vIs[idI]
-            if (!vI) {
-              const v = compile(await this.getRowVersion(idI, 'RafraichirCvs-1', true))
-              v.v++
-              vI = v.v
-              vIs[idI] = vI
-              if (maj) this.update(v.toRow())
-            }
-            chI.v = vI
-            chI.vcv = avE.vcv
-            chI.cva = avE.cva
-            if (maj) this.update(chI.toRow())
-            nr++
-          }
-
-          // Maj éventuelle réciproque de chat E
-          let avI = avEs[idI]
-          if (!avI) {
-            avI = compile(await this.getRowAvatar(idI, 'RafraichirCvs-2'))
-            avIs[idI] = avI
-          }
-          const chE = await this.getChatVCV(c.idE, idsE, avI.vcv)
-          if (chE) {
-            // Maj de chE, la CV de I est plus récente
-            let vE = vEs[c.idE]
-            if (!vE) {
-              const v = compile(await this.getRowVersion(c.idE, 'RafraichirCvs-3'), true)
-              v.v++
-              vE = v.v
-              vEs[c.idE] = vE
-              if (maj) this.update(v.toRow())
-            }
-            chE.v = vE
-            chE.vcv = avI.vcv
-            chE.cva = avI.cva
-            if (maj) this.update(chE.toRow())
-          }
-        }
-        for(const x of c.lmb) {
-          const [idg, im] = x
-          const mb = await this.getMembreVCV(idg, im, avE.vcv)
-          if (mb) {
-            // Maj de mb
-            let vM = vmb[idg]
-            if (!vM) {
-              const v = compile(await this.getRowVersion(idg, 'RafraichirCvs-4', true))
-              v.v++
-              vM = v.v
-              vmb[idg] = vM
-              if (maj) this.update(v.toRow())
-            }
-            mb.v = vM
-            mb.vcv = avE.vcv
-            mb.cva = avE.cva
-            if (maj) this.update(mb.toRow())
-            nr++
-          }
-        }
-      }
-    }
-    this.setRes('nbrech', nr)
-  }
-}
-
-/* `McMemo` : changer les mots clés et le mémo attaché à un avatar / groupe par le compte
-POST:
-- `token` : éléments d'authentification du compte.
-- `mmk` : mcMemo crypté par la clé k
-- `idk` : id du contact / groupe crypté par la clé K
-
-Assertion d'existence du row `Avatars` de l'avatar principal et de sa `Versions`.
-*/
-operations.McMemo = class McMemo extends Operation {
-  constructor () { super('McMemo') }
-
-  async phase2 (args) { 
-    const rowAvatar = await this.getRowAvatar(this.session.id, 'McMemo-1')
-    const rowVersion = await this.getRowVersion(this.session.id, 'McMemo-2', true)
-    const avatar = compile(rowAvatar)
-    const version = compile(rowVersion)
-
-    version.v++
-    avatar.v = version.v
-    if (!avatar.mcmemos) avatar.mcmemos = {}
-    if (args.mmk) avatar.mcmemos[args.idk] = args.mmk
-    else delete avatar.mcmemos[args.idk]
-
-    this.update(avatar.toRow())
-    this.update(version.toRow())
-  }
-}
-
-/* `MotsclesCompte` : changer les mots clés du compte
-POST:
-- `token` : éléments d'authentification du compte.
-- `mck` : map des mots clés cryptée par la clé k.
-
-Assertion d'existence du row `Avatars` de l'avatar principal et de sa `Versions`.
-*/
-operations.MotsclesCompte = class MotsclesCompte extends Operation {
-  constructor () { super('MotsclesCompte') }
-
-  async phase2 (args) { 
-    const rowAvatar = await this.getRowAvatar(this.session.id, 'MotsclesCompte-1')
-    const rowVersion = await this.getRowVersion(this.session.id, 'MotsclesCompte-2', true)
-    const avatar = compile(rowAvatar)
-    const version = compile(rowVersion)
-
-    version.v++
-    avatar.v = version.v
-
-    avatar.mck = args.mck
-    
-    this.update(avatar.toRow())
-    this.update(version.toRow())
-  }
-}
-
-/* `ChangementPS` : changer la phrase secrète du compte
-POST:
-- `token` : éléments d'authentification du compte.
--args.hps1: hash du PBKFD de la phrase secrète réduite du compte.
-- args.hpsc: hash du PBKFD de la phrase secrète complète.
-- `kx` : clé K cryptée par la phrase secrète
-
-Assertion sur l'existence du row `Comptas` du compte.
-*/
-operations.ChangementPS = class ChangementPS extends Operation {
-  constructor () { super('ChangementPS') }
-
-  async phase2 (args) { 
-    const compta = compile(await this.getRowCompta(this.session.id, 'ChangementPS'))
-    
-    compta.v++
-    compta.hps1 = args.hps1
-    compta.hpsc = args.hpsc
-    compta.kx = args.kx
-    
-    this.update(compta.toRow())
-  }
-}
-
-/* `MajCv` : mise à jour de la carte de visite d'un avatar
-POST:
-- `token` : éléments d'authentification du compte.
-- `id` : id de l'avatar dont la Cv est mise à jour
-- `v` : version de versions de l'avatar incluse dans la Cv.
-- `cva` : `{v, photo, info}` crypté par la clé de l'avatar.
-  - SI C'EST Le COMPTE, pour dupliquer la CV,
-    `idTr` : id de sa tribu (où dupliquer la CV)
-    `hrnd` : clé d'entrée de la map `mbtr` dans tribu2.
-
-Retour:
-- `KO` : true si la carte de visite a changé sur le serveur depuis la version connue en session. Il faut reboucler sur la requête jusqu'à obtenir true.
-
-Assertion sur l'existence du row `Avatars` de l'avatar et de son row `Versions`.
-*/
-operations.MajCv = class MajCv extends Operation {
-  constructor () { super('MajCv') }
-
-  async phase2 (args) { 
-    const version = compile(await this.getRowVersion(args.id, 'MajCv-2', true))
-    if (version.v + 1 !== args.v) {
-      this.setRes('KO', true)
-      return
-    }
-    const avatar = compile(await this.getRowAvatar(args.id, 'MajCv-1'))
-    version.v++
-    avatar.v = version.v
-    avatar.vcv = version.v
-    avatar.cva = args.cva
-
-    this.update(avatar.toRow())
-    this.update(version.toRow())
-  }
-}
-
 /* `GetAvatarPC` : information sur l'avatar ayant une phrase de contact donnée
 POST:
 - `token` : éléments d'authentification du compte.
@@ -849,280 +635,13 @@ Retour: si trouvé,
   - `napc` : `[nom, clé]` de l'avatar crypté par le PBKFD de la phrase.
 */
 operations.GetAvatarPC = class GetAvatarPC extends Operation {
-  constructor () { super('GetAvatarPC') }
+  constructor (nom) { super(nom, 1) }
 
   async phase2 (args) {
     const avatar = compile(await this.getAvatarHpc(args.hpc))
     if (avatar) {
       this.setRes('cvnapc', { cv: avatar.cva, napc: avatar.napc } )
     }
-  }
-}
-
-/* `ChangementPC` : changement de la phrase de contact d'un avatar
-POST:
-- `token` : éléments d'authentification du compte.
-- `id` : de l'avatar.
-- `hpc` : ns + hash de la phrase de contact (SUPPRESSION si null).
-- `napc` : `[nom, clé]` de l'avatar crypté par le PBKFD de la phrase.
-- `pck` : phrase de contact cryptée par la clé K du compte.
-
-Assertion sur l'existence du row `Avatars` de l'avatar et de sa `Versions`.
-*/
-operations.ChangementPC = class ChangementPC extends Operation {
-  constructor () { super('ChangementPC') }
-
-  async phase2 (args) { 
-    if (args.hpc && await this.getAvatarHpc(args.hpc)) throw new AppExc(F_SRV, 26)
-
-    const rowAvatar = await this.getRowAvatar(args.id, 'ChangementPC-1')
-    const rowVersion = await this.getRowVersion(args.id, 'ChangementPC-2', true)
-    const avatar = compile(rowAvatar)
-    const version = compile(rowVersion)
-
-    version.v++
-    avatar.v = version.v
-
-    if (args.pck) {
-      avatar.hpc = args.hpc
-      avatar.napc = args.napc
-      avatar.pck = args.pck
-    } else {
-      delete avatar.hpc
-      delete avatar.napc
-      delete avatar.pck
-    }
-    this.update(avatar.toRow())
-    this.update(version.toRow())
-  }
-}
-
-/* `NouveauChat` : création d'un nouveau Chat
-POST:
-args.token: éléments d'authentification du compte.
-args.idI idsI : id du chat, côté interne
-args.idE idsE : id du chat côté externe
-args.ccKI : clé cc cryptée par la clé K du compte de I
-args.ccPE ! clé cc cryptée par la clé publique de l'avatar E
-args.contc : contenu du chat crypté par la clé cc
-args.naccI: na de I crypté par la clé du chat
-args.naccE: na de I crypté par la clé du chat
-args.txt1: texte crypté par la clé cc
-args.lgtxt1: lg du texte
-
-Retour:
-- `st` : 
-  0 : E a disparu. rowChat absent
-  1 : chat créé avec l'item txt1. rowChat a le chat I créé avec le texte txt1.
-  2 : le chat était déjà créé: rowChat est le chat I SANS le texte txt1.
-- `rowChat` : row du chat I.
-
-Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
-*/
-operations.NouveauChat = class NouveauChat extends Operation {
-  constructor () { super('NouveauChat') }
-
-  async phase2 (args) {
-    const rowChatI = await this.nvChat(args)
-    if (!rowChatI) this.setRes('st', 0)
-  }
-}
-
-/* `MajChat` : mise à jour d'un Chat, gère aussi un don / crédit
-POST:
-- `token` : éléments d'authentification du compte.
-- `idI idsI` : id du chat, côté _interne_.
-- `idE idsE` : id du chat, côté _externe_.
-- `ccKI` : clé cc du chat cryptée par la clé K du compte de I. _Seulement_ si en session la clé cc était cryptée par la clé publique de I.
-- `txt1` : texte à ajouter crypté par la clé cc du chat.
-- `lgtxt1` : longueur du texte
-- `dh` : date-heure du chat dont le texte est à annuler.
-Si don:
-- `credits`: nouveau credits de compta du compte incorporant le don
-- dlv
-- lavLmb
-- `crDon`: don crypté par RSA du bénéficiaire idE à ajouter dans son compta.dons
-- `v`: version de compta du compte
-
-Retour:
-- `KO`: true si régression de version de compta du compte- `disp` : true : E a disparu, chat zombi.
-- `rowChat`: chat I
-Assertions sur l'existence du row `Avatars` de l'avatar I, sa `Versions`, et le cas échéant la `Versions` de l'avatar E (quand il existe).
-*/
-operations.MajChat = class MajChat extends Operation {
-  constructor (n) { super(n || 'MajChat') }
-
-  async getCompta() {
-    if (!this.compta) {
-      this.compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
-      this.compta.v++
-      this.updCompta = false
-    }
-  }
-
-  async phase2 (args) {
-    await this.majchat(args)
-
-    if (args.credits) {
-      await this.getCompta()
-      if (this.compta.v !== args.v + 1) {
-        this.setRes('KO', true)
-        return
-      }
-      
-      const dlvAvant = this.compta.dlv
-      this.compta.credits = args.credits
-      this.compta.dlv = args.dlv
-      this.updCompta = true
-      
-      if (dlvAvant !== args.dlv) this.propagerDlv(args)
-
-      const comptaE = compile(await this.getRowCompta(args.idE, 'MajChat-9'))
-      if (!comptaE.dons) comptaE.dons = [args.crDon]
-      else comptaE.dons.push(args.crDon)
-      comptaE.v++
-      const r2 = comptaE.toRow()
-      this.update(r2)
-    }
-    if (this.updCompta) {
-      this.compta.v++
-      this.update(this.compta.toRow())
-    }
-  }
-
-  async majchat (args) {
-    let rowChatI = await this.getRowChat(args.idI, args.idsI,'MajChat-1')
-    const chatI = compile(rowChatI)
-    const i1 = chatI.cc.length === 256 && args.ccKI
-
-    const rowChatE = await this.getRowChat(args.idE, args.idsE)
-    const versionI = compile(await this.getRowVersion(args.idI, 'MajChat-2', true))
-    versionI.v++
-    this.update(versionI.toRow())
-    chatI.v = versionI.v
-    if (i1) chatI.cc = args.ccKI
-
-    if (!rowChatE) {
-      // E disparu. Maj interdite:
-      const st1 = Math.floor(chatI.st / 10)
-      chatI.st = (st1 * 10) + 2 
-      chatI.vcv = 0
-      chatI.cva = null
-      this.setRes('disp', true)
-      rowChatI = this.update(chatI.toRow())
-      this.setRes('rowChat', rowChatI)
-      return
-    }
-
-    // cas normal : maj sur chatI et chatE
-    const avatarE = compile(await this.getAvatarVCV(args.idE, chatI.vcv))
-    const avatarI = compile(await this.getAvatarVCV(args.idI, rowChatE.vcv))
-    const dh = Date.now()
-    const itemI = args.txt1 ? { a: 0, dh, txt: args.txt1, l: args.lgtxt1 } : null
-    const itemE = args.txt1 ? { a: 1, dh, txt: args.txt1, l: args.lgtxt1 } : null
-    const chatE = compile (rowChatE)
-    const versionE = compile(await this.getRowVersion(args.idE, 'MajChat-7', true))
-    versionE.v++
-    this.update(versionE.toRow())
-    chatE.v = versionE.v
-
-    const itemsI = chatI.items
-    if (args.txt1) {
-      chatI.items = this.addChatItem(itemsI, itemI)
-    } else if (args.dh) {
-      chatI.items = this.razChatItem(itemsI, args.dh)
-    }
-    if (avatarE) {
-      chatI.vcv = avatarE.vcv
-      chatI.cva = avatarE.cva
-    }
-    const st1 = Math.floor(chatI.st / 10)
-    if (st1 === 0) { // était passif, redevient actif
-      chatI.st = 10 + (chatI.st % 10)
-      await this.getCompta()
-      this.compta.qv.nc += 1
-      const c = new Compteurs(this.compta.compteurs, this.compta.qv)
-      this.compta.compteurs = c.serial
-      this.updCompta = true
-    }
-    rowChatI = this.update(chatI.toRow())
-    this.setRes('rowChat', rowChatI)
- 
-    const itemsE = chatE.items
-    if (args.txt1) {
-      chatE.items = this.addChatItem(itemsE, itemE)
-    } else if (args.dh) {
-      chatE.items = this.razChatItem(itemsE, args.dh)
-    }
-    const stE1 = Math.floor(chatE.st / 10)
-    chatE.st = (stE1 * 10) + 1
-    if (avatarI) {
-      chatE.vcv = avatarI.vcv
-      chatE.cva = avatarI.cva
-    }
-    this.update(chatE.toRow())
-  }
-}
-
-/* `PassifChat` : rend le chat passif, nombre de chat - 1, items vidé
-POST:
-- `token` : éléments d'authentification du compte.
-- `idI idsI` : id du chat
-- idE idsE
-
-Retour
-- disp: true si E a disparu
-Assertions sur le row `Chats` et la `Versions` de l'avatar id.
-*/
-operations.PassifChat = class PassifChat extends Operation {
-  constructor () { super('PassifChat') }
-
-  async dimNbChat () {
-    const compta = compile(await this.getRowCompta(this.session.id, 'majNbChat-1'))
-    compta.v++
-    compta.qv.nc -= 1
-    const c = new Compteurs(compta.compteurs, compta.qv)
-    compta.compteurs = c.serial
-    this.update(compta.toRow())
-  }
-
-  async phase2 (args) { 
-    const version = compile(await this.getRowVersion(args.idI, 'PassifChat-1', true))
-    const chat = compile(await this.getRowChat(args.idI, args.idsI, 'PassifChat-2'))
-    version.v++
-    chat.v = version.v
-    const rowChatE = await this.getRowChat(args.idE, args.idsE)
-    let stI = Math.floor(chat.st / 10)
-    let stE = chat.st % 10
-    if (!rowChatE) {
-      // E disparu. Maj interdite:
-      stE = 2
-      chat.vcv = 0
-      chat.cva = null
-      this.setRes('disp', true)
-    }
-
-    if (stI === 1) {
-      // était actif, devient passif
-      stI = 0
-      chat.items = []
-      await this.dimNbChat()
-      if (rowChatE) {
-        // l'autre nétait pas disparu, MAJ de son st
-        const versionE = compile(await this.getRowVersion(args.idE, 'PassifChat-1', true))
-        versionE.v++
-        const chatE = compile(rowChatE)
-        chatE.v = versionE.v
-        const stE1 = Math.floor(chatE.st / 10)
-        chatE.st = stE1 * 10
-        this.update(chatE.toRow())
-        this.update(versionE.toRow())      
-      }
-    }
-    chat.st = (stI * 10) + stE
-    this.update(chat.toRow())
-    this.update(version.toRow())  
-
   }
 }
 
