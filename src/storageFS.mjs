@@ -16,10 +16,15 @@ export class FsProvider {
   }
 
   async ping () {
-    const data = Buffer.from(new Date().toISOString())
-    const p = path.resolve(this.rootpath, 'ping.txt')
-    await writeFile(p, Buffer.from(data))
-    return true
+    try {
+      const txt = new Date().toISOString()
+      const data = Buffer.from()
+      const p = path.resolve(this.rootpath, 'ping.txt')
+      await writeFile(p, Buffer.from(data))
+      return 'File_system ping.txt OK: ' + txt
+    } catch (e) {
+      return 'File_system ping.txt KO: ' + e.toString
+    }
   }
 
   getUrl (org, id, idf) { return this.storageUrlGenerique(org, id, idf) }

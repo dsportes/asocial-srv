@@ -2,7 +2,7 @@ import { Firestore } from '@google-cloud/firestore'
 
 import { decode, encode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
-import { firebase_config, app_keys } from './keys.mjs'
+import { firebase_config, app_keys, service_account } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 import { d14, ID, d10 } from './api.mjs'
 
@@ -10,10 +10,14 @@ export class FirestoreProvider {
   constructor (site, code) {
     this.code = code
     this.site = site
-    this.appKey = Buffer.from(app_keys.sites(site), 'base64')
+    this.appKey = Buffer.from(app_keys.sites[site], 'base64')
     this.emulator = config.FIRESTORE_EMULATOR_HOST
     this.fscredentials = firebase_config
-    this.fs = new Firestore()
+    this.fs = new Firestore({ 
+      projectId : config.run.projectId,
+      credentials: service_account 
+    })
+    config.logger.info('Firestore init')
   }
 
   get type () { return 'firestore' }
@@ -30,9 +34,9 @@ export class FirestoreProvider {
       const v = d.getTime()
       const _data_ = d.toISOString()
       await dr.set({ id: 1, v, _data_ })
-      return 'OK: ' + (t || '?') + ' <=> ' + _data_
+      return 'Firestore ping OK: ' + (t || '?') + ' <=> ' + _data_
     } catch (e) {
-      return 'KO: ' + e.toString()
+      return 'Firestore ping KO: ' + e.toString()
     }
   }
 
@@ -42,6 +46,7 @@ export class FirestoreProvider {
 
   setSyncData(op) {
     op.setRes('emulator', config.FIRESTORE_EMULATOR_HOST || null)
+    op.setRes('credentials', firebase_config)
   }
 
   async doTransaction (op) {

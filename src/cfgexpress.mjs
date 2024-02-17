@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import express from 'express'
 import path from 'path'
 import { encode, decode } from '@msgpack/msgpack'
@@ -112,10 +113,7 @@ export function appExpress(db, storage) {
   return app
 }
 
-//************************************************************* 
-// vérification que l'origine appartient à la liste des origines autorisées (q'il y en a une)
-// localhost passe toujours
-
+/************************************************************* 
 function checkOrigin(req) {
   const o = config.run.origins
   let origin = req.headers['origin']
@@ -132,6 +130,7 @@ function checkOrigin(req) {
   config.logger.error('Origine refusée : ' + origin)
   throw new AppExc(E_SRV, 1, [origin])
 }
+*/
 
 /************************************************************* 
  * Traitement générique d'une opération
@@ -149,18 +148,19 @@ async function operation(req, res, db, storage) {
       return
     }
 
-    // vérification de l'origine de la requête
-    checkOrigin(req)
+    // checkOrigin(req)
 
     if (opName === 'yoyo'){
       setRes(res, 200, 'text/plain').send('yoyo ' + new Date(dh).toISOString())
       return
     }
 
-    // vérification de la version de l'API
-    const apiv = req.headers['x-api-version']
-    if (!apiv || apiv !== version) throw new AppExc(E_SRV, 5, [version, apiv || '???'])
-    
+    if (!isGet) {
+      // vérification de la version de l'API
+      const apiv = req.headers['x-api-version']
+      if (!apiv || apiv !== version) throw new AppExc(E_SRV, 5, [version, apiv || '???'])
+    }
+  
     // récupétration de la fonction de ce module traitant l'opération
     const opClass = operations[opName]
     if (!opClass) throw new AppExc(E_SRV, 3, [opName || '???'])
@@ -182,15 +182,7 @@ async function operation(req, res, db, storage) {
     //   403 : E_SRV - inattendue NON trappée par l'opération (trappée ici)
     // *****************************************************************
     //  const args = isGet ? req.query : decode(req.body)
-    let args, apitk
-    if (isGet) {
-      args = req.query
-    } else {
-      const x = decode(req.body)
-      args = x[0]
-      apitk = x[1]
-      if (apitk !== app_keys.apitk) throw new AppExc(E_SRV, 7, [apitk || '???'])
-    }
+    const args = isGet ? req.query : decode(req.body)
     if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString())
     const op = new opClass(opName)
     op.isGet = isGet
@@ -205,9 +197,12 @@ async function operation(req, res, db, storage) {
     const result = await op.run(args)
 
     if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString() + ' 200')
-    if (isGet)
-      setRes(res, 200, result.type || 'application/octet-stream').send(Buffer.from(result.bytes))
-    else {
+    if (op.isGet) {
+      if (!result.type)
+        setRes(res, 200, 'application/octet-stream').send(Buffer.from(result.bytes))
+      else
+        setRes(res, 200, result.type).send(Buffer.from(result.bytes))
+    } else {
       setRes(res, 200).send(Buffer.from(encode(result)))
     }         
   } catch(e) {

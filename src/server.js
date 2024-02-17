@@ -42,7 +42,10 @@ try {
     config.logger.error('DB provider non trouvé:' + config.run.db_provider)
     exit(1)
   }
-  await db.ping()
+  if (config.mondebug) {
+    const m = await db.ping()
+    config.logger.info(m)
+  }
 
   config.logger.info('Storage= [' + config.run.storage_provider + ']')
   storage = getStorageProvider(config.run.storage_provider)
@@ -50,7 +53,10 @@ try {
     config.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
     exit(1)
   }
-  await storage.ping()
+  if (config.mondebug) {
+    const m = await storage.ping()
+    config.logger.info(m)
+  }
 
   for (const nf of keys) {
     const p = path.resolve(config.pathkeys + '/' + nf)

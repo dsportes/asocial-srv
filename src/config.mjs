@@ -1,9 +1,10 @@
 import { env } from 'process'
+// eslint-disable-next-line no-unused-vars
 import { app_keys, service_account } from './keys.mjs'
 import { Tarif } from './api.mjs'
 
 export const config = {
-  mondebug: (env.NODE_ENV === 'mondebug'),
+  mondebug: true, // (env.NODE_ENV === 'mondebug'),
 
   // Paramètres fonctionnels
   tarifs: [
@@ -12,12 +13,12 @@ export const config = {
     { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
   ],
 
-  // paramètres ayant à se retrouver en varaibles d'environnement
+  // paramètres ayant à se retrouver en variables d'environnement
   env: {
-    GOOGLE_CLOUD_PROJECT: 'asocial-test1',
-    GOOGLE_APPLICATION_CREDENTIALS: service_account,
-    STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-    FIRESTORE_EMULATOR_HOST: 'localhost:8080'
+    // GOOGLE_CLOUD_PROJECT: 'asocial-test1', // NORMALEMENT on n'utilise pas env
+    // GOOGLE_APPLICATION_CREDENTIALS: './keys/service_account.json', // NORMALEMENT on n'utilise pas un json et env
+    // STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
+    // FIRESTORE_EMULATOR_HOST: 'localhost:8080'
   },
 
   // Configuation nommées des providers db et storage
@@ -42,6 +43,8 @@ export const config = {
     nom: 'test Sqlite',
     croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
   
+    projectId: 'asocial-test1',
+
     site: 'A',
     /* URL externe d'appel du serveur - // rooturl: 'asocial-test1.ew.r.appspot.com'
     Ne sert qu'à un provider de storage q peut utiliser le serveur pour 
@@ -55,9 +58,11 @@ export const config = {
     // Origines autorisées
     origins: new Set(['localhost:8343']),
     // Provider DB
-    storage_provider: 'fs_a',
+    // storage_provider: 'fs_a',
+    storage_provider: 'gc_a',
     // Provider Storage
-    db_provider: 'sqlite_a',
+    // db_provider: 'sqlite_a',
+    db_provider: 'firestore_a',
     // Running dans GAE
     gae: !(!env['GAE_DEPLOYMENT_ID'])
   }

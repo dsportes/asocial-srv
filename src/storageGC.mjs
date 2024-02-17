@@ -21,9 +21,9 @@ export class GcProvider {
     // For more information on ways to initialize Storage, please see
     // https://googleapis.dev/nodejs/storage/latest/Storage.html
 
-    const opt = { projectId: config.projectId, credentials: service_account }
+    const opt = { projectId: config.run.projectId, credentials: service_account }
     this.bucket = new Storage(opt).bucket(cfg.bucket)
-    // this.bucket = new Storage().bucket(cfg.bucket)
+    // this.bucket = new Storage().bucket(cfg.bucket) // Par env
 
     if (!this.emulator) this.bucket.setCorsConfiguration([cors])
   }
@@ -33,9 +33,14 @@ export class GcProvider {
   }
 
   async ping () {
-    const fileName = 'ping.txt'
-    await this.bucket.file(fileName).save(Buffer.from(new Date().toISOString()))
-    return true
+    try {
+      const txt = new Date().toISOString()
+      const fileName = 'ping.txt'
+      await this.bucket.file(fileName).save(Buffer.from(txt))
+      return 'Google filestore ping.txt OK: ' + txt
+    } catch (e) {
+      return 'Google filestore ping.txt KO: ' + e.toString
+    }
   }
 
   async getUrl (org, id, idf) {

@@ -45,14 +45,15 @@ operations.ErreurFonc = class ErreurFonc extends Operation {
 }
 
 /** Test d'accès à la base ***************************************
-Lecture de l'avatar du comptable
-Retour: aucun
+GET
+Retourne les date-heures de derniers ping (le précédent et celui posé)
 */
 operations.PingDB = class PingDB extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2() {
-    this.setRes(await this.db.ping())
+    this.result.type = 'text/plain'
+    this.result.bytes = await this.db.ping()
   }
 }
 

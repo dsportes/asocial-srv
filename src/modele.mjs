@@ -230,15 +230,22 @@ export class Operation {
   */
   
   async auth() {
-    if (this.db.hasWS) {
+    if (this.authMode === 0) return
+
+    const t = this.args.token
+    if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
+    let authData = null
+    try { 
+      authData = decode(b64ToU8(t)) 
+    } catch (e) { throw assertKO('Operation-2', 100, [e.message])}
+
+    if (!this.isGet && this.db.hasWS) {
       /* Récupérer la session WS afin de pouvoir lui transmettre
       les évolutions d'abonnements */
-      this.sync = SyncSession.get(this.authData.sessionId)
+      this.sync = SyncSession.get(authData.sessionId)
       if (!this.sync) throw new AppExc(E_SRV, 4)
       this.sync.pingrecu()
     }
-
-    if (this.authMode === 0) return
 
     let admin = false
     if (this.authData.shax) { // admin
@@ -283,7 +290,13 @@ export class Operation {
   }
   
   async transac () {
-    await this.auth() // this.compta est accessible
+    await this.auth() // this.compta est accessible (si authentifié)
+
+    if (this.sync && this.args.abPlus && this.args.abPlus.length) {
+      this.args.abPlus.forEach(id => { this.sync.plus(id) })
+      this.args.abPlus.length = 0
+    }
+
     if (this.phase2) await this.phase2(this.args)
     if (!this.result.KO) {
       this.result.nl = this.nl
@@ -312,11 +325,6 @@ export class Operation {
       sessionId: this.authData ? (this.authData.sessionId || '666') : '888' 
     }
     this.toInsert = []; this.toUpdate = []; this.toDelete = []
-
-    if (this.sync && args.abPlus && args.abPlus.length) {
-      args.abPlus.forEach(id => { this.sync.plus(id) })
-      args.abPlus.length = 0
-    }
 
     if (this.phase2) await this.db.doTransaction(this)
 
