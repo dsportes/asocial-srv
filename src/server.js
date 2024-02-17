@@ -10,7 +10,7 @@ import schedule from 'node-schedule'
 
 import { setLogger } from './logger.mjs'
 import { SyncSession, startWs } from './ws.mjs'
-import { getHP, getDBProvider, getStorageProvider } from './util.mjs'
+import { getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress, operations } from './cfgexpress.mjs'
 
 import{ load } from './operations.mjs'
@@ -29,34 +29,20 @@ try {
   const port = env.PORT || config.run.port
   config.logger.info('PORT= [' + port + ']')
 
+  /*
   if (config.run.rooturl) {
     const [hn, po] = getHP(config.run.rooturl)
     const pox = config.run.gae || po === 0 ? config.port : po
     config.run.origins.add(hn + ':' + pox)
     config.run.origins.add(hn)
   }
+  */
 
-  config.logger.info('DB= [' + config.run.db_provider + ']')
   db = getDBProvider(config.run.db_provider, config.run.site)
-  if (!db) {
-    config.logger.error('DB provider non trouvé:' + config.run.db_provider)
-    exit(1)
-  }
-  if (config.mondebug) {
-    const m = await db.ping()
-    config.logger.info(m)
-  }
-
-  config.logger.info('Storage= [' + config.run.storage_provider + ']')
+  if (!db) exit(1)
+  
   storage = getStorageProvider(config.run.storage_provider)
-  if (!storage) {
-    config.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
-    exit(1)
-  }
-  if (config.mondebug) {
-    const m = await storage.ping()
-    config.logger.info(m)
-  }
+  if (!storage) exit(1)
 
   for (const nf of keys) {
     const p = path.resolve(config.pathkeys + '/' + nf)

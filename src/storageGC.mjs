@@ -37,9 +37,9 @@ export class GcProvider {
       const txt = new Date().toISOString()
       const fileName = 'ping.txt'
       await this.bucket.file(fileName).save(Buffer.from(txt))
-      return 'Google filestore ping.txt OK: ' + txt
+      return 'Google storage ping.txt OK: ' + txt
     } catch (e) {
-      return 'Google filestore ping.txt KO: ' + e.toString
+      return 'Google storage ping.txt KO: ' + e.toString
     }
   }
 

@@ -40,7 +40,7 @@ export const config = {
   pathkeys: './keys',
 
   run: { // Configuration du "serveur"
-    nom: 'test Sqlite',
+    nom: 'test asocial-fs/gc',
     croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
   
     projectId: 'asocial-test1',

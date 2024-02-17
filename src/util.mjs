@@ -4,26 +4,48 @@ import { deflateSync, inflateSync } from 'zlib'
 
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { AppExc, E_SRV } from './api.mjs'
-import { appKeyBin } from './config.mjs'
+import { appKeyBin, config } from './config.mjs'
 import { FsProvider } from './storageFS.mjs'
 import { GcProvider } from './storageGC.mjs'
 import { S3Provider } from './storageS3.mjs'
 import { SqliteProvider } from './dbSqlite.mjs'
 import { FirestoreProvider } from './dbFirestore.mjs'
 
-export function getStorageProvider (codeProvider) {
+export async function getStorageProvider (codeProvider) {
+  config.logger.info('Storage= [' + config.run.storage_provider + ']')
+  let storage
   switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
-  case 'fs' : { return new FsProvider(codeProvider) }
-  case 's3' : { return new S3Provider(codeProvider) }
-  case 'gc' : { return new GcProvider(codeProvider) }
+  case 'fs' : { storage = new FsProvider(codeProvider); break }
+  case 's3' : { storage = new S3Provider(codeProvider); break }
+  case 'gc' : { storage = new GcProvider(codeProvider); break }
   }
+  if (!storage) {
+    config.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
+    return false
+  }
+  if (config.mondebug) {
+    const m = await storage.ping()
+    config.logger.info(m)
+  }
+  return storage
 }
 
-export function getDBProvider (codeProvider, site) {
+export async function getDBProvider (codeProvider, site) {
+  config.logger.info('DB= [' + config.run.db_provider + ']')
+  let db
   switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
-  case 'sqlite' : { return new SqliteProvider(site, codeProvider) }
-  case 'firestore' : { return new FirestoreProvider(site, codeProvider) }
+  case 'sqlite' : { db = new SqliteProvider(site, codeProvider); break }
+  case 'firestore' : { db = new FirestoreProvider(site, codeProvider); break }
   }
+  if (!db) {
+    config.logger.error('DB provider non trouvé:' + config.run.db_provider)
+    return false
+  }
+  if (config.mondebug) {
+    const m = await db.ping()
+    config.logger.info(m)
+  }
+  return db
 }
 
 /* Retourne le couple [hostname, port] d'une URL */

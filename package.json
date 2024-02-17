@@ -2,10 +2,13 @@
   "name": "asocial-srv",
   "version": "1.0.0",
   "description": "",
-  "main": "src/server.js",
+  "mainX": "src/server.js",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
+    "startX": "node src/server.js",
+    "debug": "node --inspect node_modules/.bin/functions-framework --port=8443 --target=asocialGCF",
+    "start": "functions-framework --port=8443 --target=asocialGCF --signature-type=http",
     "build": "webpack"
   },
   "author": "Daniel Sportes",
@@ -30,6 +33,7 @@
   },
   "packageManager": "yarn@3.6.2",
   "devDependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
     "eslint": "^8.2.0",
     "webpack": "^5.88.2",
     "webpack-cli": "^5.1.4"

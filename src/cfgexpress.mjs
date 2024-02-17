@@ -96,14 +96,16 @@ export function appExpress(db, storage) {
 
   //**** appels des opérations ****
   app.use(config.prefixop + '/:operation', async (req, res) => {
-    // push the data to body
-    const body = [];
-    req.on('data', (chunk) => {
-      body.push(Buffer.from(chunk))
-    }).on('end', async () => {
-      req.body = Buffer.concat(body)
+    if (!req.rawBody) {
+      const body = [];
+      req.on('data', (chunk) => {
+        body.push(Buffer.from(chunk))
+      }).on('end', async () => {
+        req.rawBody = Buffer.concat(body)
+        await operation(req, res, db, storage)
+      })
+    } else
       await operation(req, res, db, storage)
-    })
   })
 
   if (config.prefixapp) app.get('/', function (req, res) {
@@ -182,7 +184,12 @@ async function operation(req, res, db, storage) {
     //   403 : E_SRV - inattendue NON trappée par l'opération (trappée ici)
     // *****************************************************************
     //  const args = isGet ? req.query : decode(req.body)
-    const args = isGet ? req.query : decode(req.body)
+    let args
+    if (isGet)
+      args = req.query
+    else {
+      args = decode(req.rawBody)
+    }
     if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString())
     const op = new opClass(opName)
     op.isGet = isGet
