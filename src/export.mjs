@@ -31,15 +31,6 @@ const cmdargs = parseArgs({
   }
 })
 
-const [n, msg] = await new Outils().run()
-if (!n) {
-  config.logger.info(msg)
-  exit(0)
-} else {
-  config.logger.error(msg)
-  exit(n)
-}
-
 /***************************************************************** */
 
 function prompt (q) {
@@ -133,34 +124,34 @@ export class Outils {
       this.cfg = {}
       switch (this.outil) {
       case 'export-db' : {
-        this.setCfgDb('in')
-        this.setCfgDb('out')
+        await this.setCfgDb('in')
+        await this.setCfgDb('out')
         await this.exportDb()
         break
       }
       case 'export-st' : {
-        this.setCfgSt('in')
-        this.setCfgSt('out')
+        await this.setCfgSt('in')
+        await this.setCfgSt('out')
         await this.exportSt()
         break
       }
       case 'test-db' : {
-        this.setCfgDb('in')
+        await this.setCfgDb('in')
         await this.testDb()
         break
       }
       case 'test-st' : {
-        this.setCfgSt('in')
+        await this.setCfgSt('in')
         await this.testSt()
         break
       }
       case 'purge-db' : {
-        this.setCfgDb('in')
+        await this.setCfgDb('in')
         await this.purgeDb()
         break
       }
       case 'purge-st' : {
-        this.setCfgSt('in')
+        await this.setCfgSt('in')
         await this.purgeSt()
         break
       }
@@ -179,7 +170,7 @@ export class Outils {
 
   log (l) { stdout.write(l + '\n') }
 
-  setCfgDb (io) {
+  async setCfgDb (io) {
     const e = {}
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
@@ -197,19 +188,19 @@ export class Outils {
       throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
 
     e.site = x[3]
-    e.appKey = app_keys.site[e.site]
+    e.appKey = app_keys.sites[e.site]
     if (!e.appKey)
       throw 'Argument --' + io + ' : Attendu: ns,org,provider,site . site [' + e.site + '] inconnu'
 
     e.pname = x[2]
-    e.prov = getDBProvider(e.pname, e.site)
+    e.prov = await getDBProvider(e.pname, e.site)
     if (!e.prov)
       throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : provider [' + e.pname + ']: non trouvé'
 
     this.cfg[io] = e
   }
 
-  setCfgSt (io) {
+  async setCfgSt (io) {
     const e = {}
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
@@ -220,7 +211,7 @@ export class Outils {
     if (!e.org || e.org.length < 4 || e.org.length > 12)
       throw 'Argument --' + io + ' : Attendu: org,provider : org [' + e.org + ']: est un code de 4 à 12 caractères'
     e.pname = x[1]
-    e.prov = getStorageProvider(x[1])
+    e.prov = await getStorageProvider(x[1])
     if (!e.prov)
       throw 'Argument --' + io + ' : Attendu: org,provider : provider [' + x[1] + ']: non trouvé'
     this.cfg[io] = e
@@ -390,3 +381,14 @@ export class Outils {
   }
 
 }
+
+/*****************************************************/
+const [n, msg] = await new Outils().run()
+if (!n) {
+  config.logger.info(msg)
+  exit(0)
+} else {
+  config.logger.error(msg)
+  exit(n)
+}
+

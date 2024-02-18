@@ -15,10 +15,13 @@ export const config = {
 
   // paramètres ayant à se retrouver en variables d'environnement
   env: {
-    // GOOGLE_CLOUD_PROJECT: 'asocial-test1', // NORMALEMENT on n'utilise pas env
+    // NORMALEMENT on n'utilise pas env pour ça:
+    // GOOGLE_CLOUD_PROJECT: 'asocial-test1',
     // GOOGLE_APPLICATION_CREDENTIALS: './keys/service_account.json', // NORMALEMENT on n'utilise pas un json et env
+
+    // EMULATOR
     // STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-    // FIRESTORE_EMULATOR_HOST: 'localhost:8080'
+    FIRESTORE_EMULATOR_HOST: 'localhost:8080'
   },
 
   // Configuation nommées des providers db et storage
@@ -41,30 +44,35 @@ export const config = {
 
   run: { // Configuration du "serveur"
     nom: 'test asocial-fs/gc',
-    croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
-  
-    projectId: 'asocial-test1',
 
-    site: 'A',
-    /* URL externe d'appel du serveur - // rooturl: 'asocial-test1.ew.r.appspot.com'
-    Ne sert qu'à un provider de storage q peut utiliser le serveur pour 
-    délivrer une URL get / put file.
-    - storageFS
-    - storageGC en mode emulator
-    */
-    rooturl: 'https://test.sportes.fr:8443',
-    // Port d'écoute si NON gae
-    port: 8443,
-    // Origines autorisées
-    origins: new Set(['localhost:8343']),
     // Provider DB
     // storage_provider: 'fs_a',
     storage_provider: 'gc_a',
     // Provider Storage
     // db_provider: 'sqlite_a',
+
     db_provider: 'firestore_a',
+
     // Running dans GAE
-    gae: !(!env['GAE_DEPLOYMENT_ID'])
+    gae: !(!env['GAE_DEPLOYMENT_ID']),
+  
+    projectId: 'asocial-test1', // Si utilisation d'un provider Google
+
+    site: 'A',
+
+    /* ZONE réservée à un serveur NON GAE **************************/
+
+    croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
+
+    /* URL externe d'appel du serveur
+    Ne sert qu'à un provider de storage qui doit utiliser le serveur pour 
+    délivrer une URL get / put file.
+    - storageFS / storageGC en mode emulator
+    */
+    rooturl: 'https://test.sportes.fr:8443',
+
+    // Port d'écoute
+    port: 8443
   }
 
 }

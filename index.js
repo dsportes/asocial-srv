@@ -11,10 +11,10 @@ import{ load2 } from './src/operations2.mjs'
 load()
 load2()
 
-const db = getDBProvider(config.run.db_provider, config.run.site)
+const db = await getDBProvider(config.run.db_provider, config.run.site)
 if (!db) exit(1)
 
-const storage = getStorageProvider(config.run.storage_provider)
+const storage = await getStorageProvider(config.run.storage_provider)
 if (!storage) exit(1)
 
 export const asocialGCF = appExpress(db, storage)

@@ -11,7 +11,7 @@ export class FirestoreProvider {
     this.code = code
     this.site = site
     this.appKey = Buffer.from(app_keys.sites[site], 'base64')
-    this.emulator = config.FIRESTORE_EMULATOR_HOST
+    this.emulator = config.env.FIRESTORE_EMULATOR_HOST
     this.fscredentials = firebase_config
     this.fs = new Firestore({ 
       projectId : config.run.projectId,

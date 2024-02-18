@@ -14,7 +14,7 @@ const cors = {
 export class GcProvider {
   constructor (codeProvider) {
     const cfg = config[codeProvider]
-    this.emulator = config.STORAGE_EMULATOR_HOST
+    this.emulator = config.env.STORAGE_EMULATOR_HOST
 
     // Imports the Google Cloud client library
     // const {Storage} = require('@google-cloud/storage')
