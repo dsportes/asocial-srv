@@ -80,13 +80,20 @@ class Cache {
   certes la transaction peut échouer, mais au pire on a lu une version,
   pas forcément la dernière, mais plus récente.
   */
-  static async getRow (op, nom, id) {
+  static async getRow (op, nom, id, lazy) {
     if (this.map.size > Cache.MAX_CACHE_SIZE) Cache._purge()
+    const now = Date.now()
     const k = nom + '/' + id
     const x = Cache.map.get(k)
-    if (x) { // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
+    if (x) {
+      /* En mode "lazy" si le row (espaces / partitions) est récent (moins de 5 minutes)
+      on ne revérifie pas que c'est la dernière version.
+      Les notifications peuvent donc mettre 5 minutes à être effectives
+      */
+      if (lazy && ((now - x.lru) > PINGTO * 60000)) return x.row
+      // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
       const n = await op.db.getV(op, nom, id, x.row.v)
-      x.lru = Date.now()
+      x.lru = now
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
         Cache.setNsOrg(x.row.id, x.row.org)
@@ -94,7 +101,7 @@ class Cache {
     }
     const n = await op.db.getV(op, nom, id, 0)
     if (n) { // dernière version si elle existe
-      const y = { lru: Date.now(), row: n }
+      const y = { lru: now, row: n }
       this.map.set(k, y)
     }
     if (n && n._nom === 'espaces' && !Cache.orgs.has(n.id))
@@ -104,36 +111,10 @@ class Cache {
 
   static opFake = { fake: true, nl: 0, ne: 0 }
 
-  /* Retourne l'espace depuis celui détenu en cache
-  C'est seulement s'il a plus de PINGTO minutes d'âge qu'on vérifie sa version
-  et qu'on la recharge le cas échéant.
-  PAR PRINCIPE, elle est retardée: convient pour checker une restriction éventuelle
-  */
-  static async getEspaceLazy (op, ns) {
-    const now = Date.now()
-    const k = 'espaces/' + ns
-    let x = Cache.map.get(k)
-    if (x) {
-      if ((now - x.lru) > PINGTO * 60000) {
-        // Le row connu a plus de 5 minutes - if faut revérifier la version
-        const e = await op.db.getV(Cache.opFake, 'espaces', ns, x.row.v)
-        if (e) x.row = e
-        x.lru = now
-        if (!Cache.orgs.has(x.row.id)) Cache.setNsOrg(x.row.id, x.row.org)
-      }
-    } else {
-      const e = await op.db.getV(Cache.opFake, 'espaces', ns, 0)
-      if (!e) return null
-      x = { lru: Date.now(), row: e }
-      Cache.map.set(k, x)
-    }
-    if (!Cache.orgs.has(x.row.id)) Cache.setNsOrg(x.row.id, x.row.org)
-    return compile(x.row)
-  }
-
-  static async getEspaceOrg (op, org) {
+  /* Retourne l'objet `espaces` depuis son code org */
+  static async getEspaceOrg (op, org, lazy) {
     let ns = Cache.orgs2.get(org)
-    if (ns) return await Cache.getEspaceLazy(op, ns)
+    if (ns) return compile(await Cache.getRow(op, 'espaces', ns, lazy))
     const row = await op.db.getEspaceOrg(op, org)
     if (!row) return null
     ns = row.id
@@ -142,6 +123,15 @@ class Cache {
     return compile(row)
   }
 
+  /* Retourne le code de l'organisation pour un id/ns donné.*/
+  static async org (op, idns) { 
+    const ns = ID.ns(idns)
+    const org = Cache.orgs.get(ns)
+    if (org) return org
+    const row = await Cache.getRow(op, 'espaces', ns, true)
+    return row ? row.org : null
+  }
+  
   /*
   Enrichissement de la cache APRES le commit de la transaction avec
   tous les rows créés, mis à jour ou accédés (en ayant obtenu la "dernière")
@@ -174,18 +164,6 @@ class Cache {
     }
   }
 
-  /* Retourne le code de l'organisation pour un ns donné.*/
-  static async org (op, id) { 
-    const ns = id < 100 ? id : ID.ns(id)
-    const org = Cache.orgs.get(ns)
-    if (org) return org
-    const row = await op.db.org(op, ns)
-    if (row) {
-      Cache.update([row], [])
-      return row.org
-    }
-    return null
-  }
 }
 
 /** Operation *****************************************************
@@ -215,6 +193,7 @@ export class Operation {
     this.nomop = nomop
     this.authMode = authMode
     this.excFige = excFige || 1
+    this.notifs = { }
   }
 
   /* Authentification *************************************************************
@@ -223,7 +202,6 @@ export class Operation {
     1 : le compte doit être authentifié
     2 : et ça doit être le comptable
     3 : administrateur technique requis
-    4 : CAS PARTICULIER de la connexion - accepte les deux, 3 ou 1
   excFige: (toujours 0 si authMode 3)
     1 : pas d'exception si figé. Lecture seulement ou estFige testé dans l'opération
     2 : exception si figé
@@ -231,6 +209,8 @@ export class Operation {
   
   async auth() {
     if (this.authMode === 0) return
+    if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
+    const estSync = this.nom === 'Sync'
 
     const t = this.args.token
     if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
@@ -238,6 +218,17 @@ export class Operation {
     try { 
       authData = decode(b64ToU8(t)) 
     } catch (e) { throw assertKO('Operation-2', 100, [e.message])}
+
+    if (this.authMode === 3) { // admin requis
+      try {
+        if (this.authData.shax) { 
+          const shax64 = Buffer.from(this.authData.shax).toString('base64')
+          if (config.app_keys.admin.indexOf(shax64) !== -1) return
+        }
+      } catch (e) { /* */ }
+      await sleep(3000)
+      throw new AppExc(F_SRV, 101) // pas reconnu
+    }
 
     if (!this.isGet && this.db.hasWS) {
       /* Récupérer la session WS afin de pouvoir lui transmettre
@@ -247,46 +238,54 @@ export class Operation {
       this.sync.pingrecu()
     }
 
-    let admin = false
-    if (this.authData.shax) { // admin
-      const shax64 = Buffer.from(this.authData.shax).toString('base64')
-      if (config.app_keys.admin.indexOf(shax64) !== -1) admin = true
+    /* Espace: pour l'opération Sync, l'espace ne doit pas être acquis "lazy"
+    Rejet de l'opération si l'espace est "clos"
+    */
+    this.espace = await Cache.getEspaceOrg(this, this.authData.org, !estSync)
+    if (!this.espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+    this.ns = this.espace.id
+    if (this.espace.notifG) {
+      // Espace bloqué
+      if (this.espace.notifG.nr === 2) throw AppExc.notifG(this.espace.notifG)
+      if (this.espace.notifG.nr === 1 && this.excFige) throw new AppExc(F_SRV, 105)
+      this.notifs.G = this.espace.notifG
+      this.estFige = this.notifs.G.nr === 1
     }
+    
+    /* Compte */
+    const hXR = (this.espace.id * d14) + this.authData.hXR
+    const rowCompte = await this.db.getCompteHXR(this, hXR)
+    if (!rowCompte) { await sleep(3000); throw new AppExc(F_SRV, 103) }
+    this.compte = compile(rowCompte)
+    const x = (hash(this.authData.hXC) % d14)
+    if (this.compte.hXC !== x) throw new AppExc(F_SRV, 103)
+    this.id = this.compte.id
+    this.estA = this.compte.idp === 0
+    // Opération du seul Comptable
+    if (this.authMode === 2 && !ID.estComptable(this.id)) { await sleep(3000); throw new AppExc(F_SRV, 104) }
 
-    if (this.authMode === 3) {
-      if (admin) return
-      await sleep(3000)
-      throw new AppExc(F_SRV, 101) // pas reconnu
-    }
-
-    if (this.authMode === 4 && admin) return
-
-    const espace = await Cache.getEspaceOrg(this, this.authData.org)
-    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
-
-    const hps1 = (espace.id * d14) + this.authData.hps1
-    const rowCompta = await this.getComptaHps1(hps1)
-    if (!rowCompta) { await sleep(3000); throw new AppExc(F_SRV, 103) }
+    /* Compta : génère les notifications de quotas et de consommation excessive */
+    const rowCompta = await Cache.getRow(this, 'comptas', this.id)
+    if (!rowCompta) { throw assertKO('auth-compta', 3, [this.id]) }
     this.compta = compile(rowCompta)
-    const x = (hash(this.authData.pcb) % d14)
-    if (this.compta.hpsc !== x) throw new AppExc(F_SRV, 103)
-    this.id = this.compta.id
-    this.ns = ID.ns(this.id)
+    const { Q, X } = this.compta.notifs
+    if (Q) this.notifs.Q = Q
+    if (X) this.notifs.X = X
 
-    const esp = await Cache.getEspaceLazy(this, this.ns)
-    this.notifG = esp ? esp.notif : { nr: 2, texte: 'Organisation inconnue', dh: Date.now() }
-    if (this.notifG && this.notifG.nr === 2) throw AppExc.notifG(this.notifG)
-    if (this.notifG && this.notifG.nr === 1) this.estFige = true
-
-    if (this.excFige && this.estFige) throw new AppExc(F_SRV, 105)
-
-    if (this.authMode === 1 || this.authMode === 4) return
-
-    if (this.authMode === 2) {
-      if (!ID.estComptable(this.id)) { await sleep(3000); throw new AppExc(F_SRV, 104) }
-      return
+    /* Partition : si c'est un compte O. Pas lazy si c'est une Sync */
+    if (!this.estA) {
+      // obtient partition, notifP et notifC
+      const idp = ID.long(this.compte.idp, this.ns)
+      // C'est un compte O : obtention de son partitions. Pas lazy si c'est une Sync
+      const rowPartition = await Cache.getRow(this, 'partitions', idp, !estSync)
+      if (!rowPartition) throw assertKO('auth-partition-1', 2, [idp])
+      try {
+        this.partition = compile(rowPartition)
+        this.notifP = this.partition.notifG
+        this.notifC = this.partition.tcpt[this.compte.it].notif
+      } catch (e) { throw assertKO('auth-partition-2', 2, [idp]) }
     }
-    throw new AppExc(A_SRV, 19, [this.authMode]) 
+
   }
   
   async transac () {

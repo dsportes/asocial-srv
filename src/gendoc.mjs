@@ -2,6 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, d14, rowCryptes } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
+import { Compteurs } from './api.mjs'
 
 /* GenDoc **************************************************
 Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
@@ -198,7 +199,18 @@ export class Tribus extends GenDoc { constructor () { super('tribus') } }
 
 export class Syntheses extends GenDoc { constructor () { super('syntheses') } }
 
-export class Comptas extends GenDoc { constructor() { super('comptas') } }
+export class Comptas extends GenDoc { 
+  constructor() { super('comptas') } 
+
+  get cpts () { return new Compteurs(this.compteurs) }
+
+  get notifs () { 
+    const Q = this.cpts.notifQ 
+    const X = this.cpts.estA ? this.cpts.notifS(this.cpts.total) : this.cpts.notifX
+    return { Q, X }
+  }
+
+}
 
 export class Versions extends GenDoc { constructor() { super('versions') } }
 

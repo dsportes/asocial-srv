@@ -171,7 +171,7 @@ export class ID {
 
   static estAvatar (id) { return Math.floor(id / d13) % 10 < 3 }
 
-  static ns (id) { return Math.floor(id / d14)}
+  static ns (id) { return id < 100 ? id : Math.floor(id / d14)}
 }
 
 export const UNITEV1 = 250 // nombre de notes + chats + groupes
@@ -757,20 +757,19 @@ export class Compteurs {
     const pc2 = Math.round(this.v2 * 100 / UNITEV2 / this.qv.q2)
     const max = pc1 > pc2 ? pc1 : pc2
     const ntf = { dh: this.dh }
-    if (max >= 100) { ntf.nr = 5; ntf.texte = '%E' }
-    else if (max >= 90) { ntf.nr = 0; ntf.texte = '%F' }
-    return ntf
+    if (max >= 100) { ntf.nr = 2; ntf.texte = '%Q2' }
+    else if (max >= 90) { ntf.nr = 0; ntf.texte = '%Q0' }
+    return ntf.texte ? ntf : null
   }
   
   get notifX () { // consommation excessive
     const ntf = { dh: this.dh }
     if (this.qv.qc) {
       const { pcc } = this.pourcents
-      // if (pcc >= 100 + this.dec) { ntf.nr = 4; ntf.texte = '%A' }
-      if (pcc >= 100) { ntf.nr = 4; ntf.texte = '%A' }
-      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = '%B' }
+      if (pcc >= 100) { ntf.nr = 2; ntf.texte = '%X2' }
+      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = '%X0' }
     }
-    return ntf
+    return ntf.texte ? ntf : null
   }
 
   /* Nombre de jours avant que le solde devienne négatif
@@ -791,15 +790,15 @@ export class Compteurs {
     const ntf = { dh: Date.now() }
     // const solde = credits + this.dec - this.cumulCouts
     const solde = credits - this.cumulCouts
-    if (solde < 0) { ntf.nr = 4; ntf.texte = '%C' }
+    if (solde < 0) { ntf.nr = 2; ntf.texte = '%S2' }
     else {
       const nbj = this.nbj(credits)
       if (nbj < 60) {
         ntf.nr = 0
-        ntf.texte = '%D'
+        ntf.texte = '%S0'
       }
     }
-    return ntf
+    return ntf.texte ? ntf : null
   }
 
   /* Lors de la transition O <-> A : raz abonnement / consommation des mois antérieurs */
