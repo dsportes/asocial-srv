@@ -44,6 +44,7 @@ export const config = {
 
   run: { // Configuration du "serveur"
     nom: 'test asocial-fs/gc',
+    serveur: true,
 
     // Provider DB
     // storage_provider: 'fs_a',

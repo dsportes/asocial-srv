@@ -1,19 +1,25 @@
 /*
 Exemple export-db:
-node src/server.js export-db --in 32,doda,sqlite_a,A --out 24,coltes,sqlite_b,A
-node src/server.js export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
-node src/server.js export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
+node src/export.mjs export-db --in 32,doda,sqlite_a,A --out 24,coltes,sqlite_b,A
+node src/export.mjs export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
+node src/export.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
 
 Exemple export-st:
-node src/server.js export-db --in doda,fs_a --out doda,gc_a
+node src/export.mjs export-db --in doda,fs_a --out doda,gc_a
 
 Exemple purge-db
-node src/server.js purge-db --in 32,doda,firebase-a,A
+node src/export.mjs purge-db --in 32,doda,firebase-a,A
+
+Exemple de gen-mjs
+node src/export.mjs gen-mjs --in keys/favicon.ico --out src/favicon.mjs
 */
 import { exit } from 'process'
 import { parseArgs } from 'node:util'
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'readline'
+
+import path from 'path'
+import { existsSync, writeFileSync, readFileSync } from 'node:fs'
 
 import { getStorageProvider, getDBProvider } from './util.mjs'
 import { config } from './config.mjs'
@@ -123,6 +129,11 @@ export class Outils {
       this.simu = this.args.values.simulation
       this.cfg = {}
       switch (this.outil) {
+      case 'gen-mjs' : {
+        await this.setCfggm('in')
+        await this.genMjs()
+        break
+      }
       case 'export-db' : {
         await this.setCfgDb('in')
         await this.setCfgDb('out')
@@ -169,6 +180,15 @@ export class Outils {
   log2 (l) { stdout.write('\r' + l.padEnd(40, ' ')) }
 
   log (l) { stdout.write(l + '\n') }
+
+  async setCfggm () {
+    let arg = this.args.values['in']
+    if (!arg) throw 'Argument --in non trouvé. Path du fichier à transformer en module'
+    this.cfg.in = arg
+    arg = this.args.values['out']
+    if (!arg) throw 'Argument --out non trouvé. Path du module'
+    this.cfg.out = arg
+  }
 
   async setCfgDb (io) {
     const e = {}
@@ -377,6 +397,24 @@ export class Outils {
       this.log('\nPurge de ' + cin.org + ' terminée')
     } else {
       this.log('\nPurge de ' + cin.org + ' a priori possible')
+    }
+  }
+
+  async genMjs () {
+    const pin = path.resolve(this.cfg.in)
+    const pout = path.resolve(this.cfg.out)
+    if (existsSync(pin)) {
+      const msg = 'Conversion de "'+ pin + '" en "' + pout + '"'
+      const resp = await prompt(msg + '\nValider (o/N) ?')
+      if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
+      const bin = readFileSync(pin)
+      const t = bin.toString('base64')
+      const h = 'export default Buffer.from(\'' + t + '\', \'base64\')'
+      const bout = Buffer.from(h, 'utf-8')
+      writeFileSync(pout, bout)
+      this.log('OK')   
+    } else {
+      this.log('\nKO : fichier non trouvé')
     }
   }
 

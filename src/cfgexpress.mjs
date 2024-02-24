@@ -3,7 +3,7 @@ import express from 'express'
 import path from 'path'
 import { encode, decode } from '@msgpack/msgpack'
 
-import { app_keys } from './keys.mjs'
+import favicon from './favicon.mjs'
 import { config } from './config.mjs'
 import { decode3, getHP } from './util.mjs'
 import { version, AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
@@ -49,9 +49,9 @@ export function appExpress(db, storage) {
   })
 
   //**** Pour un "vrai" serveur favicon.ico et robots.txt du sites ****
-  if (config.run.favicon) {
+  if (config.run.serveur) {
     app.get('/favicon.ico', (req, res) => {
-      setRes(res, 200, 'image/x-icon').send(config.run.favicon)
+      setRes(res, 200, 'image/x-icon').send(favicon)
     })
     const rob = 'User-agent: *\nDisallow: /\n'
     app.get('/robots.txt', (req, res) => {
