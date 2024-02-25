@@ -1,5 +1,6 @@
 /* eslint-disable lines-between-class-members */
 import { encode, decode } from '@msgpack/msgpack'
+import { rnd6 } from './util.mjs'
 
 export const version = '1'
 
@@ -20,10 +21,32 @@ export const statistiques = { moisStat: 1, moisStatT: 3 }
 
 export const rowCryptes = new Set(['comptas'])
 
+export const lcSynt = ['qc', 'q1', 'q2', 'ac', 'a1', 'a2', 'ca', 'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
+
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
 export const d10 = 10000000000
 
+export const UNITEV1 = 250 // nombre de notes + chats + groupes
+export const UNITEV2 = 100 * 1000 * 1000 // volume de fichiers
+
+export const interdits = '< > : " / \\ | ? *'
+// eslint-disable-next-line no-control-regex
+export const regInt = /[<>:"/\\|?*\x00-\x1F]/
+// eslint-disable-next-line no-control-regex
+export const regIntg = /[<>:"/\\|?*\x00-\x1F]/g
+// eslint-disable-next-line no-control-regex
+export const regInt2g = /[\u{0180}-\u{10FFFF}]/gu
+
+export const limitesjour = { 
+  dlv: 365, // résiliation automatique d'un compte non accédé
+  margedlv: 30, // marge de purge des versions des comptes non accédés
+  notetemp: 60, // durée de vie d'une note temporaire
+  sponsoring: 14, // durée de vie d'un sponsoring
+  groupenonheb: 120 // durée de vie d'un groupe non hébbergé
+}
+
+/************************************************************************/
 export const FLAGS = {
   AC: 1 << 0, // **est _actif_**
   IN: 1 << 1, // **a une invitation en cours**
@@ -76,6 +99,7 @@ Enlever un ou des flags: n &= ~FLAGS.AC & ~FLAGS.IN
 Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 */
 
+/************************************************************************/
 /* retourne un code à 6 lettres majuscules depuis l'id d'un ticket 
 id d'un ticket: aa mm rrr rrr rrr r 
 */
@@ -88,27 +112,13 @@ export function idTkToL6 (t) {
   return x
 }
 
-export const interdits = '< > : " / \\ | ? *'
-// eslint-disable-next-line no-control-regex
-export const regInt = /[<>:"/\\|?*\x00-\x1F]/
-// eslint-disable-next-line no-control-regex
-export const regIntg = /[<>:"/\\|?*\x00-\x1F]/g
-// eslint-disable-next-line no-control-regex
-export const regInt2g = /[\u{0180}-\u{10FFFF}]/gu
-
-export const limitesjour = { 
-  dlv: 365, // résiliation automatique d'un compte non accédé
-  margedlv: 30, // marge de purge des versions des comptes non accédés
-  notetemp: 60, // durée de vie d'une note temporaire
-  sponsoring: 14, // durée de vie d'un sponsoring
-  groupenonheb: 120 // durée de vie d'un groupe non hébbergé
-}
-
+/************************************************************************/
 export function nomFichier (v) {
   if (!v) return ''
   return v.trim().replace(regIntg, '_').replace(regInt2g, '')
 }
 
+/************************************************************************/
 /* retourne un safe integer (53 bits) hash:
 - d'un string
 - d'un u8
@@ -141,8 +151,43 @@ export function hash (arg) {
   return 4294967296 * (2097151 & h2) + (h1 >>> 0)
 }
 
-export const lcSynt = ['qc', 'q1', 'q2', 'ac', 'a1', 'a2', 'ca', 'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
+/** Rds **********************************************************************/
+export class Rds {
+  static DOCS = ['', 'espaces', 'partitions', 'comptes', 'comptas', 'avatars', 'groupes']
+  static ESPACE = 1
+  static PARTITION = 2
+  static COMPTE = 3
+  static COMPTA = 4
+  static AVATAR = 5
+  static GROUPE = 6
 
+  static nouveau (type) {
+    const i = typeof type === 'string' ? Rds.DOCS.indexOf(type) : type
+    const n = hash(rnd6())
+    return (i * d13) + (n % d13)
+  }
+
+  static court (long) {
+    if (!long) return 0
+    const x = typeof long === 'string' ? parseInt(long) : long
+    return x % d14
+  }
+
+  static long (court, ns) { 
+    return (ns * d14) + ID.court(court)
+  }
+
+  static type (rds) {
+    return Math.floor((rds % d14) / 10)
+  }
+
+  static typeS (rds) {
+    return Rds.DOCS[Rds.type(rds)]
+  }
+
+}
+
+/** ID **********************************************************************/
 export class ID {
   /* Retourne l'id COURT depuis une id, longue ou courte, string ou number */
   static court (long) {
@@ -174,9 +219,6 @@ export class ID {
   static ns (id) { return id < 100 ? id : Math.floor(id / d14)}
 }
 
-export const UNITEV1 = 250 // nombre de notes + chats + groupes
-export const UNITEV2 = 100 * 1000 * 1000 // volume de fichiers
-
 export const E_BRK = 1000 // Interruption volontaire de l'opération
 export const E_WS = 2000 // Toutes erreurs de réseau
 export const E_DB = 3000 // Toutes erreurs d'accès à la base locale
@@ -187,6 +229,7 @@ export const E_SRV = 7000 // Erreur inattendue trappée sur le serveur
 export const F_SRV = 8000 // Erreur fonctionnelle trappée sur le serveur
 export const A_SRV = 9000 // Situation inattendue : assertion trappée sur le serveur
 
+/************************************************************************/
 export class AppExc {
   constructor (majeur, mineur, args, stack) {
     this.name = 'AppExc'
@@ -218,6 +261,7 @@ export function appexc (e, n) {
   return new AppExc(E_BRO, n || 0, [m], s)
 }
 
+/************************************************************************/
 /* Une "amj" est un entier de la forme aaaammjj qui indique "un jour"
 Le problème est que le même jour 2024-04-01 ne correspond pas un même instant,
 - en "local à Tokyo"
@@ -452,6 +496,7 @@ export function edvol (vol, u) {
   return (v / 1000000000000000).toPrecision(3) + 'P' + (u || 'o')
 }
 
+/************************************************************************/
 /* Un tarif correspond à,
 - `am`: son premier mois d'application. Un tarif s'applique toujours au premier de son mois.
 - `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
@@ -501,7 +546,7 @@ function e6 (x) {
   return s.substring(0, i + 1) + s.substring(i + 1, i + 7)
 }
 
-/* 
+/** Compteurs **********************************************************************
 Unités:
 - T : temps.
 - D : nombre de document (note, chat, participations à un groupe).
@@ -1011,4 +1056,101 @@ export class Compteurs {
     this.printmm()
     console.log('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
   }
+}
+
+/** DataSync ****************************************************
+ * sync : { id, rds, vs, vc, vb }
+*/
+export class DataSync {
+  static nouveau () {
+    const x = {
+      dh: 0,
+      dhc: 0,
+      espace: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+      partition: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+      compte: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+      compta: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+      avatars: [],
+      groupes: []
+    }
+    return new DataSync(null, x)
+  }
+
+  /* Depuis, soit une sérialisation, soit un objet */
+  constructor (serial, obj) {
+    const x = obj || decode(serial)
+    this.dh = x.dh || 0
+    this.dhc = x.dhc || 0
+    this.espace = x.espace || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+    this.partition = x.partition || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+    this.compte = x.compte || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+    this.compta = x.compta || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+    this.avatars = new Map()
+    if (x.avatars) x.avatars.forEach(t => this.avatars.set(t.id, t))
+    this.groupes = new Map()
+    if (x.groupes) x.groupes.forEach(t => this.groupes.set(t.id, t))
+  }
+
+  get serial () {
+    const x = {
+      dh: this.dh,
+      dhc: this.dhc,
+      espace: this.espace,
+      partition: this.partition,
+      compte: this.compte,
+      compta: this.compta,
+      avatars: [],
+      groupes: []
+    }
+    this.avatars.forEach(t => x.avatars.push(t))
+    this.groupes.forEach(t => x.groupes.push(t))
+    return new Uint8Array(encode(x))
+  }
+
+  idType (rds) {
+    if (this.espace.rds === rds) return [this.espace.id, 'espaces']
+    if (this.partition.rds === rds) return [this.partition.id, 'partitions']
+    if (this.compte.rds === rds) return [this.compte.id, 'comptes']
+    if (this.comptas.rds === rds) return [this.comptas.id, 'comptas']
+    for(const [id, t] of this.avatars) if (t.rds === rds) return [id, 'avatars']
+    for(const [id, t] of this.groupes) if (t.rds === rds) return [id, 'groupes']
+    return [0, '']
+  }
+
+  rdsType (id) {
+    if (this.espace.id === id) return [this.espace.rds, 'espaces']
+    if (this.partition.id === id) return [this.partition.rds, 'partitions']
+    if (this.compte.id === id) return [this.compte.rds, 'comptes']
+    if (this.comptas.id === id) return [this.comptas.rds, 'comptas']
+    let t = this.avatars.get(id)
+    if (t) return [t.rds, 'avatars']
+    t = this.groupes.get(id)
+    if (t) return [t.rds, 'groupes']
+    return [0, '']
+  }
+
+  /* Tous les documents ont leurs versions de base égales aux versions de cohérence */
+  get estCoherent () {
+    if (!this.compte.vc || !this.compta.vc || !this.espace.vc) return false
+    if (this.compte.vc !== this.compte.vb) return false
+    if (this.compta.vc !== this.compta.vb) return false
+    if (this.espace.vc !== this.espace.vb) return false
+    if (this.partition.id && (this.partition.vc !== this.partition.vb)) return false
+    for(const [, t] of this.avatars) if (t.vc && (t.vc !== t.vb)) return false
+    for(const [, t] of this.groupes) if (t.vc && (t.vc !== t.vb)) return false
+    return true
+  }
+
+  /* Tous les documents ont leurs versions de session égales aux versions de base */
+  get estComplet () {
+    if (!this.compte.vb || !this.compta.vb || !this.espace.vb) return false
+    if (this.compte.vs !== this.compte.vb) return false
+    if (this.compta.vs !== this.compta.vb) return false
+    if (this.espace.vs !== this.espace.vb) return false
+    if (this.partition.id && (this.partition.vs !== this.partition.vb)) return false
+    for(const [, t] of this.avatars) if (t.vc && (t.vs !== t.vb)) return false
+    for(const [, t] of this.groupes) if (t.vc && (t.vs !== t.vb)) return false
+    return true
+  }
+
 }
