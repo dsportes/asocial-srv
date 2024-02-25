@@ -62,8 +62,6 @@ class Cache {
 
   static map = new Map()
 
-  static checkpoint = { id: 1, v: 0, _data_: null }
-
   static orgs = new Map() // clé: ns, value: org
 
   static orgs2 = new Map() // clé: org, value: ns
@@ -191,10 +189,40 @@ Une opération a deux phases :
 export class Operation {
   constructor (nomop, authMode, excFige) { 
     this.nomop = nomop
+    this.estSync = this.nomop === 'Sync'
     this.authMode = authMode
     this.excFige = excFige || 1
     this.notifs = { }
+    this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
+    this.result = { }
+    this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.versions = []
+    this.result.KO = false
   }
+
+  /* Exécution de l'opération */
+  async run (args) {
+    this.args = args
+
+    await this.db.doTransaction(this)
+
+    /* Envoi en cache des objets majeurs mis à jour / supprimés */  
+    if (!this.result.KO) {
+      const updated = [] // rows mis à jour / ajoutés
+      const deleted = [] // paths des rows supprimés
+      this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+      this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+      this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
+      Cache.update(updated, deleted)
+
+      await this.phase3(this.args) // peut ajouter des résultas
+    }
+
+    return this.result
+  }
+
+  async phase2 () { return }
+
+  async phase3 () { return }
 
   /* Authentification *************************************************************
   authMode:
@@ -206,11 +234,8 @@ export class Operation {
     1 : pas d'exception si figé. Lecture seulement ou estFige testé dans l'opération
     2 : exception si figé
   */
-  
   async auth() {
-    if (this.authMode === 0) return
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
-    const estSync = this.nom === 'Sync'
 
     const t = this.args.token
     if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
@@ -235,13 +260,12 @@ export class Operation {
       les évolutions d'abonnements */
       this.sync = SyncSession.get(authData.sessionId)
       if (!this.sync) throw new AppExc(E_SRV, 4)
+      this.result.sessionId = this.authData.sessionId
       this.sync.pingrecu()
     }
 
-    /* Espace: pour l'opération Sync, l'espace ne doit pas être acquis "lazy"
-    Rejet de l'opération si l'espace est "clos"
-    */
-    this.espace = await Cache.getEspaceOrg(this, this.authData.org, !estSync)
+    /* Espace: rejet de l'opération si l'espace est "clos" */
+    this.espace = await Cache.getEspaceOrg(this, this.authData.org)
     if (!this.espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
     this.ns = this.espace.id
     if (this.espace.notifG) {
@@ -268,91 +292,78 @@ export class Operation {
     const rowCompta = await Cache.getRow(this, 'comptas', this.id)
     if (!rowCompta) { throw assertKO('auth-compta', 3, [this.id]) }
     this.compta = compile(rowCompta)
-    const { Q, X } = this.compta.notifs
-    if (Q) this.notifs.Q = Q
-    if (X) this.notifs.X = X
+    if (this.compta._Q) this.notifs.Q = this.compta._Q; else delete this.notifs.Q
+    if (this.compta._X) this.notifs.X = this.compta._X; else delete this.notifs.X
 
-    /* Partition : si c'est un compte O. Pas lazy si c'est une Sync */
+    /* Partition : si c'est un compte O*/
     if (!this.estA) {
-      // obtient partition, notifP et notifC
+      // obtient partition
       const idp = ID.long(this.compte.idp, this.ns)
-      // C'est un compte O : obtention de son partitions. Pas lazy si c'est une Sync
-      const rowPartition = await Cache.getRow(this, 'partitions', idp, !estSync)
+      const rowPartition = await Cache.getRow(this, 'partitions', idp)
       if (!rowPartition) throw assertKO('auth-partition-1', 2, [idp])
-      try {
-        this.partition = compile(rowPartition)
-        this.notifP = this.partition.notifG
-        this.notifC = this.partition.tcpt[this.compte.it].notif
-      } catch (e) { throw assertKO('auth-partition-2', 2, [idp]) }
+      this.partition = compile(rowPartition)
+      this.partition.notifs(this.notifs, this.compte.it)
     }
+  }
 
+  /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
+  setRes(prop, val) { this.result[prop] = val; return val }
+
+  /* AJOUTE la valeur en fin de la propriété Array 'prop' du résultat (et la retourne)*/
+  addRes(prop, val) {
+    let l = this.result[prop]; if (!l) { l = []; this.result[prop] = l }
+    l.push(val)
+    return val
   }
   
-  async transac () {
-    await this.auth() // this.compta est accessible (si authentifié)
+  /* Inscrit row dans les rows à insérer en phase finale d'écritue, juste après la phase2 */
+  insert (row) { this.toInsert.push(row); return row }
 
-    if (this.sync && this.args.abPlus && this.args.abPlus.length) {
-      this.args.abPlus.forEach(id => { this.sync.plus(id) })
-      this.args.abPlus.length = 0
-    }
+  /* Inscrit row dans les rows à mettre à jour en phase finale d'écritue, juste après la phase2 */
+  update (row) { this.toUpdate.push(row); return row }
+
+  /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
+  delete (row) { if (row) this.toDelete.push(row); return row }
+  
+  async transac () {
+    if (this.authMode) await this.auth() // this.compta est accessible (si authentifié)
 
     if (this.phase2) await this.phase2(this.args)
+
+    /* Maj compta */
+    if (this.compta._maj) this.ne++
+    const conso = { 
+      nl: this.nl, 
+      ne: this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length,
+      vd: this.vd, 
+      vm: this.vm 
+    }
+    this.compta.conso(conso)
+    let row
+    if (this.compta._maj) {
+      const ins = !this.compta.v
+      const v = this.compta.v ? this.compta.v + 1 : 1
+      const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
+      this.compta.v = v
+      row = this.compta.toRow()
+      this.versions.push(version)
+      if (ins) {
+        this.toInsert.push(version)
+        this.toInsert.push(row)
+      } else {
+        this.toInsert.push(version)
+        this.toInsert.push(row)
+      }
+    }
+    this.result.compta = row || this.compta.toRow()
+    this.result.conso = conso
+    this.result.notifs = this.notifs
+
     if (!this.result.KO) {
-      this.result.nl = this.nl
-      this.result.ne = this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length  
       if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
       if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
       if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
     }
-  }
-
-  async phase2 () {}
-
-  /* Exécution de l'opération */
-  async run (args) {
-    if (this.authMode) { // Authentifié: 1 2 ou 3
-      const t = args.token
-      if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
-      try {
-        this.authData = decode(b64ToU8(t))
-      } catch (e) {
-        throw assertKO('Operation-2', 100, [e.message])
-      }
-    }
-    this.result = { 
-      dh: this.dh, 
-      sessionId: this.authData ? (this.authData.sessionId || '666') : '888' 
-    }
-    this.toInsert = []; this.toUpdate = []; this.toDelete = []
-
-    if (this.phase2) await this.db.doTransaction(this)
-
-    if (!this.result.KO && this.db.hasWS) {
-      // (A) suppressions éventuelles des abonnements
-      if (this.sync) {
-        if (args.abMoins && args.abMoins.length) args.abMoins.forEach(id => { this.sync.moins(id) })
-        if (args.abPlus && args.abPlus.length) args.abPlus.forEach(id => { this.sync.plus(id) })
-      }
-      // (B) envoi en synchronisation des rows modifiés
-      const rows = []
-      this.toUpdate.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
-      this.toInsert.forEach(row => { if (GenDoc.syncs.has(row._nom)) rows.push(row) })
-      if (rows.length) SyncSession.toSync(rows)
-    }
-
-    /* (C) envoi en cache des objets majeurs mis à jour / supprimés */  
-    if (!this.result.KO) {
-      const updated = [] // rows mis à jour / ajoutés
-      const deleted = [] // paths des rows supprimés
-      this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-      this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-      this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-      Cache.update(updated, deleted)
-
-      if (this.phase3) await this.phase3(this.args) // peut ajouter des résultas
-    }
-
-    return this.result
   }
 
   async delAvGr (id) { await this.db.delAvGr(this, id)}
@@ -528,37 +539,6 @@ export class Operation {
 
   async purgeDlv (nom, dlv) { // nom: sponsorings, versions
     return this.db.purgeDlv (this, nom, dlv)
-  }
-
-  /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
-  setRes(prop, val) {
-    this.result[prop] = val
-    return val
-  }
-
-  /* AJOUTE la valeur en fin de la propriété Array 'prop' du résultat (et la retourne)*/
-  addRes(prop, val) {
-    let l = this.result[prop]; if (!l) { l = []; this.result[prop] = l }
-    l.push(val)
-    return val
-  }
-  
-  /* Inscrit row dans les rows à insérer en phase finale d'écritue, juste après la phase2 */
-  insert (row) {
-    this.toInsert.push(row)
-    return row
-  }
-
-  /* Inscrit row dans les rows à mettre à jour en phase finale d'écritue, juste après la phase2 */
-  update (row) {
-    this.toUpdate.push(row)
-    return row
-  }
-
-  /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
-  delete (row) {
-    if (row) this.toDelete.push(row)
-    return row
   }
 
   async nvChat (args, xavatarE, xavatarI) {

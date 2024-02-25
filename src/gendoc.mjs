@@ -3,6 +3,7 @@ import { FLAGS, d14, rowCryptes } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 import { Compteurs } from './api.mjs'
+// import { assertKO } from './modele.mjs'
 
 /* GenDoc **************************************************
 Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
@@ -26,7 +27,7 @@ export function compile (row) {
     const obj = decode(Buffer.from(row._data_))
     for (const [key, value] of Object.entries(obj)) d[key] = value
   }
-  return d
+  return d.compile()
 }
 
 export async function decryptRow (op, row) {
@@ -131,9 +132,9 @@ export class GenDoc {
     switch (nom) {
     case 'espaces' : { obj = new Espaces(); break }
     case 'fpurges' : { obj = new Fpurges(); break }
-    case 'gcvols' : { obj = new Gcvols(); break }
-    case 'tribus' : { obj = new Tribus(); break }
+    case 'partitions' : { obj = new Partitions(); break }
     case 'syntheses' : { obj = new Syntheses(); break }
+    case 'comptes' : { obj = new Comptes(); break }
     case 'comptas' : { obj = new Comptas(); break }
     case 'versions' : { obj = new Versions(); break }
     case 'avatars' : { obj = new Avatars(); break }
@@ -185,6 +186,8 @@ export class GenDoc {
     }
     return row
   }
+
+  compile () { return this }
 }
 
 export class Espaces extends GenDoc { constructor () { super('espaces') } }
@@ -195,19 +198,55 @@ export class Gcvols extends GenDoc { constructor () { super('gcvols') } }
 
 export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
 
-export class Tribus extends GenDoc { constructor () { super('tribus') } }
+export class Partitions extends GenDoc { 
+  constructor () { super('partitions') } 
+
+  setNotifs (notifs, it) {
+    if (this.notif) notifs.P = this.notif ; else delete notifs.P
+    if (it < this.tcpt.length) {
+      const nc = this.tcpt[it].notif
+      if (nc) notifs.C = nc ; else delete notifs.C
+    }
+  }
+
+}
 
 export class Syntheses extends GenDoc { constructor () { super('syntheses') } }
+
+export class Comptes extends GenDoc { 
+  constructor() { super('comptes') } 
+}
 
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
 
-  get cpts () { return new Compteurs(this.compteurs) }
+  compile () {
+    this._maj = false
+    const c = new Compteurs(this.compteurs)
+    this._Q = c.notifQ 
+    this._X = c.estA ? c.notifS(c.total) : c.notifX
+  }
 
-  get notifs () { 
-    const Q = this.cpts.notifQ 
-    const X = this.cpts.estA ? this.cpts.notifS(this.cpts.total) : this.cpts.notifX
-    return { Q, X }
+  conso (op) {
+    if (op.nl || op.ne || op.vd || op.vm) {
+      const x = { nl: op.nl, ne: op.ne, vd: op.vd, vm: op.vm }
+      const c = new Compteurs(this.compteurs, null, x)
+      this._Q = c.notifQ 
+      this._X = c.estA ? c.notifS(c.total) : c.notifX
+      this.compteurs = c.serial
+      this._maj = true
+    }
+  }
+
+  quotas (q) { // q: { qc: q1: q2: }
+    this.qv.qc = q.qc
+    this.qv.q1 = q.q1
+    this.qv.q2 = q.q2
+    const c = new Compteurs(this.compteurs, q).serial
+    this._Q = c.notifQ 
+    this._X = c.estA ? c.notifS(c.total) : c.notifX
+    this.compteurs = c.serial
+    this._maj = true
   }
 
 }

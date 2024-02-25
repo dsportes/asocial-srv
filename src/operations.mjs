@@ -1525,6 +1525,7 @@ POST:
 - `token` : éléments d'authentification du sponsor.
 - `idc` : id du compte
 - `idt` : id de sa tribu pour un compte O
+- q = { qc, q1, q2 }
 - `[qc, q1, q2]` : ses nouveaux quotas de volume V1 et V2.
 args.dlv: si compte A, la future dlv calculée
 args.lavLmb : liste des avatars et membres à qui propager le changement de dlv
@@ -1534,6 +1535,8 @@ operations.SetQuotas = class SetQuotas extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
+    this.compta.quotas(args.q)
+
     const compta = compile(await this.getRowCompta(args.idc, 'SetQuotas-1'))
 
     compta.v++
