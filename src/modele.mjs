@@ -164,29 +164,11 @@ class Cache {
 
 }
 
-/** Operation *****************************************************
-authMode == 3 : SANS TOKEN, pings et accès non authentifiés (recherche phrase de sponsoring)
-authMode == 2 : AVEC TOKEN, créations de compte. Elles ne sont pas authentifiées elles vont justement enregistrer leur authentification.
-authMode == 1 : AVEC TOKEN, première connexion à un compte : this.rowComptas et this.compta sont remplis
-authMode == 0 : AVEC TOKEN, cas standard, vérification de l'authentification, voire enregistrement éventuel
-
-Une opération a deux phases :
-- phase1 : traite les arguments reçus, désérialisation, etc
-  L'argument est l'objet 'args' et le résultat du travail est dans 'args'
-  La vérification d'authentification a été faite.
-  Les abonnements aux objets majeurs sont faits (ils sont dans args.abPlus)
-  L'état du server n'est pas modifé.
-- phase2 : traitement transactionnel produisant un résultat
-  - phase2 n'effectue QUE des lectures.
-  - phase2 peut sortir en exception.
-  - phase2 va produire :
-    - le résultat voulu
-    - une liste, facultative, de 'rows' à mettre à jour (et à synchroniser si SQL)
--Abonnements aux objets majeurs (SQL seulement)
-  -abPlus : array des ids à ajouter aux abonnements : abonnements en fin de phase 1
-  -abMoins : array des ids à désabonner: désabonnements après la phase 2 (après commit)
-*/
+/** Operation *****************************************************/
 export class Operation {
+  /* Initialisé APRES constructor() dans l'invocation d'une opération
+    this... isGet, db, storage, args, dh
+  */
   constructor (nomop, authMode, excFige) { 
     this.nomop = nomop
     this.estSync = this.nomop === 'Sync'
@@ -196,14 +178,11 @@ export class Operation {
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
     this.result = { }
     this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.versions = []
-    this.result.KO = false
   }
 
   /* Exécution de l'opération */
-  async run (args) {
-    this.args = args
-
-    await this.db.doTransaction(this)
+  async run () {
+    await this.db.doTransaction(this) // Fait un appel à transac
 
     /* Envoi en cache des objets majeurs mis à jour / supprimés */  
     if (!this.result.KO) {
@@ -224,6 +203,47 @@ export class Operation {
 
   async phase3 () { return }
 
+  async transac () { // Appelé par this.db.doTransaction
+    if (this.authMode) await this.auth() // this.compta est accessible (si authentifié)
+
+    if (this.phase2) await this.phase2(this.args)
+
+    /* Maj compta */
+    if (this.compta._maj) this.ne++
+    const conso = { 
+      nl: this.nl, 
+      ne: this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length,
+      vd: this.vd, 
+      vm: this.vm 
+    }
+    this.compta.conso(conso)
+    let row
+    if (this.compta._maj) {
+      const ins = !this.compta.v
+      const v = this.compta.v ? this.compta.v + 1 : 1
+      const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
+      this.compta.v = v
+      row = this.compta.toRow()
+      this.versions.push(version)
+      if (ins) {
+        this.toInsert.push(version)
+        this.toInsert.push(row)
+      } else {
+        this.toInsert.push(version)
+        this.toInsert.push(row)
+      }
+    }
+    this.result.compta = row || this.compta.toRow()
+    this.result.conso = conso
+    this.result.notifs = this.notifs
+
+    if (!this.result.KO) {
+      if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
+      if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
+      if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
+    }
+  }
+
   /* Authentification *************************************************************
   authMode:
     0 : pas de contrainte d'accès (public)
@@ -233,6 +253,9 @@ export class Operation {
   excFige: (toujours 0 si authMode 3)
     1 : pas d'exception si figé. Lecture seulement ou estFige testé dans l'opération
     2 : exception si figé
+  Après authentification, sont disponibles:
+    - this.id this.estA this.sync (ou null) this.notifs 
+    - this.compte this.compta this.espace this.partition (si c'est un compte O)
   */
   async auth() {
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
@@ -256,12 +279,9 @@ export class Operation {
     }
 
     if (!this.isGet && this.db.hasWS) {
-      /* Récupérer la session WS afin de pouvoir lui transmettre
-      les évolutions d'abonnements */
-      this.sync = SyncSession.get(authData.sessionId)
+      /* Récupérer la session WS afin de pouvoir lui transmettre les évolutions d'abonnements */
+      this.sync = SyncSession.getSession(authData.sessionId, this.dh)
       if (!this.sync) throw new AppExc(E_SRV, 4)
-      this.result.sessionId = this.authData.sessionId
-      this.sync.pingrecu()
     }
 
     /* Espace: rejet de l'opération si l'espace est "clos" */
@@ -324,48 +344,8 @@ export class Operation {
 
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
-  
-  async transac () {
-    if (this.authMode) await this.auth() // this.compta est accessible (si authentifié)
 
-    if (this.phase2) await this.phase2(this.args)
-
-    /* Maj compta */
-    if (this.compta._maj) this.ne++
-    const conso = { 
-      nl: this.nl, 
-      ne: this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length,
-      vd: this.vd, 
-      vm: this.vm 
-    }
-    this.compta.conso(conso)
-    let row
-    if (this.compta._maj) {
-      const ins = !this.compta.v
-      const v = this.compta.v ? this.compta.v + 1 : 1
-      const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
-      this.compta.v = v
-      row = this.compta.toRow()
-      this.versions.push(version)
-      if (ins) {
-        this.toInsert.push(version)
-        this.toInsert.push(row)
-      } else {
-        this.toInsert.push(version)
-        this.toInsert.push(row)
-      }
-    }
-    this.result.compta = row || this.compta.toRow()
-    this.result.conso = conso
-    this.result.notifs = this.notifs
-
-    if (!this.result.KO) {
-      if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
-      if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
-      if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
-    }
-  }
-
+  // HELPERS d'accès à la base
   async delAvGr (id) { await this.db.delAvGr(this, id)}
 
   async coll (nom) { return await this.db.coll(this, nom) }

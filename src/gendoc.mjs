@@ -2,7 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, d14, rowCryptes } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
-import { Compteurs } from './api.mjs'
+import { Compteurs, ID } from './api.mjs'
 // import { assertKO } from './modele.mjs'
 
 /* GenDoc **************************************************
@@ -213,8 +213,76 @@ export class Partitions extends GenDoc {
 
 export class Syntheses extends GenDoc { constructor () { super('syntheses') } }
 
+/* Documents `comptes`
+- Phrase secrète, clés K P D, rattachement à une partition
+- Avatars du compte
+- Groupes accédés du compte
+
+_data_ :
+- `id` : numéro du compte = id de son avatar principal.
+- `v` : 1..N.
+- `hXR` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
+- `dlv` : dernier jour de validité du compte.
+
+- `rds`
+- `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
+- `cleKXR` : clé K cryptée par XR.
+
+_Comptes "O" seulement:_
+- `clePA` : clé P de la partition cryptée par la clé A de l'avatar principal du compte.
+- `del` : `true` si le compte est délégué de la partition.
+- idp : 
+- `it` : index du compte dans les tables `tcpt` de son document `partitions`.
+
+- `mav` : map des avatars du compte. 
+  - _clé_ : id court de l'avatar.
+  - _valeur_ : `{ rds, claAK }`
+    - `rds`: de l'avatar (clé d'accès à son `versions`).
+    - `cleAK`: clé A de l'avatar crypté par la clé K du compte.
+
+- `mpg` : map des participations aux groupes:
+  - _clé_ : id du groupe
+  - _valeur_: `{ cleGK, rds, lp }`
+    - `cleGK` : clé G du groupe cryptée par la clé K du compte.
+    - rds: du groupe (clé d'accès à son `versions`)
+    - `lp`: map des participations: 
+      - _clé_: id court de l'avatar.
+      - _valeur_: indice `im` du membre dans la table `tmb` du groupe (`ids` du membre).
+
+**Comptable seulement:**
+- `cleEK` : Clé E de l'espace cryptée par la clé K.
+- `tp` : table des partitions : `{c, qc, q1, q2}`.
+  - `c` : `{ cleP, cleD, code }` crypté par la clé K du comptable
+    - `cleP` : clé P de la partition.
+    - `code` : texte très court pour le seul usage du comptable.
+  - `qc, q1, q2` : quotas globaux de la partition.
+
+La première partition d'`id` 1 est celle du Comptable et est indestructible.
+*/
 export class Comptes extends GenDoc { 
   constructor() { super('comptes') } 
+
+  get ns () { return ID.ns(this.id) }
+
+  majPerimetreDataSync (ds) {
+    for(const idx in this.mav) {
+      const idac = parseInt(idx)
+      const rds = this.mav[idx].rds
+      if (!ds.avatars.has(idac)) 
+        ds.avatars.set(idac, { id: idac, rds: rds, vs: 0, vc: 0, vb: 0 })
+    }
+    // avatars hors périmètre à supprimer
+    ds.forEach(x => { if (!this.mav[x.id]) x.vb = -1 })
+
+    for(const idx in this.mpg) {
+      const idgc = parseInt(idx)
+      const rds = this.mpg[idx].rds
+      if (!ds.groupes.has(idgc)) 
+        ds.groupes.set(idgc, { id: idgc, rds: rds, vs: 0, vc: 0, vb: 0 })
+    }
+    // groupes hors périmètre à supprimer
+    ds.forEach(x => { if (!this.mpg[x.id]) x.vb = -1 })
+  }
 }
 
 export class Comptas extends GenDoc { 

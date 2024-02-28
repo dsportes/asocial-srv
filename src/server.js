@@ -9,7 +9,7 @@ import { WebSocketServer } from 'ws'
 import schedule from 'node-schedule'
 
 import { setLogger } from './logger.mjs'
-import { SyncSession, startWs } from './ws.mjs'
+import { SyncSession } from './ws.mjs'
 import { getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress, operations } from './cfgexpress.mjs'
 
@@ -89,7 +89,7 @@ if (typeof(PhusionPassenger) !== 'undefined') {
 }
 
 try {
-  if (db.hasWS) startWs()
+  if (db.hasWS) SyncSession.start()
 
   let server
   switch (mode) {

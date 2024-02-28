@@ -195,12 +195,8 @@ async function operation(req, res, db, storage) {
     op.isGet = isGet
     op.db = db
     op.storage = storage
-    op.auj = operations.auj
-    op.nex = operations.nex++
     op.args = args
     op.dh = dh
-    op.nl = 0
-    op.ne = 0
     const result = await op.run(args)
 
     if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString() + ' 200')

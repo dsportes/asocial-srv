@@ -1062,14 +1062,16 @@ export class Compteurs {
  * sync : { id, rds, vs, vc, vb }
 */
 export class DataSync {
+  static vide = { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 }
+
   static nouveau () {
     const x = {
       dh: 0,
       dhc: 0,
-      espace: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
-      partition: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
-      compte: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
-      compta: { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+      espace: { ...DataSync.vide },
+      partition: { ...DataSync.vide },
+      compte: { ...DataSync.vide },
+      compta: { ...DataSync.vide },
       avatars: [],
       groupes: []
     }
@@ -1081,10 +1083,10 @@ export class DataSync {
     const x = obj || decode(serial)
     this.dh = x.dh || 0
     this.dhc = x.dhc || 0
-    this.espace = x.espace || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
-    this.partition = x.partition || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
-    this.compte = x.compte || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
-    this.compta = x.compta || { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 },
+    this.espace = x.espace || { ...DataSync.vide },
+    this.partition = x.partition || { ...DataSync.vide },
+    this.compte = x.compte || { ...DataSync.vide },
+    this.compta = x.compta || { ...DataSync.vide },
     this.avatars = new Map()
     if (x.avatars) x.avatars.forEach(t => this.avatars.set(t.id, t))
     this.groupes = new Map()
@@ -1105,6 +1107,17 @@ export class DataSync {
     this.avatars.forEach(t => x.avatars.push(t))
     this.groupes.forEach(t => x.groupes.push(t))
     return new Uint8Array(encode(x))
+  }
+
+  get tousRds () {
+    const s = new Set()
+    s.add(this.compte.rds)
+    s.add(this.compta.rds)
+    s.add(this.espace.rds)
+    if (this.partition.id) s.add(this.partition.rds)
+    this.avatars.forEach(x => { if (x.vb !== -1) s.add(x.rds) })
+    this.groupes.forEach(x => { if (x.vb !== -1) s.add(x.rds) })
+    return s
   }
 
   idType (rds) {
