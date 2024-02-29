@@ -27,6 +27,8 @@ export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
 export const d10 = 10000000000
 
+export const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1, (256 ** 6) - 1, (256 ** 7) - 1]
+
 export const UNITEV1 = 250 // nombre de notes + chats + groupes
 export const UNITEV2 = 100 * 1000 * 1000 // volume de fichiers
 

@@ -84,15 +84,29 @@ operations.Sync = class Sync extends Operation {
     }
 
     if (args.ida) {
+      const idac = ID.court(args.ida)
       const g = ID.estGroupe(args.ida)
       /* Obtention des rows du sous-arbre */
       const m = g ? this.ds.groupes : this.ds.avatars
-      const x = m.get(ID.court(args.ida))
+      const x = m.get(idac)
       if (x) {
         const rowVersion = await Cache.getRow(this, 'versions', ID.long(x.rds))
         if (!rowVersion) throw assertKO('Sync-avgr', 14, [x.rds])
         x.vb = rowVersion.v
-        for (const row of await this.db.scoll(this, 'notes', args.ida, x.vs))
+      
+        const rag = await Cache.getRow(this, g ? 'groupes' : 'avatars', args.ida)
+        if (rag.v > x.vs) this.setRes(g ? 'rowGroupes' : 'rowAvatars', rag)
+
+        // Pour un groupe, un des avatars du compte a-t-il accès aux membres / notes
+        let m = true, n = true
+        if (g) {
+          const gr = compile(rag)
+          const sim = this.compte.imGr(idac)
+          const [mx, nx] = gr.amAn(sim)
+          m = mx; n = nx
+        }
+
+        if (!g || n) for (const row of await this.db.scoll(this, 'notes', args.ida, x.vs))
           this.addRes('rowNotes', row)
         if (!g) for (const row of await this.db.scoll(this, 'chats', args.ida, x.vs))
           this.addRes('rowChats', row)
@@ -101,7 +115,7 @@ operations.Sync = class Sync extends Operation {
         if (!g && ID.estComptable(this.id)) 
           for (const row of await this.db.scoll(this, 'tickets', args.ida, x.vs))
             this.addRes('rowTickets', row)
-        if (g) for (const row of await this.db.scoll(this, 'membres', args.ida, x.vs))
+        if (g && m) for (const row of await this.db.scoll(this, 'membres', args.ida, x.vs))
           this.addRes('rowMembres', row)
         if (!g) for (const row of await this.db.scoll(this, 'chatgrs', args.ida, x.vs))
           this.addRes('rowChatgrs', row)

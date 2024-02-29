@@ -283,6 +283,15 @@ export class Comptes extends GenDoc {
     // groupes hors périmètre à supprimer
     ds.forEach(x => { if (!this.mpg[x.id]) x.vb = -1 })
   }
+
+  // Set des indices membres des participations au groupe idg (court)
+  imGr (idg) {
+    const s = new Set()
+    const x = this.mpg[idg]
+    if (!x) return s
+    for(const ida in x.lp) s.add(x.lp[ida])
+    return s
+  }
 }
 
 export class Comptas extends GenDoc { 
@@ -331,8 +340,38 @@ export class Sponsorings extends GenDoc { constructor() { super('sponsorings') }
 
 export class Chats extends GenDoc { constructor() { super('chats') } }
 
+/* Classe Groupe ****************************************************
+_data_:
+- `id` : id du groupe.
+- `v` :  1..N, Par convention, une version à 999999 désigne un **groupe logiquement détruit** mais dont les données sont encore présentes. Le groupe est _en cours de suppression_.
+- `dfh` : date de fin d'hébergement.
+
+- `rds`
+- `nn qn v2 q2`: nombres de notes actuel et maximum attribué par l'hébergeur, volume total actuel des fichiers des notes et maximum attribué par l'hébergeur.
+- `idh` : id du compte hébergeur (pas transmise aux sessions).
+- `imh` : indice `im` du membre dont le compte est hébergeur.
+- `msu` : mode _simple_ ou _unanime_.
+  - `null` : mode simple.
+  - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
+- `tid` : table des ids courts des membres.
+- `flags` : tables des flags.
+- `lng` : liste noire _groupe_ des ids (courts) des membres.
+- `lnc` : liste noire _compte_ des ids (courts) des membres.
+- `cvG` : carte de visite du groupe, textes cryptés par la clé du groupe `{v, photo, info}`.
+*/
 export class Groupes extends GenDoc { 
   constructor() { super('groupes') }
+
+  /* Accès [membres, notes] d'un set d'im (compte ou avatar en fait) */
+  amAn (s) {
+    let n = false, m = false
+    for (const im of s) {
+      const f = this.flags[im]
+      if ((f & FLAGS.AN) && (f & FLAGS.DN)) n = true 
+      if ((f & FLAGS.AM) && (f & FLAGS.DM)) m = true 
+    }
+    return [m, n]
+  }
 
   get anims () {
     const s = new Set()
