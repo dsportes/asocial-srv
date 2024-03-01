@@ -265,7 +265,7 @@ export class Operation {
     let authData = null
     try { 
       authData = decode(b64ToU8(t)) 
-    } catch (e) { throw assertKO('Operation-2', 100, [e.message])}
+    } catch (e) { throw assertKO('Operation-2', 20, [e.message])}
 
     if (this.authMode === 3) { // admin requis
       try {
@@ -275,7 +275,7 @@ export class Operation {
         }
       } catch (e) { /* */ }
       await sleep(3000)
-      throw new AppExc(F_SRV, 101) // pas reconnu
+      throw new AppExc(F_SRV, 999) // pas reconnu
     }
 
     if (!this.isGet && this.db.hasWS) {
@@ -290,23 +290,28 @@ export class Operation {
     this.ns = this.espace.id
     if (this.espace.notifG) {
       // Espace bloqué
-      if (this.espace.notifG.nr === 2) throw AppExc.notifG(this.espace.notifG)
-      if (this.espace.notifG.nr === 1 && this.excFige) throw new AppExc(F_SRV, 105)
-      this.notifs.G = this.espace.notifG
-      this.estFige = this.notifs.G.nr === 1
+      const n = this.espace.notifG
+      if (n.nr === 2) // application close
+        throw new AppExc(A_SRV, 999, [n.texte])
+      if (n.nr === 1 && this.excFige) 
+        throw new AppExc(F_SRV, 101, [n.texte])
+      this.notifs.G = n
+      this.estFige = n.nr === 1
     }
     
     /* Compte */
     const hXR = (this.espace.id * d14) + this.authData.hXR
     const rowCompte = await this.db.getCompteHXR(this, hXR)
-    if (!rowCompte) { await sleep(3000); throw new AppExc(F_SRV, 103) }
+    if (!rowCompte) { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.compte = compile(rowCompte)
     const x = (hash(this.authData.hXC) % d14)
-    if (this.compte.hXC !== x) throw new AppExc(F_SRV, 103)
+    if (this.compte.hXC !== x) throw new AppExc(F_SRV, 998)
     this.id = this.compte.id
     this.estA = this.compte.idp === 0
     // Opération du seul Comptable
-    if (this.authMode === 2 && !ID.estComptable(this.id)) { await sleep(3000); throw new AppExc(F_SRV, 104) }
+    if (this.authMode === 2 && !ID.estComptable(this.id)) { 
+      await sleep(3000); throw new AppExc(F_SRV, 104) 
+    }
 
     /* Compta : génère les notifications de quotas et de consommation excessive */
     const rowCompta = await Cache.getRow(this, 'comptas', this.id)

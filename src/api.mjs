@@ -243,13 +243,7 @@ export class AppExc {
 
   get majeur () { return Math.floor(this.code / 1000) }
 
-  toString () {
-    return JSON.stringify(this)
-  }
-
-  static notifG (notif) {
-    return new AppExc(1000, notif.nr, [notif.texte, notif.dh])
-  }
+  toString () { return JSON.stringify(this) }
 }
 
 export function isAppExc (e) {
