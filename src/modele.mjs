@@ -233,7 +233,7 @@ export class Operation {
         this.toInsert.push(row)
       }
     }
-    this.result.compta = row || this.compta.toRow()
+    this.result.rowCompta = row || this.compta.toRow()
     this.result.conso = conso
     this.result.notifs = this.notifs
 

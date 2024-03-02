@@ -2,7 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, d14, rowCryptes } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
-import { Compteurs, ID } from './api.mjs'
+import { Compteurs, ID, Rds } from './api.mjs'
 // import { assertKO } from './modele.mjs'
 
 /* GenDoc **************************************************
@@ -198,8 +198,19 @@ export class Gcvols extends GenDoc { constructor () { super('gcvols') } }
 
 export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
 
+/** Partitions *********************************************/
 export class Partitions extends GenDoc { 
   constructor () { super('partitions') } 
+
+  toShortRow (del, it) {
+    if (!del) {
+      this.notifC = this.tcpt[it].notif
+      delete this.tcpt
+    } else {
+      delete this.notifC
+    }
+    return this.toRow()
+  }
 
   setNotifs (notifs, it) {
     if (this.notif) notifs.P = this.notif ; else delete notifs.P
@@ -231,12 +242,11 @@ _data_ :
 _Comptes "O" seulement:_
 - `clePA` : clé P de la partition cryptée par la clé A de l'avatar principal du compte.
 - `del` : `true` si le compte est délégué de la partition.
-- idp : 
-- `it` : index du compte dans les tables `tcpt` de son document `partitions`.
+- `it` : index du compte dans `tcpt` de son document `partitions`.
 
 - `mav` : map des avatars du compte. 
   - _clé_ : id court de l'avatar.
-  - _valeur_ : `{ rds, claAK }`
+  - _valeur_ : `{ rds, cleAK }`
     - `rds`: de l'avatar (clé d'accès à son `versions`).
     - `cleAK`: clé A de l'avatar crypté par la clé K du compte.
 
@@ -267,21 +277,23 @@ export class Comptes extends GenDoc {
   majPerimetreDataSync (ds) {
     for(const idx in this.mav) {
       const idac = parseInt(idx)
-      const rds = this.mav[idx].rds
-      if (!ds.avatars.has(idac)) 
-        ds.avatars.set(idac, { id: idac, rds: rds, vs: 0, vc: 0, vb: 0 })
+      const ida = ID.long(idac, this.ns)
+      const rds = Rds.long(this.mav[idx].rds, this.ns)
+      if (!ds.avatars.has(ida)) 
+        ds.avatars.set(ida, { id: ida, rds: rds, vs: 0, vc: 0, vb: 0 })
     }
     // avatars hors périmètre à supprimer
-    ds.forEach(x => { if (!this.mav[x.id]) x.vb = -1 })
+    ds.forEach(x => { if (!this.mav[ID.court(x.id)]) x.vb = -1 })
 
     for(const idx in this.mpg) {
       const idgc = parseInt(idx)
-      const rds = this.mpg[idx].rds
-      if (!ds.groupes.has(idgc)) 
-        ds.groupes.set(idgc, { id: idgc, rds: rds, vs: 0, vc: 0, vb: 0 })
+      const idg = ID.long(idgc, this.ns)
+      const rds = Rds.long(this.mpg[idx].rds, this.ns)
+      if (!ds.groupes.has(idg)) 
+        ds.groupes.set(idg, { id: idg, rds: rds, vs: 0, vc: 0, vb: 0, m: 0, n: 0})
     }
     // groupes hors périmètre à supprimer
-    ds.forEach(x => { if (!this.mpg[x.id]) x.vb = -1 })
+    ds.forEach(x => { if (!this.mpg[ID.court(x.id)]) x.vb = -1 })
   }
 
   // Set des indices membres des participations au groupe idg (court)
@@ -294,6 +306,7 @@ export class Comptes extends GenDoc {
   }
 }
 
+/** Comptas *************************************************/
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
 
@@ -361,6 +374,14 @@ _data_:
 */
 export class Groupes extends GenDoc { 
   constructor() { super('groupes') }
+
+  /* Sérialisation en row après avoir enlevé 
+  les champs non pertinents selon l'accès aux membres */
+  toShortRow (m) {
+    delete this.idh
+    if (m !== 1) { delete this.tid; delete this.lng; delete this.lnc }
+    return this.toRow()
+  }
 
   /* Accès [membres, notes] d'un set d'im (compte ou avatar en fait) */
   amAn (s) {

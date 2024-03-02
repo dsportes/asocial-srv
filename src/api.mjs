@@ -1055,10 +1055,11 @@ export class Compteurs {
 }
 
 /** DataSync ****************************************************
- * sync : { id, rds, vs, vc, vb }
+sync : { id (long), rds (long), vs, vc, vb }
 */
 export class DataSync {
   static vide = { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 }
+  static videg = { id: 0, rds: 0, vs: 0, vc: 0, vb: 0, m: 0, n: 0 }
 
   static nouveau () {
     const x = {
