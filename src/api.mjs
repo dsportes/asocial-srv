@@ -1,6 +1,6 @@
 /* eslint-disable lines-between-class-members */
 import { encode, decode } from '@msgpack/msgpack'
-import { rnd6 } from './util.mjs'
+import { rnd6, random } from './util.mjs'
 
 export const version = '1'
 
@@ -187,6 +187,61 @@ export class Rds {
     return Rds.DOCS[Rds.type(rds)]
   }
 
+}
+
+/** Cles **********************************************************************/
+export class Cles {
+  /* Génération des clés pour les CCEP */
+
+  /* idx : numéro de partition */
+  static partition (idx) {
+    const rnd = random(32)
+    rnd[0] = 0
+    rnd[1] = Math.floor(idx / 256)
+    rnd[2] = idx % 256
+    return rnd
+  }
+
+  static comptable() {
+    const rnd = new Uint8Array(32)
+    rnd[0] = 1
+    return rnd
+  }
+
+  static avatar() {
+    const rnd = random(32)
+    rnd[0] = 2
+    return rnd
+  }
+
+  static groupe() {
+    const rnd = random(32)
+    rnd[0] = 3
+    return rnd
+  }
+
+  static espace() {
+    const rnd = random(32)
+    rnd[0] = 4
+    return rnd
+  }
+
+  /* Retourne l'id courte ou longue depuis une clé */
+  static id (cle, ns) {
+    if (!cle) return 0
+    let id = 0
+    if (cle[0] === 0) id = (cle[1] * 256) + cle[2]
+    else if (cle[0] !== 4) {
+      let z = true; for (let i = 1; i < 32; i++) if(cle[i]) { z = false; break }
+      const n = z ? 0 : (hash(cle) % d13)
+      id = (cle[0] * d13) + n
+    }
+    return !ns ? id : ((ns * d14) + id)
+  }
+
+  static lnoms = ['partitions', 'avatars', 'avatars', 'groupes', 'espaces']
+
+  static nom (cle) { return Cles.lnoms[cle[0]] }
 }
 
 /** ID **********************************************************************/

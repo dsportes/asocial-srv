@@ -190,7 +190,12 @@ export class GenDoc {
   compile () { return this }
 }
 
-export class Espaces extends GenDoc { constructor () { super('espaces') } }
+export class Espaces extends GenDoc { 
+  constructor () { 
+    super('espaces') 
+    this._maj = false
+  } 
+}
 
 export class Tickets extends GenDoc { constructor () { super('tickets') } }
 
@@ -200,7 +205,10 @@ export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
 
 /** Partitions *********************************************/
 export class Partitions extends GenDoc { 
-  constructor () { super('partitions') } 
+  constructor () { 
+    super('partitions')
+    this._maj = false
+  } 
 
   toShortRow (del, it) {
     if (!del) {
@@ -270,7 +278,10 @@ _Comptes "O" seulement:_
 La première partition d'`id` 1 est celle du Comptable et est indestructible.
 */
 export class Comptes extends GenDoc { 
-  constructor() { super('comptes') } 
+  constructor() { 
+    super('comptes')
+    this._maj = false
+  } 
 
   get ns () { return ID.ns(this.id) }
 
@@ -313,6 +324,7 @@ export class Comptas extends GenDoc {
   compile () {
     this._maj = false
     const c = new Compteurs(this.compteurs)
+    this.nbj = c.nbj(this.total)
     this._Q = c.notifQ 
     this._X = c.estA ? c.notifS(c.total) : c.notifX
   }

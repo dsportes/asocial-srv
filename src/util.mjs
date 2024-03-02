@@ -76,6 +76,8 @@ export function sleep (delai) {
   return new Promise((resolve) => { setTimeout(() => resolve(), delai) })
 }
 
+export function random (n) { return crypto.randomBytes(n) }
+
 const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1, (256 ** 6) - 1, (256 ** 7) - 1]
 export function rnd6 () {
   const u8 = crypto.randomBytes(6)

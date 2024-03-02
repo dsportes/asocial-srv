@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, hash, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
+import { ID, AMJ, PINGTO, hash, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
 import { config } from './config.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8 } from './util.mjs'
@@ -203,10 +203,77 @@ export class Operation {
 
   async phase3 () { return }
 
+  calculDlv () {
+    if (ID.estComptable(this.id)) return AMJ.max
+    const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
+    if (this.compte.it) // Compte O
+      return dlvmax > this.espace.dlvat ? this.espace.dlvat : dlvmax
+    // Compte A
+    const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.compta.nbj))
+    return dlvmax > d ? d : dlvmax    
+  }
+
   async transac () { // Appelé par this.db.doTransaction
     if (this.authMode) await this.auth() // this.compta est accessible (si authentifié)
 
     if (this.phase2) await this.phase2(this.args)
+
+    const dlv = this.calculDlv()
+    if (dlv !== this.compte.dlv) {
+      this.compte.dlv = dlv
+      this.compte._maj = true
+    }
+
+    // Maj espace
+    if (this.espace._maj) {
+      const ins = !this.espace.v
+      const v = this.espace.v ? this.espace.v + 1 : 1
+      const version = { _nom: 'versions', id: this.espace.rds, v: v, suppr: 0 }
+      this.espace.v = v
+      const rowEspace= this.espace.toRow()
+      this.versions.push(version)
+      if (ins) {
+        this.toInsert.push(version)
+        this.toInsert.push(rowEspace)
+      } else {
+        this.toInsert.push(version)
+        this.toInsert.push(rowEspace)
+      }
+    }
+
+    // Maj partition
+    if (this.partition && this.partition._maj) {
+      const ins = !this.partition.v
+      const v = this.partition.v ? this.partition.v + 1 : 1
+      const version = { _nom: 'versions', id: this.partition.rds, v: v, suppr: 0 }
+      this.partition.v = v
+      const rowPartition= this.partition.toRow()
+      this.versions.push(version)
+      if (ins) {
+        this.toInsert.push(version)
+        this.toInsert.push(rowPartition)
+      } else {
+        this.toInsert.push(version)
+        this.toInsert.push(rowPartition)
+      }
+    }
+    
+    // Maj compte
+    if (this.compte._maj) {
+      const ins = !this.compte.v
+      const v = this.compte.v ? this.compte.v + 1 : 1
+      const version = { _nom: 'versions', id: this.compte.rds, v: v, suppr: 0 }
+      this.compte.v = v
+      const rowCompte = this.compte.toRow()
+      this.versions.push(version)
+      if (ins) {
+        this.toInsert.push(version)
+        this.toInsert.push(rowCompte)
+      } else {
+        this.toInsert.push(version)
+        this.toInsert.push(rowCompte)
+      }
+    }
 
     /* Maj compta */
     if (this.compta._maj) this.ne++
@@ -217,23 +284,26 @@ export class Operation {
       vm: this.vm 
     }
     this.compta.conso(conso)
-    let row
+    let rowCompta
     if (this.compta._maj) {
       const ins = !this.compta.v
       const v = this.compta.v ? this.compta.v + 1 : 1
       const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
       this.compta.v = v
-      row = this.compta.toRow()
+      rowCompta = this.compta.toRow()
       this.versions.push(version)
       if (ins) {
         this.toInsert.push(version)
-        this.toInsert.push(row)
+        this.toInsert.push(rowCompta)
       } else {
         this.toInsert.push(version)
-        this.toInsert.push(row)
+        this.toInsert.push(rowCompta)
       }
+    } else {
+      rowCompta = this.compta.toRow()
     }
-    this.result.rowCompta = row || this.compta.toRow()
+
+    this.result.rowCompta = rowCompta
     this.result.conso = conso
     this.result.notifs = this.notifs
 
@@ -329,6 +399,10 @@ export class Operation {
       this.partition = compile(rowPartition)
       this.partition.notifs(this.notifs, this.compte.it)
     }
+
+    const dlv = this.calculDlv()
+    if (dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
+
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
