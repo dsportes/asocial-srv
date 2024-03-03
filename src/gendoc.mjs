@@ -210,13 +210,8 @@ export class Partitions extends GenDoc {
     this._maj = false
   } 
 
-  toShortRow (del, it) {
-    if (!del) {
-      this.notifC = this.tcpt[it].notif
-      delete this.tcpt
-    } else {
-      delete this.notifC
-    }
+  toShortRow (del) {
+    if (!del) delete this.tcpt
     return this.toRow()
   }
 
@@ -357,7 +352,19 @@ export class Versions extends GenDoc { constructor() { super('versions') } }
 
 export class Avatars extends GenDoc { constructor() { super('avatars') } }
 
-export class Notes extends GenDoc { constructor() { super('notes') } }
+/* Classe Notes ******************************************************/
+export class Notes extends GenDoc { 
+  constructor() { super('notes') } 
+
+  toShortRow (idc) { //idc : id du compte demandeur
+    if (this.htm) {
+      const ht = this.htm[idc]
+      if (ht) this.ht = ht
+      delete this.htm
+    }
+    return this.toRow()
+  }
+}
 
 export class Transferts extends GenDoc { constructor() { super('transferts') } }
 
@@ -383,9 +390,17 @@ _data_:
 - `lng` : liste noire _groupe_ des ids (courts) des membres.
 - `lnc` : liste noire _compte_ des ids (courts) des membres.
 - `cvG` : carte de visite du groupe, textes cryptés par la clé du groupe `{v, photo, info}`.
+
+Calculée : mmb: Map des membres. Clé: id long du membre, Valeur: son im
 */
 export class Groupes extends GenDoc { 
   constructor() { super('groupes') }
+
+  compile () {
+    this.ns = ID.ns(this.id)
+    this.mmb = new Map()
+    this.tid.forEach((id, im) => { this.mmb.set(ID.long(id, this.ns), im)})
+  }
 
   /* Sérialisation en row après avoir enlevé 
   les champs non pertinents selon l'accès aux membres */

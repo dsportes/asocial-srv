@@ -76,8 +76,10 @@ operations.Sync = class Sync extends Operation {
       const gr = await this.setGrx(ida, x)
       if (x.vb <= 0) return
       this.setRes('rowGroupes', gr.toShortRow(x.m))
-      if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
-        this.addRes('rowNotes', row)
+      if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs)) {
+        const note = compile(row)
+        this.addRes('rowNotes', note.toShortRow(this.id))
+      }
       if (x.m) {
         for (const row of await this.db.scoll(this, 'membres', ida, x.vs))
           this.addRes('rowMembres', row)
@@ -155,7 +157,7 @@ operations.Sync = class Sync extends Operation {
     if (this.ds.espace.vs < this.ds.espace.vb) 
       this.setRes('rowEspace', this.espace.toRow())
     if (this.ds.partition.id && (this.ds.partition.vs < this.ds.partition.vb))
-      this.setRes('rowPartition', this.partition.toShortRow(this.compte.del, this.compte.it))
+      this.setRes('rowPartition', this.partition.toShortRow(this.compte.del))
     // compta est TOUJOURS transmis par l'opération (après maj éventuelle des consos)
 
     // Mise à jour des abonnements aux versions

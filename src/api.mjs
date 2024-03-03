@@ -21,7 +21,7 @@ export const statistiques = { moisStat: 1, moisStatT: 3 }
 
 export const rowCryptes = new Set(['comptas'])
 
-export const lcSynt = ['qc', 'q1', 'q2', 'ac', 'a1', 'a2', 'ca', 'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
+export const lcSynt = ['qc', 'qn', 'qv', 'ac', 'an', 'av', 'c', 'n', 'v', 'nbc', 'nbd', 'ntr0', 'ntr1', 'ntr2', 'nco0', 'nco1', 'nco2']
 
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
@@ -29,8 +29,8 @@ export const d10 = 10000000000
 
 export const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1, (256 ** 6) - 1, (256 ** 7) - 1]
 
-export const UNITEV1 = 250 // nombre de notes + chats + groupes
-export const UNITEV2 = 100 * 1000 * 1000 // volume de fichiers
+export const UNITEN = 250 // nombre de notes + chats + groupes
+export const UNITEV = 100 * 1000 * 1000 // volume de fichiers
 
 export const interdits = '< > : " / \\ | ? *'
 // eslint-disable-next-line no-control-regex
@@ -551,8 +551,8 @@ export function edvol (vol, u) {
 /* Un tarif correspond à,
 - `am`: son premier mois d'application. Un tarif s'applique toujours au premier de son mois.
 - `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
-  - `u1`: abonnement mensuel en c à 250 notes / chats (250 = UNITEV1)
-  - `u2`: abonnement mensuel en c à 100Mo de fichiers (100Mo = UNITEV2)
+  - `u1`: abonnement mensuel en c à 250 notes / chats (250 = UNITEN)
+  - `u2`: abonnement mensuel en c à 100Mo de fichiers (100Mo = UNITEV)
   - `ul`: 1 million de lectures en c
   - `ue`: 1 million d'écritures en c
   - `um`: 1 GB de transfert montant en c
@@ -606,14 +606,14 @@ Unités:
 - E : écriture d'un document.
 - € : unité monétaire.
 
-quotas et volumes `qv` : `{ qc, q1, q2, nn, nc, ng, v2 }`
+quotas et volumes `qv` : `{ qc, qn, qv, nn, nc, ng, v }`
 - `qc`: limite de consommation
-- `q1`: quota du nombre total de notes / chats / groupes.
-- `q2`: quota du volume des fichiers.
+- `qn`: quota du nombre total de notes / chats / groupes.
+- `qv`: quota du volume des fichiers.
 - `nn`: nombre de notes existantes.
 - `nc`: nombre de chats existants.
 - `ng` : nombre de participations aux groupes existantes.
-- `v2`: volume effectif total des fichiers.
+- `v`: volume effectif total des fichiers.
 consommations `conso` : `{ nl, ne, vm, vd }`
 - `nl`: nombre absolu de lectures depuis la création du compte.
 - `ne`: nombre d'écritures.
@@ -629,15 +629,15 @@ export class Compteurs {
   static NHD = 4 // nombre de mois d'historique détaillé (dont le mois en cours)
   static NHM = 18 // nombre de mois d'historique des montants des coûts (dont le mois en cours)
 
-  static X1 = 3 // nombre de compteurs de quotas (qc q1 q2)
+  static X1 = 3 // nombre de compteurs de quotas (qc qn qv)
   static X2 = 4 // nombre de compteurs de consommation (lect, ecr, vm, vd)
-  static X3 = 4 // nombre de compteurs de volume (notes, chats, groupes, v2)
+  static X3 = 4 // nombre de compteurs de volume (notes, chats, groupes, v)
   static X4 = 3 // nombre de compteurs techniques (ms ca cc)
 
   static CUCONSO = Compteurs.X1 - 1 // indice du premier CU de consommation
   static QC = 0 // quota de consommation
-  static Q1 = 1 // quota du nombre total de notes / chats / groupes.
-  static Q2 = 2 // quota du volume des fichiers.
+  static QN = 1 // quota du nombre total de notes / chats / groupes.
+  static QV = 2 // quota du volume des fichiers.
   static NL = 0 // nombre de lectures cumulées sur le mois.
   static NE = 1 // nombre d'écritures.
   static VM = 2 // volume _montant_ vers le Storage (upload).
@@ -645,7 +645,7 @@ export class Compteurs {
   static NN = 0 // nombre de notes existantes.
   static NC = 1 // nombre de chats existants.
   static NG = 2 // nombre de participations aux groupes existantes.
-  static V2 = 3 // volume effectif total des fichiers.
+  static V = 3 // volume effectif total des fichiers.
   static MS = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 // nombre de ms dans le mois - si 0, le compte n'était pas créé
   static CA = Compteurs.MS + 1 // coût de l'abonnment pour le mois
   static CC = Compteurs.MS + 2 // coût de la consommation pour le mois
@@ -653,13 +653,13 @@ export class Compteurs {
   static NBCD = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 + Compteurs.X4
 
   static lp = ['dh0', 'dh', 'dhraz', 'qv', 'vd', 'mm', 'aboma', 'consoma', 'dec', 'dhdec', 'njdec']
-  static lqv = ['qc', 'q1', 'q2', 'nn', 'nc', 'ng', 'v2']
+  static lqv = ['qc', 'qn', 'qv', 'nn', 'nc', 'ng', 'v']
 
   /*
   dh0 : date-heure de création du compte
   dh : date-heure courante
   dhraz: date-heure du dernier changement O / A
-  qv : quotas et volumes du dernier calcul `{ qc, q1, q2, nn, nc, ng, v2 }`.
+  qv : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v }`.
     Quand on _prolonge_ l'état actuel pendant un certain temps AVANT d'appliquer de nouvelles valeurs,
     il faut pouvoir disposer de celles-ci.
   vd : [0..3] - vecteurs détaillés pour M M-1 M-2 M-3.
@@ -670,8 +670,8 @@ export class Compteurs {
   Pour chaque mois M à M-3, il y a un **vecteur** de 14 (X1 + X2 + X3 + X4) compteurs:
   - X1_moyennes et X2 cumuls servent au calcul au montant du mois
     - QC : moyenne de qc dans le mois (€)
-    - Q1 : moyenne de q1 dans le mois (D)
-    - Q2 : moyenne de q2 dans le mois (B)
+    - qn : moyenne de qn dans le mois (D)
+    - qv : moyenne de qv dans le mois (B)
     - X1 + NL : nb lectures cumulés sur le mois (L),
     - X1 + NE : nb écritures cumulés sur le mois (E),
     - X1 + VM : total des transferts montants (B),
@@ -680,7 +680,7 @@ export class Compteurs {
     - X2 + NN : nombre moyen de notes existantes.
     - X2 + NC : nombre moyen de chats existants.
     - X2 + NG : nombre moyen de participations aux groupes existantes.
-    - X2 + V2 : volume moyen effectif total des fichiers stockés.
+    - X2 + V : volume moyen effectif total des fichiers stockés.
   - 3 compteurs spéciaux
     - MS : nombre de ms dans le mois - si 0, le compte n'était pas créé
     - CA : coût de l'abonnement pour le mois
@@ -689,7 +689,7 @@ export class Compteurs {
 
   /*
   - serial : sérialisation de l'état antérieur, null pour une création (qv est alors requis)
-  - qv: facultatif. compteurs de quotas et des nombres de notes, chats, groupes et V2. 
+  - qv: facultatif. compteurs de quotas et des nombres de notes, chats, groupes et v. 
     En cas de présence, mise à jour APRES recalcul à l'instant actuel.
   - conso: facultatif. compteurs de consommation à ajouter au mois courant.
     En cas de présence, ajouts APRES recalcul à l'instant actuel.
@@ -819,21 +819,21 @@ export class Compteurs {
     if (ms === 0) {
       const [ac, mc] = AMJ.am(this.dh)
       const cu = Tarif.cu(ac, mc)
-      return (this.qv.q1 * cu[0]) + (this.qv.q2 * cu[1])
+      return (this.qv.qn * cu[0]) + (this.qv.qv * cu[1])
     } else {
       return ams / ms * MSPARMOIS
     }
   }
 
-  get v1 () { return this.qv.nn + this.qv.nc + this.qv.ng }
+  get n () { return this.qv.nn + this.qv.nc + this.qv.ng }
 
-  get v2 () { return this.qv.v2 }
+  get v () { return this.qv.v }
 
   /*
   pcc : consommation mensualisée sur M et M-1 / limite mensuelle qc
-  pc1 : nombre actuel de notes, chats, groupes / abonnement q1
-  pc2 : volume actuel des fichiers / abonnement q2
-  max : max de pcc pc1 pc2
+  pcn : nombre actuel de notes, chats, groupes / abonnement qn
+  pcv : volume actuel des fichiers / abonnement qv
+  max : max de pcc pcn pcv
   */
   get pourcents () {
     let pcc = 0
@@ -842,18 +842,18 @@ export class Compteurs {
       pcc = Math.round( (this.conso2M * 100) / this.qv.qc)
       if (pcc > 999) pcc = 999  
     }
-    const pc1 = Math.round(this.v1 * 100 / UNITEV1 / this.qv.q1)
-    const pc2 = Math.round(this.v2 * 100 / UNITEV2 / this.qv.q2)
-    let max = pcc; if (pc1 > max) max = pc1; if (pc2 > max) max = pc2
-    return {pcc, pc1, pc2, max}
+    const pcn = Math.round(this.n * 100 / UNITEN / this.qv.qn)
+    const pcv = Math.round(this.v * 100 / UNITEV / this.qv.qv)
+    let max = pcc; if (pcn > max) max = pcn; if (pcv > max) max = pcv
+    return {pcc, pcn, pcv, max}
   }
 
   get notifQ () { // notitication de dépassement de quotas
-    const pc1 = Math.round(this.v1 * 100 / UNITEV1 / this.qv.q1)
-    const pc2 = Math.round(this.v2 * 100 / UNITEV2 / this.qv.q2)
-    const max = pc1 > pc2 ? pc1 : pc2
+    const pcn = Math.round(this.n * 100 / UNITEN / this.qv.qn)
+    const pcv = Math.round(this.v * 100 / UNITEV / this.qv.qv)
+    const max = pcn > pcv ? pcn : pcv
     const ntf = { dh: this.dh }
-    if (max >= 100) { ntf.nr = 2; ntf.texte = '%Q2' }
+    if (max >= 100) { ntf.nr = 2; ntf.texte = '%qv' }
     else if (max >= 90) { ntf.nr = 0; ntf.texte = '%Q0' }
     return ntf.texte ? ntf : null
   }
@@ -878,7 +878,7 @@ export class Compteurs {
     if (solde <= 0) return 0
     const [ac, mc] = AMJ.am(this.dh)
     const cu = Tarif.cu(ac, mc)
-    const abo = (this.qv.q1 * cu[0]) + (this.qv.q2 * cu[1])
+    const abo = (this.qv.qn * cu[0]) + (this.qv.qv * cu[1])
     return Math.floor(solde / (abo + this.conso4M) * 30)
   }
 
@@ -1034,7 +1034,7 @@ export class Compteurs {
       v[j] = this.moy(av, ap, vmc[j], this.qv[y])
     }
     // calcul du montant par multiplication par leur cout unitaire.
-    // pour les "abonnements" Q1 et Q2 le cu est annuel: 
+    // pour les "abonnements" qn et qv le cu est annuel: 
     // on le calcule au prorata des ms du mois / ms d'un an
     const px = v[Compteurs.MS] / MSPARAN
     for(let i = 1; i < Compteurs.X1; i++)
@@ -1059,7 +1059,7 @@ export class Compteurs {
       const y = Compteurs.lqv[Compteurs.X1 + i]
       v[j] = this.qv[y]
     }
-    // Seuls Q1 et Q2 accroissent l'abonnement. Il n'y a pas de consommation
+    // Seuls qn et qv accroissent l'abonnement. Il n'y a pas de consommation
     for(let i = 0; i < Compteurs.X1; i++) {
       v[Compteurs.CA] += v[i] * cu[i] * (msmois / MSPARAN)
     }
@@ -1086,9 +1086,9 @@ export class Compteurs {
     const b = a + Compteurs.X2
     const p = 
   `[${n}] abom=${e6(m[Compteurs.CA])}  consom=${e6(m[Compteurs.CC])}
-    moy quotas: ${e6(m[Compteurs.QC])} ${e6(m[Compteurs.Q1])} ${e6(m[Compteurs.Q2])}
+    moy quotas: ${e6(m[Compteurs.QC])} ${e6(m[Compteurs.QN])} ${e6(m[Compteurs.QV])}
     conso:  nl=${m[a + Compteurs.NL]}  ne=${m[a + Compteurs.NE]}  vd=${m[a + Compteurs.VD]}  vm=${m[a + Compteurs.VM]}
-    vols: nn=${e6(m[b + Compteurs.NN])}  nc=${e6(m[b + Compteurs.NC])}  ng=${e6(m[b + Compteurs.NG])}  v2=${e6(m[b + Compteurs.V2])}`
+    vols: nn=${e6(m[b + Compteurs.NN])}  nc=${e6(m[b + Compteurs.NC])}  ng=${e6(m[b + Compteurs.NG])}  v=${e6(m[b + Compteurs.V])}`
     console.log(p)
   }
 
