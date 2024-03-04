@@ -32,7 +32,7 @@ export function load () {
 */
 
 /* Sync : opération générique de synchronisation d'une session cliente
-- optionsC: true - recherche de toutes les versions du périmètre cohérentes
+- optionC: true - recherche de toutes les versions du périmètre cohérentes
 - ida: id long du sous-arbre à synchroniser ou 0
 - dataSync: sérialisation de l'état de synchro de la session
 */
