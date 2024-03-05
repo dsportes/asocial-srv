@@ -1161,31 +1161,13 @@ export class DataSync {
     return new Uint8Array(encode(x))
   }
 
-  setAv (id, e) {
-    const t = []
-    let f = false
-    for(const x of this.avatars) {
-      if (x.id === id) {
-        f = true
-        if (e) t.push(e)
-      } else t.push(x)
-    }
-    if (!f && e) t.push(e)
-    this.avatars = t
-  }
+  setAv (e) { this.avatars.set(e.id, e) }
 
-  setGr (id, e) {
-    const t = []
-    let f = false
-    for(const x of this.groupes) {
-      if (x.id === id) {
-        f = true
-        if (e) t.push(e)
-      } else t.push(x)
-    }
-    if (!f && e) t.push(e)
-    this.groupes = t
-  }
+  delAv (id) { this.avatars.delete(id) }
+
+  setGr (e) { this.groupes.set(e.id, e) }
+
+  delGr (id) { this.groupes.delete(id) }
 
   get tousRds () {
     const s = new Set()
