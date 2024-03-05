@@ -8,7 +8,7 @@ import { operations } from './cfgexpress.mjs'
 import { Operation, assertKO, trace} from './modele.mjs'
 import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRaw /*, decrypterRaw */ } from './util.mjs'
-import { DataSync, FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC, statistiques } from './api.mjs'
+import { DataSync, Rds, FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC, statistiques } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function load () {
@@ -32,14 +32,19 @@ export function load () {
 */
 
 /* Sync : opération générique de synchronisation d'une session cliente
-- optionC: true - recherche de toutes les versions du périmètre cohérentes
+- optionC: 
+  - true : recherche de toutes les versions du périmètre cohérentes
+  - false : marque supprimés de dataSync les avatars / groupes  qui n'existent plus dans compte,
+    recherche les versions des avatars / membres présents dans compte et pas dans dataSync
 - ida: id long du sous-arbre à synchroniser ou 0
 - dataSync: sérialisation de l'état de synchro de la session
 */
 operations.Sync = class Sync extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
-  /* Analyse d'un groupe idg. x : élément de ds relatif au groupe */
+  /* Analyse d'un groupe idg. x : élément de ds relatif au groupe 
+  retourne le groupe
+  */
   async setGrx (idg, x) {
     const rowVersion = await Cache.getRow(this, 'versions', x.rds)
     if (!rowVersion || rowVersion.suppr) { x.vb = -1; return null }
@@ -71,10 +76,9 @@ operations.Sync = class Sync extends Operation {
     /* Obtention des rows du sous-arbre */
     const m = g ? this.ds.groupes : this.ds.avatars
     const x = m.get(ida)
-    if (!x) return
+    if (!x || x.vb <= 0) return
     if (g) {
       const gr = await this.setGrx(ida, x)
-      if (x.vb <= 0) return
       this.setRes('rowGroupes', gr.toShortRow(x.m))
       if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs)) {
         const note = compile(row)
@@ -146,6 +150,40 @@ operations.Sync = class Sync extends Operation {
       for(const [idg, x] of this.ds.groupes)
         await this.setGrx(idg, x)
       this.ds.dhc = this.dh
+    } else { // Maj du dataSync en fonction de compte
+      // inscrit dans DataSync les nouveaux avatars qui n'y étaient pas et sont dans compte
+      for (const idx in this.compte.mav) {
+        const id = ID.long(parseInt(idx), this.ns)
+        const { rds } = this.compte.mav[idx]
+        const x = this.ds.avatars.get(id)
+        if (!x) { // recherche du versions et ajout dans le DataSync
+          const x = DataSync.vide; x.id = id; x.rds = Rds.long(rds)
+          const rowVersion = await Cache.getRow(this, 'versions', x.rds)
+          if (rowVersion && !rowVersion.suppr) { 
+            x.vb = rowVersion.v
+            x.vc = rowVersion.v 
+            this.ds.avatars.set(id, x)
+          }
+        }
+      }
+      // marque supprimés les avatars de DataSync qui n'existent plus
+      for (const e of this.ds.groupes)
+        if (!this.compte.mav[e.id]) e.vb = -1
+
+      // inscrit dans DataSync les nouveaux groupes qui n'y étaient pas et sont dans compte
+      for (const idx in this.compte.mpg) {
+        const idg = ID.long(parseInt(idx), this.ns)
+        const { rds } = this.compte.mpg[idx]
+        let x = this.ds.groupes.get(idg)
+        if (!x) { x = DataSync.videg; x.id = idg; x.rds = Rds.long(rds)}
+        /* Analyse d'un groupe idg. x : élément de ds relatif au groupe (m et n fixés) */
+        const gr = await this.setGrx(idg, x)
+        if (gr) // le groupe existe vraiment !
+          this.ds.groupes.set(idg, x)
+      }
+      // marque supprimés les groupes de DataSync qui n'existent plus
+      for (const x of this.ds.groupes)
+        if (!this.compte.mpg[x.id]) x.vb = -1
     }
 
     if (args.ida) await this.getAvGrRows(args.ida)
