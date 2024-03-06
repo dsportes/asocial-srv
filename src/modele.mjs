@@ -218,12 +218,6 @@ export class Operation {
 
     if (this.phase2) await this.phase2(this.args)
 
-    const dlv = this.calculDlv()
-    if (dlv !== this.compte.dlv) {
-      this.compte.dlv = dlv
-      this.compte._maj = true
-    }
-
     // Maj espace
     if (this.espace._maj) {
       const ins = !this.espace.v
@@ -239,6 +233,7 @@ export class Operation {
         this.toInsert.push(version)
         this.toInsert.push(rowEspace)
       }
+      this.setRes('rowEspace', rowEspace)
     }
 
     // Maj partition
@@ -256,9 +251,25 @@ export class Operation {
         this.toInsert.push(version)
         this.toInsert.push(rowPartition)
       }
+      this.setRes('rowPartition', rowPartition)
     }
     
-    // Maj compte
+    // Maj dlv si nécessaire) et compte
+    {
+      const dlv = this.calculDlv()
+      let diff1 = AMJ.diff(dlv, this.compte.dlv); if (diff1 < 0) diff1 = -diff1
+      if (diff1) {
+        /* Pour éviter des modifications mineures sur comptes, on ne met à jour la dlv que :
+        - si elle dans moins de 20 jours
+        - si elle diffère de l'actuelle de plus de 10 jours
+        */
+        if (AMJ.diff(dlv, this.auj) < 20 || diff1 > 10) {
+          this.compte.dlv = dlv
+          this.compte._maj = true
+        }
+      }
+    }
+
     if (this.compte._maj) {
       const ins = !this.compte.v
       const v = this.compte.v ? this.compte.v + 1 : 1
@@ -273,6 +284,7 @@ export class Operation {
         this.toInsert.push(version)
         this.toInsert.push(rowCompte)
       }
+      this.setRes('rowCompte', rowCompte)
     }
 
     /* Maj compta */
@@ -284,13 +296,12 @@ export class Operation {
       vm: this.vm 
     }
     this.compta.conso(conso)
-    let rowCompta
     if (this.compta._maj) {
       const ins = !this.compta.v
       const v = this.compta.v ? this.compta.v + 1 : 1
       const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
       this.compta.v = v
-      rowCompta = this.compta.toRow()
+      const rowCompta = this.compta.toRow()
       this.versions.push(version)
       if (ins) {
         this.toInsert.push(version)
@@ -299,11 +310,9 @@ export class Operation {
         this.toInsert.push(version)
         this.toInsert.push(rowCompta)
       }
-    } else {
-      rowCompta = this.compta.toRow()
+      if (rowCompta) this.result.rowCompta = rowCompta
     }
-
-    this.result.rowCompta = rowCompta
+    
     this.result.conso = conso
     this.result.notifs = this.notifs
 
@@ -376,8 +385,9 @@ export class Operation {
     this.compte = compile(rowCompte)
     const x = (hash(this.authData.hXC) % d14)
     if (this.compte.hXC !== x) throw new AppExc(F_SRV, 998)
+    if (this.compte.dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.id = this.compte.id
-    this.estA = this.compte.idp === 0
+    this.estA = this.compte.it === 0
     // Opération du seul Comptable
     if (this.authMode === 2 && !ID.estComptable(this.id)) { 
       await sleep(3000); throw new AppExc(F_SRV, 104) 
@@ -390,7 +400,7 @@ export class Operation {
     if (this.compta._Q) this.notifs.Q = this.compta._Q; else delete this.notifs.Q
     if (this.compta._X) this.notifs.X = this.compta._X; else delete this.notifs.X
 
-    /* Partition : si c'est un compte O*/
+    /* Partition : si c'est un compte O */
     if (!this.estA) {
       // obtient partition
       const idp = ID.long(this.compte.idp, this.ns)
@@ -399,10 +409,6 @@ export class Operation {
       this.partition = compile(rowPartition)
       this.partition.notifs(this.notifs, this.compte.it)
     }
-
-    const dlv = this.calculDlv()
-    if (dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
-
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
