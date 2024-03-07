@@ -118,22 +118,22 @@ operations.Sync = class Sync extends Operation {
     this.ds = new DataSync(null, args.dataSync)
     {
       const x = this.ds.compte; x.id = this.compte.id
-      x.rds = this.compte.rds; x.vc = this.compte.v; this.vb = this.compte.v
+      x.rds = Rds.long(this.compte.rds, this.ns); x.vc = this.compte.v; this.vb = this.compte.v
     }
     {
       const x = this.ds.compta; x.id = this.compta.id
-      x.rds = this.compta.rds; x.vc = this.compta.v; this.vb = this.compta.v
+      x.rds = Rds.long(this.compta.rds, this.ns); x.vc = this.compta.v; this.vb = this.compta.v
     }
     {
       const x = this.ds.espace; x.id = this.espace.id
-      x.rds = this.espace.rds; x.vc = this.espace.v; this.vb = this.espace.v
+      x.rds = Rds.long(this.espace.rds, this.ns); x.vc = this.espace.v; this.vb = this.espace.v
     }
     const x = this.ds.partition;
     if (this.estA) {
       if (x.id) x.vb = -1
     } else {
       x.id = this.partition.id
-      x.rds = this.partition.rds; x.vc = this.partition.v; this.vb = this.partition.v
+      x.rds = Rds.long(this.partition.rds, this.ns); x.vc = this.partition.v; this.vb = this.partition.v
     }
     /* mise à nouveau des listes avatars / groupes du dataSync
     en fonction des avatars et groupes listés dans mav/mpg du compte */
@@ -154,10 +154,11 @@ operations.Sync = class Sync extends Operation {
       // inscrit dans DataSync les nouveaux avatars qui n'y étaient pas et sont dans compte
       for (const idx in this.compte.mav) {
         const id = ID.long(parseInt(idx), this.ns)
-        const { rds } = this.compte.mav[idx]
+        const { rdx } = this.compte.mav[idx]
+        const rds = Rds.long(rdx, this.ns)
         const x = this.ds.avatars.get(id)
         if (!x) { // recherche du versions et ajout dans le DataSync
-          const x = DataSync.vide; x.id = id; x.rds = Rds.long(rds)
+          const x = DataSync.vide; x.id = id; x.rds = rds
           const rowVersion = await Cache.getRow(this, 'versions', x.rds)
           if (rowVersion && !rowVersion.suppr) { 
             x.vb = rowVersion.v
@@ -173,9 +174,10 @@ operations.Sync = class Sync extends Operation {
       // inscrit dans DataSync les nouveaux groupes qui n'y étaient pas et sont dans compte
       for (const idx in this.compte.mpg) {
         const idg = ID.long(parseInt(idx), this.ns)
-        const { rds } = this.compte.mpg[idx]
+        const { rdx } = this.compte.mpg[idx]
+        const rds = Rds.long(rdx, this.ns)
         let x = this.ds.groupes.get(idg)
-        if (!x) { x = DataSync.videg; x.id = idg; x.rds = Rds.long(rds)}
+        if (!x) { x = DataSync.videg; x.id = idg; x.rds = rds}
         /* Analyse d'un groupe idg. x : élément de ds relatif au groupe (m et n fixés) */
         const gr = await this.setGrx(idg, x)
         if (gr) // le groupe existe vraiment !
@@ -200,5 +202,47 @@ operations.Sync = class Sync extends Operation {
 
     // Mise à jour des abonnements aux versions
     if (this.sync) this.sync.setAboRds(this.ds.tousRds, this.dh)
+  }
+}
+
+/* Sync2 : opération de synchronisation d'une session cliente
+remontant les seuls rows comptes, comptas, espaces et partitions
+quand leurs versions actuelles sont postérieures à celles detenues
+en session.
+- dataSync: sérialisation de l'état de synchro de la session
+Retour:
+- dataSync : sérialisation du DataSync mis à jour
+- rowcompte rowCompta rowEspace rowPartition
+*/
+operations.Sync2 = class Sync2 extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
+
+  async phase2(args) {
+    const ds = new DataSync(args.dataSync)
+    if (this.compte.v > ds.compte.vs) {
+      ds.compte.vb = this.compte.v
+      this.setRes('rowCompte', this.compte.toRow())
+    }
+    if (this.compta.v > ds.compta.vs) {
+      ds.compta.vb = this.compta.v
+      this.setRes('rowCompta', this.compta.toRow())
+    }
+    if (this.espace.v > ds.espace.vs) {
+      ds.espace.vb = this.espace.v
+      this.setRes('rowEspace', this.espace.toRow())
+    }
+    if (this.partition) {
+      const vs = ds.partition && (ds.partition.id === this.partition.id) ? ds.partition.vs : 0
+      ds.partition = { 
+        id: this.partition.id, 
+        rds: Rds.long(this.partition.rds, this.ns), 
+        vs: vs, 
+        vc: this.partition.v, 
+        vb: this.partition.v 
+      }
+      this.setRes('rowPartitiona', this.partition.toShortRow(this.compte.del))
+    } else {
+      ds.partition = { ...DataSync.vide }
+    }
   }
 }
