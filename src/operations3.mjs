@@ -80,7 +80,7 @@ operations.Sync = class Sync extends Operation {
     if (g) {
       if (!x || !x.vb[0]) return
       const gr = await this.setGrx(ida, x)
-      this.setRes('rowGroupes', gr.toShortRow(x.m))
+      this.setRes('rowGroupe', gr.toShortRow(x.m))
       if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs[3])) {
         const note = compile(row)
         this.addRes('rowNotes', note.toShortRow(this.id))
@@ -89,7 +89,7 @@ operations.Sync = class Sync extends Operation {
         for (const row of await this.db.scoll(this, 'membres', ida, x.vs[2]))
           this.addRes('rowMembres', row)
         for (const row of await this.db.scoll(this, 'chatgrs', ida, x.vs[2]))
-          this.addRes('rowChatgrs', row)
+          this.setRes('rowChatgr', row)
       }
     } else {
       if (!x || !x.vb) return
@@ -98,7 +98,7 @@ operations.Sync = class Sync extends Operation {
       else { x.vb = rowVersion.v; x.vc = rowVersion.v }
       const rav = await Cache.getRow(this, 'avatars', ida)
       if (!rav) { x.vb = 0; return }
-      this.setRes('rowAvatars', rav)
+      this.setRes('rowAvatar', rav)
 
       for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
         this.addRes('rowNotes', row)
@@ -258,5 +258,38 @@ operations.Sync2 = class Sync2 extends Operation {
     } else {
       ds.partition = { ...DataSync.vide }
     }
+  }
+}
+
+/* GetEspaces : pour admin seulment, retourne tous les rows espaces
+- `token` : éléments d'authentification du compte.
+Retour:
+- espaces : array de row espaces
+*/
+operations.GetEspaces = class Sync2 extends Operation {
+  constructor (nom) { super(nom, 3, 0) }
+
+  async phase2() {
+    this.setRes('espaces', await this.db.coll(this, 'espaces'))
+  }
+}
+
+/* `GetSynthese` : retourne la synthèse de l'espace ns
+- `token` : éléments d'authentification du compte.
+- `ns` : id de l'espace.
+Retour:
+- `rowSynthese`
+Assertion sur l'existence du row `Syntheses`.
+Exception:
+- pas admin, pas Comptable et pas le ns courant du compte
+*/
+operations.GetSynthese = class GetSynthese extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
+
+  async phase2 (args) {
+    const ok = this.estAdmin || ID.estComptable(this.id) || this.ns === args.ns
+    // TODO if (!ok) throw ...
+    const rowSynthese = await this.getRowSynthese(args.ns, 'GetSynthese')
+    this.setRes('rowSynthese', rowSynthese)
   }
 }

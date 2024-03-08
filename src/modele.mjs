@@ -342,19 +342,20 @@ export class Operation {
     const t = this.args.token
     if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
     let authData = null
+    this.estAdmin = false
+
     try { 
       authData = decode(b64ToU8(t)) 
+      if (authData.shax) {
+        try {
+          const shax64 = Buffer.from(authData.shax).toString('base64')
+          if (config.app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
+        } catch (e) { /* */ }
+      }
     } catch (e) { throw assertKO('Operation-2', 20, [e.message])}
 
     if (this.authMode === 3) { // admin requis
-      try {
-        if (this.authData.shax) { 
-          const shax64 = Buffer.from(this.authData.shax).toString('base64')
-          if (config.app_keys.admin.indexOf(shax64) !== -1) return
-        }
-      } catch (e) { /* */ }
-      await sleep(3000)
-      throw new AppExc(F_SRV, 999) // pas reconnu
+      if (!this.estAdmin) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
     }
 
     if (!this.isGet && this.db.hasWS) {
@@ -364,7 +365,7 @@ export class Operation {
     }
 
     /* Espace: rejet de l'opération si l'espace est "clos" */
-    this.espace = await Cache.getEspaceOrg(this, this.authData.org)
+    this.espace = await Cache.getEspaceOrg(this, authData.org)
     if (!this.espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
     this.ns = this.espace.id
     if (this.espace.notifG) {
@@ -379,11 +380,11 @@ export class Operation {
     }
     
     /* Compte */
-    const hXR = (this.espace.id * d14) + this.authData.hXR
+    const hXR = (this.espace.id * d14) + authData.hXR
     const rowCompte = await this.db.getCompteHXR(this, hXR)
     if (!rowCompte) { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.compte = compile(rowCompte)
-    const x = (hash(this.authData.hXC) % d14)
+    const x = (hash(authData.hXC) % d14)
     if (this.compte.hXC !== x) throw new AppExc(F_SRV, 998)
     if (this.compte.dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.id = this.compte.id

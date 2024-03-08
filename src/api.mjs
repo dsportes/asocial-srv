@@ -1114,7 +1114,7 @@ sync : { id (long), rds (long), vs, vc, vb }
 */
 export class DataSync {
   static vide = { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 }
-  static videg = { id: 0, rds: 0, vs: [0,0,0,0], 
+  static videg = { id: 0, rds: 0, vs: [0,0,0,0],  // gen, gr, mb, no
     vc: 0, vb: [0,0,0,0] } // m:true, n:true
 
   static nouveau () {
