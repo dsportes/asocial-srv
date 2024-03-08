@@ -1114,7 +1114,8 @@ sync : { id (long), rds (long), vs, vc, vb }
 */
 export class DataSync {
   static vide = { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 }
-  static videg = { id: 0, rds: 0, vs: 0, vc: 0, vb: 0, m: 0, n: 0 }
+  static videg = { id: 0, rds: 0, vs: [0,0,0,0], 
+    vc: 0, vb: [0,0,0,0] } // m:true, n:true
 
   static nouveau () {
     const x = {
@@ -1169,14 +1170,18 @@ export class DataSync {
 
   delGr (id) { this.groupes.delete(id) }
 
+  get grIdSet () { const s = new Set(); this.groupes.forEach(x => { s.add(x.id) }); return s}
+
+  get avIdSet () { const s = new Set(); this.avatars.forEach(x => { s.add(x.id) }); return s}
+
   get tousRds () {
     const s = new Set()
     s.add(this.compte.rds)
     s.add(this.compta.rds)
     s.add(this.espace.rds)
     if (this.partition.id) s.add(this.partition.rds)
-    this.avatars.forEach(x => { if (x.vb !== -1) s.add(x.rds) })
-    this.groupes.forEach(x => { if (x.vb !== -1) s.add(x.rds) })
+    this.avatars.forEach(x => { s.add(x.rds) })
+    this.groupes.forEach(x => { s.add(x.rds) })
     return s
   }
 
@@ -1210,7 +1215,7 @@ export class DataSync {
     if (this.espace.vc !== this.espace.vb) return false
     if (this.partition.id && (this.partition.vc !== this.partition.vb)) return false
     for(const [, t] of this.avatars) if (t.vc && (t.vc !== t.vb)) return false
-    for(const [, t] of this.groupes) if (t.vc && (t.vc !== t.vb)) return false
+    for(const [, t] of this.groupes) if (t.vc && (t.vc !== t.vb[0])) return false
     return true
   }
 
@@ -1222,8 +1227,12 @@ export class DataSync {
     if (this.espace.vs !== this.espace.vb) return false
     if (this.partition.id && (this.partition.vs !== this.partition.vb)) return false
     for(const [, t] of this.avatars) if (t.vc && (t.vs !== t.vb)) return false
-    for(const [, t] of this.groupes) if (t.vc && (t.vs !== t.vb)) return false
+    for(const [, t] of this.groupes) if (t.vc && !this.equal(t.vs, t.vb)) return false
     return true
   }
-
+  
+  equal (a, b) {
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+    return true
+  }
 }

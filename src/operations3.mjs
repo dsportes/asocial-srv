@@ -43,30 +43,30 @@ operations.Sync = class Sync extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   /* Analyse d'un groupe idg. x : élément de ds relatif au groupe 
-  retourne le groupe
+  versions d'un groupe: { id, v, tv: [v, vg, vm, vn]}
+  Retourne le groupe
   */
   async setGrx (idg, x) {
-    const rowVersion = await Cache.getRow(this, 'versions', x.rds)
-    if (!rowVersion || rowVersion.suppr) { x.vb = -1; return null }
-    else { x.vb = rowVersion.v; x.vc = rowVersion.v }
+    const version = compile(await Cache.getRow(this, 'versions', x.rds))
+    if (!version || version.suppr) { x.vb = [0,0,0,0]; return null }
+    else { x.vb = [...version.tv]; x.vc = version.v }
 
     let gr = this.mgr.get(idg)
     if (gr === undefined) {
       gr = compile(await Cache.getRow(this, 'groupes', idg)) || null
       this.mgr.set(idg, gr)
     }
-    if (gr === null) { x.vb = -1; x.m = -1; x.n = -1; return null }
+
+    if (gr === null) { x.vb = [0,0,0,0]; x.m = false; x.n = false; return null }
     // set de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
     const sim = this.compte.imGr(idg)
     if (sim.size) {
       const [mx, nx] = gr.amAn(sim)
-      if (x.m === 1 && !mx) x.m = -1
-      if (x.m === 0 && mx) x.m = 1
-      if (x.n === 1 && !nx) x.n = -1
-      if (x.n === 0 && nx) x.n = 1
+      x.m = mx
+      x.n = nx
     } else {
-      x.m = -1
-      x.n = -1
+      x.m = false
+      x.n = false
     }
     return gr
   }
@@ -76,27 +76,28 @@ operations.Sync = class Sync extends Operation {
     /* Obtention des rows du sous-arbre */
     const m = g ? this.ds.groupes : this.ds.avatars
     const x = m.get(ida)
-    if (!x || x.vb <= 0) return
+    
     if (g) {
+      if (!x || !x.vb[0]) return
       const gr = await this.setGrx(ida, x)
       this.setRes('rowGroupes', gr.toShortRow(x.m))
-      if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs)) {
+      if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs[3])) {
         const note = compile(row)
         this.addRes('rowNotes', note.toShortRow(this.id))
       }
       if (x.m) {
-        for (const row of await this.db.scoll(this, 'membres', ida, x.vs))
+        for (const row of await this.db.scoll(this, 'membres', ida, x.vs[2]))
           this.addRes('rowMembres', row)
-        for (const row of await this.db.scoll(this, 'chatgrs', ida, x.vs))
+        for (const row of await this.db.scoll(this, 'chatgrs', ida, x.vs[2]))
           this.addRes('rowChatgrs', row)
       }
     } else {
+      if (!x || !x.vb) return
       const rowVersion = await Cache.getRow(this, 'versions', ID.long(x.rds))
-      if (!rowVersion || rowVersion.suppr) x.vb = -1
+      if (!rowVersion || rowVersion.suppr) { x.vb = 0; return }
       else { x.vb = rowVersion.v; x.vc = rowVersion.v }
-      if (x.vb <= 0) return
       const rav = await Cache.getRow(this, 'avatars', ida)
-      if (!rav) { x.vb = -1; return }
+      if (!rav) { x.vb = 0; return }
       this.setRes('rowAvatars', rav)
 
       for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
@@ -112,29 +113,37 @@ operations.Sync = class Sync extends Operation {
   }
 
   async phase2(args) {
-    this.mgr = new Map()
+    this.mgr = new Map() // Cache très locale et courte des groupes acquis dans l'opération
 
     /* Mise à jour du DataSync en fonction des CCEP et des avatars / groupes actuels du compte */
     this.ds = new DataSync(null, args.dataSync)
-    {
-      const x = this.ds.compte; x.id = this.compte.id
-      x.rds = Rds.long(this.compte.rds, this.ns); x.vc = this.compte.v; this.vb = this.compte.v
+    this.ds.compte = {
+      id: this.compte.id,
+      rds: Rds.long(this.compte.rds, this.ns),
+      vc: this.compte.v,
+      vb: this.compte.v
     }
-    {
-      const x = this.ds.compta; x.id = this.compta.id
-      x.rds = Rds.long(this.compta.rds, this.ns); x.vc = this.compta.v; this.vb = this.compta.v
+    this.ds.compta = {
+      id: this.compta.id,
+      rds: Rds.long(this.compta.rds, this.ns),
+      vc: this.compta.v,
+      vb: this.compta.v
     }
-    {
-      const x = this.ds.espace; x.id = this.espace.id
-      x.rds = Rds.long(this.espace.rds, this.ns); x.vc = this.espace.v; this.vb = this.espace.v
+    this.ds.espace = {
+      id: this.espace.id,
+      rds: Rds.long(this.espace.rds, this.ns),
+      vc: this.espace.v,
+      vb: this.espace.v
     }
-    const x = this.ds.partition;
     if (this.estA) {
-      if (x.id) x.vb = -1
-    } else {
-      x.id = this.partition.id
-      x.rds = Rds.long(this.partition.rds, this.ns); x.vc = this.partition.v; this.vb = this.partition.v
+      this.ds.partition = { ...DataSync.vide }
+    } else this.ds.partition = {
+      id: this.partition.id,
+      rds: Rds.long(this.partition.rds, this.ns),
+      vc: this.partition.v,
+      vb: this.partition.v
     }
+
     /* mise à nouveau des listes avatars / groupes du dataSync
     en fonction des avatars et groupes listés dans mav/mpg du compte */
     this.compte.majPerimetreDataSync(this.ds)  
@@ -151,41 +160,46 @@ operations.Sync = class Sync extends Operation {
         await this.setGrx(idg, x)
       this.ds.dhc = this.dh
     } else { // Maj du dataSync en fonction de compte
-      // inscrit dans DataSync les nouveaux avatars qui n'y étaient pas et sont dans compte
+      // Inscription dans DataSync des nouveaux avatars qui n'y étaient pas et sont dans compte
       for (const idx in this.compte.mav) {
         const id = ID.long(parseInt(idx), this.ns)
-        const { rdx } = this.compte.mav[idx]
-        const rds = Rds.long(rdx, this.ns)
-        const x = this.ds.avatars.get(id)
-        if (!x) { // recherche du versions et ajout dans le DataSync
-          const x = DataSync.vide; x.id = id; x.rds = rds
-          const rowVersion = await Cache.getRow(this, 'versions', x.rds)
-          if (rowVersion && !rowVersion.suppr) { 
-            x.vb = rowVersion.v
-            x.vc = rowVersion.v 
-            this.ds.avatars.set(id, x)
+        if (!this.ds.avatars.get(id)) { // recherche du versions et ajout dans le DataSync
+          const { rdx } = this.compte.mav[idx]
+          const rds = Rds.long(rdx, this.ns)
+          const rowVersion = await Cache.getRow(this, 'versions', rds)
+          if (rowVersion && !rowVersion.suppr) {
+            this.ds.avatars.set(id, {
+              id: id,
+              rds: rds,
+              vs: 0,
+              vb: rowVersion.v,
+              vc: rowVersion.v
+            })
           }
         }
       }
-      // marque supprimés les avatars de DataSync qui n'existent plus
-      for (const e of this.ds.groupes)
-        if (!this.compte.mav[e.id]) e.vb = -1
+      // Suppression des avatars de DataSync qui n'existent plus
+      for (const id of this.ds.avIdSet)
+        if (!this.compte.mav[id]) this.ds.avatars.delete(id)
 
-      // inscrit dans DataSync les nouveaux groupes qui n'y étaient pas et sont dans compte
+      // Inscription dans DataSync des nouveaux groupes qui n'y étaient pas et sont dans compte
       for (const idx in this.compte.mpg) {
         const idg = ID.long(parseInt(idx), this.ns)
-        const { rdx } = this.compte.mpg[idx]
-        const rds = Rds.long(rdx, this.ns)
         let x = this.ds.groupes.get(idg)
-        if (!x) { x = DataSync.videg; x.id = idg; x.rds = rds}
+        if (!x) {
+          const { rdx } = this.compte.mpg[idx]
+          x = { ...DataSync.videg}
+          x.id = idg
+          x.rds = Rds.long(rdx, this.ns)
+        }
         /* Analyse d'un groupe idg. x : élément de ds relatif au groupe (m et n fixés) */
         const gr = await this.setGrx(idg, x)
         if (gr) // le groupe existe vraiment !
           this.ds.groupes.set(idg, x)
       }
-      // marque supprimés les groupes de DataSync qui n'existent plus
-      for (const x of this.ds.groupes)
-        if (!this.compte.mpg[x.id]) x.vb = -1
+      // Suppression des groupes de DataSync qui n'existent plus
+      for (const id of this.ds.grIdSet)
+        if (!this.compte.mpg[id]) this.ds.groupes.delete(id)
     }
 
     if (args.ida) await this.getAvGrRows(args.ida)
