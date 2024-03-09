@@ -2,7 +2,8 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, d14, rowCryptes } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
-import { Compteurs, ID, Rds } from './api.mjs'
+import { Compteurs, ID, Rds, lcSynt, AMJ } from './api.mjs'
+import { config } from './config.mjs'
 // import { assertKO } from './modele.mjs'
 
 /* GenDoc **************************************************
@@ -109,11 +110,11 @@ export class GenDoc {
   static _attrs = {
     espaces: ['id', 'org', 'v', '_data_'],
     fpurges: ['id', '_data_'],
-    gcvols: ['id', '_data_'],
-    tribus: ['id', 'v', '_data_'],
+    partitions: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
-    comptas: ['id', 'v', 'hps1', '_data_'],
-    versions: ['id', 'v', 'dlv', '_data_'],
+    comptes: ['id', 'v', 'hxr', '_data_'],
+    comptas: ['id', 'v', '_data_'],
+    versions: ['id', 'v', 'suppr', '_data_'],
     avatars: ['id', 'v', 'vcv', 'hpc', '_data_'],
     notes: ['id', 'ids', 'v', '_data_'],
     transferts: ['id', 'ids', 'dlv', '_data_'],
@@ -121,7 +122,7 @@ export class GenDoc {
     chats: ['id', 'ids', 'v', 'vcv', '_data_'],
     tickets: ['id', 'ids', 'v', '_data_'],
     groupes: ['id', 'v', 'dfh', '_data_'],
-    membres: ['id', 'ids', 'v', 'vcv', 'dlv', '_data_'],
+    membres: ['id', 'ids', 'v', 'vcv', '_data_'],
     chatgrs: ['id', 'ids', 'v', '_data_']
   }
 
@@ -190,25 +191,85 @@ export class GenDoc {
   compile () { return this }
 }
 
+/* Espaces ********************************************************/
 export class Espaces extends GenDoc { 
   constructor () { 
     super('espaces') 
     this._maj = false
   } 
+
+  static nouveau (appKey, ns, org, cleE) {
+    const cleES = crypterSrv(appKey, cleE)
+    const r = {
+      id: ns,
+      org: org,
+      v: 1,
+      rds: Rds.nouveau('espaces'),
+      cleES: cleES,
+      creation: this.auj,
+      moisStat: 0,
+      moisStatT: 0,
+      notif: null,
+      dlvat: 0,
+      t: 1
+    }
+    return new Espaces().init(r)
+  }
 }
 
 export class Tickets extends GenDoc { constructor () { super('tickets') } }
 
-export class Gcvols extends GenDoc { constructor () { super('gcvols') } }
-
 export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
 
-/** Partitions *********************************************/
+/** Partitions ********************************************
+_data_:
+- `id` : numéro d'ordre de création de la partition par le Comptable.
+- `v` : 1..N
+
+- `rds`
+- `qc qn qv` : quotas totaux de la partition.
+- `clePK` : clé P de la partition cryptée par la clé K du comptable.
+- `notif`: notification de niveau _partition_ dont le texte est crypté par la clé P de la partition.
+
+- `ldel` : liste des clés A des délégués cryptées par la clé P de la partition.
+
+- `tcpt` : table des comptes attachés à la partition. L'index `it` dans cette table figure dans la propriété `it` du document `comptes` correspondant :
+  - `notif`: notification de niveau compte dont le texte est crypté par la clé P de la partition (`null` s'il n'y en a pas).
+  - `cleAP` : clé A du compte crypté par la clé P de la partition.
+  - `del`: `true` si c'est un délégué.
+  - `q` : `qc qn qv c n v` extraits du document `comptas` du compte. 
+    - En cas de changement de `qc qn qv` la copie est immédiate, sinon c'est effectué seulement lors de la prochaine connexion du compte.
+    - `c` : consommation moyenne mensuelle lissée sur M et M-1 (`conso2M` de compteurs)
+    - `n` : nn + nc + ng nombre de notes, chats, participation aux groupes.
+    - `v` : volume de fichiers effectivement occupé.
+*/
 export class Partitions extends GenDoc { 
   constructor () { 
     super('partitions')
     this._maj = false
   } 
+
+  static nouveau (id, clePK, cleAP) {
+    const aco = config.allocComptable
+    const apr = config.allocPrimitive
+    const r = {
+      id, v: 1, 
+      rds: Rds.nouveau('partitions'),
+      qc: apr[0], qn: apr[1], qv: apr[2],
+      clePK, notif: null, ldel: [],
+      tcpt: [null]
+    }
+    if (cleAP) { // Partition primitive
+      const x = {
+        notif: null,
+        cleAP,
+        del: true,
+        q: { qc: aco[0], qn: aco[1], qv: aco[2], c: 0, n: 0, v: 0 }
+      }
+      r.tcpt.push(x)
+    }
+    return new Partitions().init(r)
+  }
 
   toShortRow (del) {
     if (!del) delete this.tcpt
@@ -225,9 +286,60 @@ export class Partitions extends GenDoc {
 
 }
 
-export class Syntheses extends GenDoc { constructor () { super('syntheses') } }
+/* Syntheses : un par espace ******************************
+_data_:
+- `id` : id de l'espace.
+- `v` : date-heure d'écriture (purement informative).
 
-/* Documents `comptes`
+- `tp` : table des synthèses des partitions de l'espace. L'indice dans cette table est l'id court de la partition. Chaque élément est la sérialisation de:
+  - id : id long de la partition (calculé localement)
+  - `qc qn qv` : quotas de la partition.
+  - `ac an av` : sommes des quotas attribués aux comptes attachés à la partition.
+  - `c n v` : somme des consommations journalières et des volumes effectivement utilisés.
+  - `ntr0` : nombre de notifications partition sans restriction d'accès.
+  - `ntr1` : nombre de notifications partition avec restriction d'accès 1.
+  - `ntr2` : nombre de notifications partition avec restriction d'accès 2_.
+  - `nbc` : nombre de comptes.
+  - `nbd` : nombre de comptes _délégués_.
+  - `nco0` : nombres de comptes ayant une notification sans restriction d'accès.
+  - `nco1` : nombres de comptes ayant une notification avec restriction d'accès 1.
+  - `nco2` : nombres de comptes ayant une notification avec restriction d'accès 2.
+
+  Claculés localement les _pourcentages_: 
+  - pcac pcan pcav pcc pcn pcv
+
+`tp[0]` est la somme des `tp[1..N]` calculé en session, pas stocké.
+
+lcSynt = ['qc', 'qn', 'qv', 'ac', 'an', 'av', 'c', 'n', 'v', 
+  'nbc', 'nbd', 'ntr0', 'ntr1', 'ntr2', 'nco0', 'nco1', 'nco2']
+*/
+export class Syntheses extends GenDoc { 
+  constructor () { super('syntheses') }
+
+  static nouveau (ns) { 
+    const aco = config.allocComptable
+    const apr = config.allocPrimitive
+    const r = { 
+      id: ns, 
+      v: Date.now(), 
+      tp: [null, null] 
+    }
+    const e = { }
+    lcSynt.forEach(f => { e[f] = 0 })
+    e.qc = apr[0]
+    e.qn = apr[1]
+    e.qv = apr[2]
+    e.ac = aco[0]
+    e.an = aco[1]
+    e.av = aco[2]
+    e.nbc = 1
+    e.nbd = 1
+    r.tp[1] = e
+    return new Espaces().init(r)
+  }
+}
+
+/* Comptes
 - Phrase secrète, clés K P D, rattachement à une partition
 - Avatars du compte
 - Groupes accédés du compte
@@ -240,16 +352,18 @@ _data_ :
 
 - `rds`
 - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
-- `cleKXR` : clé K cryptée par XR.
+- `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
 
 _Comptes "O" seulement:_
 - `clePA` : clé P de la partition cryptée par la clé A de l'avatar principal du compte.
+- `rdsp` : `rds` (court) du documents partitions.
+- `idp` : id de la partition (pour le serveur) (sinon 0)
 - `del` : `true` si le compte est délégué de la partition.
 - `it` : index du compte dans `tcpt` de son document `partitions`.
 
 - `mav` : map des avatars du compte. 
   - _clé_ : id court de l'avatar.
-  - _valeur_ : `{ rds, cleAK }`
+  - _valeur_ : `{ rds, claAK }`
     - `rds`: de l'avatar (clé d'accès à son `versions`).
     - `cleAK`: clé A de l'avatar crypté par la clé K du compte.
 
@@ -260,15 +374,15 @@ _Comptes "O" seulement:_
     - rds: du groupe (clé d'accès à son `versions`)
     - `lp`: map des participations: 
       - _clé_: id court de l'avatar.
-      - _valeur_: indice `im` du membre dans la table `tmb` du groupe (`ids` du membre).
+      - _valeur_: indice `im` du membre dans la table `tid` du groupe (`ids` du membre).
 
 **Comptable seulement:**
 - `cleEK` : Clé E de l'espace cryptée par la clé K.
 - `tp` : table des partitions : `{c, qc, q1, q2}`.
-  - `c` : `{ cleP, cleD, code }` crypté par la clé K du comptable
+  - `c` : `{ cleP, code }` crypté par la clé K du comptable
     - `cleP` : clé P de la partition.
     - `code` : texte très court pour le seul usage du comptable.
-  - `qc, q1, q2` : quotas globaux de la partition.
+  - `qc, qn, qv` : quotas globaux de la partition.
 
 La première partition d'`id` 1 est celle du Comptable et est indestructible.
 */
@@ -277,6 +391,20 @@ export class Comptes extends GenDoc {
     super('comptes')
     this._maj = false
   } 
+
+  static nouveau (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs) {
+    const r = {
+      id: id, v: 1, hXR: hXR, dlv: AMJ.max, cleKXR, hXC, it: 0,
+      mav: {}, mpd: {}
+    }
+    r.mav[id] = { rds: rdsav, cleAK: cleAK }
+    if (o) { r.clePA = o.clePA; r.rdsp = o.rdsp, r.idp = o.idp, r.del = o.del, r.it = o.it }
+    if (cs) { 
+      r.cleEK = cs.cleEK
+      r.tp = [null, { c: cs.c, qc: cs.qc, qn: cs.qn, qv: cs.qv }]
+    }
+    return new Comptes().init(r)
+  }
 
   get ns () { return ID.ns(this.id) }
 

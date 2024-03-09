@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, AMJ, PINGTO, hash, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEV1, UNITEV2, d14, edvol, lcSynt } from './api.mjs'
+import { ID, AMJ, PINGTO, hash, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol, lcSynt } from './api.mjs'
 import { config } from './config.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8 } from './util.mjs'
@@ -773,10 +773,10 @@ export class Operation {
   */
   async majVolumeGr (idg, dv1, dv2, maj, assert) {
     const vg = compile(await this.getRowVersion(idg, assert))
-    if (dv1 > 0 && vg.vols.v1 + dv1 > vg.vols.q1 * UNITEV1) 
-      throw new AppExc(F_SRV, 65, [edvol(vg.vols.v1 + dv1), edvol(vg.vols.q1 * UNITEV1)])
-    if (dv2 > 0 && vg.vols.v2 + dv2 > vg.vols.q2 * UNITEV2) 
-      throw new AppExc(F_SRV, 65, [edvol(vg.vols.v2 + dv2), edvol(vg.vols.q2 * UNITEV2)])
+    if (dv1 > 0 && vg.vols.v1 + dv1 > vg.vols.q1 * UNITEN) 
+      throw new AppExc(F_SRV, 65, [edvol(vg.vols.v1 + dv1), edvol(vg.vols.q1 * UNITEN)])
+    if (dv2 > 0 && vg.vols.v2 + dv2 > vg.vols.q2 * UNITEV) 
+      throw new AppExc(F_SRV, 65, [edvol(vg.vols.v2 + dv2), edvol(vg.vols.q2 * UNITEV)])
     if (dv1 !== 0) vg.vols.v1 += dv1
     if (dv2 !== 0) vg.vols.v2 += dv2
     if (maj) {
@@ -816,9 +816,9 @@ export class Operation {
     qv.nc += dnc
     qv.ng += dng
     const v1 = qv.nn + qv.nc + qv.ng
-    if (v1 > qv.q1 * UNITEV1) throw new AppExc(F_SRV, 55, [v1, qv.q1])
+    if (v1 > qv.q1 * UNITEN) throw new AppExc(F_SRV, 55, [v1, qv.q1])
     qv.v2 += dv2
-    if (qv.v2 > qv.q2 * UNITEV2) throw new AppExc(F_SRV, 56, [qv.v2, qv.q2])
+    if (qv.v2 > qv.q2 * UNITEV) throw new AppExc(F_SRV, 56, [qv.v2, qv.q2])
     const ser = new Compteurs(compta.compteurs, qv).serial
     compta.v++
     compta.compteurs = ser

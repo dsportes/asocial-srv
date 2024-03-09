@@ -18,7 +18,7 @@ export class FsProvider {
   async ping () {
     try {
       const txt = new Date().toISOString()
-      const data = Buffer.from()
+      const data = Buffer.from(txt)
       const p = path.resolve(this.rootpath, 'ping.txt')
       await writeFile(p, Buffer.from(data))
       return 'File_system ping.txt OK: ' + txt

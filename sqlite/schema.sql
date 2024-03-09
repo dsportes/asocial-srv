@@ -18,41 +18,43 @@ CREATE TABLE IF NOT EXISTS "syntheses" (
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS "gcvols" (
-  "id"	INTEGER,
-  "_data_"	BLOB,
-  PRIMARY KEY("id")
-) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS "fpurges" (
   "id"	INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS "tribus" (
+CREATE TABLE IF NOT EXISTS "partitions" (
   "id"	INTEGER,
   "v" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
-CREATE INDEX "tribus_id_v" ON "tribus" ( "id", "v" );
+CREATE INDEX "tribus_id_v" ON "partitions" ( "id", "v" );
+CREATE TABLE IF NOT EXISTS "comptes" (
+  "id"	INTEGER,
+  "v" INTEGER,
+  "hxr" INTEGER,
+  "_data_"	BLOB,
+  PRIMARY KEY("id")
+) WITHOUT ROWID;
+CREATE INDEX "comptes_id_v" ON "comptes" ( "id", "v" );
+CREATE INDEX "comptes_hxr" ON "comptes" ( "hxr" );
 CREATE TABLE IF NOT EXISTS "comptas" (
   "id"	INTEGER,
   "v" INTEGER,
-  "hps1" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "comptas_id_v" ON "comptas" ( "id", "v" );
-CREATE INDEX "comptas_hps1" ON "comptas" ( "hps1" );
 CREATE TABLE IF NOT EXISTS "versions" (
   "id"	INTEGER,
   "v" INTEGER,
-  "dlv" INTEGER,
+  "suppr" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "versions_id_v" ON "versions" ( "id", "v" );
-CREATE INDEX "versions_dlv" ON "versions" ( "dlv" );
+CREATE INDEX "versions_dlv" ON "versions" ( "suppr" ) WHERE "suppr" > 0;
 CREATE TABLE IF NOT EXISTS "avatars" (
   "id"	INTEGER,
   "v" INTEGER,
@@ -123,13 +125,11 @@ CREATE TABLE IF NOT EXISTS "membres" (
   "ids"  INTEGER,
   "v"  INTEGER,
   "vcv" INTEGER,
-  "dlv" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id", "ids")
 );
 CREATE INDEX "membres_id_v" ON "membres" ( "id", "v" );
 CREATE INDEX "membres_id_vcv" ON "membres" ( "id", "vcv" );
-CREATE INDEX "membres_dlv" ON "membres" ( "dlv" );
 CREATE TABLE IF NOT EXISTS "chatgrs" (
   "id"	INTEGER,
   "ids"  INTEGER,

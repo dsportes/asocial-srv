@@ -3194,7 +3194,7 @@ operations.GCPag = class GCPag extends Operation {
     for(let nr = 0; nr < 3; nr++)
       try {
         const st = { na: 0, ng: 0, nn: 0, nc: 0, ns: 0, nt: 0, nm: 0 }
-        this.lids = await this.getVersionsDlv(AMJ.min, this.auj)
+        this.lids = await this.getVersionsSuppr(AMJ.min, this.auj)
         for (const id of this.lids) {
           if (ID.estComptable(id)) continue
           const estG = ID.estGroupe(id)

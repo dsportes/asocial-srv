@@ -5,12 +5,12 @@ import { encode, decode } from '@msgpack/msgpack'
 
 import favicon from './favicon.mjs'
 import { config } from './config.mjs'
-import { decode3, getHP } from './util.mjs'
+import { decode3 } from './util.mjs'
 import { version, AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
 
 // Toutes les opérations
 export const operations = {
-  auj: AMJ.amjUtc(),
+  auj: 0,
   nex: 1
 }
 

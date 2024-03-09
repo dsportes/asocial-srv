@@ -13,11 +13,13 @@ import { SyncSession } from './ws.mjs'
 import { getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress, operations } from './cfgexpress.mjs'
 
-import{ load } from './operations.mjs'
-import{ load2 } from './operations2.mjs'
+// import{ load } from './operations.mjs'
+// import{ load2 } from './operations2.mjs'
+import{ load3 } from './operations3.mjs'
 
-load()
-load2()
+// load()
+// load2()
+load3()
 
 let db = null, storage = null
 const keys = ['favicon.ico', 'fullchain.pem', 'privkey.pem']

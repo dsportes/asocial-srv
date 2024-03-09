@@ -280,10 +280,10 @@ export class FirestoreProvider {
     return compile(await decryptRow(op, row))
   }
 
-  async getComptaHps1(op, hps1) {
-    const p = FirestoreProvider._collPath('comptas')
+  async getCompteHXR(op, hxr) { // OK1
+    const p = FirestoreProvider._collPath('comptes')
     // INDEX simple sur comptas hps1
-    const q = this.fs.collection(p).where('hps1', '==', hps1)
+    const q = this.fs.collection(p).where('hxr', '==', hxr)
     let qs
     if (!op.fake && op.transaction) {
       qs = await op.transaction.get(q)
@@ -295,7 +295,7 @@ export class FirestoreProvider {
       for (const qds of qs.docs) { row = qds.data(); break }
     }
     if (!row) return null
-    row._nom = 'comptas'
+    row._nom = 'comptes'
     op.nl++
     return await decryptRow(op, row)
   }
@@ -339,11 +339,11 @@ export class FirestoreProvider {
     return await decryptRow(op, row)
   }
 
-  /* Retourne l'array des ids des "versions" dont la dlv est entre min incluse et max exclu */
-  async getVersionsDlv (op, dlvmin, dlvmax) {
+  /* Retourne l'array des ids des "versions" dont la suppr est entre min incluse et max exclu */
+  async getVersionsSuppr (op, supprmin, supprmax) {
     const p = FirestoreProvider._collPath('versions')
     // INDEX simple sur versions dlv
-    const q = this.fs.collection(p).where('dlv', '>=', dlvmin).where('dlv', '<', dlvmax) 
+    const q = this.fs.collection(p).where('suppr', '>=', supprmin).where('suppr', '<', supprmax) 
     const qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id'))})

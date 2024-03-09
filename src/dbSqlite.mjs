@@ -47,7 +47,7 @@ export class SqliteProvider {
         const sti = this._stmt('PINGI', 'INSERT INTO singletons (id, v, _data_) VALUES (1, @v, @_data_)')
         sti.run({ v, _data_ })
       }
-      return 'Sqlite ping OK: ' + (t._data_ || '?') + ' <=> ' + _data_
+      return 'Sqlite ping OK: ' + (t && t._data_ ? t._data_ : '?') + ' <=> ' + _data_
     } catch (e) {
       return 'Sqlite ping KO: ' + e.toString()
     }
@@ -262,11 +262,11 @@ export class SqliteProvider {
     return null
   }
   
-  async getComptaHps1(op, hps1) {
-    const st = this._stmt('SELHPS1', 'SELECT * FROM comptas WHERE hps1 = @hps1')
-    const row = st.get({ hps1 })
+  async getComptaHXR(op, hxr) {
+    const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hxr = @hxr')
+    const row = st.get({ hxr })
     if (row) {
-      row._nom = 'comptas'
+      row._nom = 'comptes'
       op.nl++
       return await decryptRow(op, row)
     }
@@ -296,9 +296,9 @@ export class SqliteProvider {
   }
   
   /* Retourne l'array des ids des "versions" dont la dlv est entre min et max exclue */
-  async getVersionsDlv(op, dlvmin, dlvmax) {
-    const st = this._stmt('SELVDLV', 'SELECT id FROM versions WHERE dlv >= @dlvmin AND dlv < @dlvmax')
-    const rows = st.all({ dlvmin, dlvmax })
+  async getVersionsSuppr(op, supprmin, supprmax) {
+    const st = this._stmt('SELVSUPPR', 'SELECT id FROM versions WHERE suppr >= @supprmin AND dlv < @supprmax')
+    const rows = st.all({ supprmin, supprmax })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})
     op.nl += r.length

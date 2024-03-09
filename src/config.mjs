@@ -12,6 +12,8 @@ export const config = {
     { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
     { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
   ],
+  allocComptable: [8, 2, 8],
+  allocPrimitive: [256, 256, 256],
 
   // paramètres ayant à se retrouver en variables d'environnement
   env: {
@@ -21,7 +23,7 @@ export const config = {
 
     // EMULATOR
     // STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-    FIRESTORE_EMULATOR_HOST: 'localhost:8080'
+    // FIRESTORE_EMULATOR_HOST: 'localhost:8080'
   },
 
   // Configuation nommées des providers db et storage
@@ -43,16 +45,15 @@ export const config = {
   pathkeys: './keys',
 
   run: { // Configuration du "serveur"
-    nom: 'test asocial-fs/gc',
+    nom: 'test asocial-sql',
     serveur: true,
 
     // Provider DB
-    // storage_provider: 'fs_a',
-    storage_provider: 'gc_a',
+    storage_provider: 'fs_a',
+    // storage_provider: 'gc_a',
     // Provider Storage
-    // db_provider: 'sqlite_a',
-
-    db_provider: 'firestore_a',
+    db_provider: 'sqlite_a',
+    // db_provider: 'firestore_a',
 
     // Running dans GAE
     gae: !(!env['GAE_DEPLOYMENT_ID']),
