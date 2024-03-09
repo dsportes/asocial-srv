@@ -1,6 +1,6 @@
 /* Opérations d'écrire et toutes du GC */
 
-import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV2, edvol, d14 } from './api.mjs'
+import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
@@ -2625,7 +2625,7 @@ operations.PutUrl = class PutUrl extends Operation {
       const h = compile(await this.getRowCompta(args.idh, 'PutUrl-1'))
       const c = decode(h.compteurs)
       const d = c.v2 + args.dv2
-      const q = c.q2 * UNITEV2
+      const q = c.q2 * UNITEV
       if (d > q)
         throw new AppExc(F_SRV, 56, [edvol(d), edvol(q)])
     }
@@ -2684,7 +2684,7 @@ operations.ValiderUpload = class ValiderUpload extends Operation {
     if (isNaN(h.qv.v2)) h.qv.v2 = 0
     h.qv.v2 += dv2
     if (h.qv.v2 < 0) h.qv.v2 = 0
-    const q = h.qv.q2 * UNITEV2
+    const q = h.qv.q2 * UNITEV
     if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
     h.compteurs = new Compteurs(h.compteurs, h.qv).serial
     h.v++
@@ -2741,7 +2741,7 @@ operations.SupprFichier = class SupprFichier extends Operation {
     if (isNaN(h.qv.v2)) h.qv.v2 = 0
     h.qv.v2 += dv2
     if (h.qv.v2 < 0) h.qv.v2 = 0
-    const q = h.qv.q2 * UNITEV2
+    const q = h.qv.q2 * UNITEV
     if (h.qv.v2 > q) throw new AppExc(F_SRV, 56, [edvol(h.qv.v2), edvol(q)])
     h.compteurs = new Compteurs(h.compteurs, h.qv).serial
     h.v++
