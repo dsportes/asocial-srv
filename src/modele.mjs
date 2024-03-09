@@ -34,6 +34,7 @@ B) compilation en Objet serveur
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, AMJ, PINGTO, hash, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol, lcSynt } from './api.mjs'
 import { config } from './config.mjs'
+import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8 } from './util.mjs'
 import { GenDoc, compile, Chats } from './gendoc.mjs'
@@ -219,7 +220,7 @@ export class Operation {
     if (this.phase2) await this.phase2(this.args)
 
     // Maj espace
-    if (this.espace._maj) {
+    if (this.espace && this.espace._maj) {
       const ins = !this.espace.v
       const v = this.espace.v ? this.espace.v + 1 : 1
       const version = { _nom: 'versions', id: this.espace.rds, v: v, suppr: 0 }
@@ -255,7 +256,7 @@ export class Operation {
     }
     
     // Maj dlv si nécessaire) et compte
-    {
+    if (!this.estAdmin) {
       const dlv = this.calculDlv()
       let diff1 = AMJ.diff(dlv, this.compte.dlv); if (diff1 < 0) diff1 = -diff1
       if (diff1) {
@@ -270,7 +271,7 @@ export class Operation {
       }
     }
 
-    if (this.compte._maj) {
+    if (this.compte && this.compte._maj) {
       const ins = !this.compte.v
       const v = this.compte.v ? this.compte.v + 1 : 1
       const version = { _nom: 'versions', id: this.compte.rds, v: v, suppr: 0 }
@@ -287,34 +288,38 @@ export class Operation {
       this.setRes('rowCompte', rowCompte)
     }
 
-    /* Maj compta */
-    if (this.compta._maj) this.ne++
     const conso = { 
       nl: this.nl, 
       ne: this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length,
       vd: this.vd, 
       vm: this.vm 
     }
-    this.compta.conso(conso)
-    if (this.compta._maj) {
-      const ins = !this.compta.v
-      const v = this.compta.v ? this.compta.v + 1 : 1
-      const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
-      this.compta.v = v
-      const rowCompta = this.compta.toRow()
-      this.versions.push(version)
-      if (ins) {
-        this.toInsert.push(version)
-        this.toInsert.push(rowCompta)
-      } else {
-        this.toInsert.push(version)
-        this.toInsert.push(rowCompta)
+
+    /* Maj compta */
+    if (this.compta) {
+      if(this.compta._maj) conso.ne++
+      this.compta.conso(conso)
+      if (this.compta._maj) {
+        const ins = !this.compta.v
+        const v = this.compta.v ? this.compta.v + 1 : 1
+        const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
+        this.compta.v = v
+        const rowCompta = this.compta.toRow()
+        this.versions.push(version)
+        if (ins) {
+          this.toInsert.push(version)
+          this.toInsert.push(rowCompta)
+        } else {
+          this.toInsert.push(version)
+          this.toInsert.push(rowCompta)
+        }
+        if (rowCompta) this.result.rowCompta = rowCompta
       }
-      if (rowCompta) this.result.rowCompta = rowCompta
     }
     
     this.result.conso = conso
     this.result.notifs = this.notifs
+    this.result.dh = this.dh
 
     if (!this.result.KO) {
       if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
@@ -349,16 +354,17 @@ export class Operation {
       if (authData.shax) {
         try {
           const shax64 = Buffer.from(authData.shax).toString('base64')
-          if (config.app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
+          if (app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
         } catch (e) { /* */ }
       }
     } catch (e) { throw assertKO('Operation-2', 20, [e.message])}
 
     if (this.authMode === 3) { // admin requis
       if (!this.estAdmin) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
+      return // plus rien à faire pour admin
     }
 
-    if (!this.isGet && this.db.hasWS) {
+    if (authData.sessionId) {
       /* Récupérer la session WS afin de pouvoir lui transmettre les évolutions d'abonnements */
       this.sync = SyncSession.getSession(authData.sessionId, this.dh)
       if (!this.sync) throw new AppExc(E_SRV, 4)

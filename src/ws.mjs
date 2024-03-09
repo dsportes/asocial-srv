@@ -30,7 +30,7 @@ export class SyncSession {
   }
 
   static getSession (sid, dh) { 
-    const s = SyncSession.getSession(sid) 
+    const s = SyncSession.sessions.get(sid) 
     if (s) s.dhping = dh
     return s
   }

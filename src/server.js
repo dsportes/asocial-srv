@@ -40,10 +40,10 @@ try {
   }
   */
 
-  db = getDBProvider(config.run.db_provider, config.run.site)
+  db = await getDBProvider(config.run.db_provider, config.run.site)
   if (!db) exit(1)
   
-  storage = getStorageProvider(config.run.storage_provider)
+  storage = await getStorageProvider(config.run.storage_provider)
   if (!storage) exit(1)
 
   for (const nf of keys) {
