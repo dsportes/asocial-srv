@@ -58,7 +58,7 @@ export function assertKO (src, code, args) {
 Cache des objets majeurs "tribus comptas avatars groupes" 
 */
 
-class Cache {
+export class Cache {
   static MAX_CACHE_SIZE = 1000
 
   static map = new Map()
@@ -359,10 +359,9 @@ export class Operation {
       }
     } catch (e) { throw assertKO('Operation-2', 20, [e.message])}
 
-    if (this.authMode === 3) { // admin requis
-      if (!this.estAdmin) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
-      return // plus rien à faire pour admin
-    }
+    if (this.estAdmin) return
+
+    if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
 
     if (authData.sessionId) {
       /* Récupérer la session WS afin de pouvoir lui transmettre les évolutions d'abonnements */

@@ -59,18 +59,14 @@ export class SyncSession {
         // nouvelle session
         // os = true
         if (this.sessionId) SyncSession.sessions.delete(this.sessionId)
-        this.sessionId = newid
-        SyncSession.sessions.set(newid, this)
+        if (newid) {
+          this.sessionId = newid
+          SyncSession.sessions.set(newid, this)
+        }
       }
-      // this.pingrecu(os)
-      // réponse pong
-      /*
-      if (WSHEARTBEAT) {
-        const pong = { sessionId: newid, dh: Date.now() }
-        const buf = new Uint8Array(encode(pong))
-        this.ws.send(buf)
-      }
-      */
+      const pong = { pong: true, sessionId: (newid || '(admin)'), dh: Date.now() }
+      const buf = new Uint8Array(encode(pong))
+      this.ws.send(buf)
     }
   }
 

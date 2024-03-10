@@ -1,10 +1,10 @@
 DELETE FROM singletons;
 DELETE FROM espaces;
 DELETE FROM syntheses;
-DELETE FROM gcvols;
 DELETE FROM tickets;
 DELETE FROM fpurges;
-DELETE FROM tribus;
+DELETE FROM partitions;
+DELETE FROM comptes;
 DELETE FROM comptas;
 DELETE FROM avatars;
 DELETE FROM chats;

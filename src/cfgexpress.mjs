@@ -197,6 +197,7 @@ async function operation(req, res, db, storage) {
     op.storage = storage
     op.args = args
     op.dh = dh
+    op.auj = AMJ.amjUtcDeT(dh)
     const result = await op.run(args)
 
     if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString() + ' 200')

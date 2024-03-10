@@ -4,7 +4,7 @@ import { AppExc, F_SRV, ID, Compteurs,  d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
-import { Operation} from './modele.mjs'
+import { Operation, Cache} from './modele.mjs'
 import { compile, Espaces, Versions, Syntheses, Partitions, Comptes, Avatars, Comptas } from './gendoc.mjs'
 import { DataSync, Rds } from './api.mjs'
 
@@ -274,7 +274,7 @@ operations.GetEspaces = class Sync2 extends Operation {
 
 /* `GetSynthese` : retourne la synthèse de l'espace ns ou corant.
 - `token` : éléments d'authentification du compte.
-- `ns` : id de l'espace (pour adimin seulement, sinon c'est celui de l'espace courant)
+- `ns` : id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
 Retour:
 - `rowSynthese`
 */
@@ -282,8 +282,8 @@ operations.GetSynthese = class GetSynthese extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const ns = this.isAdmin ? args.ns : this.ns
-    const rowSynthese = await this.getRowSynthese(args.ns, 'GetSynthese')
+    const ns = this.estAdmin ? args.ns : this.ns
+    const rowSynthese = await this.getRowSynthese(ns, 'GetSynthese')
     this.setRes('rowSynthese', rowSynthese)
   }
 }
@@ -301,20 +301,18 @@ operations.GetSynthese = class GetSynthese extends Operation {
 - cleKXC: clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
 - clePA: cle P de la partition cryptée par la clé A du Comptable
 - ck: `{ cleP, code }` crypté par la clé K du comptable
-
-- `rowEspace` : row de l'espace créé
-- `rowSynthese` : row `syntheses` créé
-- `rowAvatar` : row de l'avatar du comptable de l'espace
-- `rowTribu` : row de la tribu primitive de l'espace
-- `rowCompta` : row du compte du Comptable
-- `rowVersion`: row de la version de l'avatar (avec sa dlv)
-- `hps1` : hps1 de la phrase secrète
-
 Retour: rien
 
+Création des rows:
+- espace, synthese
+- partition : primitive, avec le Comptable comme premier participant et délégué
+- compte, compta, avatar: du Comptable
+
 Exceptions: 
-- F_SRV 12 : phrase secrète semblable déjà trouvée.
-- F_SRV 3 : Espace déjà créé.
+- F_SRV, 202 : ns non conforme.
+- F_SRV, 201: code d'organisation invalide.
+- F_SRV, 203 : Espace déjà créé.
+- F_SRV, 204 : code d'organisation déjà attribué
 */
 operations.CreerEspace = class CreerEspace extends Operation {
   constructor (nom) { super(nom, 3) }
@@ -331,7 +329,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if (await Cache.getEspaceOrg(this, args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
     /* Espace */
-    const espace = Espaces.nouveau (this.db.appKey, args.ns, args.org, args.cleE)
+    const espace = Espaces.nouveau (this, args.ns, args.org, args.cleE)
     const rvespace = new Versions().init({id: Rds.long(espace.rds, args.ns), v: 1, suppr: 0}).toRow()
 
     /* Synthese */
@@ -345,15 +343,16 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const apr = config.allocPrimitive
     const o = { 
       clePA: args.clePA,
-      rdsp: Rds.court(espace.rds),
+      rdsp: espace.rds,
       idp: ID.court(espace.id),
       del: true,
       it: 1
     }
     const cs = { cleEK: args.cleEK, qc: apr[0], qn: apr[1], qv: apr[2], c: args.ck } 
     const rdsav = Rds.nouveau('avatars')
-    const compte = Comptes.nouveau( ID.duComptable(this.ns), 
-      (this.ns * d14) + args.hXR, args.hXC, args.cleKXC, rdsav, args.cleAK, o, cs)
+    // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
+    const compte = Comptes.nouveau(ID.duComptable(args.ns), 
+      (args.ns * d14) + args.hXR, args.hXC, args.cleKXC, rdsav, args.cleAK, o, cs)
     const rvcompte = new Versions().init({id: Rds.long(compte.rds, args.ns), v: 1, suppr: 0}).toRow()
     
     /* Compta */

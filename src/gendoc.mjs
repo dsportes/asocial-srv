@@ -198,15 +198,15 @@ export class Espaces extends GenDoc {
     this._maj = false
   } 
 
-  static nouveau (appKey, ns, org, cleE) {
-    const cleES = crypterSrv(appKey, cleE)
+  static nouveau (op, ns, org, cleE) {
+    const cleES = crypterSrv(op.db.appKey, cleE)
     const r = {
       id: ns,
       org: org,
       v: 1,
       rds: Rds.nouveau('espaces'),
       cleES: cleES,
-      creation: this.auj,
+      creation: op.auj,
       moisStat: 0,
       moisStatT: 0,
       notif: null,
@@ -335,7 +335,7 @@ export class Syntheses extends GenDoc {
     e.nbc = 1
     e.nbd = 1
     r.tp[1] = e
-    return new Espaces().init(r)
+    return new Syntheses().init(r)
   }
 }
 
@@ -394,11 +394,12 @@ export class Comptes extends GenDoc {
 
   static nouveau (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs) {
     const r = {
-      id: id, v: 1, hXR: hXR, dlv: AMJ.max, cleKXR, hXC, it: 0,
+      id: id, v: 1, rds: Rds.nouveau('comptes'),
+      hxr: hXR, dlv: AMJ.max, cleKXR, hXC, it: 0,
       mav: {}, mpd: {}
     }
-    r.mav[id] = { rds: rdsav, cleAK: cleAK }
-    if (o) { r.clePA = o.clePA; r.rdsp = o.rdsp, r.idp = o.idp, r.del = o.del, r.it = o.it }
+    r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
+    if (o) { r.clePA = o.clePA; r.rdsp = o.rdsp; r.idp = o.idp; r.del = o.del; r.it = o.it }
     if (cs) { 
       r.cleEK = cs.cleEK
       r.tp = [null, { c: cs.c, qc: cs.qc, qn: cs.qn, qv: cs.qv }]
