@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, AMJ, PINGTO, hash, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol, lcSynt } from './api.mjs'
+import { ID, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol, lcSynt } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -310,8 +310,8 @@ export class Operation {
           this.toInsert.push(version)
           this.toInsert.push(rowCompta)
         } else {
-          this.toInsert.push(version)
-          this.toInsert.push(rowCompta)
+          this.toUpdate.push(version)
+          this.toUpdate.push(rowCompta)
         }
         if (rowCompta) this.result.rowCompta = rowCompta
       }
@@ -345,10 +345,9 @@ export class Operation {
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
 
     const t = this.args.token
-    if (!t) throw assertKO('Operation-1', 100, ['token?' + this.nomop])
+    if (!t) { await sleep(3000); throw new AppExc(F_SRV, 205) } 
     let authData = null
     this.estAdmin = false
-
     try { 
       authData = decode(b64ToU8(t)) 
       if (authData.shax) {
@@ -357,7 +356,10 @@ export class Operation {
           if (app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
         } catch (e) { /* */ }
       }
-    } catch (e) { throw assertKO('Operation-2', 20, [e.message])}
+    } catch (e) { 
+      await sleep(3000)
+      throw new AppExc(F_SRV, 206, [e.message])
+    }
 
     if (this.estAdmin) return
 
@@ -389,8 +391,7 @@ export class Operation {
     const rowCompte = await this.db.getCompteHXR(this, hXR)
     if (!rowCompte) { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.compte = compile(rowCompte)
-    const x = (hash(authData.hXC) % d14)
-    if (this.compte.hXC !== x) throw new AppExc(F_SRV, 998)
+    if (this.compte.hXC !== authData.hXC) { await sleep(3000);  throw new AppExc(F_SRV, 998) }
     if (this.compte.dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.id = this.compte.id
     this.estA = this.compte.it === 0
@@ -413,7 +414,7 @@ export class Operation {
       const rowPartition = await Cache.getRow(this, 'partitions', idp)
       if (!rowPartition) throw assertKO('auth-partition-1', 2, [idp])
       this.partition = compile(rowPartition)
-      this.partition.notifs(this.notifs, this.compte.it)
+      this.partition.setNotifs(this.notifs, this.compte.it)
     }
   }
 

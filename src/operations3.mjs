@@ -114,7 +114,7 @@ operations.Sync = class Sync extends Operation {
     this.mgr = new Map() // Cache très locale et courte des groupes acquis dans l'opération
 
     /* Mise à jour du DataSync en fonction des CCEP et des avatars / groupes actuels du compte */
-    this.ds = new DataSync(null, args.dataSync)
+    this.ds = new DataSync(args.dataSync)
     this.ds.compte = {
       id: this.compte.id,
       rds: Rds.long(this.compte.rds, this.ns),
@@ -150,7 +150,7 @@ operations.Sync = class Sync extends Operation {
       // Recherche des versions des avatars
       for(const [ida, x] of this.ds.avatars) {
         const rowVersion = await Cache.getRow(this, 'versions', x.rds)
-        if (!rowVersion || rowVersion.suppr) x.vb = -1
+        if (!rowVersion || rowVersion.suppr) x.vb = 0
         else { x.vb = rowVersion.v; x.vc = rowVersion.v }
       }
       // Recherche des versions des groupes
@@ -178,7 +178,7 @@ operations.Sync = class Sync extends Operation {
       }
       // Suppression des avatars de DataSync qui n'existent plus
       for (const id of this.ds.avIdSet)
-        if (!this.compte.mav[id]) this.ds.avatars.delete(id)
+        if (!this.compte.mav[ID.court(id)]) this.ds.avatars.delete(id)
 
       // Inscription dans DataSync des nouveaux groupes qui n'y étaient pas et sont dans compte
       for (const idx in this.compte.mpg) {
@@ -197,18 +197,18 @@ operations.Sync = class Sync extends Operation {
       }
       // Suppression des groupes de DataSync qui n'existent plus
       for (const id of this.ds.grIdSet)
-        if (!this.compte.mpg[id]) this.ds.groupes.delete(id)
+        if (!this.compte.mpg[ID.court(id)]) this.ds.groupes.delete(id)
     }
 
     if (args.ida) await this.getAvGrRows(args.ida)
 
     // Sérialisation et retour de dataSync, rows compte, compta, espace, partition
     this.setRes('dataSync', this.ds.serial)
-    if (this.ds.compte.vs < this.ds.compte.vb) 
+    if (args.optionC || (this.ds.compte.vs < this.ds.compte.vb)) 
       this.setRes('rowCompte', this.compte.toRow())
-    if (this.ds.espace.vs < this.ds.espace.vb) 
+    if (args.optionC || (this.ds.espace.vs < this.ds.espace.vb)) 
       this.setRes('rowEspace', this.espace.toRow())
-    if (this.ds.partition.id && (this.ds.partition.vs < this.ds.partition.vb))
+    if (this.ds.partition.id && (args.optionC || (this.ds.partition.vs < this.ds.partition.vb)))
       this.setRes('rowPartition', this.partition.toShortRow(this.compte.del))
     // compta est TOUJOURS transmis par l'opération (après maj éventuelle des consos)
 
@@ -295,6 +295,7 @@ operations.GetSynthese = class GetSynthese extends Operation {
 - hXR : hash du PBKFD de la phrase secrète réduite
 - hXC : hash du PBKFD de la phrase secrète complète
 - cleE : clé de l'espace
+- cleEK : clé de l'espace cryptée par la clé K du Comptable
 - clePK: clé P de la partition 1 cryptée par la clé K du Comptable
 - cleAP: clé A du Comptable cryptée par la clé de la partition
 - cleAK: clé A du Comptable cryptée par la clé K du Comptable
@@ -336,15 +337,15 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const synthese = Syntheses.nouveau(args.ns)
 
     /* Partition */
-    const partition = Partitions.nouveau(1, args.clePK, args.cleAP)
+    const partition = Partitions.nouveau(args.ns, 1, args.clePK, args.cleAP)
     const rvpartition = new Versions().init({id: Rds.long(partition.rds, args.ns), v: 1, suppr: 0}).toRow()
 
     /* Compte Comptable */
     const apr = config.allocPrimitive
     const o = { 
       clePA: args.clePA,
-      rdsp: espace.rds,
-      idp: ID.court(espace.id),
+      rdsp: partition.rds,
+      idp: ID.court(partition.id),
       del: true,
       it: 1
     }
@@ -352,7 +353,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const rdsav = Rds.nouveau('avatars')
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(ID.duComptable(args.ns), 
-      (args.ns * d14) + args.hXR, args.hXC, args.cleKXC, rdsav, args.cleAK, o, cs)
+      (args.ns * d14) + args.hXR, args.hXC, args.cleKXC, args.cleEK, rdsav, args.cleAK, o, cs)
     const rvcompte = new Versions().init({id: Rds.long(compte.rds, args.ns), v: 1, suppr: 0}).toRow()
     
     /* Compta */
@@ -360,7 +361,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
     const compta = new Comptas().init({
       id: compte.id, v: 1, rds: Rds.nouveau('comptas'), qv,
-      compteurs: new Compteurs(null, qv)
+      compteurs: new Compteurs(null, qv).serial
     })
     const rvcompta = new Versions().init({id: Rds.long(compta.rds, args.ns), v: 1, suppr: 0}).toRow()
     

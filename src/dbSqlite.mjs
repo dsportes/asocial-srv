@@ -262,7 +262,7 @@ export class SqliteProvider {
     return null
   }
   
-  async getComptaHXR(op, hxr) {
+  async getCompteHXR(op, hxr) {
     const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hxr = @hxr')
     const row = st.get({ hxr })
     if (row) {

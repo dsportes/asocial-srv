@@ -249,11 +249,12 @@ export class Partitions extends GenDoc {
     this._maj = false
   } 
 
-  static nouveau (id, clePK, cleAP) {
+  static nouveau (ns, id, clePK, cleAP) {
     const aco = config.allocComptable
     const apr = config.allocPrimitive
     const r = {
-      id, v: 1, 
+      id: ID.long(id, ns),
+      v: 1, 
       rds: Rds.nouveau('partitions'),
       qc: apr[0], qn: apr[1], qv: apr[2],
       clePK, notif: null, ldel: [],
@@ -392,10 +393,10 @@ export class Comptes extends GenDoc {
     this._maj = false
   } 
 
-  static nouveau (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs) {
+  static nouveau (id, hXR, hXC, cleKXC, cleEK, rdsav, cleAK, o, cs) {
     const r = {
       id: id, v: 1, rds: Rds.nouveau('comptes'),
-      hxr: hXR, dlv: AMJ.max, cleKXR, hXC, it: 0,
+      hxr: hXR, dlv: AMJ.max, cleKXC, cleEK, hXC, it: 0,
       mav: {}, mpd: {}
     }
     r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
@@ -417,8 +418,6 @@ export class Comptes extends GenDoc {
       if (!ds.avatars.has(ida)) 
         ds.avatars.set(ida, { id: ida, rds: rds, vs: 0, vc: 0, vb: 0 })
     }
-    // avatars hors périmètre à supprimer
-    ds.forEach(x => { if (!this.mav[ID.court(x.id)]) x.vb = -1 })
 
     for(const idx in this.mpg) {
       const idgc = parseInt(idx)
@@ -427,8 +426,6 @@ export class Comptes extends GenDoc {
       if (!ds.groupes.has(idg)) 
         ds.groupes.set(idg, { id: idg, rds: rds, vs: 0, vc: 0, vb: 0, m: 0, n: 0})
     }
-    // groupes hors périmètre à supprimer
-    ds.forEach(x => { if (!this.mpg[ID.court(x.id)]) x.vb = -1 })
   }
 
   // Set des indices membres des participations au groupe idg (court)
@@ -448,9 +445,10 @@ export class Comptas extends GenDoc {
   compile () {
     this._maj = false
     const c = new Compteurs(this.compteurs)
-    this.nbj = c.nbj(this.total)
+    this.nbj = c.estA ? c.nbj(this.total) : 0
     this._Q = c.notifQ 
     this._X = c.estA ? c.notifS(c.total) : c.notifX
+    return this
   }
 
   conso (op) {
@@ -529,6 +527,7 @@ export class Groupes extends GenDoc {
     this.ns = ID.ns(this.id)
     this.mmb = new Map()
     this.tid.forEach((id, im) => { this.mmb.set(ID.long(id, this.ns), im)})
+    return this
   }
 
   /* Sérialisation en row après avoir enlevé 
