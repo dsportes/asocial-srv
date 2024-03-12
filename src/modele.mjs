@@ -835,6 +835,7 @@ export class Operation {
   'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
   */
   /* Mise à jour de Synthese suite à une mise à jour d'une tribu */
+  // A SUPPRIMER
   async MajSynthese (tribu, noupd) {
     let synt = this.synt
     if (!synt) {

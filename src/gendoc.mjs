@@ -2,7 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, d14, rowCryptes } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
-import { Compteurs, ID, Rds, lcSynt, AMJ } from './api.mjs'
+import { Compteurs, ID, Rds, lcSynt, AMJ, limitesjour, synthesesPartition } from './api.mjs'
 import { config } from './config.mjs'
 // import { assertKO } from './modele.mjs'
 
@@ -285,6 +285,10 @@ export class Partitions extends GenDoc {
     }
   }
 
+  getSynthese () {
+    return synthesesPartition(this)
+  }
+
 }
 
 /* Syntheses : un par espace ******************************
@@ -495,7 +499,59 @@ export class Notes extends GenDoc {
 
 export class Transferts extends GenDoc { constructor() { super('transferts') } }
 
-export class Sponsorings extends GenDoc { constructor() { super('sponsorings') } }
+export class Sponsorings extends GenDoc { 
+  constructor() { super('sponsorings') } 
+
+  toShortRow () {
+    delete this.csp
+    delete this.itsp
+    return this.toRow()
+  }
+
+  nouveau (args) {
+    /* 
+    - id : id du sponsor
+    - hYR : hash du PNKFD de la pharse de sponsoring réduite
+    - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
+    - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
+    - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
+    - `partitionId`: id de la partition si compte 0    
+    - `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD 
+      de la phrase complète de sponsoring (donne l'id de la partition).
+    - `nomYC` : nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
+    - `cvA` : `{ v, photo, info }` du sponsor, textes cryptés par sa cle A.
+    - `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
+
+    - `quotas` : `[qc, q1, q2]` pour un compte O, quotas attribués par le sponsor.
+      - pour un compte "A" `[0, 1, 1]`. Un tel compte n'a pas de `qc` et peut changer à loisir
+      `[qn, qv]` qui sont des protections pour lui-même (et fixe le coût de l'abonnement).
+    - don: montant du don pour un compte autonome sponsorisé par un compte autonome
+    - dconf: true, si le sponsor demande la confidentialité (pas de chat à l'avcceptation)
+    - del: true si le compte est délégué de la partition
+    */
+    this.id = args.id
+    this.ids = (ID.ns(args.id) * d14) + args.hps1
+    this.v = 1
+    this.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc, limitesjour.sponsoring)
+    this.st = 0
+    this.psK = args.psK
+    this.YCK = args.YCK
+    this.cleAYC = args.cleAYC
+    this.nomYC = args.nomYC
+    this.cvA = args.cvA
+    this.ardYC = args.ardYC
+    this.dconf = args.dconf || false
+    if (!args.partitionId) { // compte A
+      this.don = args.don
+      this.quotas = [0, 1, 1]
+    } else {
+      this.clePYC = args.clePYC
+      this.partitionId = args.partitionId
+      this.quotas = args.quotas
+      this.del = args.del
+    }
+  }
+}
 
 export class Chats extends GenDoc { constructor() { super('chats') } }
 

@@ -21,8 +21,6 @@ export const statistiques = { moisStat: 1, moisStatT: 3 }
 
 export const rowCryptes = new Set(['comptas'])
 
-export const lcSynt = ['qc', 'qn', 'qv', 'ac', 'an', 'av', 'c', 'n', 'v', 'nbc', 'nbd', 'ntr0', 'ntr1', 'ntr2', 'nco0', 'nco1', 'nco2']
-
 export const d13 = 10 * 1000 * 1000 * 1000 * 1000
 export const d14 = d13 * 10
 export const d10 = 10000000000
@@ -1237,4 +1235,44 @@ export class DataSync {
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
     return true
   }
+}
+
+export const lcSynt = ['qc', 'qn', 'qv', 'ac', 'an', 'av', 'c', 'n', 'v', 'nbc', 'nbd', 'ntr0', 'ntr1', 'ntr2', 'nco0', 'nco1', 'nco2']
+
+/** Génération d'une synthèse d'une partition p **************************
+Correspond à la ligne de la partition dans la synthèse de l'espace
+*/
+export function synthesesPartition (p) {
+  const r = { notif: p.notif, id: p.id }
+  lcSynt.forEach(f => { r[f] = 0 })
+  r.qc = p.qc
+  r.qn = p.qn
+  r.qv = p.qv
+  r.ntr0 = p.notif && p.notif.nr === 0 ? 1 : 0
+  r.ntr1 = p.notif && p.notif.nr === 1 ? 1 : 0
+  r.ntr2 = p.notif && p.notif.nr === 2 ? 1 : 0
+  p.tcpt.forEach(x => {
+    if (x) {
+      r.ac += x.q.qc
+      r.an += x.q.qn
+      r.av += x.q.qv
+      r.c += x.q.c
+      r.n += x.q.n
+      r.v += x.q.v
+      r.nbc++
+      if (x.del) r.nbd++
+      if (x.notif) {
+        if (x.notif.nr === 0) r.nco0++
+        else if (x.notif.nr === 1) r.nco1++
+        else if (x.notif.nr === 2) r.nco2++
+      }
+    }
+  })
+  r.pcac = !r.qc ? 0 : Math.round(r.ac * 100 / r.qc) 
+  r.pcan = !r.qn ? 0 : Math.round(r.an * 100 / r.qn) 
+  r.pcav = !r.qv ? 0 : Math.round(r.av * 100 / r.qv) 
+  r.pcc = !r.qc ? 0 : Math.round(r.c * 100 / r.qc) 
+  r.pcn = !r.qn ? 0 : Math.round(r.n * 100 / r.qn) 
+  r.pcv = !r.qv ? 0 : Math.round(r.v * 100 / r.qv) 
+  p.synth = r
 }

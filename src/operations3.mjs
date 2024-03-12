@@ -5,7 +5,8 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
 import { Operation, Cache} from './modele.mjs'
-import { compile, Espaces, Versions, Syntheses, Partitions, Comptes, Avatars, Comptas } from './gendoc.mjs'
+import { compile, Espaces, Versions, Syntheses, Partitions, Comptes, 
+  Avatars, Comptas, Sponsorings } from './gendoc.mjs'
 import { DataSync, Rds } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -103,7 +104,7 @@ operations.Sync = class Sync extends Operation {
       for (const row of await this.db.scoll(this, 'chats', ida, x.vs))
         this.addRes('rowChats', row)
       for (const row of await this.db.scoll(this, 'sponsorings', ida, x.vs))
-        this.addRes('rowSponsorings', row)
+        this.addRes('rowSponsorings', compile(row).toShortRow())
       if (ID.estComptable(this.id)) 
         for (const row of await this.db.scoll(this, 'tickets', ida, x.vs))
           this.addRes('rowTickets', row)
@@ -381,5 +382,105 @@ operations.CreerEspace = class CreerEspace extends Operation {
     this.insert(rvcompta)
     this.insert(avatar.toRow())
     this.insert(rvavatar)
+  }
+}
+
+/* Recherche hash de phrase ******
+args.hps1 : ns + hps1 de la phrase de contact / de connexion
+args.t :
+  - 1 : phrase de connexion(hps1 de compta)
+Retour:
+- existe : true si le hash de la phrase existe
+*/
+operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    if (await this.db.getComptaHps1(this, args.hps1)) this.setRes('existe', true)
+  }
+}
+
+/* Recherche hash de phrase ******
+args.hps1 : ns + hps1 de la phrase de contact / de connexion
+args.t :
+  - 2 : phrase de sponsoring (ids)
+  - 3 : phrase de contact (hpc d'avatar)
+Retour:
+- existe : true si le hash de la phrase existe
+*/
+operations.ExistePhrase = class ExistePhrase extends Operation {
+  constructor (nom) { super(nom, 1)  }
+
+  async phase2 (args) {
+    if (args.t === 2) {
+      if (await this.db.getSponsoringIds(this, args.hps1)) {
+        this.setRes('existe', true)
+        return
+      }
+    } if (args.t === 3) {
+      if (await this.db.getAvatarHpc(this, args.hps1)) {
+        this.setRes('existe', true)
+        return
+      }
+    }
+  }
+}
+
+/** Ajout d\'un sponsoring ****************************************************
+- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
+- `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
+- `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
+- `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
+- `partitionId`: id de la partition si compte 0    
+- `cleAP` : clé A du COMPTE sponsor crypté par la clé P de la partition.
+- `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD 
+  de la phrase complète de sponsoring (donne l'id de la partition).
+- `nomYC` : nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
+- `cvA` : `{ v, photo, info }` du sponsor, textes cryptés par sa cle A.
+- `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
+
+- `quotas` : `[qc, q1, q2]` pour un compte O, quotas attribués par le sponsor.
+  - pour un compte "A" `[0, 1, 1]`. Un tel compte n'a pas de `qc` et peut changer à loisir
+   `[qn, qv]` qui sont des protections pour lui-même (et fixe le coût de l'abonnement).
+- don: montant du don pour un compte autonome sponsorisé par un compte autonome
+- dconf: true, si le sponsor demande la confidentialité (pas de chat à l'avcceptation)
+- del: true si le compte est délégué de la partition
+Retour:
+*/
+operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
+
+  async phase2 (args) {
+    if (await this.db.getComptaHps1(this.args.hps1)) 
+      throw new AppExc(F_SRV, 207)
+
+    if (args.partitionId) { // compte O
+      const it = this.compte.it
+      const partition = compile(await Cache.getRow(this, 'partitions', args.partitionId))
+      if (!partition) 
+        throw new AppExc(F_SRV, 208, [args.partitionId])
+      const e = partition.tcpt[it]
+      if (!e || e.cleAP !== args.cleAP) 
+        throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
+      if (!e.del) 
+        throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
+
+      const s = partition.getSynthese()
+      const q = args.quotas
+      // restants à attribuer suffisant pour satisfaire les quotas ?
+      if (q.qc > (s.qc - s.ac) || q.qn > (s.qn - s.an) || q.qv > (s.sv - s.av))
+        throw new AppExc(F_SRV, 211, [args.partitionId, this.compte.id])
+    } else {
+      if (this.estComptable) args.don = 2
+      else {
+        if (this.compta.solde <= args.don + 2)
+          throw new AppExc(F_SRV, 212, [this.compta.solde, args.don])
+      }
+    }
+
+    const sponsoring = new Sponsorings().nouveau(args)
+    sponsoring.csp = this.compte.id
+    sponsoring.itsp = this.compte.it
+    this.insert(sponsoring.toRow())
   }
 }
