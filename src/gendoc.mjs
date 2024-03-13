@@ -530,9 +530,8 @@ export class Sponsorings extends GenDoc {
     - del: true si le compte est délégué de la partition
     */
     this.id = args.id
-    this.ids = (ID.ns(args.id) * d14) + args.hps1
-    this.v = 1
-    this.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc, limitesjour.sponsoring)
+    this.ids = (ID.ns(args.id) * d14) + args.hYR
+    this.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
     this.st = 0
     this.psK = args.psK
     this.YCK = args.YCK
@@ -546,10 +545,11 @@ export class Sponsorings extends GenDoc {
       this.quotas = [0, 1, 1]
     } else {
       this.clePYC = args.clePYC
-      this.partitionId = args.partitionId
+      this.partitionId = ID.court(args.partitionId)
       this.quotas = args.quotas
       this.del = args.del
     }
+    return this
   }
 }
 

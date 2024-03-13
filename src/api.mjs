@@ -1274,5 +1274,5 @@ export function synthesesPartition (p) {
   r.pcc = !r.qc ? 0 : Math.round(r.c * 100 / r.qc) 
   r.pcn = !r.qn ? 0 : Math.round(r.n * 100 / r.qn) 
   r.pcv = !r.qv ? 0 : Math.round(r.v * 100 / r.qv) 
-  p.synth = r
+  return r
 }

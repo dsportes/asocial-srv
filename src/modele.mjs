@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol, lcSynt } from './api.mjs'
+import { ID, Rds, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol, lcSynt } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -436,6 +436,13 @@ export class Operation {
 
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
+
+  async getV (src, doc) {
+    const rds = Rds.long(doc.rds, ID.ns(doc.id))
+    const v = compile(await Cache.getRow(this, 'versions', rds))
+    if (!v) assertKO(src, 14, [rds])
+    return v
+  }
 
   // HELPERS d'accès à la base
   async delAvGr (id) { await this.db.delAvGr(this, id)}

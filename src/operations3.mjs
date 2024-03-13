@@ -4,7 +4,7 @@ import { AppExc, F_SRV, ID, Compteurs,  d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
-import { Operation, Cache} from './modele.mjs'
+import { Operation, Cache, assertKO} from './modele.mjs'
 import { compile, Espaces, Versions, Syntheses, Partitions, Comptes, 
   Avatars, Comptas, Sponsorings } from './gendoc.mjs'
 import { DataSync, Rds } from './api.mjs'
@@ -451,7 +451,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    if (await this.db.getComptaHps1(this.args.hps1)) 
+    if (await this.db.getCompteHXR(this.args.hps1)) 
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
@@ -460,8 +460,8 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       if (!partition) 
         throw new AppExc(F_SRV, 208, [args.partitionId])
       const e = partition.tcpt[it]
-      if (!e || e.cleAP !== args.cleAP) 
-        throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
+      // if (!e || e.cleAP !== args.cleAP) 
+      //  throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
       if (!e.del) 
         throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
 
@@ -479,8 +479,13 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     }
 
     const sponsoring = new Sponsorings().nouveau(args)
+    const avatar = compile(await Cache.getRow(this, 'avatars', sponsoring.id))
+    const vsp = await this.getV('AjoutSponsoring-1', avatar)
+    vsp.v++
+    sponsoring.v = vsp.v
     sponsoring.csp = this.compte.id
     sponsoring.itsp = this.compte.it
     this.insert(sponsoring.toRow())
+    this.update(vsp.toRow())
   }
 }
