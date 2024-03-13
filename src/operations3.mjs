@@ -3,6 +3,7 @@
 import { AppExc, F_SRV, ID, Compteurs,  d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
+import { sleep } from './util.mjs'
 
 import { Operation, Cache, assertKO} from './modele.mjs'
 import { compile, Espaces, Versions, Syntheses, Partitions, Comptes, 
@@ -396,7 +397,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    if (await this.db.getComptaHps1(this, args.hps1)) this.setRes('existe', true)
+    if (await this.db.getCompteHXR(this, args.hps1)) this.setRes('existe', true)
   }
 }
 
@@ -487,5 +488,25 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     sponsoring.itsp = this.compte.it
     this.insert(sponsoring.toRow())
     this.update(vsp.toRow())
+  }
+}
+
+/* Recherche sponsoring **************************************************
+args.token: éléments d'authentification du compte.
+args.org : organisation
+args.hps1 : hash du PBKFD de la phrase de contact réduite
+Retour:
+- rowSponsoring s'il existe
+*/
+operations.ChercherSponsoring = class ChercherSponsoring extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    const espace = await Cache.getEspaceOrg(this, args.org)
+    if (!espace) { sleep(3000); return }
+    const ids = (espace.id * d14) + args.hps1
+    const row = await this.db.getSponsoringIds(this, ids)
+    if (!row) { sleep(3000); return }
+    this.setRes('rowSponsoring', row)
   }
 }

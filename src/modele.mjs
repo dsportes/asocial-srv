@@ -256,7 +256,7 @@ export class Operation {
     }
     
     // Maj dlv si nécessaire) et compte
-    if (!this.estAdmin) {
+    if (this.compte && !this.estAdmin) {
       const dlv = this.calculDlv()
       let diff1 = AMJ.diff(dlv, this.compte.dlv); if (diff1 < 0) diff1 = -diff1
       if (diff1) {
@@ -342,6 +342,7 @@ export class Operation {
     - this.compte this.compta this.espace this.partition (si c'est un compte O)
   */
   async auth() {
+    if (this.authMode === 0) return
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
 
     const t = this.args.token

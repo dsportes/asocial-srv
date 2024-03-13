@@ -344,7 +344,7 @@ export class Syntheses extends GenDoc {
   }
 }
 
-/* Comptes
+/* Comptes ************************************************************
 - Phrase secrète, clés K P D, rattachement à une partition
 - Avatars du compte
 - Groupes accédés du compte
@@ -481,7 +481,9 @@ export class Comptas extends GenDoc {
 
 export class Versions extends GenDoc { constructor() { super('versions') } }
 
-export class Avatars extends GenDoc { constructor() { super('avatars') } }
+export class Avatars extends GenDoc { 
+  constructor() { super('avatars') } 
+}
 
 /* Classe Notes ******************************************************/
 export class Notes extends GenDoc { 
