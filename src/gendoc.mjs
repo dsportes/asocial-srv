@@ -289,6 +289,18 @@ export class Partitions extends GenDoc {
     return synthesesPartition(this)
   }
 
+  /* Retourne it : indice du compte dans la partition
+  - notif
+  - q : `qc qn qv c n v`
+  - cleAP
+  - del
+  */
+  ajoutCompte (notif, q, cleAP, del) {
+    const x = { notif: notif || null, q: q, del: del, cleAP: cleAP }
+    this.tcpt.push(x)
+    if (del) this.ldel.push(cleAP)
+    return this.tcpt.length - 1
+  }
 }
 
 /* Syntheses : un par espace ******************************
