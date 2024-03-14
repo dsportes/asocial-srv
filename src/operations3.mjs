@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 
-import { AppExc, F_SRV, ID, Compteurs,  d14 } from './api.mjs'
+import { AppExc, F_SRV, A_SRV, ID, Compteurs,  d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep } from './util.mjs'
@@ -149,6 +149,7 @@ operations.Sync = class Sync extends Operation {
     this.compte.majPerimetreDataSync(this.ds)  
 
     if (args.optionC) {
+      this.db.setSyncData(this)
       // Recherche des versions des avatars
       for(const [ida, x] of this.ds.avatars) {
         const rowVersion = await Cache.getRow(this, 'versions', x.rds)
@@ -261,6 +262,19 @@ operations.Sync2 = class Sync2 extends Operation {
   }
 }
 
+/* Retourne la clé RSA publique d'un avatar
+- id : id de l'avatar
+*/
+operations.SyncPub = class SyncPub extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    const avatar = compile(await Cache.getRow(this, 'avatars', args.id))
+    if (!avatar) throw new AppExc(A_SRV, 8)
+    this.setRes('pub', avatar.pub)
+  }
+}
+
 /* GetEspaces : pour admin seulment, retourne tous les rows espaces
 - `token` : éléments d'authentification du compte.
 Retour:
@@ -368,7 +382,8 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const rvcompta = new Versions().init({id: Rds.long(compta.rds, args.ns), v: 1, suppr: 0}).toRow()
     
     /* Avatar */
-    const avatar = new Avatars().init({ id: compte.id, v: 1, rds: rdsav })
+    const avatar = new Avatars().init(
+      { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK })
     const rvavatar = new Versions().init({id: Rds.long(rdsav, args.ns), v: 1, suppr: 0}).toRow()
 
     // this.insert(this.setRes(espace.toRow()))
@@ -461,8 +476,8 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       if (!partition) 
         throw new AppExc(F_SRV, 208, [args.partitionId])
       const e = partition.tcpt[it]
-      // if (!e || e.cleAP !== args.cleAP) 
-      //  throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
+      if (!e || e.cleAP !== args.cleAP) 
+        throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
       if (!e.del) 
         throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
 
