@@ -71,6 +71,12 @@ export function decode3 (arg) { // retourne [org, id, idf]
   return decode(Buffer.from((decrypterSrv(appKeyBin('A'), b64ToU8(arg)))))
 }
 
+export function eqU8 (a, b) {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
 export function sleep (delai) {
   if (delai <= 0) return
   return new Promise((resolve) => { setTimeout(() => resolve(), delai) })

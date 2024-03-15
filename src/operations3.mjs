@@ -3,7 +3,7 @@
 import { AppExc, F_SRV, A_SRV, ID, Compteurs,  d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { sleep, rnd6 } from './util.mjs'
+import { sleep, rnd6, eqU8 } from './util.mjs'
 
 import { Operation, Cache, assertKO} from './modele.mjs'
 import { compile, Espaces, Versions, Syntheses, Partitions, Comptes, 
@@ -299,8 +299,27 @@ operations.GetSynthese = class GetSynthese extends Operation {
 
   async phase2 (args) {
     const ns = this.estAdmin ? args.ns : this.ns
-    const rowSynthese = await this.getRowSynthese(ns, 'GetSynthese')
+    const rowSynthese = await Cache.getRow(this, 'syntheses', ns)
     this.setRes('rowSynthese', rowSynthese)
+  }
+}
+
+/* `GetPartitionC` : retourne la partition demandée (Comptable seulement).
+- `token` : éléments d'authentification du comptable.
+- `id` : id de la partition (rendre courante)
+Retour:
+- `rowPartition`
+*/
+operations.GetPartitionC = class GetPartitionC extends Operation {
+  constructor (nom) { super(nom, 2, 1) }
+
+  async phase2 (args) {
+    const rowPartition = await Cache.getRow(this, 'syntheses', args.id)
+    if (rowPartition && this.sync) {
+      const p = compile(rowPartition)
+      this.sync.setAboPartC(Rds.long(p.rds, this.ns), this.dh)
+    }
+    this.setRes('rowPartition', rowPartition)
   }
 }
 
@@ -684,7 +703,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       if (!partition) 
         throw new AppExc(F_SRV, 208, [args.partitionId])
       const e = partition.tcpt[it]
-      if (!e || e.cleAP !== args.cleAP) 
+      if (!e || !eqU8(e.cleAP, args.cleAP)) 
         throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
       if (!e.del) 
         throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
