@@ -50,8 +50,8 @@ export function assertKO (src, code, args) {
   const msg = `ASSERT : ${src} - ${x} - ${code}`
   const t = new Date().toISOString()
   console.error(t + ' ' + msg)
-  const a = (args || []).unshift(src)
-  return new AppExc(A_SRV, code, a)
+  if (args) args.unshift(src)
+  return new AppExc(A_SRV, code, !args ? [src || '???'] : args)
 }
 
 /* Cache ************************************************************************

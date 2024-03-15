@@ -473,13 +473,17 @@ operations.SyncSp = class SyncSp extends Operation {
     const ns = ID.ns(args.idsp)
 
     /* Maj sponsorings: st dconf2 dh ardYC */
-    const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idsp))
-    if (!this.sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idsp])
+    const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
+    if (!sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idssp])
     if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.idsp, args.idsp])
-    const vsp = this.getV('SyncSp-3', this.sp)
+
+    const avsponsor = compile(await Cache.getRow(this, 'avatars', args.idsp))
+    if (!avsponsor) throw assertKO('SyncSp-10', 8, [args.idsp])
+
+    const vsp = await this.getV('SyncSp-3', avsponsor)
     vsp.v++
     sp.v = vsp.v
-    const dhsp = sp.dh
+    const dhsp = sp.dh || 0
     sp.dh = this.dh
     sp.st = 2
     sp.ardYC = args.ardYC
@@ -492,7 +496,7 @@ operations.SyncSp = class SyncSp extends Operation {
       if (!csp) throw assertKO('SyncSp-8', 3, [args.idsp])
       if (csp.solde <= sp.don + 2)
         throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
-      const vcsp = this.getV('SyncSp-9', csp)
+      const vcsp = await this.getV('SyncSp-9', csp)
       vcsp.v++
       csp.v = vcsp.v
       csp.solde-= sp.don
@@ -503,10 +507,10 @@ operations.SyncSp = class SyncSp extends Operation {
     // Refus si espace figé ou clos
     const rowEspace = this.setRes('rowEspace', await Cache.getRow(this, 'espaces', ns))
     if (!rowEspace) throw assertKO('SyncSp-3', 1, [ns])
-    this.espace = compile(rowEspace)
-    if (this.espace.notifG) {
+    const espace = compile(rowEspace)
+    if (espace.notifG) {
       // Espace bloqué
-      const n = this.espace.notifG
+      const n = espace.notifG
       if (n.nr === 2) // application close
         throw new AppExc(A_SRV, 999, [n.texte])
       if (n.nr === 1) 
@@ -519,14 +523,16 @@ operations.SyncSp = class SyncSp extends Operation {
     */
     let o = null
     const qs = sp.quotas
+    let partition = null
     if (sp.partitionId) {
-      const rowPartition = this.setRes('rowPartition', await Cache.getRow(this, 'partitions', sp.partitionId))
-      if (!rowPartition) throw assertKO('SyncSp-4', 2, [sp.partitionId])
-      const partition = compile(rowPartition)
-      const vp = this.getV('SyncSp-5', partition)
+      const pid = ID.long(sp.partitionId, ns)
+      const rowPartition =  await Cache.getRow(this, 'partitions', pid)
+      if (!rowPartition) throw assertKO('SyncSp-4', 2, [pid])
+      partition = compile(rowPartition)
+      const vp = await this.getV('SyncSp-5', partition)
       vp.v++
       const s = partition.getSynthese()
-      const q = { qc: qs[0], qn: qs[1], qv: qs[2], c: 0, n: 0, v: 0}
+      const q = { qc: qs.qc, qn: qs.qn, qv: qs.qv, c: 0, n: 0, v: 0}
       // restants à attribuer suffisant pour satisfaire les quotas ?
       if (q.qc > (s.qc - s.ac) || q.qn > (s.qn - s.an) || q.qv > (s.sv - s.av))
         throw new AppExc(F_SRV, 211, [partition.id, args.id])
@@ -545,8 +551,8 @@ operations.SyncSp = class SyncSp extends Operation {
 
       o = { // Info du compte à propos de sa partition
         clePA: args.clePA,
-        rdsp: this.partition.rds,
-        idp: ID.court(this.partition.id),
+        rdsp: partition.rds,
+        idp: ID.court(partition.id),
         del: sp.del,
         it: it
       }
@@ -557,13 +563,13 @@ operations.SyncSp = class SyncSp extends Operation {
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(args.id, 
       (ns * d14) + args.hXR, args.hXC, args.cleKXC, null, rdsav, args.cleAK, o)
-    const rvcompte = new Versions().init({id: Rds.long(compte.rds, args.ns), v: 1, suppr: 0}).toRow()
+    const rvcompte = new Versions().init({id: Rds.long(compte.rds, ns), v: 1, suppr: 0}).toRow()
     this.insert(compte.toRow())
     this.insert(rvcompte)
 
     /* Création compta */
     const nc = !sp.dconf && !args.dconf ? 1 : 0
-    const qv = { qc: qs[0], qn: qs[1], qv: qs[2], nn: 0, nc: nc, ng: 0, v: 0 }
+    const qv = { qc: qs.qc, qn: qs.qn, qv: qs.qv, nn: 0, nc: nc, ng: 0, v: 0 }
     const compta = new Comptas().init({
       id: compte.id, v: 1, rds: Rds.nouveau('comptas'), qv,
       compteurs: new Compteurs(null, qv).serial
@@ -572,51 +578,48 @@ operations.SyncSp = class SyncSp extends Operation {
     compta.compile() // pour calculer les notifs
     if (compta._Q) this.notifs.Q = compta._Q
     if (compta._X) this.notifs.X = compta._X
-    const rvcompta = new Versions().init({id: Rds.long(compta.rds, args.ns), v: 1, suppr: 0}).toRow()
+    const rvcompta = new Versions().init({id: Rds.long(compta.rds, ns), v: 1, suppr: 0}).toRow()
     this.insert(compta.toRow())
     this.insert(rvcompta)
     
     /* Création Avatar */
     const avatar = new Avatars().init(
       { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK, cvA: args.cvA })
-    const rvavatar = new Versions().init({id: Rds.long(rdsav, args.ns), v: 1, suppr: 0}).toRow()
+    const rvavatar = new Versions().init({id: Rds.long(rdsav, ns), v: 1, suppr: 0}).toRow()
     this.insert(avatar.toRow())
     this.insert(rvavatar)
 
     /* Création chat */
+    let chI = null
     if (!sp.dconf && !args.dconf) {
-      const avsponsor = compile(await Cache.getRow(this, 'avtars', args.idsp))
-      if (!avsponsor) throw assertKO('SyncSp-10', 8, [args.idsp])
       /*- ccK: clé C du chat cryptée par la clé K du compte
         - ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
         - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
         - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
       */
-      const chI = new Chats().init({ // du s^ponsorisé
+      chI = new Chats().init({ // du sponsorisé
         id: args.id,
-        ids: rnd6(),
+        ids: (ns * d14) + rnd6(),
         v: 1,
         st: 10,
-        idE: args.sp.id,
+        idE: ID.court(sp.id),
         idsE: rnd6(),
         cvE: avsponsor.cvA,
         cleCKP: args.ch.ccK,
         cleEC: args.ch.cleE1C,
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
       })
-      const rvchI = new Versions().init({id: Rds.long(rdsav, args.ns), v: 1, suppr: 0}).toRow()
       this.insert(chI.toRow())
-      this.insert(rvchI)
 
-      const vchE = this.getV('SyncSp-11', avsponsor) // du sponsor
+      const vchE = await this.getV('SyncSp-11', avsponsor) // du sponsor
       vchE.v++
       const chE = new Chats().init({
         id: sp.id,
-        ids: chI.idsE,
+        ids: (ns * d14) + chI.idsE,
         v: vchE.v,
         st: 1,
-        idE: chI.id,
-        idsE: chI.ids,
+        idE: ID.court(chI.id),
+        idsE: chI.ids % d14,
         cvE: avatar.cvA,
         cleCKP: args.ch.ccP,
         cleEC: args.ch.cleE2C,
@@ -624,6 +627,13 @@ operations.SyncSp = class SyncSp extends Operation {
       })
       this.insert(chE.toRow())
       this.update(vchE.toRow())
+
+      this.setRes('compte', compte.toRow())
+      this.setRes('compta', compta.toRow())
+      this.setRes('espace', espace.toRow())
+      if (partition) this.setRes('partition', partition.toShortRow(sp.del))
+      this.setRes('avatar', avatar.toRow())
+      if (chI) this.setRes('chat', chI.toRow())
     }
   }
 }
@@ -726,6 +736,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     const vsp = await this.getV('AjoutSponsoring-1', avatar)
     vsp.v++
     sponsoring.v = vsp.v
+    sponsoring.dh = this.dh
     sponsoring.csp = this.compte.id
     sponsoring.itsp = this.compte.it
     this.insert(sponsoring.toRow())

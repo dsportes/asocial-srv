@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS, d14, rowCryptes } from './api.mjs'
+import { FLAGS, d14 } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 import { Compteurs, ID, Rds, lcSynt, AMJ, limitesjour, synthesesPartition } from './api.mjs'
@@ -17,6 +17,7 @@ depuis un objet.
 compile / toRow forme un couple de désérilisation / sérialisation.
 
 ***********************************************************/
+const ROWSENCLAIR = new Set(['versions'])
 
 export function compile (row) {
   if (!row) return null
@@ -32,7 +33,7 @@ export function compile (row) {
 }
 
 export async function decryptRow (op, row) {
-  if (!row || !rowCryptes.has(row._nom)) return row
+  if (!row || ROWSENCLAIR.has(row._nom)) return row
   const d = row._data_
   if (!d || d.length < 4) return row
   const dc = await decrypterSrv(op.db.appKey, d)
@@ -41,7 +42,7 @@ export async function decryptRow (op, row) {
 }
 
 export async function prepRow (op, row) {
-  const b = rowCryptes.has(row._nom)
+  const b = !ROWSENCLAIR.has(row._nom)
   const la = GenDoc._attrs[row._nom]
   const r = {}
   la.forEach(a => {
