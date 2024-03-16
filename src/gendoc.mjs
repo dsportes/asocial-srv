@@ -427,6 +427,8 @@ export class Comptes extends GenDoc {
 
   get ns () { return ID.ns(this.id) }
 
+  get estA () { return this.it === 0 }
+
   majPerimetreDataSync (ds) {
     for(const idx in this.mav) {
       const idac = parseInt(idx)

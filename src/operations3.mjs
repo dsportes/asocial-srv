@@ -31,6 +31,56 @@ export function load3 () {
     compte compta espace partition (si c'est un compte O)
 */
 
+class OperationS extends Operation {
+  constructor (nom, authMode, excFige) { super(nom, authMode, excFige) }
+
+  async majDS (ds, avatar) {
+    /* Mise à jour du DataSync en fonction des CCEP et des avatars / groupes actuels du compte */
+    this.ds = new DataSync(ds)
+    this.ds.compte = {
+      id: this.compte.id,
+      rds: Rds.long(this.compte.rds, this.ns),
+      vs: this.ds.compte.vs,
+      vc: this.compte.v,
+      vb: this.compte.v
+    }
+    this.ds.compta = {
+      id: this.compta.id,
+      rds: Rds.long(this.compta.rds, this.ns),
+      vs: this.ds.compta.vs,
+      vc: this.compta.v,
+      vb: this.compta.v
+    }
+    this.ds.espace = {
+      id: this.espace.id,
+      rds: Rds.long(this.espace.rds, this.ns),
+      vs: this.ds.espace.vs,
+      vc: this.espace.v,
+      vb: this.espace.v
+    }
+    if (this.estA) {
+      this.ds.partition = { ...DataSync.vide }
+    } else this.ds.partition = {
+      id: this.partition.id,
+      rds: Rds.long(this.partition.rds, this.ns),
+      vs: this.ds.partition.vs,
+      vc: this.partition.v,
+      vb: this.partition.v
+    }
+
+    if (avatar) { // Sur acceptation de sponsoring
+      this.ds.avatars.set(avatar.id, {
+        id: avatar.id,
+        rds: Rds.long(avatar.rds, this.ns),
+        vs: 0,
+        vb: avatar.v,
+        vc: avatar.v
+      })
+    }
+  } 
+
+}
+
 /* Sync : opération générique de synchronisation d'une session cliente
 - optionC: 
   - true : recherche de toutes les versions du périmètre cohérentes
@@ -39,7 +89,7 @@ export function load3 () {
 - ida: id long du sous-arbre à synchroniser ou 0
 - dataSync: sérialisation de l'état de synchro de la session
 */
-operations.Sync = class Sync extends Operation {
+operations.Sync = class Sync extends OperationS {
   constructor (nom) { super(nom, 1, 1) }
 
   /* Analyse d'un groupe idg. x : élément de ds relatif au groupe 
@@ -116,33 +166,7 @@ operations.Sync = class Sync extends Operation {
     this.mgr = new Map() // Cache très locale et courte des groupes acquis dans l'opération
 
     /* Mise à jour du DataSync en fonction des CCEP et des avatars / groupes actuels du compte */
-    this.ds = new DataSync(args.dataSync)
-    this.ds.compte = {
-      id: this.compte.id,
-      rds: Rds.long(this.compte.rds, this.ns),
-      vc: this.compte.v,
-      vb: this.compte.v
-    }
-    this.ds.compta = {
-      id: this.compta.id,
-      rds: Rds.long(this.compta.rds, this.ns),
-      vc: this.compta.v,
-      vb: this.compta.v
-    }
-    this.ds.espace = {
-      id: this.espace.id,
-      rds: Rds.long(this.espace.rds, this.ns),
-      vc: this.espace.v,
-      vb: this.espace.v
-    }
-    if (this.estA) {
-      this.ds.partition = { ...DataSync.vide }
-    } else this.ds.partition = {
-      id: this.partition.id,
-      rds: Rds.long(this.partition.rds, this.ns),
-      vc: this.partition.v,
-      vb: this.partition.v
-    }
+    this.majDS(args.dataSync)
 
     /* mise à nouveau des listes avatars / groupes du dataSync
     en fonction des avatars et groupes listés dans mav/mpg du compte */
@@ -229,7 +253,7 @@ Retour:
 - dataSync : sérialisation du DataSync mis à jour
 - rowcompte rowCompta rowEspace rowPartition
 */
-operations.Sync2 = class Sync2 extends Operation {
+operations.Sync2 = class Sync2 extends OperationS {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2(args) {
@@ -466,7 +490,7 @@ Exceptions:
 - A_SRV, 2: partition non trouvée
 - A_SRV, 8: avatar sponsor non trouvé
 */
-operations.SyncSp = class SyncSp extends Operation {
+operations.SyncSp = class SyncSp extends OperationS {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
@@ -628,17 +652,26 @@ operations.SyncSp = class SyncSp extends Operation {
       this.insert(chE.toRow())
       this.update(vchE.toRow())
 
-      this.setRes('compte', compte.toRow())
-      this.setRes('compta', compta.toRow())
-      this.setRes('espace', espace.toRow())
-      if (partition) this.setRes('partition', partition.toShortRow(sp.del))
-      this.setRes('avatar', avatar.toRow())
-      if (chI) this.setRes('chat', chI.toRow())
+      this.setRes('rowCompte', compte.toRow())
+      this.setRes('rowCompta', compta.toRow())
+      this.setRes('rowEspace', espace.toRow())
+      if (partition) this.setRes('rowPartition', partition.toShortRow(sp.del))
+      this.setRes('rowAvatar', avatar.toRow())
+      if (chI) this.setRes('rowChat', chI.toRow())
+
+      this.ns = ns
+      this.compte = compte
+      this.estA = compte.estA
+      this.compta = compta
+      this.espace = espace
+      if (partition) this.partition = partition
+      this.majDS(DataSync.nouveau().serial, avatar)
+      this.setRes('dataSync', this.ds.serial)
     }
   }
 }
 
-/* Recherche hash de phrase ******
+/* Recherche hash de phrase ***************************************
 args.hps1 : ns + hps1 de la phrase de contact / de connexion
 args.t :
   - 1 : phrase de connexion(hps1 de compta)
