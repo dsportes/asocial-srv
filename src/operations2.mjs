@@ -1,133 +1,17 @@
 /* Opérations de lecture */
 
-import { AppExc, F_SRV, ID, d14 } from './api.mjs'
+import { ID } from './api.mjs'
 import { encode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
 import { Operation } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { sleep } from './util.mjs'
 import { FLAGS } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function load2 () {
   if (config.modebug) config.logger.debug('Operations2: ' + operations.auj)
-}
-
-/** Echo du texte envoyé ***************************************
-args.to : délai en secondes avant retour de la réponse
-args.texte : texte à renvoyer en écho OU en détail de l'erreur fonctionnelle testée
-Retour:
-- echo : texte d'entrée retourné
-*/
-operations.EchoTexte = class EchoTexte extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2(args) {
-    if (args.to) await sleep(args.to * 1000)
-    this.setRes('echo', args.texte)
-  }
-}
-
-/** Erreur fonctionnelle simulée du texte envoyé ***************************************
-args.to : délai en secondes avant retour de la réponse
-args.texte : détail de l'erreur fonctionnelle testée
-Exception
-*/
-operations.ErreurFonc = class ErreurFonc extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2(args) {
-    if (args.to) await sleep(args.to * 1000)
-    throw new AppExc(F_SRV, 1, [args.texte])
-  }
-}
-
-/** Test d'accès à la base ***************************************
-GET
-Retourne les date-heures de derniers ping (le précédent et celui posé)
-*/
-operations.PingDB = class PingDB extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2() {
-    this.result.type = 'text/plain'
-    this.result.bytes = await this.db.ping()
-  }
-}
-
-/* get cle publique RSA d'un avatar ******
-args.id : id de l'avatar
-Retour: 
-- pub : nul si l'avatar a disparu
-*/
-operations.GetPub = class GetPub extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2 (args) {
-    const avatar = compile(await this.getRowAvatar(args.id))
-    this.setRes('pub', avatar ? avatar.pub : null)
-  }
-}
-
-/* Recherche sponsoring ******
-args.org : organisation
-args.hps1 : hash de la phrase de contact
-Retour:
-- rowSponsoring s'il existe
-*/
-operations.ChercherSponsoring = class ChercherSponsoring extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2 (args) {
-    const espace = await this.getEspaceOrg(args.org)
-    if (!espace) return
-    const ids = (espace.id * d14) + args.hps1
-    const row = await this.getSponsoringIds(ids)
-    if (row) this.setRes('rowSponsoring', row)
-  }
-}
-
-/* Recherche hash de phrase ******
-args.hps1 : ns + hps1 de la phrase de contact / de connexion
-args.t :
-  - 1 : phrase de connexion(hps1 de compta)
-Retour:
-- existe : true si le hash de la phrase existe
-*/
-operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2 (args) {
-    if (await this.getComptaHps1(args.hps1)) this.setRes('existe', true)
-  }
-}
-
-/* Recherche hash de phrase ******
-args.hps1 : ns + hps1 de la phrase de contact / de connexion
-args.t :
-  - 2 : phrase de sponsoring (ids)
-  - 3 : phrase de contact (hpc d'avatar)
-Retour:
-- existe : true si le hash de la phrase existe
-*/
-operations.ExistePhrase = class ExistePhrase extends Operation {
-  constructor (nom) { super(nom, 1)  }
-
-  async phase2 (args) {
-    if (args.t === 2) {
-      if (await this.getSponsoringIds(args.hps1)) {
-        this.setRes('existe', true)
-        return
-      }
-    } if (args.t === 3) {
-      if (await this.getAvatarHpc(args.hps1)) {
-        this.setRes('existe', true)
-        return
-      }
-    }
-  }
 }
 
 /* `ConnexionCompte` : connexion authentifiée à un compte

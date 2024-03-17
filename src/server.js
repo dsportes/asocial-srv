@@ -16,10 +16,12 @@ import { appExpress, operations } from './cfgexpress.mjs'
 // import{ load } from './operations.mjs'
 // import{ load2 } from './operations2.mjs'
 import{ load3 } from './operations3.mjs'
+import{ load4 } from './operations4.mjs'
 
 // load()
 // load2()
 load3()
+load4()
 
 let db = null, storage = null
 const keys = ['favicon.ico', 'fullchain.pem', 'privkey.pem']

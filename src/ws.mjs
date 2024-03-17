@@ -107,7 +107,7 @@ export class SyncSession {
   }
 
   // Annonce de versions changées : quelles sessions sont abonnées ?
-  static toSync(rows) {
+  toSync(rows) {
     if (rows && rows.length) {
       SyncSession.syncListQueue.push( { rows: rows })
       setImmediate(() => { 

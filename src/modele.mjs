@@ -195,6 +195,8 @@ export class Operation {
       Cache.update(updated, deleted)
 
       await this.phase3(this.args) // peut ajouter des résultas
+
+      if (!this.sync && this.versions.length) this.sync.toSync(this.versions)
     }
 
     return this.result
@@ -223,17 +225,11 @@ export class Operation {
     if (this.espace && this.espace._maj) {
       const ins = !this.espace.v
       const v = this.espace.v ? this.espace.v + 1 : 1
-      const version = { _nom: 'versions', id: this.espace.rds, v: v, suppr: 0 }
+      const version = { _nom: 'versions', id: Rds.long(this.espace.rds, this.ns), v: v, suppr: 0 }
       this.espace.v = v
       const rowEspace= this.espace.toRow()
-      this.versions.push(version)
-      if (ins) {
-        this.toInsert.push(version)
-        this.toInsert.push(rowEspace)
-      } else {
-        this.toInsert.push(version)
-        this.toInsert.push(rowEspace)
-      }
+      this.setV(version)
+      if (ins) this.toInsert.push(rowEspace); else this.toInsert.push(rowEspace)
       this.setRes('rowEspace', rowEspace)
     }
 
@@ -241,17 +237,11 @@ export class Operation {
     if (this.partition && this.partition._maj) {
       const ins = !this.partition.v
       const v = this.partition.v ? this.partition.v + 1 : 1
-      const version = { _nom: 'versions', id: this.partition.rds, v: v, suppr: 0 }
+      const version = { _nom: 'versions', id: Rds.long(this.partition.rds, this.ns), v: v, suppr: 0 }
       this.partition.v = v
       const rowPartition= this.partition.toRow()
-      this.versions.push(version)
-      if (ins) {
-        this.toInsert.push(version)
-        this.toInsert.push(rowPartition)
-      } else {
-        this.toInsert.push(version)
-        this.toInsert.push(rowPartition)
-      }
+      this.setV(version)
+      if (ins) this.toInsert.push(rowPartition); else this.toUpdate.push(rowPartition)
       this.setRes('rowPartition', rowPartition)
     }
     
@@ -274,17 +264,11 @@ export class Operation {
     if (this.compte && this.compte._maj) {
       const ins = !this.compte.v
       const v = this.compte.v ? this.compte.v + 1 : 1
-      const version = { _nom: 'versions', id: this.compte.rds, v: v, suppr: 0 }
+      const version = { _nom: 'versions', id: Rds.long(this.compte.rds, this.ns), v: v, suppr: 0 }
       this.compte.v = v
       const rowCompte = this.compte.toRow()
-      this.versions.push(version)
-      if (ins) {
-        this.toInsert.push(version)
-        this.toInsert.push(rowCompte)
-      } else {
-        this.toInsert.push(version)
-        this.toInsert.push(rowCompte)
-      }
+      this.setV(version)
+      if (ins) this.toInsert.push(rowCompte); else this.toInsert.push(rowCompte)
       this.setRes('rowCompte', rowCompte)
     }
 
@@ -302,17 +286,11 @@ export class Operation {
       if (this.compta._maj) {
         const ins = !this.compta.v
         const v = this.compta.v ? this.compta.v + 1 : 1
-        const version = { _nom: 'versions', id: this.compta.rds, v: v, suppr: 0 }
+        const version = { _nom: 'versions', id: Rds.long(this.compta.rds, this.ns), v: v, suppr: 0 }
         this.compta.v = v
         const rowCompta = this.compta.toRow()
-        this.versions.push(version)
-        if (ins) {
-          this.toInsert.push(version)
-          this.toInsert.push(rowCompta)
-        } else {
-          this.toUpdate.push(version)
-          this.toUpdate.push(rowCompta)
-        }
+        this.setV(version)
+        if (ins) this.toInsert.push(rowCompta); else this.toUpdate.push(rowCompta)
         if (rowCompta) this.result.rowCompta = rowCompta
       }
     }
@@ -438,11 +416,17 @@ export class Operation {
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
 
-  async getV (src, doc) {
+  async getV (doc, src) {
     const rds = Rds.long(doc.rds, ID.ns(doc.id))
     const v = compile(await Cache.getRow(this, 'versions', rds))
-    if (!v) assertKO(src, 14, [rds])
+    if (src && !v) assertKO(src, 14, [rds])
     return v
+  }
+
+  setV (version) {
+    const r = version.toRow()
+    if (version.v === 1) this.insert(r); else this.update(r)
+    this.versions.push(r)
   }
 
   // HELPERS d'accès à la base
@@ -660,7 +644,7 @@ export class Operation {
       // cas normal : chatI n'existe pas
       let vI = 1
       if (!xavatarI) {
-        // Depuis AcceptationSponsoring version I vient d'être créee
+        // Depuis SyncSp version I vient d'être créee
         const versionI = compile(await this.getRowVersion(args.idI, 'NouveauChat-5', true))
         versionI.v++
         vI = versionI.v

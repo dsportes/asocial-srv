@@ -302,6 +302,12 @@ export class Partitions extends GenDoc {
     if (del) this.ldel.push(cleAP)
     return this.tcpt.length - 1
   }
+
+  reportCNV (compte, compta) {
+    compta.setQcnv(this.tcpt[compte.it].q)
+    this._maj = true
+    return this.getSynthese()
+  }
 }
 
 /* Syntheses : un par espace ******************************
@@ -457,7 +463,29 @@ export class Comptes extends GenDoc {
   }
 }
 
-/** Comptas *************************************************/
+/** Comptas ************************************************
+_data_ :
+- `id` : numéro du compte = id de son avatar principal.
+- `v` : 1..N.
+
+- `rds`
+- `dhvuK` : date-heure de dernière vue des notifications par le titulaire du compte, cryptée par la clé K.
+- `qv` : `{qc, qn, qv, nn, nc, ng, v}`: quotas et nombre de groupes, chats, notes, volume fichiers. Valeurs courantes.
+- `compteurs` sérialisation des quotas, volumes et coûts.
+
+_Comptes "A" seulement_
+- `solde`: résultat, 
+  - du cumul des crédits reçus depuis le début de la vie du compte (ou de son dernier passage en compte A), 
+  - plus les dons reçus des autres,
+  - moins les dons faits aux autres.
+- `ticketsK`: liste des tickets cryptée par la clé K du compte `{ids, v, dg, dr, ma, mc, refa, refc, di}`.
+
+- `apropos` : map à propos des contacts (des avatars) et des groupes _connus_ du compte,
+  - _cle_: `id` court de l'avatar ou du groupe,
+  - _valeur_ : `{ hashtags, texte }` cryptée par la clé K du compte.
+    - `hashtags` : liste des hashtags attribués par le compte.
+    - `texte` : commentaire écrit par le compte.
+*/
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
 
@@ -468,6 +496,13 @@ export class Comptas extends GenDoc {
     this._Q = c.notifQ 
     this._X = c.estA ? c.notifS(c.total) : c.notifX
     return this
+  }
+
+  setQcnv (q) {
+    q.n = this.qv.nn + this.qv.nc + this.qv.ng
+    q.v = this.qv.v
+    const c = new Compteurs(this.compteurs)
+    q.c = c.conso2M
   }
 
   conso (op) {
