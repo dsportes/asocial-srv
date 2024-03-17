@@ -95,7 +95,7 @@ export class SyncSession {
     // filtre dans rows ceux concernés par la session et envoie (éventuellement) le message
     const msg = { sessionId: this.sessionId, rows: [] }
     syncList.rows.forEach(row => {
-      if (this.aboRds.has(row.rds) || this.aboPartC === row.rds)
+      if (this.aboRds.has(row.id) || this.aboPartC === row.id)
         msg.rows.push(row)
     })
     if (msg.rows.length) {

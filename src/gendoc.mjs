@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS, d14 } from './api.mjs'
+import { FLAGS, F_SRV, AppExc, d14 } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 import { Compteurs, ID, Rds, lcSynt, AMJ, limitesjour, synthesesPartition } from './api.mjs'
@@ -492,6 +492,7 @@ export class Comptas extends GenDoc {
   compile () {
     this._maj = false
     const c = new Compteurs(this.compteurs)
+    this._estA = c.estA 
     this.nbj = c.estA ? c.nbj(this.total) : 0
     this._Q = c.notifQ 
     this._X = c.estA ? c.notifS(c.total) : c.notifX
@@ -527,9 +528,28 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
+  ncPlus1 () {
+    this.qv.nc += 1
+    const c = new Compteurs(this.compteurs, this.qv)
+    this.compteurs = c.serial
+    this._maj = true
+  }
+
+  donDB (don) {
+    if (this.total < don + 2) throw new AppExc(F_SRV, 215, [don, this.total])
+    this.total -= don
+    this._maj = true
+  }
+
+  donCR (don) {
+    this.total += don
+    this._maj = true
+  }
 }
 
-export class Versions extends GenDoc { constructor() { super('versions') } }
+export class Versions extends GenDoc { 
+  constructor() { super('versions') } 
+}
 
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 

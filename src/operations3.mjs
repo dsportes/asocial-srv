@@ -3,8 +3,8 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, rnd6 } from './util.mjs'
 
-import { Operation, Cache, assertKO} from './modele.mjs'
-import { compile, Versions, Comptes, Avatars, Comptas, Chats } from './gendoc.mjs'
+import { Operation, assertKO} from './modele.mjs'
+import { compile, Comptes, Avatars, Comptas, Chats } from './gendoc.mjs'
 import { DataSync, Rds } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -81,8 +81,7 @@ operations.GetPub = class GetPub extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const avatar = compile(await Cache.getRow(this, 'avatars', args.id))
-    if (!avatar) throw new AppExc(A_SRV, 8)
+    const avatar = compile(await this.getRowAvatar(args.id, 'getPub'))
     this.setRes('pub', avatar.pub)
   }
 }
@@ -111,7 +110,7 @@ operations.GetSynthese = class GetSynthese extends Operation {
 
   async phase2 (args) {
     const ns = this.estAdmin ? args.ns : this.ns
-    const rowSynthese = await Cache.getRow(this, 'syntheses', ns)
+    const rowSynthese = await this.getRowSyntheses(ns, 'getSynthese')
     this.setRes('rowSynthese', rowSynthese)
   }
 }
@@ -126,12 +125,10 @@ operations.GetPartitionC = class GetPartitionC extends Operation {
   constructor (nom) { super(nom, 2, 1) }
 
   async phase2 (args) {
-    const rowPartition = await Cache.getRow(this, 'syntheses', args.id)
-    if (rowPartition && this.sync) {
-      const p = compile(rowPartition)
-      this.sync.setAboPartC(Rds.long(p.rds, this.ns), this.dh)
-    }
-    this.setRes('rowPartition', rowPartition)
+    const partition = compile(await this.getRowPartition(args.id, 'getPartitionC'))
+    if (this.sync)
+      this.sync.setAboPartC(Rds.long(partition.rds, this.ns), this.dh)
+    this.setRes('rowPartition', partition.toRow())
   }
 }
 
@@ -187,7 +184,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const espace = await Cache.getEspaceOrg(this, args.org)
+    const espace = await this.getEspaceOrg(args.org)
     if (!espace) { sleep(3000); return }
     const ids = (espace.id * d14) + args.hps1
     const row = await this.db.getSponsoringIds(this, ids)
@@ -264,13 +261,13 @@ operations.Sync = class Sync extends OperationS {
   Retourne le groupe
   */
   async setGrx (idg, x) {
-    const version = await this.getV(x.rds)
+    const version = await this.getV({rds: x.rds})
     if (!version || version.suppr) { x.vb = [0,0,0,0]; return null }
     else { x.vb = [...version.tv]; x.vc = version.v }
 
     let gr = this.mgr.get(idg)
     if (gr === undefined) {
-      gr = compile(await Cache.getRow(this, 'groupes', idg)) || null
+      gr = compile(await this.getRowGroupe(idg)) || null
       this.mgr.set(idg, gr)
     }
 
@@ -310,10 +307,10 @@ operations.Sync = class Sync extends OperationS {
       }
     } else {
       if (!x || !x.vb) return
-      const version = await this.getV(x.rds)
+      const version = await this.getV({rds: x.rds})
       if (!version || version.suppr) { x.vb = 0; return }
       else { x.vb = version.v; x.vc = version.v }
-      const rav = await Cache.getRow(this, 'avatars', ida)
+      const rav = await this.getRowAvatar(ida)
       if (!rav) { x.vb = 0; return }
       this.setRes('rowAvatar', rav)
 
@@ -344,7 +341,7 @@ operations.Sync = class Sync extends OperationS {
       this.db.setSyncData(this)
       // Recherche des versions des avatars
       for(const [, x] of this.ds.avatars) {
-        const version = await this.getV(x.rds)
+        const version = await this.getV({rds: x.rds})
         if (!version || version.suppr) x.vb = 0
         else { x.vb = version.v; x.vc = version.v }
       }
@@ -356,7 +353,7 @@ operations.Sync = class Sync extends OperationS {
       // Report de la consommation du compte cnv dans son Partition et maj syntheses
       if (!this.compte.estA) {
         const s = this.partition.reportCNV(this.compte, this.compta)
-        const synthese = compile(await Cache.getRow(this, 'syntheses', this.ns))
+        const synthese = compile(await this.getRowSynthese(this.ns))
         if (synthese) {
           synthese.tp[ID.court(this.compte.partitionId)] = s
           synthese.v = this.dh
@@ -525,8 +522,7 @@ operations.SyncSp = class SyncSp extends OperationS {
     if (!sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idssp])
     if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.idsp, args.idsp])
 
-    const avsponsor = compile(await Cache.getRow(this, 'avatars', args.idsp))
-    if (!avsponsor) throw assertKO('SyncSp-10', 8, [args.idsp])
+    const avsponsor = compile(await this.getRowAvatar(args.idsp, 'SyncSp-10'))
 
     const vsp = await this.getV(avsponsor, 'SyncSp-3')
     vsp.v++
@@ -540,22 +536,17 @@ operations.SyncSp = class SyncSp extends OperationS {
     this.update(vsp.toRow())
 
     if (sp.don) { // Maj compta du sponsor
-      const csp = compile(await Cache.getRow(this, 'comptas', args.idsp))
-      if (!csp) throw assertKO('SyncSp-8', 3, [args.idsp])
+      const csp = compile(await this.getRowComptas(args.idsp, 'SyncSp-8'))
       if (csp.solde <= sp.don + 2)
         throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
-      const vcsp = await this.getV(csp, 'SyncSp-9')
-      vcsp.v++
-      csp.v = vcsp.v
+      csp.v++
       csp.solde-= sp.don
       this.update(csp.toRow())
-      this.update(vcsp.toRow())  
+      this.setNV(csp)  
     }
 
     // Refus si espace figé ou clos
-    const rowEspace = this.setRes('rowEspace', await Cache.getRow(this, 'espaces', ns))
-    if (!rowEspace) throw assertKO('SyncSp-3', 1, [ns])
-    const espace = compile(rowEspace)
+    const espace = compile(await this.getRowEspace(ns, 'SyncSp-3'))
     if (espace.notifG) {
       // Espace bloqué
       const n = espace.notifG
@@ -574,11 +565,8 @@ operations.SyncSp = class SyncSp extends OperationS {
     let partition = null
     if (sp.partitionId) {
       const pid = ID.long(sp.partitionId, ns)
-      const rowPartition =  await Cache.getRow(this, 'partitions', pid)
-      if (!rowPartition) throw assertKO('SyncSp-4', 2, [pid])
-      partition = compile(rowPartition)
-      const vp = await this.getV(partition, 'SyncSp-5')
-      vp.v++
+      partition =  compile(await this.getRowPartitions(pid), 'SyncSp-4')
+      partition.v++
       const s = partition.getSynthese()
       const q = { qc: qs.qc, qn: qs.qn, qv: qs.qv, c: 0, n: 0, v: 0}
       // restants à attribuer suffisant pour satisfaire les quotas ?
@@ -586,15 +574,13 @@ operations.SyncSp = class SyncSp extends OperationS {
         throw new AppExc(F_SRV, 211, [partition.id, args.id])
       const it = partition.ajoutCompte(null, q, args.cleAP, sp.del)
       partition.setNotifs(this.notifs, it)
-      partition.v = vp.v
       const synth = partition.getSynthese()
 
-      const synthese = compile(await Cache.getRow(this, 'syntheses', ns))
-      if (!synthese) throw assertKO('SyncSp-5', 16, [ns])
+      const synthese = compile(await this.getRowSynthese(ns, 'SyncSp-5'))
       synthese.v = this.dh
       synthese.tp[ID.court(partition.id)] = synth
       this.update(synthese.toRow())
-      this.update(vp.toRow())
+      this.setNV(partition)
       this.update(partition.toRow())
 
       o = { // Info du compte à propos de sa partition
@@ -611,9 +597,8 @@ operations.SyncSp = class SyncSp extends OperationS {
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(args.id, 
       (ns * d14) + args.hXR, args.hXC, args.cleKXC, null, rdsav, args.cleAK, o)
-    const rvcompte = new Versions().init({id: Rds.long(compte.rds, ns), v: 1, suppr: 0}).toRow()
     this.insert(compte.toRow())
-    this.insert(rvcompte)
+    this.setNV(compte)
 
     /* Création compta */
     const nc = !sp.dconf && !args.dconf ? 1 : 0
@@ -626,16 +611,14 @@ operations.SyncSp = class SyncSp extends OperationS {
     compta.compile() // pour calculer les notifs
     if (compta._Q) this.notifs.Q = compta._Q
     if (compta._X) this.notifs.X = compta._X
-    const rvcompta = new Versions().init({id: Rds.long(compta.rds, ns), v: 1, suppr: 0}).toRow()
     this.insert(compta.toRow())
-    this.insert(rvcompta)
+    this.seNV(compta)
     
     /* Création Avatar */
     const avatar = new Avatars().init(
       { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK, cvA: args.cvA })
-    const rvavatar = new Versions().init({id: Rds.long(rdsav, ns), v: 1, suppr: 0}).toRow()
     this.insert(avatar.toRow())
-    this.insert(rvavatar)
+    this.setNV(avatar)
 
     /* Création chat */
     let chI = null
@@ -647,11 +630,11 @@ operations.SyncSp = class SyncSp extends OperationS {
       */
       chI = new Chats().init({ // du sponsorisé
         id: args.id,
-        ids: (ns * d14) + rnd6(),
+        ids: (ns * d14) + (rnd6() % d14),
         v: 1,
         st: 10,
         idE: ID.court(sp.id),
-        idsE: rnd6(),
+        idsE: (rnd6() % d14),
         cvE: avsponsor.cvA,
         cleCKP: args.ch.ccK,
         cleEC: args.ch.cleE1C,
@@ -661,6 +644,7 @@ operations.SyncSp = class SyncSp extends OperationS {
 
       const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
       vchE.v++
+      this.setV(vchE)
       const chE = new Chats().init({
         id: sp.id,
         ids: (ns * d14) + chI.idsE,
@@ -674,7 +658,6 @@ operations.SyncSp = class SyncSp extends OperationS {
         items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
       })
       this.insert(chE.toRow())
-      this.update(vchE.toRow())
 
       this.setRes('rowCompte', compte.toRow())
       this.setRes('rowCompta', compta.toRow())

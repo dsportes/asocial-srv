@@ -3,8 +3,8 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
-import { Operation, Cache, assertKO} from './modele.mjs'
-import { compile, Espaces, Versions, Syntheses, Partitions, Comptes, 
+import { Operation } from './modele.mjs'
+import { compile, Espaces, Syntheses, Partitions, Comptes, 
   Avatars, Comptas, Sponsorings } from './gendoc.mjs'
 import { Rds } from './api.mjs'
 
@@ -67,19 +67,19 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreerEspace.reg))) 
       throw new AppExc(F_SRV, 201, [args.org])
 
-    if (await Cache.getRow(this, 'espaces', args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
-    if (await Cache.getEspaceOrg(this, args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
+    if (await this.getRowEspaces(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
+    if (await this.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
     /* Espace */
     const espace = Espaces.nouveau (this, args.ns, args.org, args.cleE)
-    const rvespace = new Versions().init({id: Rds.long(espace.rds, args.ns), v: 1, suppr: 0}).toRow()
+    this.setNV(espace)
 
     /* Synthese */
     const synthese = Syntheses.nouveau(args.ns)
 
     /* Partition */
     const partition = Partitions.nouveau(args.ns, 1, args.clePK, args.cleAP)
-    const rvpartition = new Versions().init({id: Rds.long(partition.rds, args.ns), v: 1, suppr: 0}).toRow()
+    this.setNV(partition)
 
     /* Compte Comptable */
     const apr = config.allocPrimitive
@@ -95,7 +95,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(ID.duComptable(args.ns), 
       (args.ns * d14) + args.hXR, args.hXC, args.cleKXC, args.cleEK, rdsav, args.cleAK, o, cs)
-    const rvcompte = new Versions().init({id: Rds.long(compte.rds, args.ns), v: 1, suppr: 0}).toRow()
+    this.setNV(compte)
     
     /* Compta */
     const aco = config.allocComptable
@@ -104,25 +104,20 @@ operations.CreerEspace = class CreerEspace extends Operation {
       id: compte.id, v: 1, rds: Rds.nouveau('comptas'), qv,
       compteurs: new Compteurs(null, qv).serial
     })
-    const rvcompta = new Versions().init({id: Rds.long(compta.rds, args.ns), v: 1, suppr: 0}).toRow()
-    
+    this.setNV(compta)
+
     /* Avatar */
     const avatar = new Avatars().init(
       { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK })
-    const rvavatar = new Versions().init({id: Rds.long(rdsav, args.ns), v: 1, suppr: 0}).toRow()
+    this.setVV(avatar)
 
     // this.insert(this.setRes(espace.toRow()))
     this.insert(espace.toRow())
-    this.insert(rvespace)
     this.insert(synthese.toRow())
     this.insert(partition.toRow())
-    this.insert(rvpartition)
     this.insert(compte.toRow())
-    this.insert(rvcompte)
     this.insert(compta.toRow())
-    this.insert(rvcompta)
     this.insert(avatar.toRow())
-    this.insert(rvavatar)
   }
 }
 
@@ -141,21 +136,18 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    const espace = compile(await Cache.getRow(this, 'espaces', args.ns))
-    if (!espace) throw assertKO('SetEspaceOptionA-1', 1, [args.ns])
-    const vsp = await this.getV('SetEspaceOptionA-2', espace)
-    vsp.v++
-    espace.v = vsp.v
+    const espace = compile(await this.getRowEspaces(args.ns, 'SetEspaceOptionA-1'))
+    espace.v++
     if (args.optionA) espace.opt = args.optionA
     if (args.dlvat) espace.dlvat = args.dlvat
     if (args.nbmi) espace.nbmi = args.nbmi
     this.setRes('rowEspace', this.update(espace.toRow()))
-    this.update(vsp.toRow())
+    this.setNV(espace)
   }
 }
 
 /** Ajout d\'un sponsoring ****************************************************
-- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
+- `token` : éléments d'authentification du comptable / compte délégué de la partition.
 - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
 - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
 - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
@@ -184,7 +176,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
     if (args.partitionId) { // compte O
       const it = this.compte.it
-      const partition = compile(await Cache.getRow(this, 'partitions', args.partitionId))
+      const partition = compile(await this.getRowPartition(args.partitionId))
       if (!partition) 
         throw new AppExc(F_SRV, 208, [args.partitionId])
       const e = partition.tcpt[it]
@@ -207,15 +199,117 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     }
 
     const sponsoring = new Sponsorings().nouveau(args)
-    const avatar = compile(await Cache.getRow(this, 'avatars', sponsoring.id))
-    const vsp = await this.getV('AjoutSponsoring-1', avatar)
+    // On va chercher avatar uniquement pour avoir le rds de son sous-arbre
+    const avatar = compile(await this.getRowAvatars(sponsoring.id, 'AjoutSponsoring-1'))
+    const vsp = await this.getV(avatar, 'AjoutSponsoring-2')
     vsp.v++
+    this.setV(vsp)
     sponsoring.v = vsp.v
     sponsoring.dh = this.dh
     sponsoring.csp = this.compte.id
     sponsoring.itsp = this.compte.it
     this.insert(sponsoring.toRow())
-    this.update(vsp.toRow())
   }
 }
 
+/* Ajout ou suppression d\'un item à un chat ***************************************
+- `token` : éléments d'authentification du compte auteur
+- id, ids: id du chat
+- t: texte gzippé crypté par la clé C du chat (null si suppression)
+- dh : 0 ou date-heure de l'item du chat à supprimer
+- don : montant du don de I à E
+Retour:
+- disp: true si E a disparu (pas de maj faite)
+*/
+operations.MajChat = class MajChat extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
+
+  addChatItem (items, item) {
+    const nl = [item]
+    let lg = item.t ? item.t.length : 0
+    for (const it of items) {
+      lg += it.t ? it.t.length : 0
+      if (lg > 5000) return nl
+      nl.push(it)
+    }
+    return nl
+  }
+
+  razChatItem (items, dh) { 
+    // a : 0:écrit par I, 1: écrit par E
+    const nl = []
+    for (const it of items) {
+      if (it.dh === dh) {
+        nl.push({a: it.a, dh, dhx: this.dh})
+      } else {
+        nl.push(it)
+      }
+    }
+    return nl
+  }
+
+  async phase2 (args) {
+    const chI = compile(await this.getRowChat(args.id, args.ids, 'MajChat-1'))
+    const avI = compile(await this.getRowAvatar(args.id, 'MajChat-2'))
+    const vchI = await this.getV(avI, 'MajChat-3')
+    vchI.v++
+    this.setV(vchI)
+
+    const chE = compile(await this.getRowChat(ID.long(chI.idE, this.ns), ID.long(chI.idsE, this.ns)))
+
+    if (!chE) {
+      // E disparu. Maj interdite:
+      const st1 = Math.floor(chI.st / 10)
+      chI.st = (st1 * 10) + 2 
+      chI.vcv = 0
+      chI.cvE = null
+      this.setRes('disp', true)
+      chI.v = vchI.v
+      this.update(chI.toRow())
+      return
+    }
+
+    let comptaE = null
+    if (args.don) {
+      comptaE = compile(await this.getRowCompta(chI.idE))
+      if (!comptaE) throw new AppExc(F_SRV, 213)
+      if (!comptaE._estA) throw new AppExc(F_SRV, 214)
+      if (!this.compta._estA) throw new AppExc(F_SRV, 214)
+      this.compta.donDB(args.don)
+      comptaE.donCR(args.don)
+      comptaE.v++
+      this.setNV(comptaE)
+      this.update(comptaE.toRow())
+    }
+
+    // cas normal : maj sur chI et chE
+    const avE = compile(await this.getRowAvatar(chE.id, 'MajChat-4'))
+    const vchE = await this.getV(avE, 'MajChat-5')
+    vchE.v++
+    this.setV(vchE)
+
+    if (args.t) {
+      const itemI = args.t ? { a: 0, dh: this.dh, t: args.t } : null
+      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null  
+      chI.items = this.addChatItem(chI.items, itemI)
+      chE.items = this.addChatItem(chE.items, itemE)
+    } else if (args.dh) {
+      chI.items = this.razChatItem(chI.itemsI, args.dh)
+      chE.items = this.razChatItem(chE.itemsE, args.dh)
+    }
+
+    chI.cvE = avE.cvA || null; chI.vcv = chI.cvE ? chI.cvE.v : 0
+    chE.cvE = avI.cvA || null; chE.vcv = chE.cvE ? chE.cvE.v : 0
+   
+    if (Math.floor(chI.st / 10) === 0) { // I était passif, redevient actif
+      chI.st = 10 + (chI.st % 10)
+      this.compta.ncPlus1()
+      chE.st = (Math.floor(chE.st / 10) * 10) + 1 
+    }
+
+    chI.v = vchI.v
+    chE.v = vchE.v
+    this.update(chI.toRow())
+    this.update(chE.toRow())
+  }
+}

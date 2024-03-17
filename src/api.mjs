@@ -177,7 +177,9 @@ export class Rds {
   }
 
   static type (rds) {
-    return Math.floor((rds % d14) / 10)
+    const x = rds % d14
+    const t = Math.floor(x / d13)
+    return t
   }
 
   static typeS (rds) {

@@ -37,7 +37,7 @@ import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8 } from './util.mjs'
-import { GenDoc, compile, Chats } from './gendoc.mjs'
+import { GenDoc, compile, Chats, Versions } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -196,7 +196,7 @@ export class Operation {
 
       await this.phase3(this.args) // peut ajouter des résultas
 
-      if (!this.sync && this.versions.length) this.sync.toSync(this.versions)
+      if (this.sync && this.versions.length) this.sync.toSync(this.versions)
     }
 
     return this.result
@@ -225,10 +225,9 @@ export class Operation {
     if (this.espace && this.espace._maj) {
       const ins = !this.espace.v
       const v = this.espace.v ? this.espace.v + 1 : 1
-      const version = { _nom: 'versions', id: Rds.long(this.espace.rds, this.ns), v: v, suppr: 0 }
       this.espace.v = v
       const rowEspace= this.espace.toRow()
-      this.setV(version)
+      this.setNV(this.espace)
       if (ins) this.toInsert.push(rowEspace); else this.toInsert.push(rowEspace)
       this.setRes('rowEspace', rowEspace)
     }
@@ -236,11 +235,9 @@ export class Operation {
     // Maj partition
     if (this.partition && this.partition._maj) {
       const ins = !this.partition.v
-      const v = this.partition.v ? this.partition.v + 1 : 1
-      const version = { _nom: 'versions', id: Rds.long(this.partition.rds, this.ns), v: v, suppr: 0 }
-      this.partition.v = v
+      this.partition.v = this.partition.v ? this.partition.v + 1 : 1
+      this.setNV(this.partition)
       const rowPartition= this.partition.toRow()
-      this.setV(version)
       if (ins) this.toInsert.push(rowPartition); else this.toUpdate.push(rowPartition)
       this.setRes('rowPartition', rowPartition)
     }
@@ -262,13 +259,10 @@ export class Operation {
     }
 
     if (this.compte && this.compte._maj) {
-      const ins = !this.compte.v
-      const v = this.compte.v ? this.compte.v + 1 : 1
-      const version = { _nom: 'versions', id: Rds.long(this.compte.rds, this.ns), v: v, suppr: 0 }
-      this.compte.v = v
+      this.compte.v = this.compte.v ? this.compte.v + 1 : 1
       const rowCompte = this.compte.toRow()
-      this.setV(version)
-      if (ins) this.toInsert.push(rowCompte); else this.toInsert.push(rowCompte)
+      this.setNV(this.compte)
+      if (this.compte.v === 1) this.insert(rowCompte); else this.updta(rowCompte)
       this.setRes('rowCompte', rowCompte)
     }
 
@@ -284,14 +278,11 @@ export class Operation {
       if(this.compta._maj) conso.ne++
       this.compta.conso(conso)
       if (this.compta._maj) {
-        const ins = !this.compta.v
-        const v = this.compta.v ? this.compta.v + 1 : 1
-        const version = { _nom: 'versions', id: Rds.long(this.compta.rds, this.ns), v: v, suppr: 0 }
-        this.compta.v = v
+        this.compta.v = this.compta.v ? this.compta.v + 1 : 1
         const rowCompta = this.compta.toRow()
-        this.setV(version)
-        if (ins) this.toInsert.push(rowCompta); else this.toUpdate.push(rowCompta)
-        if (rowCompta) this.result.rowCompta = rowCompta
+        this.setNV(this.compta)
+        if (this.compta.v === 1) this.insert(rowCompta); else this.update(rowCompta)
+        this.setRes('rowCompta', rowCompta)
       }
     }
     
@@ -417,16 +408,80 @@ export class Operation {
   delete (row) { if (row) this.toDelete.push(row); return row }
 
   async getV (doc, src) {
-    const rds = Rds.long(doc.rds, ID.ns(doc.id))
+    const rds = Rds.long(doc.rds, this.ns)
     const v = compile(await Cache.getRow(this, 'versions', rds))
     if (src && !v) assertKO(src, 14, [rds])
     return v
+  }
+
+  newV (rds, v) {
+    const version = new Versions()
+    version.v = v
+    version.id = ID.long(rds, this.ns)
+    return version
   }
 
   setV (version) {
     const r = version.toRow()
     if (version.v === 1) this.insert(r); else this.update(r)
     this.versions.push(r)
+  }
+
+  /* Quand doc est CCEP, n'a pas de sous-arbre */
+  setNV (doc) {
+    const version = new Versions()
+    version.v = doc.v
+    version.id = Rds.long(doc.rds, this.ns)
+    this.setV(version)
+  }
+
+  /* Helper d'accès depuis Cache */
+
+  async org (ns) { return Cache.org(this, ns)}
+
+  async getEspaceOrg (org) { return Cache.getEspaceOrg(this, org) }
+
+  async getRowEspace (id, assert) {
+    const tr = await Cache.getRow(this, 'espaces', id)
+    if (assert && !tr) throw assertKO('getRowEspace/' + assert, 1, [id])
+    return tr
+  }
+
+  async getRowPartition (id, assert) {
+    const tr = await Cache.getRow(this, 'partitions', id)
+    if (assert && !tr) throw assertKO('getRowTribu/' + assert, 2, [id])
+    return tr
+  }
+
+  async getRowSynthese (id, assert) {
+    const tr = await Cache.getRow(this, 'syntheses', id)
+    if (assert && !tr) throw assertKO('getRowSynthese/' + assert, 16, [id])
+    return tr
+  }
+
+  async getRowCompta (id, assert) {
+    const cp = await Cache.getRow(this, 'comptas', id)
+    if (assert && !cp) throw assertKO('getRowCompta/' + assert, 3, [id])
+    return cp
+  }
+
+  async getRowVersion (id, assert, nonZombi) {
+    const v = await Cache.getRow(this, 'versions', id)
+    if ((assert && !v) || (nonZombi && v && v.dlv && v.dlv <= this.auj))
+      throw assertKO('getRowVersion/' + assert, 14, [id])
+    return v
+  }
+
+  async getRowAvatar (id, assert) {
+    const av = await Cache.getRow(this, 'avatars', id)
+    if (assert && !av) throw assertKO('getRowAvatar/' + assert, 8, [id])
+    return av
+  }
+
+  async getRowGroupe (id, assert) {
+    const rg = await Cache.getRow(this, 'groupes', id)
+    if (assert && !rg) throw assertKO('getRowGroupe/' + assert, 9, [id])
+    return rg
   }
 
   // HELPERS d'accès à la base
@@ -518,55 +573,6 @@ export class Operation {
     const rc = await this.db.get(this.transaction, 'chatgrs', id, 1)
     if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [id, 1])
     return rc
-  }
-
-  /* Depuis Cache */
-
-  async org (ns) { return Cache.org(this, ns)}
-
-  async getEspaceOrg (org) { return Cache.getEspaceOrg(this, org) }
-
-  async getRowEspace (id, assert) {
-    const tr = await Cache.getRow(this, 'espaces', id)
-    if (assert && !tr) throw assertKO('getRowEspace/' + assert, 1, [id])
-    return tr
-  }
-
-  async getRowTribu (id, assert) {
-    const tr = await Cache.getRow(this, 'tribus', id)
-    if (assert && !tr) throw assertKO('getRowTribu/' + assert, 2, [id])
-    return tr
-  }
-
-  async getRowSynthese (id, assert) {
-    const tr = await Cache.getRow(this, 'syntheses', id)
-    if (assert && !tr) throw assertKO('getRowSynthese/' + assert, 16, [id])
-    return tr
-  }
-
-  async getRowCompta (id, assert) {
-    const cp = await Cache.getRow(this, 'comptas', id)
-    if (assert && !cp) throw assertKO('getRowCompta/' + assert, 3, [id])
-    return cp
-  }
-
-  async getRowVersion (id, assert, nonZombi) {
-    const v = await Cache.getRow(this, 'versions', id)
-    if ((assert && !v) || (nonZombi && v && v.dlv && v.dlv <= this.auj))
-      throw assertKO('getRowVersion/' + assert, 14, [id])
-    return v
-  }
-
-  async getRowAvatar (id, assert) {
-    const av = await Cache.getRow(this, 'avatars', id)
-    if (assert && !av) throw assertKO('getRowAvatar/' + assert, 8, [id])
-    return av
-  }
-
-  async getRowGroupe (id, assert) {
-    const rg = await Cache.getRow(this, 'groupes', id)
-    if (assert && !rg) throw assertKO('getRowGroupe/' + assert, 9, [id])
-    return rg
   }
 
   async getSingletons () { return this.db.getSingletons(this) }
@@ -716,33 +722,6 @@ export class Operation {
     for (const it of items) {
       if (it.dh === dh && it.im === im) {
         nl.push({im: it.im, l: 0, dh, dhx: Date.now()})
-      } else {
-        lg += it.l
-        if (lg > 5000) return nl
-        nl.push(it)
-      }
-    }
-    return nl
-  }
-
-  addChatItem (items, item) {
-    const nl = [item]
-    let lg = item.l
-    for (const it of items) {
-      lg += it.l
-      if (lg > 5000) return nl
-      nl.push(it)
-    }
-    return nl
-  }
-
-  razChatItem (items, dh) { 
-    // a : 0:écrit par I, 1: écrit par E
-    const nl = []
-    let lg = 0
-    for (const it of items) {
-      if (it.dh === dh) {
-        nl.push({a: it.a, l: 0, dh, dhx: Date.now()})
       } else {
         lg += it.l
         if (lg > 5000) return nl
