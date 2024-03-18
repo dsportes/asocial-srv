@@ -63,11 +63,12 @@ operations.CreerEspace = class CreerEspace extends Operation {
   static reg = /^([a-z0-9\-]+)$/
 
   async phase2(args) {
+    this.ns = args.ns
     if (args.ns < 10 || args.ns > 89) throw new AppExc(F_SRV, 202, [args.ns])
     if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreerEspace.reg))) 
       throw new AppExc(F_SRV, 201, [args.org])
 
-    if (await this.getRowEspaces(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
+    if (await this.getRowEspace(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
     if (await this.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
     /* Espace */
@@ -75,7 +76,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     this.setNV(espace)
 
     /* Synthese */
-    const synthese = Syntheses.nouveau(args.ns)
+    const synthese = Syntheses.nouveau(this.dh, args.ns)
 
     /* Partition */
     const partition = Partitions.nouveau(args.ns, 1, args.clePK, args.cleAP)
@@ -91,25 +92,26 @@ operations.CreerEspace = class CreerEspace extends Operation {
       it: 1
     }
     const cs = { cleEK: args.cleEK, qc: apr[0], qn: apr[1], qv: apr[2], c: args.ck } 
-    const rdsav = Rds.nouveau('avatars')
+    const rdsav = Rds.nouveau(Rds.AVATAR)
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(ID.duComptable(args.ns), 
-      (args.ns * d14) + args.hXR, args.hXC, args.cleKXC, args.cleEK, rdsav, args.cleAK, o, cs)
+      (args.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, args.cleEK, rdsav, args.cleAK, o, cs)
     this.setNV(compte)
     
     /* Compta */
     const aco = config.allocComptable
     const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
     const compta = new Comptas().init({
-      id: compte.id, v: 1, rds: Rds.nouveau('comptas'), qv,
+      id: compte.id, v: 1, rds: Rds.nouveau(Rds.COMPTA), qv,
       compteurs: new Compteurs(null, qv).serial
     })
     this.setNV(compta)
 
     /* Avatar */
+    const cvA = { id: ID.court(compte.id) }
     const avatar = new Avatars().init(
-      { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK })
-    this.setVV(avatar)
+      { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK, cvA })
+    this.setNV(avatar)
 
     // this.insert(this.setRes(espace.toRow()))
     this.insert(espace.toRow())
@@ -136,7 +138,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    const espace = compile(await this.getRowEspaces(args.ns, 'SetEspaceOptionA-1'))
+    const espace = compile(await this.getRowEspace(args.ns, 'SetEspaceOptionA-1'))
     espace.v++
     if (args.optionA) espace.opt = args.optionA
     if (args.dlvat) espace.dlvat = args.dlvat
@@ -148,6 +150,8 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
 
 /** Ajout d\'un sponsoring ****************************************************
 - `token` : éléments d'authentification du comptable / compte délégué de la partition.
+- id : id du sponsor
+- hYR : hash du PNKFD de la phrase de sponsoring réduite (SANS ns)
 - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
 - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
 - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
@@ -156,10 +160,10 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
 - `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD 
   de la phrase complète de sponsoring (donne l'id de la partition).
 - `nomYC` : nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
-- `cvA` : `{ v, photo, info }` du sponsor, textes cryptés par sa cle A.
+- `cvA` : { id, v, ph, tx } du sponsor, (ph, tx) cryptés par sa cle A.
 - `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
 
-- `quotas` : `[qc, q1, q2]` pour un compte O, quotas attribués par le sponsor.
+- `quotas` : `{qc, qn, qv}` pour un compte O, quotas attribués par le sponsor.
   - pour un compte "A" `[0, 1, 1]`. Un tel compte n'a pas de `qc` et peut changer à loisir
    `[qn, qv]` qui sont des protections pour lui-même (et fixe le coût de l'abonnement).
 - don: montant du don pour un compte autonome sponsorisé par un compte autonome
@@ -199,9 +203,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     }
 
     const sponsoring = new Sponsorings().nouveau(args)
-    // On va chercher avatar uniquement pour avoir le rds de son sous-arbre
-    const avatar = compile(await this.getRowAvatars(sponsoring.id, 'AjoutSponsoring-1'))
-    const vsp = await this.getV(avatar, 'AjoutSponsoring-2')
+    const vsp = await this.getVAvGr(sponsoring.id, 'AjoutSponsoring-1')
     vsp.v++
     this.setV(vsp)
     sponsoring.v = vsp.v
@@ -255,7 +257,8 @@ operations.MajChat = class MajChat extends Operation {
     vchI.v++
     this.setV(vchI)
 
-    const chE = compile(await this.getRowChat(ID.long(chI.idE, this.ns), ID.long(chI.idsE, this.ns)))
+    const idEL = ID.long(chI.idE, this.ns)
+    const chE = compile(await this.getRowChat(idEL, chI.idsE))
 
     if (!chE) {
       // E disparu. Maj interdite:
@@ -271,7 +274,7 @@ operations.MajChat = class MajChat extends Operation {
 
     let comptaE = null
     if (args.don) {
-      comptaE = compile(await this.getRowCompta(chI.idE))
+      comptaE = compile(await this.getRowCompta(idEL))
       if (!comptaE) throw new AppExc(F_SRV, 213)
       if (!comptaE._estA) throw new AppExc(F_SRV, 214)
       if (!this.compta._estA) throw new AppExc(F_SRV, 214)
@@ -283,7 +286,7 @@ operations.MajChat = class MajChat extends Operation {
     }
 
     // cas normal : maj sur chI et chE
-    const avE = compile(await this.getRowAvatar(chE.id, 'MajChat-4'))
+    const avE = compile(await this.getRowAvatar(idEL, 'MajChat-4'))
     const vchE = await this.getV(avE, 'MajChat-5')
     vchE.v++
     this.setV(vchE)
@@ -294,12 +297,14 @@ operations.MajChat = class MajChat extends Operation {
       chI.items = this.addChatItem(chI.items, itemI)
       chE.items = this.addChatItem(chE.items, itemE)
     } else if (args.dh) {
-      chI.items = this.razChatItem(chI.itemsI, args.dh)
-      chE.items = this.razChatItem(chE.itemsE, args.dh)
+      chI.items = this.razChatItem(chI.items, args.dh)
+      chE.items = this.razChatItem(chE.items, args.dh)
     }
 
-    chI.cvE = avE.cvA || null; chI.vcv = chI.cvE ? chI.cvE.v : 0
-    chE.cvE = avI.cvA || null; chE.vcv = chE.cvE ? chE.cvE.v : 0
+    chI.cvE = avE.cvA || {id: ID.court(avE.id)}
+    chI.vcv = chI.cvE.v || 0
+    chE.cvE = avI.cvA || {id: avI.id}
+    chE.vcv = chE.cvE.v || 0
    
     if (Math.floor(chI.st / 10) === 0) { // I était passif, redevient actif
       chI.st = 10 + (chI.st % 10)

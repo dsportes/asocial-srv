@@ -91,7 +91,7 @@ operations.GetPub = class GetPub extends Operation {
 Retour:
 - espaces : array de row espaces
 */
-operations.GetEspaces = class Sync2 extends Operation {
+operations.GetEspaces = class GetEspaces extends Operation {
   constructor (nom) { super(nom, 3, 0) }
 
   async phase2() {
@@ -110,7 +110,7 @@ operations.GetSynthese = class GetSynthese extends Operation {
 
   async phase2 (args) {
     const ns = this.estAdmin ? args.ns : this.ns
-    const rowSynthese = await this.getRowSyntheses(ns, 'getSynthese')
+    const rowSynthese = await this.getRowSynthese(ns, 'getSynthese')
     this.setRes('rowSynthese', rowSynthese)
   }
 }
@@ -127,7 +127,7 @@ operations.GetPartitionC = class GetPartitionC extends Operation {
   async phase2 (args) {
     const partition = compile(await this.getRowPartition(args.id, 'getPartitionC'))
     if (this.sync)
-      this.sync.setAboPartC(Rds.long(partition.rds, this.ns), this.dh)
+      this.sync.setAboPartC(Rds.toId(partition.rds, this.ns), this.dh)
     this.setRes('rowPartition', partition.toRow())
   }
 }
@@ -176,7 +176,7 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 /* Get Sponsoring **************************************************
 args.token: éléments d'authentification du compte.
 args.org : organisation
-args.hps1 : hash du PBKFD de la phrase de contact réduite
+args.hps1 : hash du PBKFD de la phrase de contact réduite SANS ns
 Retour:
 - rowSponsoring s'il existe
 */
@@ -186,7 +186,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   async phase2 (args) {
     const espace = await this.getEspaceOrg(args.org)
     if (!espace) { sleep(3000); return }
-    const ids = (espace.id * d14) + args.hps1
+    const ids = (espace.id * d14) + (args.hps1 % d14) // par précaution
     const row = await this.db.getSponsoringIds(this, ids)
     if (!row) { sleep(3000); return }
     this.setRes('rowSponsoring', row)
@@ -203,21 +203,21 @@ class OperationS extends Operation {
     this.ds = new DataSync(ds)
     this.ds.compte = {
       id: this.compte.id,
-      rds: Rds.long(this.compte.rds, this.ns),
+      rds: this.compte.rds,
       vs: this.ds.compte.vs,
       vc: this.compte.v,
       vb: this.compte.v
     }
     this.ds.compta = {
       id: this.compta.id,
-      rds: Rds.long(this.compta.rds, this.ns),
+      rds: this.compta.rds,
       vs: this.ds.compta.vs,
       vc: this.compta.v,
       vb: this.compta.v
     }
     this.ds.espace = {
       id: this.espace.id,
-      rds: Rds.long(this.espace.rds, this.ns),
+      rds: this.espace.rds,
       vs: this.ds.espace.vs,
       vc: this.espace.v,
       vb: this.espace.v
@@ -226,7 +226,7 @@ class OperationS extends Operation {
       this.ds.partition = { ...DataSync.vide }
     } else this.ds.partition = {
       id: this.partition.id,
-      rds: Rds.long(this.partition.rds, this.ns),
+      rds: this.partition.rds,
       vs: this.ds.partition.vs,
       vc: this.partition.v,
       vb: this.partition.v
@@ -235,7 +235,7 @@ class OperationS extends Operation {
     if (avatar) { // Sur acceptation de sponsoring
       this.ds.avatars.set(avatar.id, {
         id: avatar.id,
-        rds: Rds.long(avatar.rds, this.ns),
+        rds: avatar.rds,
         vs: 0,
         vb: avatar.v,
         vc: avatar.v
@@ -367,9 +367,8 @@ operations.Sync = class Sync extends OperationS {
       for (const idx in this.compte.mav) {
         const id = ID.long(parseInt(idx), this.ns)
         if (!this.ds.avatars.get(id)) { // recherche du versions et ajout dans le DataSync
-          const { rdx } = this.compte.mav[idx]
-          const rds = Rds.long(rdx, this.ns)
-          const version = await this.getV({ rds })
+          const rds = this.compte.mav[idx].rds
+          const version = await this.getV({ rds }) // objet ayant une propriété rds
           if (version && !version.suppr) {
             this.ds.avatars.set(id, {
               id: id,
@@ -391,10 +390,10 @@ operations.Sync = class Sync extends OperationS {
         const idg = ID.long(parseInt(idx), this.ns)
         let x = this.ds.groupes.get(idg)
         if (!x) {
-          const { rdx } = this.compte.mpg[idx]
+          const { rds } = this.compte.mpg[idx]
           x = { ...DataSync.videg}
           x.id = idg
-          x.rds = Rds.long(rdx, this.ns)
+          x.rds = rds
         }
         /* Analyse d'un groupe idg. x : élément de ds relatif au groupe (m et n fixés) */
         const gr = await this.setGrx(idg, x)
@@ -419,7 +418,7 @@ operations.Sync = class Sync extends OperationS {
     // compta est TOUJOURS transmis par l'opération (après maj éventuelle des consos)
 
     // Mise à jour des abonnements aux versions
-    if (this.sync) this.sync.setAboRds(this.ds.tousRds, this.dh)
+    if (this.sync) this.sync.setAboRds(this.ds.tousRds(this.ns), this.dh)
   }
 }
 
@@ -453,15 +452,16 @@ operations.Sync2 = class Sync2 extends OperationS {
       const vs = ds.partition && (ds.partition.id === this.partition.id) ? ds.partition.vs : 0
       ds.partition = { 
         id: this.partition.id, 
-        rds: Rds.long(this.partition.rds, this.ns), 
+        rds: this.partition.rds, 
         vs: vs, 
         vc: this.partition.v, 
         vb: this.partition.v 
       }
-      this.setRes('rowPartitiona', this.partition.toShortRow(this.compte.del))
+      this.setRes('rowPartition', this.partition.toShortRow(this.compte.del))
     } else {
       ds.partition = { ...DataSync.vide }
     }
+    this.setRes('dataSync', ds.serial)
   }
 }
 
@@ -515,7 +515,7 @@ operations.SyncSp = class SyncSp extends OperationS {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const ns = ID.ns(args.idsp)
+    this.ns = ID.ns(args.idsp)
 
     /* Maj sponsorings: st dconf2 dh ardYC */
     const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
@@ -536,7 +536,7 @@ operations.SyncSp = class SyncSp extends OperationS {
     this.update(vsp.toRow())
 
     if (sp.don) { // Maj compta du sponsor
-      const csp = compile(await this.getRowComptas(args.idsp, 'SyncSp-8'))
+      const csp = compile(await this.getRowCompta(args.idsp, 'SyncSp-8'))
       if (csp.solde <= sp.don + 2)
         throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
       csp.v++
@@ -546,7 +546,7 @@ operations.SyncSp = class SyncSp extends OperationS {
     }
 
     // Refus si espace figé ou clos
-    const espace = compile(await this.getRowEspace(ns, 'SyncSp-3'))
+    const espace = compile(await this.getRowEspace(this.ns, 'SyncSp-3'))
     if (espace.notifG) {
       // Espace bloqué
       const n = espace.notifG
@@ -564,8 +564,8 @@ operations.SyncSp = class SyncSp extends OperationS {
     const qs = sp.quotas
     let partition = null
     if (sp.partitionId) {
-      const pid = ID.long(sp.partitionId, ns)
-      partition =  compile(await this.getRowPartitions(pid), 'SyncSp-4')
+      const pid = ID.long(sp.partitionId, this.ns)
+      partition =  compile(await this.getRowPartition(pid), 'SyncSp-4')
       partition.v++
       const s = partition.getSynthese()
       const q = { qc: qs.qc, qn: qs.qn, qv: qs.qv, c: 0, n: 0, v: 0}
@@ -576,7 +576,7 @@ operations.SyncSp = class SyncSp extends OperationS {
       partition.setNotifs(this.notifs, it)
       const synth = partition.getSynthese()
 
-      const synthese = compile(await this.getRowSynthese(ns, 'SyncSp-5'))
+      const synthese = compile(await this.getRowSynthese(this.ns, 'SyncSp-5'))
       synthese.v = this.dh
       synthese.tp[ID.court(partition.id)] = synth
       this.update(synthese.toRow())
@@ -593,10 +593,10 @@ operations.SyncSp = class SyncSp extends OperationS {
     }
 
     /* Création compte */
-    const rdsav = Rds.nouveau('avatars')
+    const rdsav = Rds.nouveau(Rds.AVATAR)
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(args.id, 
-      (ns * d14) + args.hXR, args.hXC, args.cleKXC, null, rdsav, args.cleAK, o)
+      (this.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, null, rdsav, args.cleAK, o)
     this.insert(compte.toRow())
     this.setNV(compte)
 
@@ -604,7 +604,7 @@ operations.SyncSp = class SyncSp extends OperationS {
     const nc = !sp.dconf && !args.dconf ? 1 : 0
     const qv = { qc: qs.qc, qn: qs.qn, qv: qs.qv, nn: 0, nc: nc, ng: 0, v: 0 }
     const compta = new Comptas().init({
-      id: compte.id, v: 1, rds: Rds.nouveau('comptas'), qv,
+      id: compte.id, v: 1, rds: Rds.nouveau(Rds.COMPTA), qv,
       compteurs: new Compteurs(null, qv).serial
     })
     compta.total = sp.don || 0
@@ -612,7 +612,7 @@ operations.SyncSp = class SyncSp extends OperationS {
     if (compta._Q) this.notifs.Q = compta._Q
     if (compta._X) this.notifs.X = compta._X
     this.insert(compta.toRow())
-    this.seNV(compta)
+    this.setNV(compta)
     
     /* Création Avatar */
     const avatar = new Avatars().init(
@@ -630,11 +630,11 @@ operations.SyncSp = class SyncSp extends OperationS {
       */
       chI = new Chats().init({ // du sponsorisé
         id: args.id,
-        ids: (ns * d14) + (rnd6() % d14),
+        ids: rnd6(),
         v: 1,
         st: 10,
         idE: ID.court(sp.id),
-        idsE: (rnd6() % d14),
+        idsE: rnd6(),
         cvE: avsponsor.cvA,
         cleCKP: args.ch.ccK,
         cleEC: args.ch.cleE1C,
@@ -647,11 +647,11 @@ operations.SyncSp = class SyncSp extends OperationS {
       this.setV(vchE)
       const chE = new Chats().init({
         id: sp.id,
-        ids: (ns * d14) + chI.idsE,
+        ids: chI.idsE,
         v: vchE.v,
         st: 1,
         idE: ID.court(chI.id),
-        idsE: chI.ids % d14,
+        idsE: chI.ids,
         cvE: avatar.cvA,
         cleCKP: args.ch.ccP,
         cleEC: args.ch.cleE2C,
@@ -666,7 +666,6 @@ operations.SyncSp = class SyncSp extends OperationS {
       this.setRes('rowAvatar', avatar.toRow())
       if (chI) this.setRes('rowChat', chI.toRow())
 
-      this.ns = ns
       this.compte = compte
       this.estA = compte.estA
       this.compta = compta

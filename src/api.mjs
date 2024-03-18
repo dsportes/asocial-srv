@@ -159,32 +159,15 @@ export class Rds {
   static AVATAR = 5
   static GROUPE = 6
 
-  static nouveau (type, ns) {
-    const i = typeof type === 'string' ? Rds.DOCS.indexOf(type) : type
-    const n = rnd6()
-    const r = (i * d13) + (n % d13)
-    return ns ? Rds.long(r, ns) : r
-  }
+  static nouveau (type) { return (type * d13) + (rnd6() % d13) }
 
-  static court (long) {
-    if (!long) return 0
-    const x = typeof long === 'string' ? parseInt(long) : long
-    return x % d14
-  }
+  static deId (id) { return id % d14 }
 
-  static long (court, ns) { 
-    return (ns * d14) + ID.court(court)
-  }
+  static toId (rds, ns) { return (ns * d14) + rds }
 
-  static type (rds) {
-    const x = rds % d14
-    const t = Math.floor(x / d13)
-    return t
-  }
+  static type (rds) { return Math.floor((rds % d14) / d13)}
 
-  static typeS (rds) {
-    return Rds.DOCS[Rds.type(rds)]
-  }
+  static typeS (type) { return Rds.DOCS[type]}
 
 }
 
@@ -1174,14 +1157,14 @@ export class DataSync {
 
   get avIdSet () { const s = new Set(); this.avatars.forEach(x => { s.add(x.id) }); return s}
 
-  get tousRds () {
+  tousRds (ns) {
     const s = new Set()
-    s.add(this.compte.rds)
-    s.add(this.compta.rds)
-    s.add(this.espace.rds)
-    if (this.partition.id) s.add(this.partition.rds)
-    this.avatars.forEach(x => { s.add(x.rds) })
-    this.groupes.forEach(x => { s.add(x.rds) })
+    s.add(Rds.toId(this.compte.rds, ns))
+    s.add(Rds.toId(this.compta.rds, ns))
+    s.add(Rds.toId(this.espace.rds, ns))
+    if (this.partition.id) s.add(Rds.toId(this.partition.rds, ns))
+    this.avatars.forEach(x => { s.add(Rds.toId(x.rds, ns)) })
+    this.groupes.forEach(x => { s.add(Rds.toId(x.rds, ns)) })
     return s
   }
 

@@ -408,16 +408,14 @@ export class Operation {
   delete (row) { if (row) this.toDelete.push(row); return row }
 
   async getV (doc, src) {
-    const rds = Rds.long(doc.rds, this.ns)
-    const v = compile(await Cache.getRow(this, 'versions', rds))
-    if (src && !v) assertKO(src, 14, [rds])
-    return v
+    const id = Rds.toId(doc.rds, this.ns)
+    return compile(await this.getRowVersion(id, src))
   }
 
   newV (rds, v) {
     const version = new Versions()
     version.v = v
-    version.id = ID.long(rds, this.ns)
+    version.id = Rds.toId(rds, this.ns)
     return version
   }
 
@@ -431,8 +429,14 @@ export class Operation {
   setNV (doc) {
     const version = new Versions()
     version.v = doc.v
-    version.id = Rds.long(doc.rds, this.ns)
+    version.id = Rds.toId(doc.rds, this.ns)
     this.setV(version)
+  }
+
+  async getVAvGr (id, src) {
+    const avgr = compile(
+      ID.estGroupe(id) ? await this.getRowGroupe(id, src) : await this.getRowAvatar(id, src))
+    return await this.getV(avgr, src)
   }
 
   /* Helper d'accès depuis Cache */

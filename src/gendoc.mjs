@@ -205,7 +205,7 @@ export class Espaces extends GenDoc {
       id: ns,
       org: org,
       v: 1,
-      rds: Rds.nouveau('espaces'),
+      rds: Rds.nouveau(Rds.ESPACE),
       cleES: cleES,
       creation: op.auj,
       moisStat: 0,
@@ -256,7 +256,7 @@ export class Partitions extends GenDoc {
     const r = {
       id: ID.long(id, ns),
       v: 1, 
-      rds: Rds.nouveau('partitions'),
+      rds: Rds.nouveau(Rds.PARTITION),
       qc: apr[0], qn: apr[1], qv: apr[2],
       clePK, notif: null, ldel: [],
       tcpt: [null]
@@ -286,9 +286,7 @@ export class Partitions extends GenDoc {
     }
   }
 
-  getSynthese () {
-    return synthesesPartition(this)
-  }
+  getSynthese () { return synthesesPartition(this) }
 
   /* Retourne it : indice du compte dans la partition
   - notif
@@ -340,12 +338,12 @@ lcSynt = ['qc', 'qn', 'qv', 'ac', 'an', 'av', 'c', 'n', 'v',
 export class Syntheses extends GenDoc { 
   constructor () { super('syntheses') }
 
-  static nouveau (ns) { 
+  static nouveau (dh, ns) { 
     const aco = config.allocComptable
     const apr = config.allocPrimitive
     const r = { 
       id: ns, 
-      v: Date.now(), 
+      v: dh, 
       tp: [null, null] 
     }
     const e = { }
@@ -418,9 +416,9 @@ export class Comptes extends GenDoc {
 
   static nouveau (id, hXR, hXC, cleKXC, cleEK, rdsav, cleAK, o, cs) {
     const r = {
-      id: id, v: 1, rds: Rds.nouveau('comptes'),
+      id: id, v: 1, rds: Rds.nouveau(Rds.COMPTE),
       hxr: hXR, dlv: AMJ.max, cleKXC, cleEK, hXC, it: 0,
-      mav: {}, mpd: {}
+      mav: {}, mpg: {}
     }
     r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
     if (o) { r.clePA = o.clePA; r.rdsp = o.rdsp; r.idp = o.idp; r.del = o.del; r.it = o.it }
@@ -437,17 +435,15 @@ export class Comptes extends GenDoc {
 
   majPerimetreDataSync (ds) {
     for(const idx in this.mav) {
-      const idac = parseInt(idx)
-      const ida = ID.long(idac, this.ns)
-      const rds = Rds.long(this.mav[idx].rds, this.ns)
+      const ida = ID.long(parseInt(idx), this.ns)
+      const rds = this.mav[idx].rds
       if (!ds.avatars.has(ida)) 
         ds.avatars.set(ida, { id: ida, rds: rds, vs: 0, vc: 0, vb: 0 })
     }
 
     for(const idx in this.mpg) {
-      const idgc = parseInt(idx)
-      const idg = ID.long(idgc, this.ns)
-      const rds = Rds.long(this.mpg[idx].rds, this.ns)
+      const idg = ID.long(parseInt(idx), this.ns)
+      const rds = this.mpg[idx].rds
       if (!ds.groupes.has(idg)) 
         ds.groupes.set(idg, { id: idg, rds: rds, vs: 0, vc: 0, vb: 0, m: 0, n: 0})
     }
@@ -456,7 +452,7 @@ export class Comptes extends GenDoc {
   // Set des indices membres des participations au groupe idg (court)
   imGr (idg) {
     const s = new Set()
-    const x = this.mpg[idg]
+    const x = this.mpg[ID.court(idg)]
     if (!x) return s
     for(const ida in x.lp) s.add(x.lp[ida])
     return s
@@ -517,10 +513,10 @@ export class Comptas extends GenDoc {
     }
   }
 
-  quotas (q) { // q: { qc: q1: q2: }
+  quotas (q) { // q: { qc: qn: qv: }
     this.qv.qc = q.qc
-    this.qv.q1 = q.q1
-    this.qv.q2 = q.q2
+    this.qv.qn = q.qn
+    this.qv.qv = q.qv
     const c = new Compteurs(this.compteurs, q).serial
     this._Q = c.notifQ 
     this._X = c.estA ? c.notifS(c.total) : c.notifX
@@ -583,7 +579,7 @@ export class Sponsorings extends GenDoc {
   nouveau (args) {
     /* 
     - id : id du sponsor
-    - hYR : hash du PNKFD de la pharse de sponsoring réduite
+    - hYR : hash du PBKFD de la phrase de sponsoring réduite
     - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
     - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
     - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
@@ -602,7 +598,7 @@ export class Sponsorings extends GenDoc {
     - del: true si le compte est délégué de la partition
     */
     this.id = args.id
-    this.ids = (ID.ns(args.id) * d14) + args.hYR
+    this.ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
     this.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
     this.st = 0
     this.psK = args.psK
