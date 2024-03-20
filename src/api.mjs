@@ -151,13 +151,10 @@ export function hash (arg) {
 
 /** Rds **********************************************************************/
 export class Rds {
-  static DOCS = ['', 'espaces', 'partitions', 'comptes', 'comptas', 'avatars', 'groupes']
-  static ESPACE = 1
-  static PARTITION = 2
-  static COMPTE = 3
-  static COMPTA = 4
-  static AVATAR = 5
-  static GROUPE = 6
+  static DOCS = ['', 'comptes', 'avatars', 'groupes']
+  static COMPTE = 1
+  static AVATAR = 2
+  static GROUPE = 3
 
   static nouveau (type) { return (type * d13) + (rnd6() % d13) }
 
@@ -1096,18 +1093,15 @@ export class Compteurs {
 sync : { id (long), rds (long), vs, vc, vb }
 */
 export class DataSync {
-  static vide = { id: 0, rds: 0, vs: 0, vc: 0, vb: 0 }
-  static videg = { id: 0, rds: 0, vs: [0,0,0,0],  // gen, gr, mb, no
-    vc: 0, vb: [0,0,0,0] } // m:true, n:true
+  static vide = { id: 0, rds: 0, vs: 0, vb: 0 }
+  static videg = { id: 0, rds: 0, vs: [0,0,0,0], vb: [0,0,0,0], m: false, n:false } 
+  // vs / vb : versions [générale, groupe, membres, notes]
 
   static nouveau () {
     const x = {
       dh: 0,
       dhc: 0,
-      espace: { ...DataSync.vide },
-      partition: { ...DataSync.vide },
       compte: { ...DataSync.vide },
-      compta: { ...DataSync.vide },
       avatars: [],
       groupes: []
     }
@@ -1119,10 +1113,7 @@ export class DataSync {
     const x = obj || decode(serial)
     this.dh = x.dh || 0
     this.dhc = x.dhc || 0
-    this.espace = x.espace || { ...DataSync.vide },
-    this.partition = x.partition || { ...DataSync.vide },
     this.compte = x.compte || { ...DataSync.vide },
-    this.compta = x.compta || { ...DataSync.vide },
     this.avatars = new Map()
     if (x.avatars) x.avatars.forEach(t => this.avatars.set(t.id, t))
     this.groupes = new Map()
@@ -1133,10 +1124,7 @@ export class DataSync {
     const x = {
       dh: this.dh,
       dhc: this.dhc,
-      espace: this.espace,
-      partition: this.partition,
       compte: this.compte,
-      compta: this.compta,
       avatars: [],
       groupes: []
     }
@@ -1157,22 +1145,17 @@ export class DataSync {
 
   get avIdSet () { const s = new Set(); this.avatars.forEach(x => { s.add(x.id) }); return s}
 
-  tousRds (ns) {
+  get tousRds () {
     const s = new Set()
-    s.add(Rds.toId(this.compte.rds, ns))
-    s.add(Rds.toId(this.compta.rds, ns))
-    s.add(Rds.toId(this.espace.rds, ns))
-    if (this.partition.id) s.add(Rds.toId(this.partition.rds, ns))
-    this.avatars.forEach(x => { s.add(Rds.toId(x.rds, ns)) })
-    this.groupes.forEach(x => { s.add(Rds.toId(x.rds, ns)) })
+    s.add(this.compte.rds)
+    this.avatars.forEach(x => { s.add(x.rds) })
+    this.groupes.forEach(x => { s.add(x.rds) })
     return s
   }
 
+  /*
   idType (rds) {
-    if (this.espace.rds === rds) return [this.espace.id, 'espaces']
-    if (this.partition.rds === rds) return [this.partition.id, 'partitions']
     if (this.compte.rds === rds) return [this.compte.id, 'comptes']
-    if (this.comptas.rds === rds) return [this.comptas.id, 'comptas']
     for(const [id, t] of this.avatars) if (t.rds === rds) return [id, 'avatars']
     for(const [id, t] of this.groupes) if (t.rds === rds) return [id, 'groupes']
     return [0, '']
@@ -1189,8 +1172,9 @@ export class DataSync {
     if (t) return [t.rds, 'groupes']
     return [0, '']
   }
+  */
 
-  /* Tous les documents ont leurs versions de base égales aux versions de cohérence */
+  /* Tous les documents ont leurs versions de base égales aux versions de cohérence 
   get estCoherent () {
     if (!this.compte.vc || !this.compta.vc || !this.espace.vc) return false
     if (this.compte.vc !== this.compte.vb) return false
@@ -1201,14 +1185,11 @@ export class DataSync {
     for(const [, t] of this.groupes) if (t.vc && (t.vc !== t.vb[0])) return false
     return true
   }
+  */
 
   /* Tous les documents ont leurs versions de session égales aux versions de base */
   get estComplet () {
-    if (!this.compte.vb || !this.compta.vb || !this.espace.vb) return false
-    if (this.compte.vs !== this.compte.vb) return false
-    if (this.compta.vs !== this.compta.vb) return false
-    if (this.espace.vs !== this.espace.vb) return false
-    if (this.partition.id && (this.partition.vs !== this.partition.vb)) return false
+    if (!this.compte.vb || this.compte.vs !== this.compte.vb) return false
     for(const [, t] of this.avatars) if (t.vc && (t.vs !== t.vb)) return false
     for(const [, t] of this.groupes) if (t.vc && !this.equal(t.vs, t.vb)) return false
     return true

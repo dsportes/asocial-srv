@@ -108,6 +108,13 @@ export class Cache {
     return n
   }
 
+  /* La cache a-t-elle une version supérieure ou égale à v pour le document nom/id */
+  static aVersion (nom, id, v) {
+    const k = nom + '/' + id
+    const x = Cache.map.get(k)
+    return x && x.v >= v ? x : null
+  }
+
   static opFake = { fake: true, nl: 0, ne: 0 }
 
   /* Retourne l'objet `espaces` depuis son code org */
@@ -453,7 +460,7 @@ export class Operation {
 
   async getRowPartition (id, assert) {
     const tr = await Cache.getRow(this, 'partitions', id)
-    if (assert && !tr) throw assertKO('getRowTribu/' + assert, 2, [id])
+    if (assert && !tr) throw assertKO('getRowPartition/' + assert, 2, [id])
     return tr
   }
 
@@ -463,16 +470,27 @@ export class Operation {
     return tr
   }
 
+  async getRowCompte (id, assert) {
+    const cp = await Cache.getRow(this, 'comptes', id)
+    if (assert && !cp) throw assertKO('getRowCompte/' + assert, 4, [id])
+    return cp
+  }
+
   async getRowCompta (id, assert) {
     const cp = await Cache.getRow(this, 'comptas', id)
     if (assert && !cp) throw assertKO('getRowCompta/' + assert, 3, [id])
     return cp
   }
 
-  async getRowVersion (id, assert, nonZombi) {
+  async getRowCompti (id, assert) {
+    const cp = await Cache.getRow(this, 'comptis', id)
+    if (assert && !cp) throw assertKO('getRowCompti/' + assert, 12, [id])
+    return cp
+  }
+
+  async getRowVersion (id, assert) {
     const v = await Cache.getRow(this, 'versions', id)
-    if ((assert && !v) || (nonZombi && v && v.dlv && v.dlv <= this.auj))
-      throw assertKO('getRowVersion/' + assert, 14, [id])
+    if (assert && !v) throw assertKO('getRowVersion/' + assert, 14, [id])
     return v
   }
 
@@ -508,8 +526,6 @@ export class Operation {
   async getVersionsDlvat (ns, dlvat) {return this.db.getVersionsDlvat(this, ns, dlvat) }
 
   async getGroupesDfh (dfh) { return this.db.getGroupesDfh(this, dfh) }
-
-  async getGcvols (ns) { return this.db.collNs(this, 'gcvols', ns) }
 
   async setVdlv (id, dlv) { return this.db.setVdlv(this, id, dlv) }
 

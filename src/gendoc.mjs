@@ -95,15 +95,14 @@ export class GenDoc {
   /* Descriptifs des collections et sous-collection */
   static collsExp1 = ['espaces', 'syntheses']
 
-  static collsExp2 = ['fpurges', 'gcvols', 'tribus', 'comptas', 'avatars', 'groupes', 'versions']
+  static collsExp2 = ['fpurges', 'partitions', 'comptes', 'comptas', 'comptis', 'avatars', 'groupes', 'versions']
 
   static collsExpA = ['notes', 'transferts', 'sponsorings', 'chats', 'tickets']
 
   static collsExpG = ['notes', 'transferts', 'membres', 'chatgrs']
 
-  static majeurs = new Set(['tribus', 'comptas', 'versions', 'avatars', 'groupes'])
-
-  static syncs = new Set(['singletons', 'espaces', 'tribus', 'comptas', 'versions'])
+  // Gérés en Cache - Pour Firestore gère une propriété id_V (A REVOIR)
+  static majeurs = new Set(['partitions', 'comptes', 'comptas', 'comptis', 'versions', 'avatars', 'groupes'])
 
   static sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
   
@@ -114,6 +113,7 @@ export class GenDoc {
     partitions: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
     comptes: ['id', 'v', 'hxr', '_data_'],
+    comptis: ['id', 'v', '_data_'],
     comptas: ['id', 'v', '_data_'],
     versions: ['id', 'v', 'suppr', '_data_'],
     avatars: ['id', 'v', 'vcv', 'hpc', '_data_'],
@@ -433,20 +433,30 @@ export class Comptes extends GenDoc {
 
   get estA () { return this.it === 0 }
 
+  /* Mise à niveau des listes avatars / groupes du dataSync
+  en fonction des avatars et groupes listés dans mav/mpg du compte 
+  Ajoute les manquants dans ds, supprime ceux de ids absents de mav / mpg
+  */
   majPerimetreDataSync (ds) {
     for(const idx in this.mav) {
       const ida = ID.long(parseInt(idx), this.ns)
       const rds = this.mav[idx].rds
       if (!ds.avatars.has(ida)) 
-        ds.avatars.set(ida, { id: ida, rds: rds, vs: 0, vc: 0, vb: 0 })
+        ds.avatars.set(ida, { id: ida, rds: rds, vs: 0, vb: 0 })
     }
+    let lida = []
+    for(const [ida,] of ds.avatars) lida.push(ida)
+    for(const ida of lida) if (!this.mav[ida]) ds.avatars.delete(ida)
 
     for(const idx in this.mpg) {
       const idg = ID.long(parseInt(idx), this.ns)
       const rds = this.mpg[idx].rds
       if (!ds.groupes.has(idg)) 
-        ds.groupes.set(idg, { id: idg, rds: rds, vs: 0, vc: 0, vb: 0, m: 0, n: 0})
+        ds.groupes.set(idg, { id: idg, rds: rds, vs: [0,0,0,0], vb: [0,0,0,0]})
     }
+    lida = []
+    for(const [ida,] of ds.groupes) lida.push(ida)
+    for(const ida of lida) if (!this.mpg[ida]) ds.groupes.delete(ida)
   }
 
   // Set des indices membres des participations au groupe idg (court)
@@ -454,8 +464,17 @@ export class Comptes extends GenDoc {
     const s = new Set()
     const x = this.mpg[ID.court(idg)]
     if (!x) return s
-    for(const ida in x.lp) s.add(x.lp[ida])
+    for(const ida in x.lav) s.add(ida)
     return s
+  }
+}
+
+/* Comptis **************************************************/
+export class Comptis extends GenDoc { 
+  constructor() { super('comptis') } 
+
+  static nouveau (id, rds) {
+    return new Comptes().init({ id, v: 1, rds, mc: {} })
   }
 }
 
@@ -658,7 +677,7 @@ export class Groupes extends GenDoc {
   les champs non pertinents selon l'accès aux membres */
   toShortRow (m) {
     delete this.idh
-    if (m !== 1) { delete this.tid; delete this.lng; delete this.lnc }
+    if (!m) { delete this.tid; delete this.lng; delete this.lnc }
     return this.toRow()
   }
 

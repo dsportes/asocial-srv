@@ -648,7 +648,7 @@ export class FirestoreProvider {
     NE DOIVENT PAS être détruits AVANT leurs sous-collections qui sinon
     deviendraient inaccessibles */
     const lpavgr = []
-    // ['fpurges', 'gcvols', 'tribus', 'comptas', 'avatars', 'groupes', 'versions']
+    // ['fpurges', 'partitions', 'comptes', 'compis', 'comptas', 'avatars', 'groupes', 'versions']
     for (const nom of GenDoc.collsExp2) { 
       n = 0
       const query = this._queryExp2(ns, nom)

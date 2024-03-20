@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { sleep, rnd6 } from './util.mjs'
 
 import { Operation, assertKO} from './modele.mjs'
-import { compile, Comptes, Avatars, Comptas, Chats } from './gendoc.mjs'
+import { compile, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
 import { DataSync, Rds } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -199,7 +199,7 @@ class OperationS extends Operation {
   constructor (nom, authMode, excFige) { super(nom, authMode, excFige) }
 
   async majDS (ds, avatar) {
-    /* Mise à jour du DataSync en fonction des CCEP et des avatars / groupes actuels du compte */
+    /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */
     this.ds = new DataSync(ds)
     this.ds.compte = {
       id: this.compte.id,
@@ -246,32 +246,39 @@ class OperationS extends Operation {
 }
 
 /* Sync : opération générique de synchronisation d'une session cliente
+LE PERIMETRE est mis à jour: DataSync aligné avec les avatars / groupes tirés du compte
 - optionC: 
-  - true : recherche de toutes les versions du périmètre cohérentes
-  - false : marque supprimés de dataSync les avatars / groupes  qui n'existent plus dans compte,
-    recherche les versions des avatars / membres présents dans compte et pas dans dataSync
+  - true : recherche des versions "base" de TOUS les sous-arbres du périmètre et les inscrits en DataSync
+  - false : seule la version de "ida" est recherchée (si ida il y a)
 - ida: id long du sous-arbre à synchroniser ou 0
 - dataSync: sérialisation de l'état de synchro de la session
 */
 operations.Sync = class Sync extends OperationS {
   constructor (nom) { super(nom, 1, 1) }
 
-  /* Analyse d'un groupe idg. x : élément de ds relatif au groupe 
+  /* Obtient le versions d'un groupe idg. x : élément de ds relatif au groupe 
   versions d'un groupe: { id, v, tv: [v, vg, vm, vn]}
-  Retourne le groupe
+  tv : le _data_ de version pour un groupe
   */
   async setGrx (idg, x) {
     const version = await this.getV({rds: x.rds})
-    if (!version || version.suppr) { x.vb = [0,0,0,0]; return null }
-    else { x.vb = [...version.tv]; x.vc = version.v }
+    if (!version || version.suppr) {
+      // NORMALEMENT c'est impossible, le groupe a du être enlevé de compte/mpg AVANT
+      x.vb = [0,0,0,0]; x.m = false; x.n = false
+      return
+    }
+    
+    x.vb = [...version.tv]
 
-    let gr = this.mgr.get(idg)
-    if (gr === undefined) {
-      gr = compile(await this.getRowGroupe(idg)) || null
-      this.mgr.set(idg, gr)
+    const gr = compile(await this.getRowGroupe(idg)) || null
+    this.mgr.set(idg, gr)
+
+    if (gr === null) {
+      // NORMALEMENT c'est impossible, le groupe a du être enlevé de compte/mpg AVANT
+      x.vb = [0,0,0,0]; x.m = false; x.n = false
+      return
     }
 
-    if (gr === null) { x.vb = [0,0,0,0]; x.m = false; x.n = false; return null }
     // set de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
     const sim = this.compte.imGr(idg)
     if (sim.size) {
@@ -282,141 +289,116 @@ operations.Sync = class Sync extends OperationS {
       x.m = false
       x.n = false
     }
-    return gr
   }
 
-  async getAvGrRows (ida) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
-    const g = ID.estGroupe(ida)
-    /* Obtention des rows du sous-arbre */
-    const m = g ? this.ds.groupes : this.ds.avatars
-    const x = m.get(ida)
-    
-    if (g) {
-      if (!x || !x.vb[0]) return
-      const gr = await this.setGrx(ida, x)
-      this.setRes('rowGroupe', gr.toShortRow(x.m))
-      if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs[3])) {
-        const note = compile(row)
-        this.addRes('rowNotes', note.toShortRow(this.id))
-      }
-      if (x.m) {
-        for (const row of await this.db.scoll(this, 'membres', ida, x.vs[2]))
-          this.addRes('rowMembres', row)
-        for (const row of await this.db.scoll(this, 'chatgrs', ida, x.vs[2]))
-          this.setRes('rowChatgr', row)
-      }
-    } else {
-      if (!x || !x.vb) return
-      const version = await this.getV({rds: x.rds})
-      if (!version || version.suppr) { x.vb = 0; return }
-      else { x.vb = version.v; x.vc = version.v }
-      const rav = await this.getRowAvatar(ida)
-      if (!rav) { x.vb = 0; return }
-      this.setRes('rowAvatar', rav)
+  async getGrRows (ida, x) { 
+    // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
+    let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si optionC
+    if (!gr) gr = await this.db.getV(this, 'groupes', ida, x.vs[1])
+    if (gr) this.setRes('rowGroupe', gr.toShortRow(x.m))
 
-      for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
-        this.addRes('rowNotes', row)
-      for (const row of await this.db.scoll(this, 'chats', ida, x.vs))
-        this.addRes('rowChats', row)
-      for (const row of await this.db.scoll(this, 'sponsorings', ida, x.vs))
-        this.addRes('rowSponsorings', compile(row).toShortRow())
-      if (ID.estComptable(this.id)) 
-        for (const row of await this.db.scoll(this, 'tickets', ida, x.vs))
-          this.addRes('rowTickets', row)
+    if (x.m) {
+      for (const row of await this.db.scoll(this, 'membres', ida, x.vs[2]))
+        this.addRes('rowMembres', row)
+      for (const row of await this.db.scoll(this, 'chatgrs', ida, x.vs[2]))
+        this.setRes('rowChatgr', row)
     }
+
+    if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs[3])) {
+      const note = compile(row)
+      this.addRes('rowNotes', note.toShortRow(this.id))
+    }
+  }
+  
+  async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
+    const rav = this.db.getV(this, 'avatars', ida, x.vs)
+    if (rav) this.setRes('rowAvatar', rav)
+
+    for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
+      this.addRes('rowNotes', row)
+    for (const row of await this.db.scoll(this, 'chats', ida, x.vs))
+      this.addRes('rowChats', row)
+    for (const row of await this.db.scoll(this, 'sponsorings', ida, x.vs))
+      this.addRes('rowSponsorings', compile(row).toShortRow())
+    if (ID.estComptable(this.id)) 
+      for (const row of await this.db.scoll(this, 'tickets', ida, x.vs))
+        this.addRes('rowTickets', row)
   }
 
   async phase2(args) {
+    const g = args.ida ? ID.estGroupe(args.ida) :false
     this.mgr = new Map() // Cache très locale et courte des groupes acquis dans l'opération
 
-    /* Mise à jour du DataSync en fonction des CCEP et des avatars / groupes actuels du compte */
-    this.majDS(args.dataSync)
+    /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */
+    this.ds = args.dataSync
+    const vcpt = await this.getV(this.compte)
+    this.ds.compte.vb = vcpt.v
 
-    /* mise à nouveau des listes avatars / groupes du dataSync
-    en fonction des avatars et groupes listés dans mav/mpg du compte */
+    if (args.optionC || (this.ds.compte.vs < this.ds.compte.vb)) 
+      this.setRes('rowCompte', this.compte.toRow())
+    let rowCompti = Cache.aVersion('comptis', this.compte.id, vcpt.v) // déjà en cache ?
+    if (!rowCompti) rowCompti = await this.getRowCompti(this, this.compte.id)
+    if (args.optionC || (rowCompti.v > this.ds.compte.vs)) 
+      this.setRes('rowCompti', rowCompti)
+
+    /* Mise à niveau des listes avatars / groupes du dataSync
+    en fonction des avatars et groupes listés dans mav/mpg du compte 
+    Ajoute les manquants dans ds, supprime ceux de ds absents de mav / mpg
+    Pour CHAQUE GROUPE les indicateurs m et n sont bien positionnés.
+    */
     this.compte.majPerimetreDataSync(this.ds)  
 
     if (args.optionC) {
-
-      this.db.setSyncData(this)
-      // Recherche des versions des avatars
+      // Recherche des versions vb de TOUS les avatars requis
       for(const [, x] of this.ds.avatars) {
         const version = await this.getV({rds: x.rds})
-        if (!version || version.suppr) x.vb = 0
-        else { x.vb = version.v; x.vc = version.v }
+        if (!version || version.suppr) {
+          // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav
+          x.vb = 0
+        }
+        else x.vb = version.v
       }
-      // Recherche des versions des groupes
+      // Recherche des versions vb[] de TOUS les groupes requis
       for(const [idg, x] of this.ds.groupes)
         await this.setGrx(idg, x)
-      this.ds.dhc = this.dh
-
-      // Report de la consommation du compte cnv dans son Partition et maj syntheses
-      if (!this.compte.estA) {
-        const s = this.partition.reportCNV(this.compte, this.compta)
-        const synthese = compile(await this.getRowSynthese(this.ns))
-        if (synthese) {
-          synthese.tp[ID.court(this.compte.partitionId)] = s
-          synthese.v = this.dh
-          this.update(synthese.toRow())
-        }
-      }
-
-    } else { // Maj du dataSync en fonction de compte
-
-      // Inscription dans DataSync des nouveaux avatars qui n'y étaient pas et sont dans compte
-      for (const idx in this.compte.mav) {
-        const id = ID.long(parseInt(idx), this.ns)
-        if (!this.ds.avatars.get(id)) { // recherche du versions et ajout dans le DataSync
-          const rds = this.compte.mav[idx].rds
-          const version = await this.getV({ rds }) // objet ayant une propriété rds
-          if (version && !version.suppr) {
-            this.ds.avatars.set(id, {
-              id: id,
-              rds: rds,
-              vs: 0,
-              vb: version.v,
-              vc: version.v
-            })
+    } else {
+      if (args.ida) {
+        const x = (g ? this.ds.groupes : this.ds.avatars).get(args.ida) // item dans ds
+        if (x) {
+          // ce n'est pas obligatoire: le sous-arbre demandé peut justement avoir été détecté disparu du compte
+          // maj du vb dans son item ds
+          const version = await this.getV({rds: x.rds})
+          if (!version || version.suppr) {
+            // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav
+            x.vb = g ? [0,0,0,0] : 0
+          } else {
+            x.vb = g ? version.tv : version.v 
           }
         }
-
       }
-      // Suppression des avatars de DataSync qui n'existent plus
-      for (const id of this.ds.avIdSet)
-        if (!this.compte.mav[ID.court(id)]) this.ds.avatars.delete(id)
-
-      // Inscription dans DataSync des nouveaux groupes qui n'y étaient pas et sont dans compte
-      for (const idx in this.compte.mpg) {
-        const idg = ID.long(parseInt(idx), this.ns)
-        let x = this.ds.groupes.get(idg)
-        if (!x) {
-          const { rds } = this.compte.mpg[idx]
-          x = { ...DataSync.videg}
-          x.id = idg
-          x.rds = rds
-        }
-        /* Analyse d'un groupe idg. x : élément de ds relatif au groupe (m et n fixés) */
-        const gr = await this.setGrx(idg, x)
-        if (gr) // le groupe existe vraiment !
-          this.ds.groupes.set(idg, x)
-      }
-      // Suppression des groupes de DataSync qui n'existent plus
-      for (const id of this.ds.grIdSet)
-        if (!this.compte.mpg[ID.court(id)]) this.ds.groupes.delete(id)
     }
 
-    if (args.ida) await this.getAvGrRows(args.ida)
+    if (args.ida) {
+      const x = (g ? this.ds.groupes : this.ds.avatars).get(args.ida) // item dans ds
+      if (x) {
+        // ce n'est pas obligatoire: le sous-arbre demandé peut justement avoir été détecté disparu du compte
+        if (g) await this.getGrRows(args.ida, x); else await this.getAvRows(args.ida, x)
+      }
+    }
 
-    // Sérialisation et retour de dataSync, rows compte, compta, espace, partition
+    // Sérialisation et retour de dataSync
     this.setRes('dataSync', this.ds.serial)
-    if (args.optionC || (this.ds.compte.vs < this.ds.compte.vb)) 
-      this.setRes('rowCompte', this.compte.toRow())
+
+    /*
     if (args.optionC || (this.ds.espace.vs < this.ds.espace.vb)) 
       this.setRes('rowEspace', this.espace.toRow())
     if (this.ds.partition.id && (args.optionC || (this.ds.partition.vs < this.ds.partition.vb)))
       this.setRes('rowPartition', this.partition.toShortRow(this.compte.del))
     // compta est TOUJOURS transmis par l'opération (après maj éventuelle des consos)
+    */
 
+    // credentials / emulator en cas de première connexion
+    if (args.optionC) this.db.setSyncData(this)
     // Mise à jour des abonnements aux versions
     if (this.sync) this.sync.setAboRds(this.ds.tousRds(this.ns), this.dh)
   }
@@ -430,7 +412,7 @@ en session.
 Retour:
 - dataSync : sérialisation du DataSync mis à jour
 - rowcompte rowCompta rowEspace rowPartition
-*/
+
 operations.Sync2 = class Sync2 extends OperationS {
   constructor (nom) { super(nom, 1, 1) }
 
@@ -464,6 +446,7 @@ operations.Sync2 = class Sync2 extends OperationS {
     this.setRes('dataSync', ds.serial)
   }
 }
+*/
 
 /* SyncSp - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
 - `token` : éléments d'authentification du compte à créer
@@ -491,13 +474,10 @@ operations.Sync2 = class Sync2 extends OperationS {
   - t2c: mot du sponsorisé crypté par la clé C
 
 Retour: 
-- rowEspace
-- rowPartition si compte O
-- rowCompte 
+- rowCompte
+- rowCompti
 - rowAvater 
 - rowChat si la confidentialité n'a pas été requise
-- notifs
-- conso
 
 Exceptions:
 - `A_SRV, 13` : sponsorings non trouvé
@@ -592,14 +572,16 @@ operations.SyncSp = class SyncSp extends OperationS {
       }
     }
 
-    /* Création compte */
+    /* Création compte / compti */
     const rdsav = Rds.nouveau(Rds.AVATAR)
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(args.id, 
       (this.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, null, rdsav, args.cleAK, o)
+    const compti = Comptis.nouveau(args.id, compte.rds) 
     this.insert(compte.toRow())
-    this.setNV(compte)
-
+    this.insert(compti.toRow())
+    this.setNV(compte)    
+    
     /* Création compta */
     const nc = !sp.dconf && !args.dconf ? 1 : 0
     const qv = { qc: qs.qc, qn: qs.qn, qv: qs.qv, nn: 0, nc: nc, ng: 0, v: 0 }
@@ -660,10 +642,7 @@ operations.SyncSp = class SyncSp extends OperationS {
       this.insert(chE.toRow())
 
       this.setRes('rowCompte', compte.toRow())
-      this.setRes('rowCompta', compta.toRow())
-      this.setRes('rowEspace', espace.toRow())
-      if (partition) this.setRes('rowPartition', partition.toShortRow(sp.del))
-      this.setRes('rowAvatar', avatar.toRow())
+      this.setRes('rowCompti', compta.toRow())
       if (chI) this.setRes('rowChat', chI.toRow())
 
       this.compte = compte
@@ -671,8 +650,6 @@ operations.SyncSp = class SyncSp extends OperationS {
       this.compta = compta
       this.espace = espace
       if (partition) this.partition = partition
-      this.majDS(DataSync.nouveau().serial, avatar)
-      this.setRes('dataSync', this.ds.serial)
     }
   }
 }
