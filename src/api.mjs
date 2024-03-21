@@ -37,9 +37,6 @@ export const regIntg = /[<>:"/\\|?*\x00-\x1F]/g
 export const regInt2g = /[\u{0180}-\u{10FFFF}]/gu
 
 export const limitesjour = { 
-  dlv: 365, // résiliation automatique d'un compte non accédé
-  margedlv: 30, // marge de purge des versions des comptes non accédés
-  notetemp: 60, // durée de vie d'une note temporaire
   sponsoring: 14, // durée de vie d'un sponsoring
   groupenonheb: 120 // durée de vie d'un groupe non hébbergé
 }
@@ -225,33 +222,22 @@ export class Cles {
 
 /** ID **********************************************************************/
 export class ID {
-  /* Retourne l'id COURT depuis une id, longue ou courte, string ou number */
-  static court (long) {
-    if (!long) return 0
-    const x = typeof long === 'string' ? parseInt(long) : long
-    return x % d14
-  }
+  /* Retourne l'id COURT depuis une id, longue ou courte */
+  static court (long) { return long % d14 }
 
-  /* Retourne l'id LONG depuis,
-  - un ns,
-  - une id, longue ou courte, string ou number
+  /* Retourne l'id LONG depuis: - un ns, - une id, longue ou courte
   */
-  static long (court, ns) { 
-    const x = typeof court === 'string' ? parseInt(court) : court
-    return x > d14 ? x : ((ns * d14) + x)
-  }
+  static long (court, ns) { return court > d14 ? court : ((ns * d14) + court) }
 
-  static duComptable (ns) { 
-    return ((ns * 10) + 1) * d13
-  }
+  static duComptable (ns) { return ((ns * 10) + 1) * d13 }
 
   static estComptable (id) { return id % d13 === 0 }
 
-  static estGroupe (id) { return Math.floor(id / d13) % 10 === 3 }
-
   static estPartition (id) { return Math.floor(id / d13) % 10 === 0 }
 
-  static estAvatar (id) { return Math.floor(id / d13) % 10 < 3 }
+  static estAvatar (id) { return Math.floor(id / d13) % 10 === 2 }
+
+  static estGroupe (id) { return Math.floor(id / d13) % 10 === 3 }
 
   static ns (id) { return id < 100 ? id : Math.floor(id / d14)}
 }
@@ -1206,37 +1192,60 @@ export const lcSynt = ['qc', 'qn', 'qv', 'ac', 'an', 'av', 'c', 'n', 'v', 'nbc',
 /** Génération d'une synthèse d'une partition p **************************
 Correspond à la ligne de la partition dans la synthèse de l'espace
 */
-export function synthesesPartition (p) {
-  const r = { notif: p.notif, id: p.id }
-  lcSynt.forEach(f => { r[f] = 0 })
-  r.qc = p.qc
-  r.qn = p.qn
-  r.qv = p.qv
-  r.ntr0 = p.notif && p.notif.nr === 0 ? 1 : 0
-  r.ntr1 = p.notif && p.notif.nr === 1 ? 1 : 0
-  r.ntr2 = p.notif && p.notif.nr === 2 ? 1 : 0
-  p.tcpt.forEach(x => {
-    if (x) {
-      r.ac += x.q.qc
-      r.an += x.q.qn
-      r.av += x.q.qv
-      r.c += x.q.c
-      r.n += x.q.n
-      r.v += x.q.v
-      r.nbc++
-      if (x.del) r.nbd++
-      if (x.notif) {
-        if (x.notif.nr === 0) r.nco0++
-        else if (x.notif.nr === 1) r.nco1++
-        else if (x.notif.nr === 2) r.nco2++
-      }
-    }
-  })
-  r.pcac = !r.qc ? 0 : Math.round(r.ac * 100 / r.qc) 
-  r.pcan = !r.qn ? 0 : Math.round(r.an * 100 / r.qn) 
-  r.pcav = !r.qv ? 0 : Math.round(r.av * 100 / r.qv) 
-  r.pcc = !r.qc ? 0 : Math.round(r.c * 100 / r.qc) 
-  r.pcn = !r.qn ? 0 : Math.round(r.n * 100 / r.qn) 
-  r.pcv = !r.qv ? 0 : Math.round(r.v * 100 / r.qv) 
+function synthesesPartition (p) {
+  const ntfp = [0,0,0]
+  if (p.nrp) ntfp[p.nrp] = 1
+  const r = {
+    id: p.id,
+    ntfp: ntfp,
+    q: { ...p.q },
+    qt: { qc: 0, qn: 0, qv: 0, c2m: 0, n: 0, v: 0 },
+    ntf: [0, 0, 0],
+    nbc: 0,
+    nbd: 0
+  }
+  for(const [, x] in p.mcpt) {
+    r.qt.qc += x.q.qc
+    r.qt.qn += x.q.qn
+    r.qt.qv += x.q.qv
+    r.qt.c2m += x.q.c2m
+    r.qt.n += x.q.nn + x.q.nc + x.q.ng
+    r.qt.v += x.q.v
+    if (x.nr) r.ntf[x.nr - 1]++
+    r.nbc++
+    if (x.del) r.nbd++
+  }
+  r.pcac = !r.q.qc ? 0 : Math.round(r.qt.qc * 100 / r.q.qc) 
+  r.pcan = !r.q.qn ? 0 : Math.round(r.qt.qn * 100 / r.q.qn) 
+  r.pcav = !r.q.qv ? 0 : Math.round(r.qt.qv * 100 / r.q.qv) 
+  r.pcc = !r.q.qc ? 0 : Math.round(r.qt.c2m * 100 / r.q.qc) 
+  r.pcn = !r.q.qn ? 0 : Math.round(r.qt.n * 100 / r.q.qn) 
+  r.pcv = !r.q.qv ? 0 : Math.round(r.qt.v * 100 / r.q.qv) 
   return r
+}
+
+/* Compile un row partition dans un objet self
+Retourne synth, la synthèse de cet objet 
+La fonction async locComp effectue la compilation locale d'une cleAP
+*/
+export async function compileMcpt (self, row, locComp) {
+  self.dhic = row.dhic || 0
+  self.nrp = row.nrp || 0
+  self.q = row.q
+  const ns = ID.ns(self.id)
+  self.mcpt = new Map()
+  self.sdel = new Set() // Set des délégués
+  
+  if (row.mcpt) for(const idx in row.mcpt) {
+    const id = ID.long(parseInt(idx), ns)
+    const e = row.mcpt[idx]
+    if (e.del) { this.sdel.add(id); e.del = true }
+    if (locComp) await locComp(self.id, e.cleAP)
+    const q = { ...e.q }
+    q.pcc = !q.qc ? 0 : Math.round(q.c2m * 100 / q.qc) 
+    q.pcn = !q.qn ? 0 : Math.round((q.nn + q.nc + q.ng) * 100 / q.qn) 
+    q.pcv = !q.qv ? 0 : Math.round(q.v * 100 / q.qv) 
+    self.mcpt(id, { nr: e.nr || 0, q: e.q })
+  }
+  return synthesesPartition(self)
 }

@@ -2,7 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, AppExc, d14 } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
-import { Compteurs, ID, Rds, lcSynt, AMJ, limitesjour, synthesesPartition } from './api.mjs'
+import { Compteurs, ID, Rds, lcSynt, AMJ, limitesjour, compileMcpt } from './api.mjs'
 import { config } from './config.mjs'
 // import { assertKO } from './modele.mjs'
 
@@ -248,7 +248,11 @@ export class Partitions extends GenDoc {
   constructor () { 
     super('partitions')
     this._maj = false
-  } 
+  }
+
+  compile (row) {
+    this.synth = compileMcpt(this, row)
+  }
 
   static nouveau (ns, id, clePK, cleAP) {
     const aco = config.allocComptable
@@ -285,8 +289,6 @@ export class Partitions extends GenDoc {
       if (nc) notifs.C = nc ; else delete notifs.C
     }
   }
-
-  getSynthese () { return synthesesPartition(this) }
 
   /* Retourne it : indice du compte dans la partition
   - notif
