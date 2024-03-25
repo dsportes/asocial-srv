@@ -653,3 +653,28 @@ operations.SyncSp = class SyncSp extends OperationS {
     }
   }
 }
+
+/* Get Espace **************************************************
+args.token: éléments d'authentification du compte.
+args.ns : ns pour l'administrateur
+**Propriétés accessibles :**
+- administrateur technique : toutes de tous les espaces.
+- Comptable : toutes de _son_ espace.
+- Délégués : sur leur espace seulement,
+  - `id v org creation notifE opt`
+  - la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
+- Autres comptes: pas d'accès.
+Retour:
+- rowEspace s'il existe
+*/
+operations.GetEspace = class GetEspace extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
+
+  async phase2 (args) {
+    const espace = compile(await this.getRowEspace(this.estAdmin ? args.ns : this.ns, 'GetEspace'))
+    let rowEspace
+    if (this.estAdmin || this.estComptable) rowEspace = espace.toRow()
+    else rowEspace = espace.toShortRow(this.compte.idp)
+    this.setRes('rowSponsoring', rowEspace)
+  }
+}

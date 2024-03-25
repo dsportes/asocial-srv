@@ -1,6 +1,6 @@
 /* eslint-disable lines-between-class-members */
 import { encode, decode } from '@msgpack/msgpack'
-import { rnd6, random } from './util.mjs'
+import { random } from './util.mjs'
 
 export const version = '1'
 
@@ -51,10 +51,10 @@ export const FLAGS = {
   DN: 1 << 5, // **droit d'accès aux notes du groupe**:  s'il est invité s'appliquera quand il sera actif.
   DE: 1 << 6, // **droit d'écriture sur les notes du groupe**: s'il est invité s'appliquera quand il sera actif.
   PA: 1 << 7, // **pouvoir d'animateur du groupe**: s'il est invité s'appliquera quand il sera actif. _Remarque_: un animateur sans droit d'accès aux notes peut déclarer une invitation et être hébergeur.
-  HA: 1 << 8, // **a été actif**
-  HN: 1 << 9, // **a eu accès aux notes**
-  HM: 1 << 10, // **a eu accès aux membres**
-  HE: 1 << 11 // **a pu écrire des notes**
+  HA: 1 << 0, // **a été actif**
+  HN: 1 << 1, // **a eu accès aux notes**
+  HM: 1 << 2, // **a eu accès aux membres**
+  HE: 1 << 3 // **a pu écrire des notes**
 }
 
 export const LFLAGS = [
@@ -65,7 +65,10 @@ export const LFLAGS = [
   'a droit d\'accès à la liste des membres',
   'a droit d\'accès aux notes du groupe',
   'a droit d\'écriture sur les notes',
-  'a pouvoir d\'animateur',
+  'a pouvoir d\'animateur'
+]
+
+export const LHISTS = [
   'a été actif',
   'a eu accès aux notes',
   'a eu accès aux membres',
@@ -79,6 +82,8 @@ export function edit (n, t, sep) {
   const x = []
   for (let i = 0; i < LFLAGS.length; i++)
     if (n & (1 << i)) x.push(t ? t('FLAGS' + i) : LFLAGS[i])
+  for (let i = 0; i < LHISTS.length; i++)
+    if (n & (1 << i)) x.push(t ? t('FLAGS' + i) : LHISTS[i])
   return x.join(sep || ', ')
 }
 
@@ -146,25 +151,6 @@ export function hash (arg) {
   return 4294967296 * (2097151 & h2) + (h1 >>> 0)
 }
 
-/** Rds **********************************************************************/
-export class Rds {
-  static DOCS = ['', 'comptes', 'avatars', 'groupes']
-  static COMPTE = 1
-  static AVATAR = 2
-  static GROUPE = 3
-
-  static nouveau (type) { return (type * d13) + (rnd6() % d13) }
-
-  static deId (id) { return id % d14 }
-
-  static toId (rds, ns) { return (ns * d14) + rds }
-
-  static type (rds) { return Math.floor((rds % d14) / d13)}
-
-  static typeS (type) { return Rds.DOCS[type]}
-
-}
-
 /** Cles **********************************************************************/
 export class Cles {
   /* Génération des clés pour les CCEP */
@@ -222,12 +208,20 @@ export class Cles {
 
 /** ID **********************************************************************/
 export class ID {
+  static RDSCOMPTE = 7
+  static RDSAVATAR = 8
+  static RDSGROUPE = 9
+
   /* Retourne l'id COURT depuis une id, longue ou courte */
   static court (long) { return long % d14 }
 
   /* Retourne l'id LONG depuis: - un ns, - une id, longue ou courte
   */
   static long (court, ns) { return court > d14 ? court : ((ns * d14) + court) }
+
+  static rds (type) { return (type * d14) +(hash(random(32)) % d13) }
+
+  static rdsType(id) { return Math.floor(id / d13) % 10 }
 
   static duComptable (ns) { return ((ns * 10) + 1) * d13 }
 
@@ -238,6 +232,8 @@ export class ID {
   static estAvatar (id) { return Math.floor(id / d13) % 10 === 2 }
 
   static estGroupe (id) { return Math.floor(id / d13) % 10 === 3 }
+
+  static estEspace (id) { return Math.floor(id / d13) % 10 === 4 }
 
   static ns (id) { return id < 100 ? id : Math.floor(id / d14)}
 }

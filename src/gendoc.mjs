@@ -192,29 +192,61 @@ export class GenDoc {
   compile () { return this }
 }
 
-/* Espaces ********************************************************/
+/* Espaces *******************************************************
+_data_ :
+- `id` : de l'espace de 10 à 89.
+- `v` : 1..N
+- `org` : code de l'organisation propriétaire.
+
+- `creation` : date de création.
+- `moisStat` : dernier mois de calcul de la statistique des comptas.
+- `moisStatT` : dernier mois de calcul de la statistique des tickets.
+- `dlvat` : `dlv` de l'administrateur technique.
+- `notifE` : notification pour l'espace de l'administrateur technique. Le texte n'est pas crypté.
+- `notifP` : pour un délégué, la notification de sa partition.
+- `opt`: option des comptes autonomes.
+- `nbmi`: nombre de mois d'inactivité acceptable pour un compte O fixé par le comptable. Ce changement n'a pas d'effet rétroactif.
+- `tnotifP` : table des notifications de niveau _partition_.
+  - _index_ : id (numéro) de la partition.
+  - _valeur_ : notification (ou `null`), texte crypté par la clé P de la partition.
+*/
 export class Espaces extends GenDoc { 
   constructor () { 
     super('espaces') 
     this._maj = false
   } 
 
-  static nouveau (op, ns, org, cleE) {
-    const cleES = crypterSrv(op.db.appKey, cleE)
+  static nouveau (op, ns, org) {
     const r = {
       id: ns,
       org: org,
       v: 1,
-      rds: Rds.nouveau(Rds.ESPACE),
-      cleES: cleES,
       creation: op.auj,
       moisStat: 0,
       moisStatT: 0,
-      notif: null,
+      notifE: null,
+      notifP: null,
       dlvat: 0,
-      t: 1
+      opt: 0,
+      nbmi: 12,
+      tnotifP: []
     }
     return new Espaces().init(r)
+  }
+
+  /* Restriction pour les délégués de la partition idp
+  **Propriétés accessibles :**
+    - administrateur technique : toutes de tous les espaces.
+    - Comptable : toutes de _son_ espace.
+    - Délégués : sur leur espace seulement,
+      - `id v org creation notifE opt`
+      - la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
+    - Autres comptes: pas d'accès.
+  */
+  toShortRow (idp) {
+    delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
+    this.notifP = this.tnotifP[idp]
+    return this.toRow()
   }
 }
 
