@@ -219,7 +219,7 @@ export class ID {
   */
   static long (court, ns) { return court > d14 ? court : ((ns * d14) + court) }
 
-  static rds (type) { return (type * d14) +(hash(random(32)) % d13) }
+  static rds (type) { return (type * d14) + (hash(random(32)) % d13) }
 
   static rdsType(id) { return Math.floor(id / d13) % 10 }
 
@@ -233,7 +233,7 @@ export class ID {
 
   static estGroupe (id) { return Math.floor(id / d13) % 10 === 3 }
 
-  static estEspace (id) { return Math.floor(id / d13) % 10 === 4 }
+  static estEspace (id) { return id >= 10 && id <= 89 }
 
   static ns (id) { return id < 100 ? id : Math.floor(id / d14)}
 }
@@ -1071,114 +1071,53 @@ export class Compteurs {
   }
 }
 
-/** DataSync ****************************************************
-sync : { id (long), rds (long), vs, vc, vb }
-*/
+/** DataSync ****************************************************/
 export class DataSync {
-  static vide = { id: 0, rds: 0, vs: 0, vb: 0 }
-  static videg = { id: 0, rds: 0, vs: [0,0,0,0], vb: [0,0,0,0], m: false, n:false } 
+  static vide = { vs: 0, vb: 0 }
+  static videg = { vs: [0,0,0,0], vb: [0,0,0,0], m: false, n:false } 
   // vs / vb : versions [générale, groupe, membres, notes]
 
-  static nouveau () {
-    const x = {
-      dh: 0,
-      dhc: 0,
-      compte: { ...DataSync.vide },
-      avatars: [],
-      groupes: []
-    }
-    return new DataSync(null, x)
-  }
-
-  /* Depuis, soit une sérialisation, soit un objet */
-  constructor (serial, obj) {
-    const x = obj || decode(serial)
-    this.dh = x.dh || 0
-    this.dhc = x.dhc || 0
+  static deserial (serial, decrypt) {
+    const x = serial ? decode(serial) : {}
     this.compte = x.compte || { ...DataSync.vide },
     this.avatars = new Map()
     if (x.avatars) x.avatars.forEach(t => this.avatars.set(t.id, t))
     this.groupes = new Map()
     if (x.groupes) x.groupes.forEach(t => this.groupes.set(t.id, t))
+    if (decrypt) {
+      // Dans le serveur : rdsIdS est décrypté
+      this.rdsId = x.rdsIdS ? decrypt(x.rdsIdS) : {}
+      this.idRds = {}
+      for (const rds in this.rdsId) this.idRds[this.rdsId[rds]] = parseInt(rds)
+    } else this.rdsIdS = x.rdsIdS || null
+    this.lrds = x.lrds || []
+    this.tousRds = x.tousRds || []
+    this.fini = false
+
   }
 
-  get serial () {
+  serial (dh, crypt) {
     const x = {
-      dh: this.dh,
-      dhc: this.dhc,
-      compte: this.compte,
+      dh: dh || 0,
+      compte: this.compte || { ...DataSync.vide },
       avatars: [],
-      groupes: []
+      groupes: [],
+      tousRds: this.tousRds || []
     }
-    this.avatars.forEach(t => x.avatars.push(t))
-    this.groupes.forEach(t => x.groupes.push(t))
+    if (this.avatars) this.avatars.forEach(t => x.avatars.push(t))
+    if (this.groupes) this.groupes.forEach(t => x.groupes.push(t))
+    /* Sur le serveur, rdsId est retransmis crypté, illisable en session
+    En session, rdsId est retransmis tel que reçu la dernière fois du serveur */
+    x.rdsIdS = crypt ? crypt(this.rdsId) : (this.rdsIdS || null)
     return new Uint8Array(encode(x))
   }
 
-  setAv (e) { this.avatars.set(e.id, e) }
-
-  delAv (id) { this.avatars.delete(id) }
-
-  setGr (e) { this.groupes.set(e.id, e) }
-
-  delGr (id) { this.groupes.delete(id) }
-
-  get grIdSet () { const s = new Set(); this.groupes.forEach(x => { s.add(x.id) }); return s}
-
-  get avIdSet () { const s = new Set(); this.avatars.forEach(x => { s.add(x.id) }); return s}
-
-  get tousRds () {
-    const s = new Set()
-    s.add(this.compte.rds)
-    this.avatars.forEach(x => { s.add(x.rds) })
-    this.groupes.forEach(x => { s.add(x.rds) })
-    return s
-  }
-
-  /*
-  idType (rds) {
-    if (this.compte.rds === rds) return [this.compte.id, 'comptes']
-    for(const [id, t] of this.avatars) if (t.rds === rds) return [id, 'avatars']
-    for(const [id, t] of this.groupes) if (t.rds === rds) return [id, 'groupes']
-    return [0, '']
-  }
-
-  rdsType (id) {
-    if (this.espace.id === id) return [this.espace.rds, 'espaces']
-    if (this.partition.id === id) return [this.partition.rds, 'partitions']
-    if (this.compte.id === id) return [this.compte.rds, 'comptes']
-    if (this.comptas.id === id) return [this.comptas.rds, 'comptas']
-    let t = this.avatars.get(id)
-    if (t) return [t.rds, 'avatars']
-    t = this.groupes.get(id)
-    if (t) return [t.rds, 'groupes']
-    return [0, '']
-  }
-  */
-
-  /* Tous les documents ont leurs versions de base égales aux versions de cohérence 
-  get estCoherent () {
-    if (!this.compte.vc || !this.compta.vc || !this.espace.vc) return false
-    if (this.compte.vc !== this.compte.vb) return false
-    if (this.compta.vc !== this.compta.vb) return false
-    if (this.espace.vc !== this.espace.vb) return false
-    if (this.partition.id && (this.partition.vc !== this.partition.vb)) return false
-    for(const [, t] of this.avatars) if (t.vc && (t.vc !== t.vb)) return false
-    for(const [, t] of this.groupes) if (t.vc && (t.vc !== t.vb[0])) return false
-    return true
-  }
-  */
-
-  /* Tous les documents ont leurs versions de session égales aux versions de base */
-  get estComplet () {
-    if (!this.compte.vb || this.compte.vs !== this.compte.vb) return false
-    for(const [, t] of this.avatars) if (t.vc && (t.vs !== t.vb)) return false
-    for(const [, t] of this.groupes) if (t.vc && !this.equal(t.vs, t.vb)) return false
-    return true
-  }
-  
-  equal (a, b) {
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  get estAJour() {
+    if (this.compte.vs < this.compte.vb) return false
+    for(const [,e] of this.avatars) if (e.vs < e.vb) return false
+    for(const [,e] of this.groupes) {
+      for(let i = 0; i < 4; i++) if (e.vs[i] < e.vb[i]) return false
+    }
     return true
   }
 }

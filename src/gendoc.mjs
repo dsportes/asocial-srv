@@ -2,7 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, AppExc, d14 } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
-import { Compteurs, ID, Rds, lcSynt, AMJ, limitesjour, compileMcpt } from './api.mjs'
+import { Compteurs, ID, lcSynt, AMJ, limitesjour, compileMcpt, DataSync } from './api.mjs'
 import { config } from './config.mjs'
 // import { assertKO } from './modele.mjs'
 
@@ -292,7 +292,6 @@ export class Partitions extends GenDoc {
     const r = {
       id: ID.long(id, ns),
       v: 1, 
-      rds: Rds.nouveau(Rds.PARTITION),
       qc: apr[0], qn: apr[1], qv: apr[2],
       clePK, notif: null, ldel: [],
       tcpt: [null]
@@ -448,9 +447,13 @@ export class Comptes extends GenDoc {
     this._maj = false
   } 
 
+  toShortRow() {
+    // TODO
+  }
+
   static nouveau (id, hXR, hXC, cleKXC, cleEK, rdsav, cleAK, o, cs) {
     const r = {
-      id: id, v: 1, rds: Rds.nouveau(Rds.COMPTE),
+      id: id, v: 1, rds: ID.rds(ID.RDSCOMPTE),
       hxr: hXR, dlv: AMJ.max, cleKXC, cleEK, hXC, it: 0,
       mav: {}, mpg: {}
     }
@@ -472,25 +475,42 @@ export class Comptes extends GenDoc {
   Ajoute les manquants dans ds, supprime ceux de ids absents de mav / mpg
   */
   majPerimetreDataSync (ds) {
+
+    // Ajout dans ds des avatars existants dans le compte et inconnus de ds
     for(const idx in this.mav) {
       const ida = ID.long(parseInt(idx), this.ns)
-      const rds = this.mav[idx].rds
-      if (!ds.avatars.has(ida)) 
-        ds.avatars.set(ida, { id: ida, rds: rds, vs: 0, vb: 0 })
+      const rds = ID.long(this.mav[idx].rds, this.ns)
+      ds.idRds[ida] = rds; ds.rdsId[rds] = ida
+      if (!ds.avatars.has(ida)) ds.avatars.set(ida, DataSync.vide)
     }
-    let lida = []
-    for(const [ida,] of ds.avatars) lida.push(ida)
-    for(const ida of lida) if (!this.mav[ida]) ds.avatars.delete(ida)
+    /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte
+    Suppression de leurs entrées dans idRds / rdsId
+    Inscription dans la liste des avatars à supprimer en session */
+    const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
+    for(const ida of sa) if (!this.mav[ID.court(ida)]) {
+      const rds = ds.idRds[ida]
+      ds.avatars.delete(ida)
+      if (rds) { delete ds.idRds[ida]; delete ds.rdsId[rds] }
+      ds.delA.push(ida)
+    }
 
+    // Ajout dans ds des groupes existants dans le compte et inconnus de ds
     for(const idx in this.mpg) {
       const idg = ID.long(parseInt(idx), this.ns)
-      const rds = this.mpg[idx].rds
-      if (!ds.groupes.has(idg)) 
-        ds.groupes.set(idg, { id: idg, rds: rds, vs: [0,0,0,0], vb: [0,0,0,0]})
+      const rds = ID.long(this.mpg[idx].rds, this.ns)
+      ds.idRds[idg] = rds; ds.rdsId[rds] = idg
+      if (!ds.groupes.has(idg)) ds.groupes.set(idg, DataSync.videg)
     }
-    lida = []
-    for(const [ida,] of ds.groupes) lida.push(ida)
-    for(const ida of lida) if (!this.mpg[ida]) ds.groupes.delete(ida)
+    /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte
+    Suppression de leurs entrées dans idRds / rdsId
+    Inscription dans la liste des groupes à supprimer EN TOTALITE en session */
+    const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
+    for(const idg of sg) if (!this.mpg[ID.court(idg)]) {
+      const rds = ds.idRds[idg]
+      ds.avatars.delete(idg)
+      if (rds) { delete ds.idRds[idg]; delete ds.rdsId[rds] }
+      ds.delG.push(idg)
+    }
   }
 
   // Set des indices membres des participations au groupe idg (court)

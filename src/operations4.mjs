@@ -6,7 +6,6 @@ import { eqU8 } from './util.mjs'
 import { Operation } from './modele.mjs'
 import { compile, Espaces, Syntheses, Partitions, Comptes, 
   Avatars, Comptas, Sponsorings } from './gendoc.mjs'
-import { Rds } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -92,7 +91,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
       it: 1
     }
     const cs = { cleEK: args.cleEK, qc: apr[0], qn: apr[1], qv: apr[2], c: args.ck } 
-    const rdsav = Rds.nouveau(Rds.AVATAR)
+    const rdsav = ID.rds(ID.RDSAVATAR)
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
     const compte = Comptes.nouveau(ID.duComptable(args.ns), 
       (args.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, args.cleEK, rdsav, args.cleAK, o, cs)
@@ -102,7 +101,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const aco = config.allocComptable
     const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
     const compta = new Comptas().init({
-      id: compte.id, v: 1, rds: Rds.nouveau(Rds.COMPTA), qv,
+      id: compte.id, v: 1, qv,
       compteurs: new Compteurs(null, qv).serial
     })
     this.setNV(compta)

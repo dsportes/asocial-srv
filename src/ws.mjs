@@ -82,14 +82,16 @@ export class SyncSession {
 
   setAboRds (s, dh) { // A chaque Sync
     this.dhping = dh
-    this.aboRds = s
+    this.aboRds = new Set(s)
   }
 
+  /*
   setAboPartC (rds, dh) { // A chaque lecture d'une partition courante pour le Comptable
     this.dhping = dh
     this.aboPartC = rds
   }
-
+  */
+ 
   // La session a-telle à transmettre des avis de changement de versions ?
   traiteSyncList (syncList) { // syncList : { sessionId, rows }
     // filtre dans rows ceux concernés par la session et envoie (éventuellement) le message
