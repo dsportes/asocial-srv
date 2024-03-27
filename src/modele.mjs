@@ -32,7 +32,7 @@ B) compilation en Objet serveur
 */
 
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, Rds, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol, lcSynt } from './api.mjs'
+import { ID, Rds, R, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -182,7 +182,7 @@ export class Operation {
     this.estSync = this.nomop === 'Sync'
     this.authMode = authMode
     this.excFige = excFige || 1
-    this.notifs = { }
+    this.setR = new Set()
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
     this.result = { }
     this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.versions = []
@@ -216,7 +216,7 @@ export class Operation {
   calculDlv () {
     if (ID.estComptable(this.id)) return AMJ.max
     const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
-    if (this.compte.it) // Compte O
+    if (this.compte.idp) // Compte O
       return dlvmax > this.espace.dlvat ? this.espace.dlvat : dlvmax
     // Compte A
     const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.compta.nbj))
@@ -230,32 +230,18 @@ export class Operation {
 
     // Maj espace
     if (this.espace && this.espace._maj) {
-      const ins = !this.espace.v
-      const v = this.espace.v ? this.espace.v + 1 : 1
-      this.espace.v = v
-      const rowEspace= this.espace.toRow()
-      this.setNV(this.espace)
-      if (ins) this.toInsert.push(rowEspace); else this.toInsert.push(rowEspace)
-      this.setRes('rowEspace', rowEspace)
-    }
-
-    // Maj partition
-    if (this.partition && this.partition._maj) {
-      const ins = !this.partition.v
-      this.partition.v = this.partition.v ? this.partition.v + 1 : 1
-      this.setNV(this.partition)
-      const rowPartition= this.partition.toRow()
-      if (ins) this.toInsert.push(rowPartition); else this.toUpdate.push(rowPartition)
-      this.setRes('rowPartition', rowPartition)
+      this.espace.v = this.espace.v + 1
+      const row= this.espace.toRow()
+      if (this.espace._ins) this.insert(row); else this.update(row)
     }
     
-    // Maj dlv si nécessaire) et compte
-    if (this.compte && !this.estAdmin) {
+    // Maj dlv si nécessaire) et compte et pas de restriction grave
+    if (this.compte && !this.estAdmin && !R.estGrave(this.setR)) {
       const dlv = this.calculDlv()
       let diff1 = AMJ.diff(dlv, this.compte.dlv); if (diff1 < 0) diff1 = -diff1
       if (diff1) {
         /* Pour éviter des modifications mineures sur comptes, on ne met à jour la dlv que :
-        - si elle dans moins de 20 jours
+        - si elle est dans moins de 20 jours
         - si elle diffère de l'actuelle de plus de 10 jours
         */
         if (AMJ.diff(dlv, this.auj) < 20 || diff1 > 10) {
@@ -265,36 +251,39 @@ export class Operation {
       }
     }
 
+    // Incorporation de consommation dans compta et insert/update compta
+    const conso = this.compta.finaliser(this)
+
     if (this.compte && this.compte._maj) {
-      this.compte.v = this.compte.v ? this.compte.v + 1 : 1
-      const rowCompte = this.compte.toRow()
+      this.compte.v = this.compte.v + 1
+      const row = this.compte.toRow()
       this.setNV(this.compte)
-      if (this.compte.v === 1) this.insert(rowCompte); else this.updta(rowCompte)
-      this.setRes('rowCompte', rowCompte)
+      if (this.compte._ins) this.insert(row); else this.updta(row)
     }
 
-    const conso = { 
-      nl: this.nl, 
-      ne: this.ne + this.toInsert.length + this.toUpdate.length + this.toDelete.length,
-      vd: this.vd, 
-      vm: this.vm 
-    }
-
-    /* Maj compta */
-    if (this.compta) {
-      if(this.compta._maj) conso.ne++
-      this.compta.conso(conso)
-      if (this.compta._maj) {
-        this.compta.v = this.compta.v ? this.compta.v + 1 : 1
-        const rowCompta = this.compta.toRow()
-        this.setNV(this.compta)
-        if (this.compta.v === 1) this.insert(rowCompta); else this.update(rowCompta)
-        this.setRes('rowCompta', rowCompta)
+    /* Maj des partitions modifiées dans l'opération */
+    if (this.partitions && this.partitions.size) {
+      for(const [, p] of this.partitions) if (p._maj) {
+        p.v = p.v ? p.v + 1 : 1
+        // réintegration dans synthese
+        if (!this.synthese)
+          this.synthese = compile(await this.getRowSynthese(this.ns, 'transac-fin'))
+        this.synthese.setPartition(p)
+        const row = p.toRow()
+        if (p.v === 1) this.insert(row); else this.update(row)
       }
+    }
+
+    /* Maj de la synthese de l'espace si elle a été modifiée dans l'opération
+    par intégration / maj d'une partition */
+    if (this.synthese && this.synthese._maj) {
+      this.synthese.dh = this.dh
+      const row = this.synthese.toRow()
+      if (this.synthese._ins) this.insert(row); else this.update(row)
     }
     
     this.result.conso = conso
-    this.result.notifs = this.notifs
+    this.result.setR = this.setR.size ? Array.from(this.setR) : []
     this.result.dh = this.dh
 
     if (!this.result.KO) {
@@ -314,8 +303,22 @@ export class Operation {
     1 : pas d'exception si figé. Lecture seulement ou estFige testé dans l'opération
     2 : exception si figé
   Après authentification, sont disponibles:
-    - this.id this.estA this.sync (ou null) this.notifs 
-    - this.compte this.compta this.espace this.partition (si c'est un compte O)
+    - this.id this.ns this.estA this.sync (ou null) 
+    - this.compte this.compta this.espace
+    - this.setR : set des restictions
+      `1-RAL1  2-RAL2` : Ralentissement des opérations
+        - Comptes O : compte.qv.pcc > 90% / 100%
+        - Comptes A : compte.qv.nbj < 20 / 10
+      `3-NRED` : Nombre de notes / chats /groupes en réduction
+        - compte.qv.pcn > 100
+      `4-VRED` : Volume de fichier en réduction
+        - compte.qv.pcv > 100
+      `5-LECT` : Compte en lecture seule (sauf actions d'urgence)
+        - Comptes 0 : espace.notifP compte.notifC de nr == 2
+      `6-MINI` : Accès minimal, actions d'urgence seulement
+        - Comptes 0 : espace.notifP compte.notifC de nr == 3
+      `9-FIGE` : Espace figé en lecture
+        - espace.notif.nr == 2
   */
   async auth() {
     if (this.authMode === 0) return
@@ -348,19 +351,19 @@ export class Operation {
       if (!this.sync) throw new AppExc(E_SRV, 4)
     }
 
-    /* Espace: rejet de l'opération si l'espace est "clos" */
-    this.espace = await Cache.getEspaceOrg(this, authData.org)
+    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
+    this.espace = await Cache.getEspaceOrg(this, authData.org, true)
     if (!this.espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
     this.ns = this.espace.id
-    if (this.espace.notifG) {
+    const n = this.espace.notifE
+    if (n) {
       // Espace bloqué
-      const n = this.espace.notifG
       if (n.nr === 2) // application close
         throw new AppExc(A_SRV, 999, [n.texte])
-      if (n.nr === 1 && this.excFige) 
-        throw new AppExc(F_SRV, 101, [n.texte])
-      this.notifs.G = n
-      this.estFige = n.nr === 1
+      if (n.nr === 1) {
+        if (this.excFige) throw new AppExc(F_SRV, 101, [n.texte])
+        this.setR.add(R.FIGE)
+      }
     }
     
     /* Compte */
@@ -371,28 +374,29 @@ export class Operation {
     if (this.compte.hXC !== authData.hXC) { await sleep(3000);  throw new AppExc(F_SRV, 998) }
     if (this.compte.dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.id = this.compte.id
-    this.estA = this.compte.it === 0
+    this.estA = !this.compte.idp
     // Opération du seul Comptable
     if (this.authMode === 2 && !ID.estComptable(this.id)) { 
       await sleep(3000); throw new AppExc(F_SRV, 104) 
     }
-
-    /* Compta : génère les notifications de quotas et de consommation excessive */
-    const rowCompta = await Cache.getRow(this, 'comptas', this.id)
-    if (!rowCompta) { throw assertKO('auth-compta', 3, [this.id]) }
-    this.compta = compile(rowCompta)
-    if (this.compta._Q) this.notifs.Q = this.compta._Q; else delete this.notifs.Q
-    if (this.compta._X) this.notifs.X = this.compta._X; else delete this.notifs.X
-
-    /* Partition : si c'est un compte O */
-    if (!this.estA) {
-      // obtient partition
-      const idp = ID.long(this.compte.idp, this.ns)
-      const rowPartition = await Cache.getRow(this, 'partitions', idp)
-      if (!rowPartition) throw assertKO('auth-partition-1', 2, [idp])
-      this.partition = compile(rowPartition)
-      this.partition.setNotifs(this.notifs, this.compte.it)
+    // Recherche des restrictions
+    const ral = R.getRal(this.compte)
+    if (ral) this.setR.add(ral)
+    if (this.compte.qv.pcn >= 100) this.setR.add(R.NRED)
+    if (this.compte.qv.pcv >= 100) this.setR.add(R.VRED)
+    if (this.compte.idp) {
+      const np = this.espace.tnotifP[this.compte.idp]
+      let x = np ? np.nr : 0
+      const nc = this.compte.notif
+      if (nc && nc.nr > x) x = nc.nr
+      if (x) {
+        if (x === 2) this.setR.add(R.LECT)
+        if (x === 3) this.setR.add(R.MINI)
+      }
     }
+
+    /* Compta : requis en fin d'opération, autant le charger maintenant */
+    this.compta = compile(await this.getRowCompta(this.id, 'auth-compta'))
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
@@ -462,6 +466,16 @@ export class Operation {
     const tr = await Cache.getRow(this, 'partitions', id)
     if (assert && !tr) throw assertKO('getRowPartition/' + assert, 2, [id])
     return tr
+  }
+
+  async getPartition (id, assert) {
+    if (!this.partitions) this.partitions = new Map()
+    let p = this.partitions.get(id)
+    if (!p) {
+      p = compile (await this.getRowPartition(id, assert))
+      this.partitions.set(id, p)
+    }
+    return p
   }
 
   async getRowSynthese (id, assert) {
@@ -822,48 +836,9 @@ export class Operation {
     this.update(compta.toRow())
   }
 
-  /* lcSynt = ['qc', 'q1', 'q2', 'ac', 'a1', 'a2', 'cj', 
-  'v1', 'v2', 'ntr0', 'ntr1', 'ntr2', 'nbc', 'nbsp', 'nco0', 'nco1', 'nco2']
-  */
   /* Mise à jour de Synthese suite à une mise à jour d'une tribu */
   // A SUPPRIMER
-  async MajSynthese (tribu, noupd) {
-    let synt = this.synt
-    if (!synt) {
-      synt = compile(await this.getRowSynthese(ID.ns(tribu.id), 'MajSynthese'))
-      this.synt = synt
-    }
-    const idx = ID.court(tribu.id)
-    const x = {}
-    lcSynt.forEach(f => { x[f] = 0 })
-    x.qc = tribu.qc || 0
-    x.q1 = tribu.q1 || 0
-    x.q2 = tribu.q2 || 0
-    x.ntr0 = tribu.stn === 0 ? 1 : 0
-    x.ntr1 = tribu.stn === 1 ? 1 : 0
-    x.ntr2 = tribu.stn === 2 ? 1 : 0
-    for (let i = 0; i < tribu.act.length; i++) {
-      const c = tribu.act[i]
-      if (c && !c.vide) {
-        x.ac += c.qc || 0
-        x.a1 += c.q1 || 0
-        x.a2 += c.q2 || 0
-        x.ca += c.ca || 0
-        x.v1 += c.v1 || 0
-        x.v2 += c.v2 || 0
-        x.nbc++
-        if (c.nasp) x.nbsp++
-        if (c.stn === 0) x.nco0++
-        if (c.stn === 1) x.nco1++
-        if (c.stn === 2) x.nco2++
-      }
-    }
-    const n = idx - synt.atr.length + 1
-    if (n > 0) for (let i = 0; i < n; i++) synt.atr.push(null)
-    synt.atr[idx] = encode(x)
-    if (!noupd) {
-      synt.v = Date.now()
-      this.update(synt.toRow())
-    }
+  async MajSynthese () {
+  
   }
 }

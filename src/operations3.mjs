@@ -385,25 +385,22 @@ operations.Sync = class Sync extends OperationS {
     }
 
     if (this.cnx) {
-      this.fini = true
       // credentials / emulator en cas de première connexion
       this.db.setSyncData(this)
     } else {
       const n = this.nl
-      let br = false
       for(const [ida, x] of this.ds.avatars) {
         if (x.vs < x.vb) {
           await this.getAvRows(ida, x)
-          if (this.nl - n > 20) { br = true; break }
+          if (this.nl - n > 20) break
         }
       }
       if (this.nl - n <= 20) for(const [idg, x] of this.ds.groupes) {
         if (x.vs[0] < x.vb[0]) {
           await this.getGrRows(idg, x)
-          if (this.nl - n > 20) { br = true; break }
+          if (this.nl - n > 20) break
         }
       }
-      this.fini = !br
     }
 
     this.ds.tousRds.length = 0

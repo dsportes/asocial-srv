@@ -1,10 +1,10 @@
-import { AppExc, F_SRV, ID, Compteurs,  d14 } from './api.mjs'
+import { AppExc, F_SRV, ID,  d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation } from './modele.mjs'
-import { compile, Espaces, Syntheses, Partitions, Comptes, 
+import { compile, Espaces, Syntheses, Partitions, Comptes, Comptis,
   Avatars, Comptas, Sponsorings } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
@@ -24,8 +24,8 @@ export function load4 () {
     2 : exception si figé
   Après authentification, sont disponibles dans this:
     isGet, db, storage, args, dh
-    id estA sync (ou null) notifs 
-    compte compta espace partition (si c'est un compte O)
+    id estA sync (ou null) setR 
+    compte espace (lazy)
 */
 
 /* `CreerEspace` : création d'un nouvel espace et du comptable associé
@@ -34,8 +34,8 @@ export function load4 () {
 - org : code de l'organisation
 - hXR : hash du PBKFD de la phrase secrète réduite
 - hXC : hash du PBKFD de la phrase secrète complète
-- cleE : clé de l'espace
-- cleEK : clé de l'espace cryptée par la clé K du Comptable
+- pub: clé RSA publique du Comptable
+- privK: clé RSA privée du Comptable cryptée par la clé K
 - clePK: clé P de la partition 1 cryptée par la clé K du Comptable
 - cleAP: clé A du Comptable cryptée par la clé de la partition
 - cleAK: clé A du Comptable cryptée par la clé K du Comptable
@@ -70,54 +70,42 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if (await this.getRowEspace(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
     if (await this.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
-    /* Espace */
-    const espace = Espaces.nouveau (this, args.ns, args.org, args.cleE)
-    this.setNV(espace)
-
-    /* Synthese */
-    const synthese = Syntheses.nouveau(this.dh, args.ns)
-
-    /* Partition */
-    const partition = Partitions.nouveau(args.ns, 1, args.clePK, args.cleAP)
-    this.setNV(partition)
-
-    /* Compte Comptable */
-    const apr = config.allocPrimitive
-    const o = { 
-      clePA: args.clePA,
-      rdsp: partition.rds,
-      idp: ID.court(partition.id),
-      del: true,
-      it: 1
-    }
-    const cs = { cleEK: args.cleEK, qc: apr[0], qn: apr[1], qv: apr[2], c: args.ck } 
-    const rdsav = ID.rds(ID.RDSAVATAR)
-    // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
-    const compte = Comptes.nouveau(ID.duComptable(args.ns), 
-      (args.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, args.cleEK, rdsav, args.cleAK, o, cs)
-    this.setNV(compte)
-    
-    /* Compta */
+    const idComptable = ID.duComptable(args.ns)
     const aco = config.allocComptable
     const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
-    const compta = new Comptas().init({
-      id: compte.id, v: 1, qv,
-      compteurs: new Compteurs(null, qv).serial
-    })
-    this.setNV(compta)
+    const apr = config.allocPrimitive
+    const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
+    const rdsav = ID.rds(ID.RDSAVATAR)
 
-    /* Avatar */
-    const cvA = { id: ID.court(compte.id) }
-    const avatar = new Avatars().init(
-      { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK, cvA })
-    this.setNV(avatar)
-
-    // this.insert(this.setRes(espace.toRow()))
+    /* Espace */
+    const espace = Espaces.nouveau(args.ns, args.org, this.auj)
     this.insert(espace.toRow())
-    this.insert(synthese.toRow())
-    this.insert(partition.toRow())
-    this.insert(compte.toRow())
-    this.insert(compta.toRow())
+
+    /* Partition et Synthese */
+    if (!this.partitions) this.partitions = new Map()
+    const partition = Partitions.nouveau(args.ns, 1, qc)
+    this.partitions.set(args.ns, partition)
+    this.synthese = Syntheses.nouveau(args.ns, this.dh)
+    const fcompta = { id: idComptable, qv }
+    partition.ajoutCompte (fcompta, args.cleAP, true)
+
+    /* Compte Comptable */
+    const o = { clePA: args.clePA, del: true, idp: 1 }
+    // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, tpk)
+    this.compte = Comptes.nouveau(idComptable, 
+      (args.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, rdsav, args.cleAK, o, args.tpk)
+    
+    /* Compti */
+    const compti = new Comptis().init({ id: idComptable, v: 1, mc: {} })
+    this.insert(compti.toRow())
+
+    /* Compta */
+    this.compta = Comptas.nouveau(idComptable, qv)
+
+    /* Avatar  (id, rdsav, pub, privK, cvA) */
+    const cvA = { id: ID.court(idComptable) }
+    const avatar = Avatars().nouveau(idComptable, rdsav, args.pub, args.privK, cvA)
+    this.setNV(avatar)
     this.insert(avatar.toRow())
   }
 }
