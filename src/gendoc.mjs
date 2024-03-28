@@ -224,6 +224,7 @@ export class Espaces extends GenDoc {
       creation: auj,
       moisStat: 0,
       moisStatT: 0,
+      nprof: 0,
       notifE: null,
       notifP: null,
       dlvat: 0,
@@ -288,7 +289,9 @@ export class Partitions extends GenDoc {
 
   ajoutCompte (compta, cleAP, del) { // compta: { id, qv }
     const id = ID.court(compta.id)
-    const r = { cleAP, nr: 0, q: compta.qv }; if (del) r.del = true
+    const r = { cleAP, nr: 0, q: { ...compta.qv }}
+    if (del) r.del = true
+    r.q.c2m = compta._c2m
     this.mcpt[id] = r
     this._maj = true
   }
@@ -330,7 +333,7 @@ export class Syntheses extends GenDoc {
 
   setPartition(p) {
     if (!this.tsp.length) this._ins = true
-    const n = ID.short(p.id)
+    const n = ID.court(p.id)
     if (n > this.tsp.length) {
       for(let i = this.tsp.length; i <= n; i++) this.tsp.push(null)
     }
@@ -384,7 +387,7 @@ _Comptes "O" seulement:_
     - `lav`: liste de ses avatars participant au groupe. compilé -> sav : Set
 
 **Comptable seulement:**
-- `tpK` : table des partitions `{cleP, code }` crypté par clé K du comptable. Son index est le numéro de la partition.
+- `tpk` : table des partitions `{cleP, code }` crypté par clé K du comptable. Son index est le numéro de la partition.
   - `cleP` : clé P de la partition.
   - `code` : code / commentaire court de convenance attribué par le Comptable
 */
@@ -395,16 +398,24 @@ export class Comptes extends GenDoc {
   } 
 
   toShortRow() {
+    const x1 = this.rds
+    const x2 = encode(this.mav)
+    const x3 = encode(this.mpg)
     delete this.rds
     for(const idx in this.mav) delete this.mav[idx].rds
     for(const idx in this.mpg) delete this.mpg[idx].rds
-    return this.toRow()
+    const row = this.toRow()
+    this.rds = x1
+    this.mav = decode(x2)
+    this.mpg = decode(x3)
+    return row
   }
 
-  static nouveau (id, hXR, hXC, cleKXC, rdsav, cleAK, o, tpk) {
+  static nouveau (id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk) {
+    const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
     const r = {
       _ins: true, _maj: true, id: id, v: 0, rds: ID.rds(ID.RDSCOMPTE),
-      hxr: hXR, dlv: AMJ.max, cleKXC, hXC, it: 0,
+      hxr: hXR, dlv: AMJ.max, cleKXC, hXC, idp: 0, qv: qv, clePK,
       mav: {}, mpg: {}
     }
     r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
@@ -428,17 +439,15 @@ export class Comptes extends GenDoc {
       const ida = ID.long(parseInt(idx), this.ns)
       const rds = ID.long(this.mav[idx].rds, this.ns)
       ds.idRds[ida] = rds; ds.rdsId[rds] = ida
-      if (!ds.avatars.has(ida)) ds.avatars.set(ida, DataSync.vide)
+      if (!ds.avatars.has(ida)) ds.avatars.set(ida, { ...DataSync.vide, id: ida})
     }
     /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte
-    Suppression de leurs entrées dans idRds / rdsId
-    Inscription dans la liste des avatars à supprimer en session */
+    Suppression de leurs entrées dans idRds / rdsId */
     const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
     for(const ida of sa) if (!this.mav[ID.court(ida)]) {
       const rds = ds.idRds[ida]
       ds.avatars.delete(ida)
       if (rds) { delete ds.idRds[ida]; delete ds.rdsId[rds] }
-      ds.delA.push(ida)
     }
 
     // Ajout dans ds des groupes existants dans le compte et inconnus de ds
@@ -446,17 +455,15 @@ export class Comptes extends GenDoc {
       const idg = ID.long(parseInt(idx), this.ns)
       const rds = ID.long(this.mpg[idx].rds, this.ns)
       ds.idRds[idg] = rds; ds.rdsId[rds] = idg
-      if (!ds.groupes.has(idg)) ds.groupes.set(idg, DataSync.videg)
+      if (!ds.groupes.has(idg)) ds.groupes.set(idg,{ ...DataSync.videg, id: idg} )
     }
     /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte
-    Suppression de leurs entrées dans idRds / rdsId
-    Inscription dans la liste des groupes à supprimer EN TOTALITE en session */
+    Suppression de leurs entrées dans idRds / rdsId */
     const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
     for(const idg of sg) if (!this.mpg[ID.court(idg)]) {
       const rds = ds.idRds[idg]
       ds.avatars.delete(idg)
       if (rds) { delete ds.idRds[idg]; delete ds.rdsId[rds] }
-      ds.delG.push(idg)
     }
   }
 
@@ -505,10 +512,20 @@ _Comptes "A" seulement_
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
 
-  nouveau (id, qv) {
+  get ns () { return ID.ns(this.id) }
+
+  static nouveau (id, qv) {
+    const c = new Compteurs(null, qv)
     return new Comptas().init({
-      _ins: true, _maj: true, id: id, v: 0, qv,
-      compteurs: new Compteurs(null, qv).serial
+      _ins: true, 
+      _maj: true, 
+      id: id, 
+      v: 0, 
+      qv: {...qv}, 
+      total: 0,
+      compteurs: c.serial,
+      _estA: c.estA,
+      _c2m: c.conso2M
     })
   }
 
@@ -516,7 +533,8 @@ export class Comptas extends GenDoc {
     this._maj = false
     const c = new Compteurs(this.compteurs)
     this._estA = c.estA 
-    this.nbj = c.estA ? c.nbj(this.total) : 0
+    this._nbj = c.estA ? c.nbj(this.total) : 0
+    this._c2m = c.conso2M
     return this
   }
 
@@ -556,23 +574,12 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  conso (op) {
-    if (op.nl || op.ne || op.vd || op.vm) {
-      const x = { nl: op.nl, ne: op.ne, vd: op.vd, vm: op.vm }
-      const c = new Compteurs(this.compteurs, null, x)
-      this._Q = c.notifQ 
-      this._X = c.estA ? c.notifS(c.total) : c.notifX
-      this.compteurs = c.serial
-      this._maj = true
-    }
-  }
-
   reporter (pc, nbj, qvc) {
-    if (Math.floor(qvc.pcn / 20) !== Math.floor(pc.pcn / 20)) return false
-    if (Math.floor(qvc.pcv / 20) !== Math.floor(pc.pcv / 20)) return false
-    if (qvc.qc && (Math.floor(qvc.pcc / 20) !== Math.floor(pc.pcc / 20))) return false
-    if (!qvc.qc && (Math.floor(qvc.nbj / 20) !== Math.floor(nbj / 20))) return false
-    return true
+    if (Math.floor(qvc.pcn / 20) !== Math.floor(pc.pcn / 20)) return true
+    if (Math.floor(qvc.pcv / 20) !== Math.floor(pc.pcv / 20)) return true
+    if (qvc.qc && (Math.floor(qvc.pcc / 20) !== Math.floor(pc.pcc / 20))) return true
+    if (!qvc.qc && (Math.floor(qvc.nbj / 20) !== Math.floor(nbj / 20))) return true
+    return false
   }
 
   /* Les compteurs de consommation d'un compte extraits de `comptas` sont recopiés à l'occasion de la fin d'une opération:
@@ -590,26 +597,26 @@ export class Comptas extends GenDoc {
     }
     const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
     const c = new Compteurs(this.compteurs, null, x)
-    const pc = c.pourcents()
+    const pc = c.pourcents
     const nbj = op.compte.estA ? c.nbj(this.solde) : 0
     const qvc = op.compte.qv // `qv` : `{ qc, qn, qv, pcc, pcn, pcv, nbj }`
-    const rep = this.reporter(pc, nbj, qvc)
+    const rep = op.compte._ins || this.reporter(pc, nbj, qvc)
     if (rep) {
-      if (qvc.qc) qvc.pcc = pc.pcc; else qvc.nbj = nbj
+      if (op.compte.estA) qvc.pcc = pc.pcc; else qvc.nbj = nbj
       qvc.pcn = pc.pcn; qvc.pcv = pc.pcv
       op.compte._maj = true
       if (!op.compte.estA) {
         // qv de partition
-        const p = await this.getPartition(op.compte.idp, 'partition-finaliser')
+        const p = await op.getPartition(ID.long(op.compte.idp, this.ns), 'partition-finaliser')
         const e = p.mcpt[ID.court(op.compte.id)]
-        e.q = c.qv
+        e.q = c.qv; e.q.c2m = c.conso2M
         p._maj = true
       }
     }
     this.v++
     const row = this.toRow()
-    if (this._ins === 1) this.insert(row); else this.update(row)
-    this.setRes('rowCompta', row)
+    if (this._ins) op.insert(row); else op.update(row)
+    return conso
   }
 }
 
@@ -620,8 +627,8 @@ export class Versions extends GenDoc {
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 
 
-  nouveau (id, rdsav, pub, privK, cvA) {
-    return new Avatars().init({ id, v: 0, rds: rdsav, pub, privK, cvA })
+  static nouveau (id, rdsav, pub, privK, cvA) {
+    return new Avatars().init({ id, v: 1, rds: rdsav, pub, privK, cvA })
   }
 }
 

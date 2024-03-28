@@ -73,27 +73,26 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const idComptable = ID.duComptable(args.ns)
     const aco = config.allocComptable
     const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
+    const qvc = { qc: aco[0], qn: aco[1], qv: aco[2] }
     const apr = config.allocPrimitive
     const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
     const rdsav = ID.rds(ID.RDSAVATAR)
 
     /* Espace */
-    const espace = Espaces.nouveau(args.ns, args.org, this.auj)
-    this.insert(espace.toRow())
+    this.espace = Espaces.nouveau(args.ns, args.org, this.auj)
 
     /* Partition et Synthese */
     if (!this.partitions) this.partitions = new Map()
     const partition = Partitions.nouveau(args.ns, 1, qc)
-    this.partitions.set(args.ns, partition)
+    this.partitions.set(partition.id, partition)
     this.synthese = Syntheses.nouveau(args.ns, this.dh)
-    const fcompta = { id: idComptable, qv }
-    partition.ajoutCompte (fcompta, args.cleAP, true)
 
     /* Compte Comptable */
     const o = { clePA: args.clePA, del: true, idp: 1 }
     // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, tpk)
     this.compte = Comptes.nouveau(idComptable, 
-      (args.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, rdsav, args.cleAK, o, args.tpk)
+      (args.ns * d14) + (args.hXR % d14), 
+      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, qvc, o, args.ck)
     
     /* Compti */
     const compti = new Comptis().init({ id: idComptable, v: 1, mc: {} })
@@ -101,10 +100,11 @@ operations.CreerEspace = class CreerEspace extends Operation {
 
     /* Compta */
     this.compta = Comptas.nouveau(idComptable, qv)
+    partition.ajoutCompte(this.compta, args.cleAP, true)
 
     /* Avatar  (id, rdsav, pub, privK, cvA) */
     const cvA = { id: ID.court(idComptable) }
-    const avatar = Avatars().nouveau(idComptable, rdsav, args.pub, args.privK, cvA)
+    const avatar = Avatars.nouveau(idComptable, rdsav, args.pub, args.privK, cvA)
     this.setNV(avatar)
     this.insert(avatar.toRow())
   }
@@ -125,13 +125,33 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    const espace = compile(await this.getRowEspace(args.ns, 'SetEspaceOptionA-1'))
-    espace.v++
-    if (args.optionA) espace.opt = args.optionA
-    if (args.dlvat) espace.dlvat = args.dlvat
-    if (args.nbmi) espace.nbmi = args.nbmi
-    this.setRes('rowEspace', this.update(espace.toRow()))
-    this.setNV(espace)
+    this.espace = compile(await this.getRowEspace(args.ns, 'SetEspaceOptionA-1'))
+    if (args.optionA) this.espace.opt = args.optionA
+    if (args.dlvat) this.espace.dlvat = args.dlvat
+    if (args.nbmi) this.espace.nbmi = args.nbmi
+    this.espace._maj = true
+  }
+}
+
+/*`SetEspaceNprof` : déclaration du profil de volume de l'espace par l'administrateur
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace notifié.
+- `nprof` : numéro de profil de 0 à N. Liste spécifiée dans config.mjs de l'application.
+
+Retour: rien
+
+Assertion sur l'existence du row `Espaces`.
+
+C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
+Elle n'écrit QUE dans espaces.
+*/
+operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
+  constructor (nom) { super(nom, 3)}
+
+  async phase2 (args) {
+    this.espace = compile(await this.getRowEspace(args.ns, 'SetEspaceNprof'))
+    this.espace._maj = true
+    this.espace.nprof = args.nprof
   }
 }
 

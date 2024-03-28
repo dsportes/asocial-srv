@@ -251,7 +251,7 @@ export class ID {
   */
   static long (court, ns) { return court > d14 ? court : ((ns * d14) + court) }
 
-  static rds (type) { return (type * d14) + (hash(random(32)) % d13) }
+  static rds (type) { return (type * d13) + (hash(random(32)) % d13) }
 
   static rdsType(id) { return Math.floor(id / d13) % 10 }
 
@@ -1109,23 +1109,27 @@ export class DataSync {
   static videg = { vs: [0,0,0,0], vb: [0,0,0,0], m: false, n:false } 
   // vs / vb : versions [générale, groupe, membres, notes]
 
-  static deserial (serial, decrypt) {
+  static deserial (serial, decrypt, k) {
+    const ds = new DataSync()
     const x = serial ? decode(serial) : {}
-    this.compte = x.compte || { ...DataSync.vide },
-    this.avatars = new Map()
-    if (x.avatars) x.avatars.forEach(t => this.avatars.set(t.id, t))
-    this.groupes = new Map()
-    if (x.groupes) x.groupes.forEach(t => this.groupes.set(t.id, t))
+    ds.compte = x.compte || { ...DataSync.vide },
+    ds.avatars = new Map()
+    if (x.avatars) x.avatars.forEach(t => ds.avatars.set(t.id, t))
+    ds.groupes = new Map()
+    if (x.groupes) x.groupes.forEach(t => ds.groupes.set(t.id, t))
     if (decrypt) {
-      // Dans le serveur : rdsIdS est décrypté
-      this.rdsId = x.rdsIdS ? decrypt(x.rdsIdS) : {}
-      this.idRds = {}
-      for (const rds in this.rdsId) this.idRds[this.rdsId[rds]] = parseInt(rds)
-    } else this.rdsIdS = x.rdsIdS || null
-    this.tousRds = x.tousRds || []
+      // Dans le serveur : secret est décrypté
+      const s = x.secret ? decode(decrypt(k, x.secret)) : {}
+      ds.rdsId = s.rdsId || {}
+      ds.idRds = {}
+      ds.rdsC = s.rdsC || 0
+      for (const rds in ds.rdsId) ds.idRds[ds.rdsId[rds]] = parseInt(rds)
+    } else ds.secret = x.secret || null
+    ds.tousRds = x.tousRds || []
+    return ds
   }
 
-  serial (dh, crypt) {
+  serial (dh, crypt, k) {
     const x = {
       dh: dh || 0,
       compte: this.compte || { ...DataSync.vide },
@@ -1137,7 +1141,7 @@ export class DataSync {
     if (this.groupes) this.groupes.forEach(t => x.groupes.push(t))
     /* Sur le serveur, rdsId est retransmis crypté, illisable en session
     En session, rdsId est retransmis tel que reçu la dernière fois du serveur */
-    x.rdsIdS = crypt ? crypt(this.rdsId) : (this.rdsIdS || null)
+    x.secret = crypt ? crypt(k, encode({ rdsId: this.rdsId, rdsC: this.rdsC})) : (this.secret || null)
     return new Uint8Array(encode(x))
   }
 
@@ -1158,7 +1162,7 @@ export function synthesesPartition (p) {
   const ntfp = [0,0,0]
   if (p.nrp) ntfp[p.nrp] = 1
   const r = {
-    id: p.id,
+    id: ID.court(p.id),
     ntfp: ntfp,
     q: { ...p.q },
     qt: { qc: 0, qn: 0, qv: 0, c2m: 0, n: 0, v: 0 },
@@ -1166,7 +1170,8 @@ export function synthesesPartition (p) {
     nbc: 0,
     nbd: 0
   }
-  for(const [, x] in p.mcpt) {
+  for(const idx in p.mcpt) {
+    const x = p.mcpt[idx]
     r.qt.qc += x.q.qc
     r.qt.qn += x.q.qn
     r.qt.qv += x.q.qv

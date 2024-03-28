@@ -4,9 +4,9 @@ import { operations } from './cfgexpress.mjs'
 import { sleep, rnd6, decrypterSrv, crypterSrv } from './util.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 
-import { Operation, assertKO} from './modele.mjs'
+import { Operation, assertKO, Cache } from './modele.mjs'
 import { compile, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
-import { DataSync, Rds } from './api.mjs'
+import { DataSync } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function load3 () {
@@ -127,8 +127,6 @@ operations.GetPartitionC = class GetPartitionC extends Operation {
 
   async phase2 (args) {
     const partition = compile(await this.getRowPartition(args.id, 'getPartitionC'))
-    if (this.sync)
-      this.sync.setAboPartC(Rds.toId(partition.rds, this.ns), this.dh)
     this.setRes('rowPartition', partition.toRow())
   }
 }
@@ -196,56 +194,6 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
 
 /* Opérations de Synchronisation et de lectures non synchronisées ********/
 
-class OperationS extends Operation {
-  constructor (nom, authMode, excFige) { super(nom, authMode, excFige) }
-
-  async majDS (ds, avatar) {
-    /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */
-    this.ds = new DataSync(ds)
-    this.ds.compte = {
-      id: this.compte.id,
-      rds: this.compte.rds,
-      vs: this.ds.compte.vs,
-      vc: this.compte.v,
-      vb: this.compte.v
-    }
-    this.ds.compta = {
-      id: this.compta.id,
-      rds: this.compta.rds,
-      vs: this.ds.compta.vs,
-      vc: this.compta.v,
-      vb: this.compta.v
-    }
-    this.ds.espace = {
-      id: this.espace.id,
-      rds: this.espace.rds,
-      vs: this.ds.espace.vs,
-      vc: this.espace.v,
-      vb: this.espace.v
-    }
-    if (this.estA) {
-      this.ds.partition = { ...DataSync.vide }
-    } else this.ds.partition = {
-      id: this.partition.id,
-      rds: this.partition.rds,
-      vs: this.ds.partition.vs,
-      vc: this.partition.v,
-      vb: this.partition.v
-    }
-
-    if (avatar) { // Sur acceptation de sponsoring
-      this.ds.avatars.set(avatar.id, {
-        id: avatar.id,
-        rds: avatar.rds,
-        vs: 0,
-        vb: avatar.v,
-        vc: avatar.v
-      })
-    }
-  } 
-
-}
-
 /* Sync : opération générique de synchronisation d'une session cliente
 LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / groupes tirés du compte
 - dataSync: sérialisation de l'état de synchro de la session
@@ -253,7 +201,7 @@ LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / grou
   recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
 - lrds: liste des rds des sous-arbres à recharger (dataSync n'est pas null)
 */
-operations.Sync = class Sync extends OperationS {
+operations.Sync = class Sync extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   // Obtient un groupe et le garde en cache locale de l'opération
@@ -286,7 +234,7 @@ operations.Sync = class Sync extends OperationS {
   }
   
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
-    const rav = this.db.getV(this, 'avatars', ida, x.vs)
+    const rav = await this.db.getV(this, 'avatars', ida, x.vs)
     if (rav) this.addRes('rowAvatars', rav)
 
     for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
@@ -300,9 +248,9 @@ operations.Sync = class Sync extends OperationS {
         this.addRes('rowTickets', row)
   }
 
-  decrypt (x) { return decode(decrypterSrv(this.db.appKey, Buffer.from(x))) }
+  decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }
 
-  crypt (x) { return crypterSrv(this.db.appKey, Buffer.from(encode(x))) }
+  crypt (k, x) { return crypterSrv(k, Buffer.from(encode(x))) }
 
   async setAv (ida, rds) {
     const x = this.ds.avatars.get(ida)
@@ -319,7 +267,7 @@ operations.Sync = class Sync extends OperationS {
 
   async setGr (idg, rds) {
     const x = this.ds.groupes.get(idg)
-    const g = this.getGr(idg)
+    const g = await this.getGr(idg)
     if (x) {
       const version = rds ? await this.getV({rds}) : null
       if (!g || !version || version.suppr) {
@@ -341,18 +289,16 @@ operations.Sync = class Sync extends OperationS {
     this.cnx = !args.dataSync
 
     /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */
-    this.ds = DataSync.deserial(this.cnx ? null : args.dataSync, this.decrypt)
+    this.ds = DataSync.deserial(this.cnx ? null : args.dataSync, this.decrypt, this.db.appKey)
 
     const vcpt = await this.getV(this.compte)
     this.ds.compte.vb = vcpt.v
-    const rds = ID.long(this.compte.rds, this.ns)
-    this.idRds[this.compte.id] = rds
-    this.rdsId[rds] = this.compte.id
+    this.ds.rdsC = ID.long(this.compte.rds, this.ns)
 
     if (this.cnx || (this.ds.compte.vs < this.ds.compte.vb))
       this.setRes('rowCompte', this.compte.toShortRow())
     let rowCompti = Cache.aVersion('comptis', this.compte.id, vcpt.v) // déjà en cache ?
-    if (!rowCompti) rowCompti = await this.getRowCompti(this, this.compte.id)
+    if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
     if (this.cnx || (rowCompti.v > this.ds.compte.vs)) 
       this.setRes('rowCompti', rowCompti)
 
@@ -361,26 +307,26 @@ operations.Sync = class Sync extends OperationS {
     Ajoute les manquants dans ds, supprime ceux de ds absents de mav / mpg
     Pour CHAQUE GROUPE les indicateurs m et n NE SONT PAS bien positionnés.
     */
-    this.compte.majPerimetreDataSync(this.ds, this.getGr)  
+    this.compte.majPerimetreDataSync(this.ds)  
 
     if (this.cnx) {
       // Recherche des versions vb de TOUS les avatars requis
       for(const [ida,] of this.ds.avatars)
-        await this.setAv(ida, this.idRds[ida])
+        await this.setAv(ida, this.ds.idRds[ida])
 
       // Recherche des versions vb[] de TOUS les groupes requis
       for(const [idg,] of this.ds.groupes) 
-        await this.setGr(idg, this.idRds[idg])
+        await this.setGr(idg, this.ds.idRds[idg])
         
     } else {
       /* Recherche des versions uniquement pour les avatars / groupes signalés 
       comme ayant (a priori) changé de version */
-      for(const rds of args.lrds) {
-        const id = this.rdsId[rds]
+      if (args.lrds) for(const rds of args.lrds) {
+        const id = this.ds.rdsId[rds]
         if (id) {
           if (ID.estAvatar(id)) await this.setAv(id, rds)
           if (ID.estGroupe(id)) await this.setGr(id, rds)
-        } else delete this.rdsId[rds]
+        } else delete this.ds.rdsId[rds]
       }
     }
 
@@ -404,10 +350,11 @@ operations.Sync = class Sync extends OperationS {
     }
 
     this.ds.tousRds.length = 0
-    for(const rdsx in this.rdsId) this.ds.tousRds.push(parseInt(rdsx))
+    for(const rdsx in this.ds.rdsId) this.ds.tousRds.push(parseInt(rdsx))
+    this.ds.tousRds.push(this.ds.rdsC) // rds du compte
     this.ds.tousRds.push(this.ns) // espace
     // Sérialisation et retour de dataSync
-    this.setRes('dataSync', this.ds.serial(this.dh, this.crypt))
+    this.setRes('dataSync', this.ds.serial(this.dh, this.crypt, this.db.appKey))
 
     // Mise à jour des abonnements aux versions
     if (this.sync) this.sync.setAboRds(this.ds.tousRds, this.dh)
@@ -457,7 +404,7 @@ Exceptions:
 - A_SRV, 2: partition non trouvée
 - A_SRV, 8: avatar sponsor non trouvé
 */
-operations.SyncSp = class SyncSp extends OperationS {
+operations.SyncSp = class SyncSp extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
@@ -641,6 +588,6 @@ operations.GetEspace = class GetEspace extends Operation {
     let rowEspace
     if (this.estAdmin || this.estComptable) rowEspace = espace.toRow()
     else rowEspace = espace.toShortRow(this.compte.idp)
-    this.setRes('rowSponsoring', rowEspace)
+    this.setRes('rowEspace', rowEspace)
   }
 }

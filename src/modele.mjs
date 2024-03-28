@@ -1,38 +1,5 @@
-/*
-Les documents existent sous 3 formes: row et compilées serveur et UI.
-A) "row". Simple objet Javascript pouvant avoir les attributs suivants, tous des entiers, SAUF _data_ (bin):
-  - _nom: de la (sous) collection / tables dont il est issu
-  - id : pour un document majeur, son id. Pour un sous-document, l'id de son document majeur.
-  - ids : pour un document majeur 0. Pour un sous-document, son id relative à son document majeur.
-  - v : sa version numéroté dans la séquence hébergée par le document majeur.
-  - iv : est calculable depuis id et v
-  - dh dhb idt ivb hps1 vcv ivc dds dlv ttl dfh: les autres attributs pouvant être clé primaire et/ou index.
-  - _data_ : un Uint8Array qui porte la sérialisation des autres attributs (mais aussi des attributs ci-dessus).
-  1) "row" est lu / écrit directement depuis SQL / FS : il faut toutefois lui ajouter son nom après lecture.
-  2) "row" est échangé entre UI et serveur:
-    - en paramètres des opérations,
-    - en résultat des opérations quand elles en ont.
-    - en synchronisation par WebService ou onSnapshot de FS (qui est en fait le row issu de la base). 
-    - les collections synchronisables - toutes sauf singletons, gcvols, transferts qui restent sur le serveur)
-      portent toujours les attributs _nom id ids v _data_ (mais peuvent en porter d'autres).
-  3) "row" est stocké en session UI en IndexedDB
-    - id (et ids le cas échéant) cryptés par la clé K du compte et en base64 forment la clé primaire.
-    - _data_ est crypté par la clé K et forme l'unique attribut non clé
-B) compilation en Objet serveur
-  Il existe une classe par (sous) collection
-  Les champs de l'objet résultent directement de la désérialisation de _data_
-  Un tel Objet peut retourne un "row" contenant les attributs clés / index correspondant à sa classe.
-  - ce row est utilisable, pour écriture en SQL / FS, résultat d'opération, synchronisation.
-  - si la propriété dlv (date limite de validité) est supérieure à numéro du jour courant,
-    _data_ est considéré absent / null et la propriété _zombi est à true
-  C) compilation en Objet UI
-  Il existe une classe par (sous) collection.
-  Les champs de l'objet résultent de la désérialisation de _data_ PUIS d'un traitement local significatif.
-  Un tel Objet peut retourne un "row" contenant id / ids / _data_, le strict nécessaire pour être inscrit en IDB.
-*/
-
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, Rds, R, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol } from './api.mjs'
+import { ID, R, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -214,7 +181,7 @@ export class Operation {
   async phase3 () { return }
 
   calculDlv () {
-    if (ID.estComptable(this.id)) return AMJ.max
+    if (ID.estComptable(this.compte.id)) return AMJ.max
     const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
     if (this.compte.idp) // Compte O
       return dlvmax > this.espace.dlvat ? this.espace.dlvat : dlvmax
@@ -228,15 +195,20 @@ export class Operation {
 
     if (this.phase2) await this.phase2(this.args)
 
+    this.result.setR = this.setR.size ? Array.from(this.setR) : []
+    this.result.dh = this.dh
+
+    if (this.setR.has(R.FIGE)) return
+
     // Maj espace
     if (this.espace && this.espace._maj) {
-      this.espace.v = this.espace.v + 1
+      if (this.espace._ins) this.espace.v = 1; else this.espace.v++
       const row= this.espace.toRow()
       if (this.espace._ins) this.insert(row); else this.update(row)
     }
     
-    // Maj dlv si nécessaire) et compte et pas de restriction grave
-    if (this.compte && !this.estAdmin && !R.estGrave(this.setR)) {
+    // Maj dlv si nécessaire) et pas de restriction grave
+    if (this.compte && this.espace && this.compta && !R.estGrave(this.setR)) {
       const dlv = this.calculDlv()
       let diff1 = AMJ.diff(dlv, this.compte.dlv); if (diff1 < 0) diff1 = -diff1
       if (diff1) {
@@ -252,25 +224,25 @@ export class Operation {
     }
 
     // Incorporation de consommation dans compta et insert/update compta
-    const conso = this.compta.finaliser(this)
+    const conso = this.compta ? await this.compta.finaliser(this) : null
 
     if (this.compte && this.compte._maj) {
-      this.compte.v = this.compte.v + 1
+      if (this.compte._ins) this.compte.v = 1; else this.compte.v++
       const row = this.compte.toRow()
       this.setNV(this.compte)
-      if (this.compte._ins) this.insert(row); else this.updta(row)
+      if (this.compte._ins) this.insert(row); else this.update(row)
     }
 
     /* Maj des partitions modifiées dans l'opération */
     if (this.partitions && this.partitions.size) {
       for(const [, p] of this.partitions) if (p._maj) {
-        p.v = p.v ? p.v + 1 : 1
+        if (p._ins) p.v = 1; else p.v++
         // réintegration dans synthese
         if (!this.synthese)
           this.synthese = compile(await this.getRowSynthese(this.ns, 'transac-fin'))
         this.synthese.setPartition(p)
         const row = p.toRow()
-        if (p.v === 1) this.insert(row); else this.update(row)
+        if (p._ins) this.insert(row); else this.update(row)
       }
     }
 
@@ -282,9 +254,7 @@ export class Operation {
       if (this.synthese._ins) this.insert(row); else this.update(row)
     }
     
-    this.result.conso = conso
-    this.result.setR = this.setR.size ? Array.from(this.setR) : []
-    this.result.dh = this.dh
+    if (conso) this.result.conso = conso
 
     if (!this.result.KO) {
       if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
@@ -419,15 +389,8 @@ export class Operation {
   delete (row) { if (row) this.toDelete.push(row); return row }
 
   async getV (doc, src) {
-    const id = Rds.toId(doc.rds, this.ns)
+    const id = ID.long(doc.rds, this.ns)
     return compile(await this.getRowVersion(id, src))
-  }
-
-  newV (rds, v) {
-    const version = new Versions()
-    version.v = v
-    version.id = Rds.toId(rds, this.ns)
-    return version
   }
 
   setV (version) {
@@ -436,11 +399,10 @@ export class Operation {
     this.versions.push(r)
   }
 
-  /* Quand doc est CCEP, n'a pas de sous-arbre */
   setNV (doc) {
     const version = new Versions()
     version.v = doc.v
-    version.id = Rds.toId(doc.rds, this.ns)
+    version.id = ID.long(doc.rds, ID.ns(doc.id))
     this.setV(version)
   }
 
