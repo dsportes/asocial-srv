@@ -261,7 +261,9 @@ export class ID {
 
   static estPartition (id) { return Math.floor(id / d13) % 10 === 0 }
 
-  static estAvatar (id) { return Math.floor(id / d13) % 10 === 2 }
+  static estAvatar (id) { const x = Math.floor(id / d13) % 10 
+    return x === 2 || x === 1
+  }
 
   static estGroupe (id) { return Math.floor(id / d13) % 10 === 3 }
 

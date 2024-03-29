@@ -305,6 +305,10 @@ export class Partitions extends GenDoc {
     }
     return l
   }
+
+  getSynthese () {
+    return synthesesPartition(this)
+  }
 }
 
 /* Syntheses : un par espace ******************************

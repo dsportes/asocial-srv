@@ -186,11 +186,10 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
-      const it = this.compte.it
       const partition = compile(await this.getRowPartition(args.partitionId))
       if (!partition) 
         throw new AppExc(F_SRV, 208, [args.partitionId])
-      const e = partition.tcpt[it]
+      const e = partition.mcpt[ID.court(this.compte.id)]
       if (!e || !eqU8(e.cleAP, args.cleAP)) 
         throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
       if (!e.del) 
@@ -199,7 +198,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       const s = partition.getSynthese()
       const q = args.quotas
       // restants à attribuer suffisant pour satisfaire les quotas ?
-      if (q.qc > (s.qc - s.ac) || q.qn > (s.qn - s.an) || q.qv > (s.sv - s.av))
+      if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.sv - s.qt.qv))
         throw new AppExc(F_SRV, 211, [args.partitionId, this.compte.id])
     } else {
       if (this.estComptable) args.don = 2
@@ -215,8 +214,6 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     this.setV(vsp)
     sponsoring.v = vsp.v
     sponsoring.dh = this.dh
-    sponsoring.csp = this.compte.id
-    sponsoring.itsp = this.compte.it
     this.insert(sponsoring.toRow())
   }
 }
