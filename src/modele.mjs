@@ -204,6 +204,7 @@ export class Operation {
     if (this.espace && this.espace._maj) {
       if (this.espace._ins) this.espace.v = 1; else this.espace.v++
       const row= this.espace.toRow()
+      this.setNV(this.espace)
       if (this.espace._ins) this.insert(row); else this.update(row)
     }
     
@@ -344,6 +345,7 @@ export class Operation {
     if (this.compte.hXC !== authData.hXC) { await sleep(3000);  throw new AppExc(F_SRV, 998) }
     if (this.compte.dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
     this.id = this.compte.id
+    this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp
     // Opération du seul Comptable
     if (this.authMode === 2 && !ID.estComptable(this.id)) { 
@@ -402,7 +404,7 @@ export class Operation {
   setNV (doc) {
     const version = new Versions()
     version.v = doc.v
-    version.id = ID.long(doc.rds, ID.ns(doc.id))
+    version.id = doc._nom === 'espaces' ? doc.id : ID.long(doc.rds, ID.ns(doc.id))
     this.setV(version)
   }
 

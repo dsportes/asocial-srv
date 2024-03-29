@@ -1200,18 +1200,18 @@ export async function compileMcpt (self, row, locComp) {
   self.nrp = row.nrp || 0
   self.q = row.q
   const ns = ID.ns(self.id)
-  self.mcpt = new Map()
+  self.mcpt = {}
   self.sdel = new Set() // Set des délégués
   
   if (row.mcpt) for(const idx in row.mcpt) {
     const id = ID.long(parseInt(idx), ns)
     const e = row.mcpt[idx]
-    if (e.del) { this.sdel.add(id); e.del = true }
+    if (e.del) { self.sdel.add(id); e.del = true }
     if (locComp) await locComp(self.id, e.cleAP)
     const q = { ...e.q }
     q.pcc = !q.qc ? 0 : Math.round(q.c2m * 100 / q.qc) 
     q.pcn = !q.qn ? 0 : Math.round((q.nn + q.nc + q.ng) * 100 / q.qn) 
     q.pcv = !q.qv ? 0 : Math.round(q.v * 100 / q.qv) 
-    self.mcpt(id, { nr: e.nr || 0, q: e.q })
+    self.mcpt[id] = { nr: e.nr || 0, q: e.q }
   }
 }
