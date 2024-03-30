@@ -240,8 +240,7 @@ export class Espaces extends GenDoc {
     - Comptable : toutes de _son_ espace.
     - Délégués : sur leur espace seulement,
       - `id v org creation notifE opt`
-      - la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
-    - Autres comptes: pas d'accès.
+    - tous comptes: la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
   */
   toShortRow (idp) {
     delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
