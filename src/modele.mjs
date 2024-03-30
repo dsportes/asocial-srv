@@ -3,7 +3,7 @@ import { ID, R, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNI
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6, sleep, b64ToU8 } from './util.mjs'
+import { rnd6, sleep, b64ToU8, decrypterSrv, crypterSrv } from './util.mjs'
 import { GenDoc, compile, Chats, Versions } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
@@ -399,6 +399,7 @@ export class Operation {
     const r = version.toRow()
     if (version.v === 1) this.insert(r); else this.update(r)
     this.versions.push(r)
+    return version
   }
 
   setNV (doc) {
@@ -413,6 +414,10 @@ export class Operation {
       ID.estGroupe(id) ? await this.getRowGroupe(id, src) : await this.getRowAvatar(id, src))
     return await this.getV(avgr, src)
   }
+
+  decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }
+
+  crypt (k, x) { return crypterSrv(k, Buffer.from(encode(x))) }
 
   /* Helper d'accès depuis Cache */
 

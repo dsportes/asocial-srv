@@ -89,7 +89,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
 
     /* Compte Comptable */
     const o = { clePA: args.clePA, del: true, idp: 1 }
-    // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, tpk)
+    // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
     this.compte = Comptes.nouveau(idComptable, 
       (args.ns * d14) + (args.hXR % d14), 
       args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, qvc, o, args.ck)
@@ -99,7 +99,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     this.insert(compti.toRow())
 
     /* Compta */
-    this.compta = Comptas.nouveau(idComptable, qv)
+    this.compta = Comptas.nouveau(idComptable, qv).compile()
     partition.ajoutCompte(this.compta, args.cleAP, true)
 
     /* Avatar  (id, rdsav, pub, privK, cvA) */
@@ -215,6 +215,38 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     sponsoring.v = vsp.v
     sponsoring.dh = this.dh
     this.insert(sponsoring.toRow())
+  }
+}
+
+/* `ProlongerSponsoring` : prolongation d'un sponsoring existant
+Change la date limite de validité du sponsoring pour une date plus lointaine. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
+POST:
+- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
+- `id ids` : identifiant du sponsoring.
+- `dlv` : nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
+
+Retour: rien
+
+Assertion sur l'existence des rows `Sponsorings` et `Versions` du compte.
+*/
+operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    const sp = compile(await this.getRowSponsoring(args.id, args.ids, 'ProlongerSponsoring'))
+    if (sp.st === 0) {
+      const vsp = await this.getVAvGr(args.id, 'ProlongerSponsoring-2')
+      vsp.v++
+      sp.v = vsp.v
+      sp.dh = Date.now()
+      if (args.dlv) {
+        sp.dlv = args.dlv
+      } else {
+        sp.st = 3
+      }
+      this.update(sp.toRow())
+      this.setV(vsp)
+    }
   }
 }
 

@@ -422,38 +422,6 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
   }
 }
 
-/* `ProlongerSponsoring` : prolongation d'un sponsoring existant
-Change la date limite de validité du sponsoring pour une date plus lointaine. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
-POST:
-- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
-- `id ids` : identifiant du sponsoring.
-- `dlv` : nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
-
-Retour: rien
-
-Assertion sur l'existence des rows `Sponsorings` et `Versions` du compte.
-*/
-operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2(args) {
-    const sp = compile(await this.getRowSponsoring(args.id, args.ids, 'ProlongerSponsoring'))
-    if (sp.st === 0) {
-      const version = compile(await this.getRowVersion(args.id, 'ProlongerSponsoring-2'), true)
-      version.v++
-      sp.v = version.v
-      sp.dh = Date.now()
-      if (args.dlv) {
-        sp.dlv = args.dlv
-      } else {
-        sp.st = 3
-      }
-      this.update(sp.toRow())
-      this.update(version.toRow())
-    }
-  }
-}
-
 /* `RefusSponsoring` : refus de son sponsoring par le _sponsorisé_
 Change le statut du _sponsoring_ à _refusé_. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
 POST:

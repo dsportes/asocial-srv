@@ -418,13 +418,13 @@ export class Comptes extends GenDoc {
   static nouveau (id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk) {
     const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
     const r = {
-      _ins: true, _maj: true, id: id, v: 0, rds: ID.rds(ID.RDSCOMPTE),
+      _ins: true, _maj: true, id: id, v: 1, rds: ID.rds(ID.RDSCOMPTE),
       hxr: hXR, dlv: AMJ.max, cleKXC, hXC, idp: 0, qv: qv, clePK,
       mav: {}, mpg: {}
     }
     r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
     if (o) { r.clePA = o.clePA; r.idp = o.idp; r.del = o.del }
-    r.tpk = [null, tpk]
+    if (tpk) r.tpk = [null, tpk]
     return new Comptes().init(r)
   }
 
@@ -534,7 +534,6 @@ export class Comptas extends GenDoc {
   }
 
   compile () {
-    this._maj = false
     const c = new Compteurs(this.compteurs)
     this._estA = c.estA 
     this._nbj = c.estA ? c.nbj(this.total) : 0
@@ -634,6 +633,14 @@ export class Avatars extends GenDoc {
   static nouveau (id, rdsav, pub, privK, cvA) {
     return new Avatars().init({ id, v: 1, rds: rdsav, pub, privK, cvA })
   }
+
+  toShortRow () {
+    const x1 = this.rds
+    delete this.rds
+    const r = this.toRow()
+    this.rds = x1
+    return r
+  }
 }
 
 /* Classe Notes ******************************************************/
@@ -695,7 +702,7 @@ export class Sponsorings extends GenDoc {
     this.dconf = args.dconf || false
     if (!args.partitionId) { // compte A
       this.don = args.don
-      this.quotas = [0, 1, 1]
+      this.quotas = { qc: 0, qn: 1, qv: 1 }
     } else {
       this.clePYC = args.clePYC
       this.partitionId = ID.court(args.partitionId)

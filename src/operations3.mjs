@@ -1,8 +1,7 @@
-import { AppExc, F_SRV, A_SRV, ID, Compteurs,  d14 } from './api.mjs'
+import { AppExc, F_SRV, A_SRV, ID, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { sleep, rnd6, decrypterSrv, crypterSrv } from './util.mjs'
-import { encode, decode } from '@msgpack/msgpack'
+import { sleep, rnd6 } from './util.mjs'
 
 import { Operation, assertKO, Cache } from './modele.mjs'
 import { compile, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
@@ -253,10 +252,6 @@ operations.Sync = class Sync extends Operation {
         this.addRes('rowTickets', row)
   }
 
-  decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }
-
-  crypt (k, x) { return crypterSrv(k, Buffer.from(encode(x))) }
-
   async setAv (ida, rds) {
     const x = this.ds.avatars.get(ida)
     if (x) {
@@ -380,8 +375,9 @@ operations.Sync = class Sync extends Operation {
 - privK: clé privée RSA de l(avatar cryptée par la clé K du compte
 - cvA: CV de l'avatar cryptée par sa clé A
 
-- clePA: clé P de sa partition cryptée par la clé A de son avatar principal
+- clePK: clé P de sa partition cryptée par la clé K du nouveau compte
 - cleAP: clé A de son avatar principâl cryptée par la clé P de sa partition
+- clePA: cle P de la partition cryptée par la clé A du nouveau compte
 
 - ch: { cck, ccP, t1c, t2c }
   - ccK: clé C du chat cryptée par la clé K du compte
@@ -415,13 +411,13 @@ operations.SyncSp = class SyncSp extends Operation {
   async phase2 (args) {
     this.ns = ID.ns(args.idsp)
 
-    /* Maj sponsorings: st dconf2 dh ardYC */
+    // Recherche du sponsorings
     const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
     if (!sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idssp])
     if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.idsp, args.idsp])
 
+    // Maj du sponsoring: st dconf2 dh ardYC
     const avsponsor = compile(await this.getRowAvatar(args.idsp, 'SyncSp-10'))
-
     const vsp = await this.getV(avsponsor, 'SyncSp-3')
     vsp.v++
     sp.v = vsp.v
@@ -431,104 +427,93 @@ operations.SyncSp = class SyncSp extends Operation {
     sp.ardYC = args.ardYC
     sp.dconf2 = args.dconf
     this.update(sp.toRow())
-    this.update(vsp.toRow())
+    this.setV(vsp)
 
-    if (sp.don) { // Maj compta du sponsor
+    // Maj compta du sponsor (si don)
+    if (sp.don) { 
       const csp = compile(await this.getRowCompta(args.idsp, 'SyncSp-8'))
       if (csp.solde <= sp.don + 2)
         throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
       csp.v++
       csp.solde-= sp.don
-      this.update(csp.toRow())
-      this.setNV(csp)  
+      this.update(csp.toRow()) 
     }
 
     // Refus si espace figé ou clos
-    const espace = compile(await this.getRowEspace(this.ns, 'SyncSp-3'))
-    if (espace.notifG) {
+    this.espace = compile(await this.getRowEspace(this.ns, 'SyncSp-3'))
+    if (this.espace.notifE) {
       // Espace bloqué
-      const n = espace.notifG
-      if (n.nr === 2) // application close
+      const n = this.espace.notifE
+      if (n.nr === 3) // application close
         throw new AppExc(A_SRV, 999, [n.texte])
-      if (n.nr === 1) 
+      if (n.nr === 2) 
         throw new AppExc(F_SRV, 101, [n.texte])
-      this.notifs.G = n
     }
 
-    /* Compte O : partition: ajout d'un item dans tcpt, maj ldel
-    Recalcul syntheses : tp du numéro de partition
-    */
-    let o = null
-    const qs = sp.quotas
-    let partition = null
-    if (sp.partitionId) {
-      const pid = ID.long(sp.partitionId, this.ns)
-      partition =  compile(await this.getRowPartition(pid), 'SyncSp-4')
-      partition.v++
-      const s = partition.getSynthese()
-      const q = { qc: qs.qc, qn: qs.qn, qv: qs.qv, c: 0, n: 0, v: 0}
-      // restants à attribuer suffisant pour satisfaire les quotas ?
-      if (q.qc > (s.qc - s.ac) || q.qn > (s.qn - s.an) || q.qv > (s.sv - s.av))
-        throw new AppExc(F_SRV, 211, [partition.id, args.id])
-      const it = partition.ajoutCompte(null, q, args.cleAP, sp.del)
-      partition.setNotifs(this.notifs, it)
-      const synth = partition.getSynthese()
-
-      const synthese = compile(await this.getRowSynthese(this.ns, 'SyncSp-5'))
-      synthese.v = this.dh
-      synthese.tp[ID.court(partition.id)] = synth
-      this.update(synthese.toRow())
-      this.setNV(partition)
-      this.update(partition.toRow())
-
-      o = { // Info du compte à propos de sa partition
-        clePA: args.clePA,
-        rdsp: partition.rds,
-        idp: ID.court(partition.id),
-        del: sp.del,
-        it: it
-      }
-    }
-
-    /* Création compte / compti */
+    // Création du nouveau compte
+    const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
     const rdsav = ID.rds(ID.RDSAVATAR)
-    // (id, hXR, hXC, cleKXR, rdsav, cleAK, o, cs)
-    const compte = Comptes.nouveau(args.id, 
-      (this.ns * d14) + (args.hXR % d14), args.hXC, args.cleKXC, null, rdsav, args.cleAK, o)
-    const compti = Comptis.nouveau(args.id, compte.rds) 
-    this.insert(compte.toRow())
-    this.insert(compti.toRow())
-    this.setNV(compte)    
-    
-    /* Création compta */
-    const nc = !sp.dconf && !args.dconf ? 1 : 0
-    const qv = { qc: qs.qc, qn: qs.qn, qv: qs.qv, nn: 0, nc: nc, ng: 0, v: 0 }
-    const compta = new Comptas().init({
-      id: compte.id, v: 1, qv,
-      compteurs: new Compteurs(null, qv).serial
-    })
-    compta.total = sp.don || 0
-    compta.compile() // pour calculer les notifs
-    if (compta._Q) this.notifs.Q = compta._Q
-    if (compta._X) this.notifs.X = compta._X
-    this.insert(compta.toRow())
-    this.setNV(compta)
-    
-    /* Création Avatar */
-    const avatar = new Avatars().init(
-      { id: compte.id, v: 1, rds: rdsav, pub: args.pub, privK: args.privK, cvA: args.cvA })
-    this.insert(avatar.toRow())
-    this.setNV(avatar)
+    const qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
+    const q = { qc: qv.qc, qn: qv.qn, qv: qv.qv, c: 0, n: 0, v: 0 } // partition
 
+    const o = sp.partitionId ? { clePA: args.clePA, del: sp.del, idp: sp.partitionId } : null
+    // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
+    this.compte = Comptes.nouveau(args.id, 
+      (this.ns * d14) + (args.hXR % d14), 
+      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, sp.quotas, o)
+    this.setRes('rowCompte', this.compte.toShortRow())
+
+    /* Compti */
+    const compti = new Comptis().init({ id: args.id, v: 1, mc: {} })
+    this.setRes('rowCompti', this.insert(compti.toRow()))
+
+    /* Compta */
+    this.compta = Comptas.nouveau(args.id, qv)
+    this.compta.solde = sp.don || 0
+    this.compta.compile() // pour calculer c2m ...
+
+    /* Avatar  (id, rdsav, pub, privK, cvA) */
+    const avatar = Avatars.nouveau(args.id, rdsav, args.pub, args.privK, args.cvA)
+    this.setNV(avatar)
+    this.insert(avatar.toRow()) 
+    this.setRes('rowAvatar', avatar.toShortRow())
+
+    // création du dataSync
+    const ds = DataSync.deserial()
+    ds.rdsId = {}
+    ds.compte.vb = 1
+    ds.rdsC = ID.long(this.compte.rds, this.ns)
+    const a = { id: avatar.id, vs: 0, vb: avatar.v }
+    ds.avatars.set(a.id, a)
+    ds.rdsId[ID.long(avatar.rds, this.ns)] = avatar.id
+    ds.tousRds.length = 0
+    for(const rdsx in ds.rdsId) ds.tousRds.push(parseInt(rdsx))
+    ds.tousRds.push(ds.rdsC) // rds du compte
+    ds.tousRds.push(this.ns) // espace
+    // Sérialisation et retour de dataSync
+    this.setRes('dataSync', ds.serial(this.dh, this.crypt, this.db.appKey))
+
+    // Compte O : partition: ajout d'un compte (si quotas suffisants)
+    if (pid) {
+      if (!this.partitions) this.partitions = new Map()
+      const partition =  compile(await this.getRowPartition(pid), 'SyncSp-4')
+      this.partitions.set(pid, partition)
+      const s = partition.getSynthese()
+      // restants à attribuer suffisant pour satisfaire les quotas ?
+      if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.qv - s.qt.qv))
+        throw new AppExc(F_SRV, 211, [pid, args.id])
+      // (compta, cleAP, del)
+      partition.ajoutCompte(this.compta, args.cleAP, sp.del)
+    }
+    
     /* Création chat */
-    let chI = null
     if (!sp.dconf && !args.dconf) {
       /*- ccK: clé C du chat cryptée par la clé K du compte
         - ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
         - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
         - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
       */
-      chI = new Chats().init({ // du sponsorisé
+      const chI = new Chats().init({ // du sponsorisé
         id: args.id,
         ids: rnd6(),
         v: 1,
@@ -540,7 +525,7 @@ operations.SyncSp = class SyncSp extends Operation {
         cleEC: args.ch.cleE1C,
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
       })
-      this.insert(chI.toRow())
+      this.setRes('rowChat', this.insert(chI.toRow()))
 
       const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
       vchE.v++
@@ -558,16 +543,6 @@ operations.SyncSp = class SyncSp extends Operation {
         items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
       })
       this.insert(chE.toRow())
-
-      this.setRes('rowCompte', compte.toRow())
-      this.setRes('rowCompti', compta.toRow())
-      if (chI) this.setRes('rowChat', chI.toRow())
-
-      this.compte = compte
-      this.estA = compte.estA
-      this.compta = compta
-      this.espace = espace
-      if (partition) this.partition = partition
     }
   }
 }
