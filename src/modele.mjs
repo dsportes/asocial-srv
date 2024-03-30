@@ -170,7 +170,7 @@ export class Operation {
 
       await this.phase3(this.args) // peut ajouter des résultas
 
-      if (this.sync && this.versions.length) this.sync.toSync(this.versions)
+      if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
     }
 
     return this.result
@@ -184,10 +184,10 @@ export class Operation {
     if (ID.estComptable(this.compte.id)) return AMJ.max
     const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
     if (this.compte.idp) // Compte O
-      return dlvmax > this.espace.dlvat ? this.espace.dlvat : dlvmax
+      return this.espace.dlvat && (dlvmax > this.espace.dlvat) ? this.espace.dlvat : dlvmax
     // Compte A
     const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.compta.nbj))
-    return dlvmax > d ? d : dlvmax    
+    return dlvmax > d ? d : dlvmax
   }
 
   async transac () { // Appelé par this.db.doTransaction

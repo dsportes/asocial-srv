@@ -3,7 +3,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
-import { Operation } from './modele.mjs'
+import { Operation, assertKO } from './modele.mjs'
 import { compile, Espaces, Syntheses, Partitions, Comptes, Comptis,
   Avatars, Comptas, Sponsorings } from './gendoc.mjs'
 
@@ -161,6 +161,7 @@ operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
 - hYR : hash du PNKFD de la phrase de sponsoring réduite (SANS ns)
 - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
 - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
+- `hYC` : hash du PBKFD de la phrase de sponsoring,
 - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
 - `partitionId`: id de la partition si compte 0    
 - `cleAP` : clé A du COMPTE sponsor crypté par la clé P de la partition.
@@ -201,7 +202,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.sv - s.qt.qv))
         throw new AppExc(F_SRV, 211, [args.partitionId, this.compte.id])
     } else {
-      if (this.estComptable) args.don = 2
+      if (this.estComptable || !this.compte.estA) args.don = 2
       else {
         if (this.compta.solde <= args.don + 2)
           throw new AppExc(F_SRV, 212, [this.compta.solde, args.don])
@@ -247,6 +248,36 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
       this.update(sp.toRow())
       this.setV(vsp)
     }
+  }
+}
+
+/* `RefusSponsoring` : refus d'un sponsoring
+args.id ids : identifiant du sponsoring
+args.ardYC : réponse du filleul
+args.hYC: hash du PBKFD de la phrase de sponsoring
+*/
+operations.RefusSponsoring = class RefusSponsoring extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2(args) {
+    this.ns = ID.ns(args.id)
+
+    // Recherche du sponsorings
+    const sp = compile(await this.db.get(this, 'sponsorings', args.id, args.ids))
+    if (!sp) throw assertKO('SyncSp-1', 13, [args.id, args.ids])
+    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.id, args.ids])
+    if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
+
+    // Maj du sponsoring: st dconf2 dh ardYC
+    const avsponsor = compile(await this.getRowAvatar(args.id, 'SyncSp-10'))
+    const vsp = await this.getV(avsponsor, 'SyncSp-3')
+    vsp.v++
+    sp.v = vsp.v
+    sp.dh = this.dh
+    sp.st = 1
+    sp.ardYC = args.ardYC
+    this.update(sp.toRow())
+    this.setV(vsp)
   }
 }
 

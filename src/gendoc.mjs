@@ -674,6 +674,7 @@ export class Sponsorings extends GenDoc {
     - hYR : hash du PBKFD de la phrase de sponsoring réduite
     - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
     - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
+    - `hYC`: hash du PNKFD de la phrase de sponsoring.
     - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
     - `partitionId`: id de la partition si compte 0    
     - `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD 
@@ -695,6 +696,7 @@ export class Sponsorings extends GenDoc {
     this.st = 0
     this.psK = args.psK
     this.YCK = args.YCK
+    this.hYC = args.hYC,
     this.cleAYC = args.cleAYC
     this.nomYC = args.nomYC
     this.cvA = args.cvA

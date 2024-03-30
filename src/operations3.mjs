@@ -367,6 +367,7 @@ operations.Sync = class Sync extends Operation {
 - id : id du compte sponsorisé à créer
 - hXR: hash du PBKD de sa phrase secrète réduite
 - hXC: hash du PBKD de sa phrase secrète complète
+- `hYC`: hash du PNKFD de la phrase de sponsoring
 - cleKXC: clé K du nouveau compte cryptée par le PBKFD de sa phrase secrète complète
 - cleAK: clé A de son avatar principal cryptée par la clé K du compte
 - ardYC: ardoise du sponsoring
@@ -415,6 +416,7 @@ operations.SyncSp = class SyncSp extends Operation {
     const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
     if (!sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idssp])
     if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.idsp, args.idsp])
+    if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
 
     // Maj du sponsoring: st dconf2 dh ardYC
     const avsponsor = compile(await this.getRowAvatar(args.idsp, 'SyncSp-10'))
@@ -432,11 +434,13 @@ operations.SyncSp = class SyncSp extends Operation {
     // Maj compta du sponsor (si don)
     if (sp.don) { 
       const csp = compile(await this.getRowCompta(args.idsp, 'SyncSp-8'))
-      if (csp.solde <= sp.don + 2)
-        throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
-      csp.v++
-      csp.solde-= sp.don
-      this.update(csp.toRow()) 
+      if (csp.estA) {
+        if (csp.solde <= sp.don + 2)
+          throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
+        csp.v++
+        csp.solde-= sp.don
+        this.update(csp.toRow()) 
+      }
     }
 
     // Refus si espace figé ou clos
