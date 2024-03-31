@@ -206,32 +206,6 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
   }
 }
 
-/* `SetNotifG` : déclaration d'une notification à un espace par l'administrateur
-POST:
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié
-- `notif` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
-
-Retour: 
-- `rowEspace` : le row espaces mis à jour.
-
-Assertion sur l'existence du row `Espaces`.
-
-C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-Elle n'écrit QUE dans espaces.
-*/
-operations.SetNotifG = class SetNotifG extends Operation {
-  constructor (nom) { super(nom, 3) }
-
-  async phase2 (args) {
-    const espace = compile(await this.getRowEspace(args.ns, 'SetNotifG'))
-    espace.v++
-    espace.notif = args.notif || null
-    const rowEspace = this.update(espace.toRow())
-    this.setRes('rowEspace', rowEspace)
-  }
-}
-
 /*`SetEspaceT` : déclaration du profil de volume de l'espace par l'administrateur
 POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**

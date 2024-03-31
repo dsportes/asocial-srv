@@ -385,3 +385,21 @@ operations.MajChat = class MajChat extends Operation {
     this.update(chE.toRow())
   }
 }
+
+/* `SetNotifE` : déclaration d'une notification à un espace par l'administrateur
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace notifié
+- `ntf` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
+
+C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
+Elle n'écrit QUE dans espaces.
+*/
+operations.SetNotifE = class SetNotifE extends Operation {
+  constructor (nom) { super(nom, 3) }
+
+  async phase2 (args) {
+    this.espace = compile(await this.getRowEspace(args.ns, 'SetNotifG'))
+    this.espace._maj = true
+    this.espace.notifE = args.ntf || null
+  }
+}

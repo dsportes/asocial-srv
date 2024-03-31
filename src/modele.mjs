@@ -329,11 +329,11 @@ export class Operation {
     const n = this.espace.notifE
     if (n) {
       // Espace bloqué
-      if (n.nr === 2) // application close
-        throw new AppExc(A_SRV, 999, [n.texte])
-      if (n.nr === 1) {
-        if (this.excFige) throw new AppExc(F_SRV, 101, [n.texte])
+      if (n.nr === 3) // application close
+        throw new AppExc(A_SRV, 999, [n.texte, n.dh])
+      if (n.nr === 2) {
         this.setR.add(R.FIGE)
+        if (this.excFige === 2) throw new AppExc(F_SRV, 101, [n.texte])
       }
     }
     
@@ -405,7 +405,10 @@ export class Operation {
   setNV (doc) {
     const version = new Versions()
     version.v = doc.v
-    version.id = doc._nom === 'espaces' ? doc.id : ID.long(doc.rds, ID.ns(doc.id))
+    if (doc._nom === 'espaces') {
+      version.id = doc.id
+      version.notif = doc.notifE || null
+    } else version.id = ID.long(doc.rds, ID.ns(doc.id))
     this.setV(version)
   }
 
