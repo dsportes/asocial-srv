@@ -403,3 +403,25 @@ operations.SetNotifE = class SetNotifE extends Operation {
     this.espace.notifE = args.ntf || null
   }
 }
+
+/* GetCompta : retourne la compta d'un compte
+- `token` : jeton d'authentification du compte
+- `id` : du compte
+Retour: rowCompta
+*/
+operations.GetCompta = class GetCompta extends Operation {
+  constructor (nom) { super(nom, 1)}
+
+  async phase2 (args) {
+    const id = args.id || this.id
+    if (id !== this.id && !this.estComptable) {
+      if (!this.compte.del) throw new AppExc(F_SRV, 218)
+      const idp = ID.long(this.compte.idp, this.ns)
+      const partition = compile(await this.getRowPartition(idp, 'GetCompta-2'))
+      const e = partition.mcpt(ID.court(id))
+      if (!e) throw new AppExc(F_SRV, 219)
+    }
+    const rowCompta = await this.getRowCompta(id, 'GetCompta-1')
+    this.setRes('rowCompta', rowCompta)
+  }
+}

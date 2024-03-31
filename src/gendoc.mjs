@@ -558,8 +558,22 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  ncPlus1 () {
-    this.qv.nc += 1
+  ncPlus (q) {
+    this.qv.nc += q
+    const c = new Compteurs(this.compteurs, this.qv)
+    this.compteurs = c.serial
+    this._maj = true
+  }
+
+  nnPlus (q) {
+    this.qv.nn += q
+    const c = new Compteurs(this.compteurs, this.qv)
+    this.compteurs = c.serial
+    this._maj = true
+  }
+
+  ngPlus (q) {
+    this.qv.ng += q
     const c = new Compteurs(this.compteurs, this.qv)
     this.compteurs = c.serial
     this._maj = true

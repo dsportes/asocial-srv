@@ -530,6 +530,7 @@ operations.SyncSp = class SyncSp extends Operation {
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
       })
       this.setRes('rowChat', this.insert(chI.toRow()))
+      this.compta.ncPlus(1)
 
       const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
       vchE.v++
