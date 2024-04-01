@@ -115,23 +115,19 @@ operations.GetSynthese = class GetSynthese extends Operation {
   }
 }
 
-/* `GetPartition` : retourne la partition demandée (Comptable seulement).
-- `token` : éléments d'authentification du comptable.
-- `id` : id de la partition
-Retour:
-- `rowPartition`
+/* GetPartition : retourne une partition
+- token : éléments d'authentification du compte.
+- id : id de la partition
 */
 operations.GetPartition = class GetPartition extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    let idp = args.id
-    if (!this.estComptable) {
-      if (this.compte.del) idp = ID.long(this.compte.idp, this.ns)
-      else throw new AppExc(F_SRV, 216)
-    }
-    const partition = compile(await this.getRowPartition(idp, 'getPartition'))
-    this.setRes('rowPartition', partition.toRow())
+    if (this.compte.estA) throw new AppExc(F_SRV, 220)
+    let id = args.id
+    if (!this.estComptable) id = ID.long(this.compte.idp, this.ns)
+    const partition = compile(await this.getRowPartition(id, 'GetPartition'))
+    this.setRes('rowPartition', partition.toShortRow(this.compte.del))
   }
 }
 

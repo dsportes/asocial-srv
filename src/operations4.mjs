@@ -375,7 +375,7 @@ operations.MajChat = class MajChat extends Operation {
    
     if (Math.floor(chI.st / 10) === 0) { // I était passif, redevient actif
       chI.st = 10 + (chI.st % 10)
-      this.compta.ncPlus1()
+      this.compta.ncPlus(1)
       chE.st = (Math.floor(chE.st / 10) * 10) + 1 
     }
 
@@ -400,6 +400,7 @@ operations.SetNotifE = class SetNotifE extends Operation {
   async phase2 (args) {
     this.espace = compile(await this.getRowEspace(args.ns, 'SetNotifG'))
     this.espace._maj = true
+    if (args.ntf) args.ntf.dh = Date.now()
     this.espace.notifE = args.ntf || null
   }
 }
@@ -423,5 +424,21 @@ operations.GetCompta = class GetCompta extends Operation {
     }
     const rowCompta = await this.getRowCompta(id, 'GetCompta-1')
     this.setRes('rowCompta', rowCompta)
+  }
+}
+
+/* `SetDhvuCompta` : enregistrement de la date-heure de _vue_ des notifications dans une session
+POST: 
+- `token` : éléments d'authentification du compte.
+- `dhvu` : date-heure cryptée par la clé K.
+
+Assertion sur l'existence du row `Comptas` du compte.
+*/
+operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    this.compte._maj = true
+    this.compte.dhvuK = args.dhvu
   }
 }

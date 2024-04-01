@@ -282,7 +282,14 @@ export class Partitions extends GenDoc {
   }
 
   toShortRow (del) {
-    if (!del) delete this.mcpt
+    if (!del) {
+      const m = {}
+      for(const idx in this.mcpt) {
+        const e = this.mcpt(idx)
+        if (e.del) m[idx] = {  del: true, nr: 0, q: {qc: 0, qn: 0, qv: 0 }}
+      }
+      this.mcpt = m
+    }
     return this.toRow()
   }
 
@@ -293,16 +300,6 @@ export class Partitions extends GenDoc {
     r.q.c2m = compta._c2m
     this.mcpt[id] = r
     this._maj = true
-  }
-
-  idsDel () {
-    const ns = ID.ns(this.id)
-    const l = []
-    for(const idx in this.mcpt) {
-      const e = this.mcpt[idx]
-      if (e && e.del) l.push(parseInt(idx), ns)
-    }
-    return l
   }
 
   getSynthese () {

@@ -1194,7 +1194,6 @@ export function synthesesPartition (p) {
 }
 
 /* Compile un row partition dans un objet self
-Retourne synth, la synthèse de cet objet 
 La fonction async locComp effectue la compilation locale d'une cleAP
 */
 export async function compileMcpt (self, row, locComp) {

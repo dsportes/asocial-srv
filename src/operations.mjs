@@ -1212,23 +1212,6 @@ operations.SetQuotas = class SetQuotas extends Operation {
   }
 }
 
-/* `SetDhvuCompta` : enregistrement de la date-heure de _vue_ des notifications dans une session
-POST: 
-- `token` : éléments d'authentification du compte.
-- `dhvu` : date-heure cryptée par la clé K.
-
-Assertion sur l'existence du row `Comptas` du compte.
-*/
-operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) {
-    this.compta.v++
-    this.compta.dhvu = args.dhvu
-    this.update(this.compta.toRow())
-  }
-}
-
 /* `MajCletKCompta` : mise à jour de la tribu d'un compte 
 POST: 
 - `token` : éléments d'authentification du compte.
