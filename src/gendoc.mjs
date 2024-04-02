@@ -275,6 +275,8 @@ export class Partitions extends GenDoc {
     this._maj = false
   }
 
+  static qz = {qc: 0, qn: 0, qv: 0, c2m: 0, nn: 0, nc: 0, ng: 0, v: 0 }
+
   static nouveau (ns, id, q) { // // qc: apr[0], qn: apr[1], qv: apr[2],
     return new Partitions().init( {
       _ins: true, _maj: true, id: ID.long(id, ns), q: q, v: 1, nrp: 0, mcpt: {}
@@ -286,7 +288,7 @@ export class Partitions extends GenDoc {
       const m = {}
       for(const idx in this.mcpt) {
         const e = this.mcpt(idx)
-        if (e.del) m[idx] = {  del: true, nr: 0, q: {qc: 0, qn: 0, qv: 0 }}
+        if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAp }
       }
       this.mcpt = m
     }

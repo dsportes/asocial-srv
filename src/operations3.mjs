@@ -74,7 +74,7 @@ operations.PingDB = class PingDB extends Operation {
 
 /* Opérations de lectures non synchronisées *****************************/
 
-/* Retourne la clé RSA publique d'un avatar
+/* GetPub: retourne la clé RSA publique d'un avatar
 - id : id de l'avatar
 */
 operations.GetPub = class GetPub extends Operation {

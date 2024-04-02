@@ -509,27 +509,6 @@ operations.ChargerASCS = class ChargerASCS extends Operation {
   }
 }
 
-/* `GetAvatarPC` : information sur l'avatar ayant une phrase de contact donnée
-POST:
-- `token` : éléments d'authentification du compte.
-- `hpc` : ns + hash de la phrase de contact
-
-Retour: si trouvé,
-- `cvnapc` : `{cv, napc}` si l'avatar ayant cette phrase a été trouvée.
-  - `cv` : `{v, photo, info}` crypté par la clé de l'avatar.
-  - `napc` : `[nom, clé]` de l'avatar crypté par le PBKFD de la phrase.
-*/
-operations.GetAvatarPC = class GetAvatarPC extends Operation {
-  constructor (nom) { super(nom, 1) }
-
-  async phase2 (args) {
-    const avatar = compile(await this.getAvatarHpc(args.hpc))
-    if (avatar) {
-      this.setRes('cvnapc', { cv: avatar.cva, napc: avatar.napc } )
-    }
-  }
-}
-
 /* `GetCompteursCompta` : retourne les "compteurs" d'un compte
 POST:
 - `token` : éléments d'authentification du compte demandeur.

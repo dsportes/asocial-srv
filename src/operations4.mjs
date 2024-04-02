@@ -442,3 +442,23 @@ operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
     this.compte.dhvuK = args.dhvu
   }
 }
+
+/** Récupération d\'un avatar par sa phrase de contact *******
+- token: éléments d'authentification du compte.
+- hZR: hash de la phrase de contact réduite
+- hZC: hash de la phrase de contact complète
+Retour:
+- cleAZC : clé A cryptée par ZC (PBKFD de la phrase de contact complète)
+- cvA: carte de visite cryptée par sa clé A
+*/
+operations.GetAvatarPC = class GetAvatarPC extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const avatar = compile(await this.getAvatarHpc(args.hZR))
+    if (avatar && avatar.hZC === args.hZC) {
+      this.setRes('cleAZC', avatar.cleAZC)
+      this.setRes('cvA', avatar.cvA)
+    }
+  }
+}
