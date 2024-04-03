@@ -304,6 +304,11 @@ export class Partitions extends GenDoc {
     this._maj = true
   }
 
+  estDel (id) {
+    const e = this.mcpt[ID.court(id)]
+    return e && e.del
+  }
+
   getSynthese () {
     return synthesesPartition(this)
   }
@@ -428,7 +433,7 @@ export class Comptes extends GenDoc {
 
   get ns () { return ID.ns(this.id) }
 
-  get estA () { return this.it === 0 }
+  get _estA () { return this.idp === 0 }
 
   /* Mise à niveau des listes avatars / groupes du dataSync
   en fonction des avatars et groupes listés dans mav/mpg du compte 
@@ -524,7 +529,7 @@ export class Comptas extends GenDoc {
       id: id, 
       v: 0, 
       qv: {...qv}, 
-      total: 0,
+      solde: 0,
       compteurs: c.serial,
       _estA: c.estA,
       _c2m: c.conso2M
@@ -534,7 +539,7 @@ export class Comptas extends GenDoc {
   compile () {
     const c = new Compteurs(this.compteurs)
     this._estA = c.estA 
-    this._nbj = c.estA ? c.nbj(this.total) : 0
+    this._nbj = c.estA ? c.nbj(this.solde) : 0
     this._c2m = c.conso2M
     return this
   }
@@ -551,8 +556,6 @@ export class Comptas extends GenDoc {
     this.qv.qn = q.qn
     this.qv.qv = q.qv
     const c = new Compteurs(this.compteurs, q).serial
-    this._Q = c.notifQ 
-    this._X = c.estA ? c.notifS(c.total) : c.notifX
     this.compteurs = c.serial
     this._maj = true
   }
@@ -613,14 +616,14 @@ export class Comptas extends GenDoc {
     const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
     const c = new Compteurs(this.compteurs, null, x)
     const pc = c.pourcents
-    const nbj = op.compte.estA ? c.nbj(this.solde) : 0
+    const nbj = op.compte._estA ? c.nbj(this.solde) : 0
     const qvc = op.compte.qv // `qv` : `{ qc, qn, qv, pcc, pcn, pcv, nbj }`
     const rep = op.compte._ins || this.reporter(pc, nbj, qvc)
     if (rep) {
-      if (op.compte.estA) qvc.pcc = pc.pcc; else qvc.nbj = nbj
+      if (!op.compte._estA) qvc.pcc = pc.pcc; else qvc.nbj = nbj
       qvc.pcn = pc.pcn; qvc.pcv = pc.pcv
       op.compte._maj = true
-      if (!op.compte.estA) {
+      if (!op.compte._estA) {
         // qv de partition
         const p = await op.getPartition(ID.long(op.compte.idp, this.ns), 'partition-finaliser')
         const e = p.mcpt[ID.court(op.compte.id)]

@@ -1,5 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, R, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, UNITEN, UNITEV, d14, edvol } from './api.mjs'
+import { ID, R, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
+  UNITEN, UNITEV, d14, edvol, hash } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -186,16 +187,15 @@ export class Operation {
     if (this.compte.idp) // Compte O
       return this.espace.dlvat && (dlvmax > this.espace.dlvat) ? this.espace.dlvat : dlvmax
     // Compte A
-    const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.compta.nbj))
+    const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.compta._nbj))
     return dlvmax > d ? d : dlvmax
   }
 
   async transac () { // Appelé par this.db.doTransaction
-    if (this.authMode) await this.auth() // this.compta est accessible (si authentifié)
+    await this.auth() // this.compta est accessible (si authentifié)
 
     if (this.phase2) await this.phase2(this.args)
 
-    this.result.setR = this.setR.size ? Array.from(this.setR) : []
     this.result.dh = this.dh
 
     if (this.setR.has(R.FIGE)) return
@@ -292,14 +292,16 @@ export class Operation {
         - espace.notif.nr == 2
   */
   async auth() {
-    if (this.authMode === 0) return
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
 
     const t = this.args.token
-    if (!t) { await sleep(3000); throw new AppExc(F_SRV, 205) } 
+    if (!t && this.authMode !== 0) { 
+      await sleep(3000)
+      throw new AppExc(F_SRV, 205) 
+    } 
     let authData = null
     this.estAdmin = false
-    try { 
+    if (t) try { 
       authData = decode(b64ToU8(t)) 
       if (authData.shax) {
         try {
@@ -316,11 +318,13 @@ export class Operation {
 
     if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
 
-    if (authData.sessionId) {
+    if (authData && authData.sessionId) {
       /* Récupérer la session WS afin de pouvoir lui transmettre les évolutions d'abonnements */
       this.sync = SyncSession.getSession(authData.sessionId, this.dh)
       if (!this.sync) throw new AppExc(E_SRV, 4)
     }
+
+    if (this.authMode === 0) return
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     this.espace = await Cache.getEspaceOrg(this, authData.org, true)
@@ -421,6 +425,10 @@ export class Operation {
   decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }
 
   crypt (k, x) { return crypterSrv(k, Buffer.from(encode(x))) }
+
+  idsChat (idI, idE) {
+    return hash(crypterSrv(this.db.appKey, Buffer.from(ID.court(idI) + '/' + ID.court(idE)))) % d14
+  }
 
   /* Helper d'accès depuis Cache */
 

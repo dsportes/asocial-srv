@@ -869,8 +869,8 @@ export class Compteurs {
   raz: true pour une mutation de compte O en A. Le nombre de jours
   ignore le coût antérieur accummulé.
   */
-  nbj (credits, raz) {
-    const solde = raz ? credits : (credits - this.cumulCouts)
+  nbj (soldex, raz) {
+    const solde = raz ? soldex : (soldex - this.cumulCouts)
     if (solde <= 0) return 0
     const [ac, mc] = AMJ.am(this.dh)
     const cu = Tarif.cu(ac, mc)

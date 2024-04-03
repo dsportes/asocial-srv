@@ -1,7 +1,7 @@
 import { AppExc, F_SRV, A_SRV, ID, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { sleep, rnd6 } from './util.mjs'
+import { sleep } from './util.mjs'
 
 import { Operation, assertKO, Cache } from './modele.mjs'
 import { compile, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
@@ -513,13 +513,15 @@ operations.SyncSp = class SyncSp extends Operation {
         - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
         - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
       */
+      const idsI = this.idsChat(args.id, sp.id)
+      const idsE = this.idsChat(sp.id, args.id)
       const chI = new Chats().init({ // du sponsorisé
         id: args.id,
-        ids: rnd6(),
+        ids: ID.long(idsI, this.ns),
         v: 1,
         st: 10,
         idE: ID.court(sp.id),
-        idsE: rnd6(),
+        idsE: idsE,
         cvE: avsponsor.cvA,
         cleCKP: args.ch.ccK,
         cleEC: args.ch.cleE1C,
@@ -533,11 +535,11 @@ operations.SyncSp = class SyncSp extends Operation {
       this.setV(vchE)
       const chE = new Chats().init({
         id: sp.id,
-        ids: chI.idsE,
+        ids: ID.long(idsE, this.ns),
         v: vchE.v,
         st: 1,
         idE: ID.court(chI.id),
-        idsE: chI.ids,
+        idsE: idsI,
         cvE: avatar.cvA,
         cleCKP: args.ch.ccP,
         cleEC: args.ch.cleE2C,
@@ -545,6 +547,10 @@ operations.SyncSp = class SyncSp extends Operation {
       })
       this.insert(chE.toRow())
     }
+  }
+
+  async phase3 () {
+    this.setRes('rowCompte', this.compte.toRow())
   }
 }
 

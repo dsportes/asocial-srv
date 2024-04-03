@@ -1,11 +1,11 @@
-import { AppExc, F_SRV, ID,  d14 } from './api.mjs'
+import { AppExc, F_SRV, ID, FLAGS, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, assertKO } from './modele.mjs'
 import { compile, Espaces, Syntheses, Partitions, Comptes, Comptis,
-  Avatars, Comptas, Sponsorings } from './gendoc.mjs'
+  Avatars, Comptas, Sponsorings, Chats } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -450,6 +450,7 @@ operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
 Retour:
 - cleAZC : clé A cryptée par ZC (PBKFD de la phrase de contact complète)
 - cvA: carte de visite cryptée par sa clé A
+- collision: true si la phrase courte pointe sur un  autre avatar
 */
 operations.GetAvatarPC = class GetAvatarPC extends Operation {
   constructor (nom) { super(nom, 1) }
@@ -460,5 +461,132 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
       this.setRes('cleAZC', avatar.cleAZC)
       this.setRes('cvA', avatar.cvA)
     }
+    if (avatar) this.setRes('collision', true)
+  }
+}
+
+/* OP_NouveauChat: 'Création d\'un nouveau chat' *********************************
+- token: éléments d'authentification du compte.
+- idI
+- idE
+- mode 
+  - 0: par phrase de contact - hZC en est le hash
+  - 1: idE est délégué de la partition de idI
+  - idp: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
+- hZC : hash du PBKFD de la phrase de contact compléte pour le mode 0
+- ch: { cck, ccP, cleE1C, cleE2C, t1c }
+  - ccK: clé C du chat cryptée par la clé K du compte de idI
+  - ccP: clé C du chat cryptée par la clé publique de idE
+  - cleE1C: clé A de l'avatar E (idI) cryptée par la clé du chat.
+  - cleE2C: clé A de l'avatar E (idE) cryptée par la clé du chat.
+  - txt: item crypté par la clé C
+
+Retour:
+- `rowChat` : row du chat I.
+*/
+operations.NouveauChat = class NouveauChat extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const avI = compile(await this.getRowAvatar(args.idI, 'NouveauChat-1'))
+    const avE = compile(await this.getRowAvatar(args.idE, 'NouveauChat-2'))
+
+    if (!args.mode) {
+      if (avE.hZC !== args.hZC) throw new AppExc(F_SRV, 221)
+    } else if (args.mode === 1) {
+      if (!ID.estComptable(args.idE)) throw new AppExc(F_SRV, 225)
+    } else if (args.mode === 2) {
+      const partition = compile(await this.getRowPartition(ID.long(this.compte.idp), this.ns))
+      if (!partition || !partition.estDel(args.idE)) throw new AppExc(F_SRV, 222)
+    } else {
+      const groupe = compile(await this.getRowGroupe(args.mode))
+      if (!groupe) throw new AppExc(F_SRV, 223)
+      const imI = groupe.mmb.get(args.idI)
+      const imE = groupe.mmb.get(args.idE)
+      if (!imI || !imE) throw new AppExc(F_SRV, 223)
+      const fI = groupe.flags[imI]
+      if (!(fI & FLAGS.AC) && (fI & FLAGS.AM) && (fI & FLAGS.DM)) throw new AppExc(F_SRV, 223)
+      if (!(fI & FLAGS.AC)) throw new AppExc(F_SRV, 223)
+    }
+
+    const idsI = this.idsChat(args.idI, args.idE)
+    const idsE = this.idsChat(args.idE, args.idI)
+
+    const rchI = await this.getRowChat(args.idI, idsI)
+    if (rchI) { this.setRes('rowChat', rchI); return}
+
+    const vchI = await this.getV(avI, 'NouveauChat-3') // du sponsor
+    vchI.v++
+    this.setV(vchI)
+    const chI = new Chats().init({ 
+      id: args.idI,
+      ids: ID.long(idsI, this.ns),
+      v: vchI.v,
+      st: 10,
+      idE: ID.court(args.idE),
+      idsE: idsE,
+      cvE: avE.cvA,
+      cleCKP: args.ch.ccK,
+      cleEC: args.ch.cleE1C,
+      items: [{a: 1, dh: this.dh, t: args.ch.txt}]
+    })
+    this.setRes('rowChat', this.insert(chI.toRow()))
+    this.compta.ncPlus(1)
+
+    const vchE = await this.getV(avE, 'NouveauChat-4')
+    vchE.v++
+    this.setV(vchE)
+    const chE = new Chats().init({
+      id: args.idI,
+      ids: ID.long(idsE, this.ns),
+      v: vchE.v,
+      st: 1,
+      idE: ID.court(args.idI),
+      idsE: idsI,
+      cvE: avI.cvA,
+      cleCKP: args.ch.ccP,
+      cleEC: args.ch.cleE2C,
+      items: [{a: 0, dh: this.dh, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
+    })
+    this.insert(chE.toRow())
+  }
+}
+
+/* OP_ChangementPC: 'Changement de la phrase de contact d\'un avatar' *************************
+token: éléments d'authentification du compte.
+- `id`: de l'avatar
+- `hZR`: hash de la phrase de contact réduite (SUPPRESSION si null)
+- `cleAZC` : clé A cryptée par ZC (PBKFD de la phrase de contact complète).
+- `pcK` : phrase de contact complète cryptée par la clé K du compte.
+- `hZC` : hash du PBKFD de la phrase de contact complète.
+Exceptions:
+F_SRV, 26: Phrase de contact trop proche d\'une phrase existante.
+*/
+operations.ChangementPC = class ChangementPC extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    if (args.hZR && await this.getAvatarHpc(args.hZR)) throw new AppExc(F_SRV, 26)
+
+    if (!this.compte.mav[ID.court(args.id)]) throw new AppExc(F_SRV, 224)
+
+    const avatar = compile(await this.getRowAvatar(args.id, 'ChangementPC-1'))
+    const vav = await this.getV(avatar, 'ChangementPC-2') 
+    vav.v++
+    this.setV(vav)
+    avatar.v = vav.v
+
+    if (args.pcK) {
+      avatar.hZR = ID.long(args.hZR, this.ns)
+      avatar.hZC = args.hZC
+      avatar.cleAZC = args.cleAZC
+      avatar.pcK = args.pcK
+    } else {
+      delete avatar.hZC
+      delete avatar.hZR
+      delete avatar.pcK
+      delete avatar.cleAZC
+    }
+    this.update(avatar.toRow())
   }
 }
