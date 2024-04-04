@@ -160,10 +160,6 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
 - don : montant du don de I à E
 Retour:
 - disp: true si E a disparu (pas de maj faite)
-
-On laisse passer les lectures / écritures sur les chats:
-C'est compliqué de tester s'il s'agit ou non d'une action d'urgence.
-C'est plus simple dans l'application
 */
 operations.MajChat = class MajChat extends Operation {
   constructor (nom) { super(nom, 1, 2) }
@@ -193,7 +189,33 @@ operations.MajChat = class MajChat extends Operation {
   }
 
   async phase2 (args) {
-    const chI = compile(await this.getRowChat(args.id, args.ids, 'MajChat-1'))
+    const chI = compile(await this.getRowChat(args.id, args.ids, 'MajChat-9'))
+
+    /* Restriction MINI NE s'applique QUE,
+    a) si l'interlocuteur n'est pas le comptable,
+    b) ET:
+      - compte 0 délégué: 
+        - si l'interlocuteur n'est pas COMPTE O de la même partition
+      - compte 0 NON délégué: 
+        - l'interlocuteur n'est pas COMPTE délégué de la même partition
+    */
+    if (this.setR.has(R.MINI)) {
+      const idE = ID.long(chI.idE, this.ns)
+      if (!ID.estComptable(idE)) {
+        if (this.compte._estA) throw new AppExc(F_SRV, 802)
+        else {
+          const cptE = compile(await this.getRowCompte(idE))
+          if (!this.compte.del) {
+            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          } else {
+            if (!cptE || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          }
+        }
+      }
+    }
+
     const avI = compile(await this.getRowAvatar(args.id, 'MajChat-2'))
     const vchI = await this.getV(avI, 'MajChat-3')
     vchI.v++
@@ -363,6 +385,31 @@ operations.NouveauChat = class NouveauChat extends Operation {
       const fI = groupe.flags[imI]
       if (!(fI & FLAGS.AC) && (fI & FLAGS.AM) && (fI & FLAGS.DM)) throw new AppExc(F_SRV, 223)
       if (!(fI & FLAGS.AC)) throw new AppExc(F_SRV, 223)
+    }
+
+    /* Restriction MINI NE s'applique QUE,
+    a) si l'interlocuteur n'est pas le comptable,
+    b) ET:
+      - compte 0 délégué: 
+        - si l'interlocuteur n'est pas COMPTE O de la même partition
+      - compte 0 NON délégué: 
+        - l'interlocuteur n'est pas COMPTE délégué de la même partition
+    */
+    if (this.setR.has(R.MINI)) {
+      const idE = args.idE
+      if (!ID.estComptable(idE)) {
+        if (this.compte._estA) throw new AppExc(F_SRV, 802)
+        else {
+          const cptE = compile(await this.getRowCompte(idE))
+          if (!this.compte.del) {
+            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          } else {
+            if (!cptE || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          }
+        }
+      }
     }
 
     const idsI = this.idsChat(args.idI, args.idE)

@@ -24,10 +24,12 @@ export function assertKO (src, code, args) {
 
 export class R { // Restrictions
   static RAL1 = 1 // Ralentissement des opérations
+  // Comptes O : compte.qv.pcc > 80% / 90%
+  // Comptes A : compte.qv.nbj < 20 / 10
 
   static RAL2 = 2 // Ralentissement des opérations
   // Comptes O : compte.qv.pcc > 90% / 100%
-  // Comptes A : compte.qv.nbj < 20 / 10
+  // Comptes A : compte.qv.nbj < 10
 
   static NRED = 3 // Nombre de notes / chats /groupes en réduction
   // compte.qv.pcn > 100
@@ -39,7 +41,9 @@ export class R { // Restrictions
   // Comptes 0 : espace.notifP compte.notifC de nr == 2
 
   static MINI = 6 // Accès minimal, actions d'urgence seulement
-  // Comptes 0 : espace.notifP compte.notifC de nr == 3
+  // Comptes O : espace.notifP compte.notifC de nr == 3
+  // Comptes O : compte.qv.pcc > 100%
+  // Comptes A : compte.qv.nbj < 0
 
   static FIGE = 8 // Espace figé en lecture
 
@@ -213,6 +217,9 @@ export class Operation {
       await this.phase3(this.args) // peut ajouter des résultas
 
       if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
+
+      if (this.setR.has(R.RAL1)) await sleep(3000)
+      if (this.setR.has(R.RAL2)) await sleep(6000)
     }
 
     return this.result
@@ -397,18 +404,31 @@ export class Operation {
       await sleep(3000); throw new AppExc(F_SRV, 104) 
     }
     // Recherche des restrictions
-    const ral = R.getRal(this.compte)
-    if (ral) this.setR.add(ral)
-    if (this.compte.qv.pcn >= 100) this.setR.add(R.NRED)
-    if (this.compte.qv.pcv >= 100) this.setR.add(R.VRED)
-    if (this.compte.idp) {
-      const np = this.espace.tnotifP[this.compte.idp]
-      let x = np ? np.nr : 0
-      const nc = this.compte.notif
-      if (nc && nc.nr > x) x = nc.nr
-      if (x) {
-        if (x === 2) this.setR.add(R.LECT)
-        if (x === 3) this.setR.add(R.MINI)
+    if (!this.estComptable) {
+      const ral = R.getRal(this.compte)
+      if (ral) this.setR.add(ral)
+      if (this.compte.qv.pcn >= 100) this.setR.add(R.NRED)
+      if (this.compte.qv.pcv >= 100) this.setR.add(R.VRED)
+      if (this.compte.idp) {
+        if (this.compte.qv.pcc > 80) {
+          if (this.compte.qv.pcc < 90) this.setR.add(R.RAL1)
+          else if (this.compte.qv.pcc < 100) this.setR.add(R.RAL2)
+          else this.setR.add(R.MINI)
+        }
+        const np = this.espace.tnotifP[this.compte.idp]
+        let x = np ? np.nr : 0
+        const nc = this.compte.notif
+        if (nc && nc.nr > x) x = nc.nr
+        if (x) {
+          if (x === 2) this.setR.add(R.LECT)
+          if (x === 3) this.setR.add(R.MINI)
+        }
+      } else {
+        if (this.compte.qv.nbj < 20) {
+          if (this.compte.qv.nbj <= 0) this.setR.add(R.MINI)
+          else if (this.compte.qv.nbj < 10) this.setR.add(R.RAL2)
+          else this.setR.add(R.RAL1)
+        }
       }
     }
 
