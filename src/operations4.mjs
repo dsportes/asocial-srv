@@ -152,137 +152,6 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   }
 }
 
-/* Ajout ou suppression d\'un item à un chat ***************************************
-- `token` : éléments d'authentification du compte auteur
-- id, ids: id du chat
-- t: texte gzippé crypté par la clé C du chat (null si suppression)
-- dh : 0 ou date-heure de l'item du chat à supprimer
-- don : montant du don de I à E
-Retour:
-- disp: true si E a disparu (pas de maj faite)
-*/
-operations.MajChat = class MajChat extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  addChatItem (items, item) {
-    const nl = [item]
-    let lg = item.t ? item.t.length : 0
-    for (const it of items) {
-      lg += it.t ? it.t.length : 0
-      if (lg > 5000) return nl
-      nl.push(it)
-    }
-    return nl
-  }
-
-  razChatItem (items, dh) { 
-    // a : 0:écrit par I, 1: écrit par E
-    const nl = []
-    for (const it of items) {
-      if (it.dh === dh) {
-        nl.push({a: it.a, dh, dhx: this.dh})
-      } else {
-        nl.push(it)
-      }
-    }
-    return nl
-  }
-
-  async phase2 (args) {
-    const chI = compile(await this.getRowChat(args.id, args.ids, 'MajChat-9'))
-
-    /* Restriction MINI NE s'applique QUE,
-    a) si l'interlocuteur n'est pas le comptable,
-    b) ET:
-      - compte 0 délégué: 
-        - si l'interlocuteur n'est pas COMPTE O de la même partition
-      - compte 0 NON délégué: 
-        - l'interlocuteur n'est pas COMPTE délégué de la même partition
-    */
-    if (this.setR.has(R.MINI)) {
-      const idE = ID.long(chI.idE, this.ns)
-      if (!ID.estComptable(idE)) {
-        if (this.compte._estA) throw new AppExc(F_SRV, 802)
-        else {
-          const cptE = compile(await this.getRowCompte(idE))
-          if (!this.compte.del) {
-            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          } else {
-            if (!cptE || cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          }
-        }
-      }
-    }
-
-    const avI = compile(await this.getRowAvatar(args.id, 'MajChat-2'))
-    const vchI = await this.getV(avI, 'MajChat-3')
-    vchI.v++
-    this.setV(vchI)
-
-    const idEL = ID.long(chI.idE, this.ns)
-    const chE = compile(await this.getRowChat(idEL, chI.idsE))
-
-    if (!chE) {
-      // E disparu. Maj interdite:
-      const st1 = Math.floor(chI.st / 10)
-      chI.st = (st1 * 10) + 2 
-      chI.vcv = 0
-      chI.cvE = null
-      this.setRes('disp', true)
-      chI.v = vchI.v
-      this.update(chI.toRow())
-      return
-    }
-
-    let comptaE = null
-    if (args.don) {
-      comptaE = compile(await this.getRowCompta(idEL))
-      if (!comptaE) throw new AppExc(F_SRV, 213)
-      if (!comptaE._estA) throw new AppExc(F_SRV, 214)
-      if (!this.compta._estA) throw new AppExc(F_SRV, 214)
-      this.compta.donDB(args.don)
-      comptaE.donCR(args.don)
-      comptaE.v++
-      this.setNV(comptaE)
-      this.update(comptaE.toRow())
-    }
-
-    // cas normal : maj sur chI et chE
-    const avE = compile(await this.getRowAvatar(idEL, 'MajChat-4'))
-    const vchE = await this.getV(avE, 'MajChat-5')
-    vchE.v++
-    this.setV(vchE)
-
-    if (args.t) {
-      const itemI = args.t ? { a: 0, dh: this.dh, t: args.t } : null
-      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null  
-      chI.items = this.addChatItem(chI.items, itemI)
-      chE.items = this.addChatItem(chE.items, itemE)
-    } else if (args.dh) {
-      chI.items = this.razChatItem(chI.items, args.dh)
-      chE.items = this.razChatItem(chE.items, args.dh)
-    }
-
-    chI.cvE = avE.cvA || {id: ID.court(avE.id)}
-    chI.vcv = chI.cvE.v || 0
-    chE.cvE = avI.cvA || {id: avI.id}
-    chE.vcv = chE.cvE.v || 0
-   
-    if (Math.floor(chI.st / 10) === 0) { // I était passif, redevient actif
-      chI.st = 10 + (chI.st % 10)
-      this.compta.ncPlus(1)
-      chE.st = (Math.floor(chE.st / 10) * 10) + 1 
-    }
-
-    chI.v = vchI.v
-    chE.v = vchE.v
-    this.update(chI.toRow())
-    this.update(chE.toRow())
-  }
-}
-
 /* GetCompta : retourne la compta d'un compte
 - `token` : jeton d'authentification du compte
 - `id` : du compte
@@ -455,6 +324,194 @@ operations.NouveauChat = class NouveauChat extends Operation {
   }
 }
 
+/* Ajout ou suppression d\'un item à un chat ***************************************
+- `token` : éléments d'authentification du compte auteur
+- id, ids: id du chat
+- t: texte gzippé crypté par la clé C du chat (null si suppression)
+- dh : 0 ou date-heure de l'item du chat à supprimer
+- don : montant du don de I à E
+Retour:
+- disp: true si E a disparu (pas de maj faite)
+*/
+operations.MajChat = class MajChat extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  addChatItem (items, item) {
+    const nl = [item]
+    let lg = item.t ? item.t.length : 0
+    for (const it of items) {
+      lg += it.t ? it.t.length : 0
+      if (lg > 5000) return nl
+      nl.push(it)
+    }
+    return nl
+  }
+
+  razChatItem (items, dh) { 
+    // a : 0:écrit par I, 1: écrit par E
+    const nl = []
+    for (const it of items) {
+      if (it.dh === dh) {
+        nl.push({a: it.a, dh, dhx: this.dh})
+      } else {
+        nl.push(it)
+      }
+    }
+    return nl
+  }
+
+  async phase2 (args) {
+    const chI = compile(await this.getRowChat(args.id, args.ids, 'MajChat-9'))
+
+    /* Restriction MINI NE s'applique QUE,
+    a) si l'interlocuteur n'est pas le comptable,
+    b) ET:
+      - compte 0 délégué: 
+        - si l'interlocuteur n'est pas COMPTE O de la même partition
+      - compte 0 NON délégué: 
+        - l'interlocuteur n'est pas COMPTE délégué de la même partition
+    */
+    if (this.setR.has(R.MINI)) {
+      const idE = ID.long(chI.idE, this.ns)
+      if (!ID.estComptable(idE)) {
+        if (this.compte._estA) throw new AppExc(F_SRV, 802)
+        else {
+          const cptE = compile(await this.getRowCompte(idE))
+          if (!this.compte.del) {
+            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          } else {
+            if (!cptE || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          }
+        }
+      }
+    }
+
+    const avI = compile(await this.getRowAvatar(args.id, 'MajChat-2'))
+    const vchI = await this.getV(avI, 'MajChat-3')
+    vchI.v++
+    this.setV(vchI)
+
+    const idEL = ID.long(chI.idE, this.ns)
+    const chE = compile(await this.getRowChat(idEL, chI.idsE))
+
+    if (!chE) {
+      // E disparu. Maj interdite:
+      const st1 = Math.floor(chI.st / 10)
+      chI.st = (st1 * 10) + 2 
+      chI.vcv = 0
+      chI.cvE = null
+      this.setRes('disp', true)
+      chI.v = vchI.v
+      this.update(chI.toRow())
+      return
+    }
+
+    let comptaE = null
+    if (args.don) {
+      comptaE = compile(await this.getRowCompta(idEL))
+      if (!comptaE) throw new AppExc(F_SRV, 213)
+      if (!comptaE._estA) throw new AppExc(F_SRV, 214)
+      if (!this.compta._estA) throw new AppExc(F_SRV, 214)
+      this.compta.donDB(args.don)
+      comptaE.donCR(args.don)
+      comptaE.v++
+      this.setNV(comptaE)
+      this.update(comptaE.toRow())
+    }
+
+    // cas normal : maj sur chI et chE
+    const avE = compile(await this.getRowAvatar(idEL, 'MajChat-4'))
+    const vchE = await this.getV(avE, 'MajChat-5')
+    vchE.v++
+    this.setV(vchE)
+
+    if (args.t) {
+      const itemI = args.t ? { a: 0, dh: this.dh, t: args.t } : null
+      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null  
+      chI.items = this.addChatItem(chI.items, itemI)
+      chE.items = this.addChatItem(chE.items, itemE)
+    } else if (args.dh) {
+      chI.items = this.razChatItem(chI.items, args.dh)
+      chE.items = this.razChatItem(chE.items, args.dh)
+    }
+
+    chI.cvE = avE.cvA || {id: ID.court(avE.id)}
+    chI.vcv = chI.cvE.v || 0
+    chE.cvE = avI.cvA || {id: avI.id}
+    chE.vcv = chE.cvE.v || 0
+   
+    if (Math.floor(chI.st / 10) === 0) { // I était passif, redevient actif
+      chI.st = 10 + (chI.st % 10)
+      this.compta.ncPlus(1)
+      chE.st = (Math.floor(chE.st / 10) * 10) + 1 
+    }
+
+    chI.v = vchI.v
+    chE.v = vchE.v
+    this.update(chI.toRow())
+    this.update(chE.toRow())
+  }
+}
+
+/* `PassifChat` : rend le chat passif, nombre de chat - 1, items vidé
+Mise en état "passif" d\'un chat
+Nombre de chat - 1, items vidé
+- token : éléments d'authentification du compte.
+- id ids : id du chat
+Retour
+- disp: true si E a disparu
+*/
+operations.PassifChat = class PassifChat extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const chI = compile(await this.getRowChat(args.id, args.ids, 'PassifChat-1'))
+    const vchI = await this.getV(chI, 'PassifChat-2')
+    vchI.v++
+    chI.v = vchI.v
+    let stI = Math.floor(chI.st / 10)
+    let stE = chI.st % 10
+
+    const idEL = ID.long(chI.idE, this.ns)
+    const chE = compile(await this.getRowChat(idEL, chI.idsE))
+    if (!chE) {
+      // E disparu. Maj interdite:
+      stE = 2
+      chI.vcv = 0
+      chI.cvE = null
+      this.setRes('disp', true)
+    }
+
+    if (stI === 1) {
+      // était actif, devient passif
+      stI = 0
+      chI.st = stE
+      chI.items = []
+      this.compta.ncPlus(-1)
+      if (chE) {
+        // l'autre n'était pas disparu, MAJ de son st
+        const vchE = await this.getV(chE, 'PassifChat-3')
+        vchE.v++
+        chE.v = vchI.v
+        const stE1 = Math.floor(chE.st / 10)
+        chE.st = stE1 * 10
+        this.update(chE.toRow())
+        this.setV(vchE)
+      }
+    }
+    if (chE) {
+      const avE = compile(await this.getRowAvatar(idEL, 'PassifChat-4'))
+      chI.cvE = avE.cvA
+      chI.vcv = chI.cvE.v || 0
+    }
+    chI.st = (stI * 10) + stE
+    this.update(chI.toRow())
+    this.setV(vchI)
+  }
+}
+
 /* OP_ChangementPC: 'Changement de la phrase de contact d\'un avatar' *************************
 token: éléments d'authentification du compte.
 - `id`: de l'avatar
@@ -491,5 +548,26 @@ operations.ChangementPC = class ChangementPC extends Operation {
       delete avatar.cleAZC
     }
     this.update(avatar.toRow())
+  }
+}
+
+/* OP_EstAutonome: 'Vérification que le bénéficiaire envisagé d\'un don est bien un compte autonome'
+indique si l'avatar donné en argument est 
+l'avatar principal d'un compte autonome
+- token : jeton d'authentification du compte de **l'administrateur**
+- id : id de l'avatar
+Retour: 
+- `st`: 
+  - 0 : pas avatar principal 
+  - 1 : avatar principal d'un compte A
+  - 2 : avatar principal d'un compte O
+*/
+operations.EstAutonome = class EstAutonome extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2(args) {
+    const compte = compile(await this.getRowCompte(args.id))
+    if (!compte) { this.setRes('st', 0) }
+    this.setRes('st', compte.idp ? 2 : 1)
   }
 }
