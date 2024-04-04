@@ -1,11 +1,10 @@
-import { AppExc, F_SRV, ID, FLAGS, d14 } from './api.mjs'
+import { AppExc, F_SRV, ID, FLAGS } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
-import { Operation, assertKO } from './modele.mjs'
-import { compile, Espaces, Syntheses, Partitions, Comptes, Comptis,
-  Avatars, Comptas, Sponsorings, Chats } from './gendoc.mjs'
+import { Operation, R } from './modele.mjs'
+import { compile, Sponsorings, Chats } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -28,88 +27,6 @@ export function load4 () {
     compte espace (lazy)
 */
 
-/* `CreerEspace` : création d'un nouvel espace et du comptable associé
-- token : jeton d'authentification du compte de **l'administrateur**
-- ns : numéro de l'espace
-- org : code de l'organisation
-- hXR : hash du PBKFD de la phrase secrète réduite
-- hXC : hash du PBKFD de la phrase secrète complète
-- pub: clé RSA publique du Comptable
-- privK: clé RSA privée du Comptable cryptée par la clé K
-- clePK: clé P de la partition 1 cryptée par la clé K du Comptable
-- cleAP: clé A du Comptable cryptée par la clé de la partition
-- cleAK: clé A du Comptable cryptée par la clé K du Comptable
-- cleKXC: clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
-- clePA: cle P de la partition cryptée par la clé A du Comptable
-- ck: `{ cleP, code }` crypté par la clé K du comptable
-Retour: rien
-
-Création des rows:
-- espace, synthese
-- partition : primitive, avec le Comptable comme premier participant et délégué
-- compte, compta, avatar: du Comptable
-
-Exceptions: 
-- F_SRV, 202 : ns non conforme.
-- F_SRV, 201: code d'organisation invalide.
-- F_SRV, 203 : Espace déjà créé.
-- F_SRV, 204 : code d'organisation déjà attribué
-*/
-operations.CreerEspace = class CreerEspace extends Operation {
-  constructor (nom) { super(nom, 3) }
-
-  // eslint-disable-next-line no-useless-escape
-  static reg = /^([a-z0-9\-]+)$/
-
-  async phase2(args) {
-    this.ns = args.ns
-    if (args.ns < 10 || args.ns > 89) throw new AppExc(F_SRV, 202, [args.ns])
-    if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreerEspace.reg))) 
-      throw new AppExc(F_SRV, 201, [args.org])
-
-    if (await this.getRowEspace(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
-    if (await this.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
-
-    const idComptable = ID.duComptable(args.ns)
-    const aco = config.allocComptable
-    const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
-    const qvc = { qc: aco[0], qn: aco[1], qv: aco[2] }
-    const apr = config.allocPrimitive
-    const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
-    const rdsav = ID.rds(ID.RDSAVATAR)
-
-    /* Espace */
-    this.espace = Espaces.nouveau(args.ns, args.org, this.auj)
-
-    /* Partition et Synthese */
-    if (!this.partitions) this.partitions = new Map()
-    const partition = Partitions.nouveau(args.ns, 1, qc)
-    this.partitions.set(partition.id, partition)
-    this.synthese = Syntheses.nouveau(args.ns, this.dh)
-
-    /* Compte Comptable */
-    const o = { clePA: args.clePA, del: true, idp: 1 }
-    // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
-    this.compte = Comptes.nouveau(idComptable, 
-      (args.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, qvc, o, args.ck)
-    
-    /* Compti */
-    const compti = new Comptis().init({ id: idComptable, v: 1, mc: {} })
-    this.insert(compti.toRow())
-
-    /* Compta */
-    this.compta = Comptas.nouveau(idComptable, qv).compile()
-    partition.ajoutCompte(this.compta, args.cleAP, true)
-
-    /* Avatar  (id, rdsav, pub, privK, cvA) */
-    const cvA = { id: ID.court(idComptable) }
-    const avatar = Avatars.nouveau(idComptable, rdsav, args.pub, args.privK, cvA)
-    this.setNV(avatar)
-    this.insert(avatar.toRow())
-  }
-}
-
 /*`SetEspaceOptionA` : changement de l'option A, nbmi, dlvat par le Comptable
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `ns` : id de l'espace notifié.
@@ -130,28 +47,6 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
     if (args.dlvat) this.espace.dlvat = args.dlvat
     if (args.nbmi) this.espace.nbmi = args.nbmi
     this.espace._maj = true
-  }
-}
-
-/*`SetEspaceNprof` : déclaration du profil de volume de l'espace par l'administrateur
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié.
-- `nprof` : numéro de profil de 0 à N. Liste spécifiée dans config.mjs de l'application.
-
-Retour: rien
-
-Assertion sur l'existence du row `Espaces`.
-
-C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-Elle n'écrit QUE dans espaces.
-*/
-operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
-  constructor (nom) { super(nom, 3)}
-
-  async phase2 (args) {
-    this.espace = compile(await this.getRowEspace(args.ns, 'SetEspaceNprof'))
-    this.espace._maj = true
-    this.espace.nprof = args.nprof
   }
 }
 
@@ -180,9 +75,12 @@ operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
 Retour:
 */
 operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
+    if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
+    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+
     if (await this.db.getCompteHXR(this.args.hps1)) 
       throw new AppExc(F_SRV, 207)
 
@@ -234,6 +132,9 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2(args) {
+    if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
+    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+
     const sp = compile(await this.getRowSponsoring(args.id, args.ids, 'ProlongerSponsoring'))
     if (sp.st === 0) {
       const vsp = await this.getVAvGr(args.id, 'ProlongerSponsoring-2')
@@ -251,36 +152,6 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   }
 }
 
-/* `RefusSponsoring` : refus d'un sponsoring
-args.id ids : identifiant du sponsoring
-args.ardYC : réponse du filleul
-args.hYC: hash du PBKFD de la phrase de sponsoring
-*/
-operations.RefusSponsoring = class RefusSponsoring extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2(args) {
-    this.ns = ID.ns(args.id)
-
-    // Recherche du sponsorings
-    const sp = compile(await this.db.get(this, 'sponsorings', args.id, args.ids))
-    if (!sp) throw assertKO('SyncSp-1', 13, [args.id, args.ids])
-    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.id, args.ids])
-    if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
-
-    // Maj du sponsoring: st dconf2 dh ardYC
-    const avsponsor = compile(await this.getRowAvatar(args.id, 'SyncSp-10'))
-    const vsp = await this.getV(avsponsor, 'SyncSp-3')
-    vsp.v++
-    sp.v = vsp.v
-    sp.dh = this.dh
-    sp.st = 1
-    sp.ardYC = args.ardYC
-    this.update(sp.toRow())
-    this.setV(vsp)
-  }
-}
-
 /* Ajout ou suppression d\'un item à un chat ***************************************
 - `token` : éléments d'authentification du compte auteur
 - id, ids: id du chat
@@ -289,9 +160,13 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
 - don : montant du don de I à E
 Retour:
 - disp: true si E a disparu (pas de maj faite)
+
+On laisse passer les lectures / écritures sur les chats:
+C'est compliqué de tester s'il s'agit ou non d'une action d'urgence.
+C'est plus simple dans l'application
 */
 operations.MajChat = class MajChat extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { super(nom, 1, 2) }
 
   addChatItem (items, item) {
     const nl = [item]
@@ -383,25 +258,6 @@ operations.MajChat = class MajChat extends Operation {
     chE.v = vchE.v
     this.update(chI.toRow())
     this.update(chE.toRow())
-  }
-}
-
-/* `SetNotifE` : déclaration d'une notification à un espace par l'administrateur
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié
-- `ntf` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
-
-C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-Elle n'écrit QUE dans espaces.
-*/
-operations.SetNotifE = class SetNotifE extends Operation {
-  constructor (nom) { super(nom, 3) }
-
-  async phase2 (args) {
-    this.espace = compile(await this.getRowEspace(args.ns, 'SetNotifG'))
-    this.espace._maj = true
-    if (args.ntf) args.ntf.dh = Date.now()
-    this.espace.notifE = args.ntf || null
   }
 }
 

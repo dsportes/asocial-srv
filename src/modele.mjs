@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, R, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
+import { ID, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
   UNITEN, UNITEV, d14, edvol, hash } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
@@ -20,6 +20,47 @@ export function assertKO (src, code, args) {
   console.error(t + ' ' + msg)
   if (args) args.unshift(src)
   return new AppExc(A_SRV, code, !args ? [src || '???'] : args)
+}
+
+export class R { // Restrictions
+  static RAL1 = 1 // Ralentissement des opérations
+
+  static RAL2 = 2 // Ralentissement des opérations
+  // Comptes O : compte.qv.pcc > 90% / 100%
+  // Comptes A : compte.qv.nbj < 20 / 10
+
+  static NRED = 3 // Nombre de notes / chats /groupes en réduction
+  // compte.qv.pcn > 100
+
+  static VRED = 4 // Volume de fichier en réduction
+  // compte.qv.pcv > 100
+
+  static LECT = 5 // Compte en lecture seule (sauf actions d'urgence)
+  // Comptes 0 : espace.notifP compte.notifC de nr == 2
+
+  static MINI = 6 // Accès minimal, actions d'urgence seulement
+  // Comptes 0 : espace.notifP compte.notifC de nr == 3
+
+  static FIGE = 8 // Espace figé en lecture
+
+  static CLOS = 9 // Espace figé en lecture
+
+  static getRal (c) {
+    if (c.idp) {
+      if (c.qv.pcc >= 100) return 2
+      if (c.qv.pcc >= 90) return 1
+    } else {
+      if (c.qv.nbj <= 10) return 2
+      if (c.qv.nbj <= 20) return 1
+    }
+    return 0
+  }
+
+  // true si une des restrictions du set s est grave (>= 5)
+  static estGrave(s) {
+    for(const r in s) if (r >= 5) return true
+    return false
+  }
 }
 
 /* Cache ************************************************************************
@@ -440,6 +481,18 @@ export class Operation {
     const tr = await Cache.getRow(this, 'espaces', id)
     if (assert && !tr) throw assertKO('getRowEspace/' + assert, 1, [id])
     return tr
+  }
+
+  async getEspaceLazy (id, assert) {
+    this.espace = compile(await Cache.getRow(this, 'espaces', id, true))
+    if (assert && !this.espace) throw assertKO('getRowEspace/' + assert, 1, [id])
+    this.ns = this.espace.id
+    this.notifE = this.espace.notifE
+    if (this.notifE) {
+      // Espace bloqué
+      if (this.notifE.nr === 3) this.setR.add(R.CLOS)
+      else if (this.notifE.nr === 2) this.setR.add(R.FIGE)
+    }
   }
 
   async getRowPartition (id, assert) {

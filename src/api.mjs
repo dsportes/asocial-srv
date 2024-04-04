@@ -41,38 +41,6 @@ export const limitesjour = {
   groupenonheb: 120 // durée de vie d'un groupe non hébbergé
 }
 
-export class R { // Restrictions
-  static RAL1 = 1 // Ralentissement des opérations
-  static RAL2 = 2 // Ralentissement des opérations
-  // Comptes O : compte.qv.pcc > 90% / 100%
-  // Comptes A : compte.qv.nbj < 20 / 10
-  static NRED = 3 // Nombre de notes / chats /groupes en réduction
-  // compte.qv.pcn > 100
-  static VRED = 4 // Volume de fichier en réduction
-  // compte.qv.pcv > 100
-  static LECT = 5 // Compte en lecture seule (sauf actions d'urgence)
-  // Comptes 0 : espace.notifP compte.notifC de nr == 2
-  static MINI = 6 // Accès minimal, actions d'urgence seulement
-  // Comptes 0 : espace.notifP compte.notifC de nr == 3
-  static FIGE = 9 // Espace figé en lecture
-  // espace.notif.nr == 2
-  static getRal (c) {
-    if (c.idp) {
-      if (c.qv.pcc >= 100) return 2
-      if (c.qv.pcc >= 90) return 1
-    } else {
-      if (c.qv.nbj <= 10) return 2
-      if (c.qv.nbj <= 20) return 1
-    }
-    return 0
-  }
-  // true si une des restrictions du set s est grave (>= 5)
-  static estGrave(s) {
-    for(const r in s) if (r >= 5) return true
-    return false
-  }
-}
-
 /************************************************************************/
 export const FLAGS = {
   AC: 1 << 0, // **est _actif_**

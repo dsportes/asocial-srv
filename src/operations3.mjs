@@ -3,8 +3,8 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep } from './util.mjs'
 
-import { Operation, assertKO, Cache } from './modele.mjs'
-import { compile, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
+import { Operation, assertKO, Cache, R } from './modele.mjs'
+import { compile, Espaces, Partitions, Syntheses, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -28,7 +28,9 @@ export function load3 () {
     compte compta espace partition (si c'est un compte O)
 */
 
-/* Opérations de test / ping ****************************************************/
+/*******************************************************************************
+* Opérations SANS connexion NI contrôle de l'espace
+*******************************************************************************/
 
 /** Echo du texte envoyé ***************************************
 args.to : délai en secondes avant retour de la réponse
@@ -72,20 +74,6 @@ operations.PingDB = class PingDB extends Operation {
   }
 }
 
-/* Opérations de lectures non synchronisées *****************************/
-
-/* GetPub: retourne la clé RSA publique d'un avatar
-- id : id de l'avatar
-*/
-operations.GetPub = class GetPub extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2 (args) {
-    const avatar = compile(await this.getRowAvatar(args.id, 'getPub'))
-    this.setRes('pub', avatar.pub)
-  }
-}
-
 /* GetEspaces : pour admin seulement, retourne tous les rows espaces
 - `token` : éléments d'authentification du compte.
 Retour:
@@ -96,6 +84,339 @@ operations.GetEspaces = class GetEspaces extends Operation {
 
   async phase2() {
     this.setRes('espaces', await this.db.coll(this, 'espaces'))
+  }
+}
+
+/*******************************************************************************
+* Opérations SANS connexion AVEC contrôle de l'espace
+* Lectures non synchronisées
+*******************************************************************************/
+
+/* GetPub: retourne la clé RSA publique d'un avatar
+- id : id de l'avatar
+*/
+operations.GetPub = class GetPub extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    await this.getEspaceLazy(ID.ns(args.id))
+    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+    
+    const avatar = compile(await this.getRowAvatar(args.id, 'getPub'))
+    this.setRes('pub', avatar.pub)
+  }
+}
+
+/* Get Sponsoring **************************************************
+args.token: éléments d'authentification du compte.
+args.org : organisation
+args.hps1 : hash du PBKFD de la phrase de contact réduite SANS ns
+Retour:
+- rowSponsoring s'il existe
+*/
+operations.GetSponsoring = class GetSponsoring extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    const espace = await this.getEspaceOrg(args.org)
+    if (!espace) { sleep(3000); return }
+
+    this.ns = this.espace.id
+    const n = this.espace.notifE
+    if (n && n.nr === 3) // application close
+      throw new AppExc(A_SRV, 999, [n.texte, n.dh])
+
+    const ids = (espace.id * d14) + (args.hps1 % d14) // par précaution
+    const row = await this.db.getSponsoringIds(this, ids)
+    if (!row) { sleep(3000); return }
+    this.setRes('rowSponsoring', row)
+  }
+}
+
+/* Recherche hash de phrase ***************************************
+Pour Acceptation Sponsoring
+args.hps1 : ns + hps1 de la phrase de contact / de connexion
+args.t :
+  - 1 : phrase de connexion(hps1 de compta)
+Retour:
+- existe : true si le hash de la phrase existe
+*/
+operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    await this.getEspaceLazy(ID.ns(args.hps1))
+    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+
+    if (await this.db.getCompteHXR(this, args.hps1)) this.setRes('existe', true)
+  }
+}
+
+/* SyncSp - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
+- `token` : éléments d'authentification du compte à créer
+- idsp idssp : identifiant du sponsoring
+- id : id du compte sponsorisé à créer
+- hXR: hash du PBKD de sa phrase secrète réduite
+- hXC: hash du PBKD de sa phrase secrète complète
+- `hYC`: hash du PNKFD de la phrase de sponsoring
+- cleKXC: clé K du nouveau compte cryptée par le PBKFD de sa phrase secrète complète
+- cleAK: clé A de son avatar principal cryptée par la clé K du compte
+- ardYC: ardoise du sponsoring
+- dconf: du sponsorisé
+- pub: clé RSA publique de l'avatar
+- privK: clé privée RSA de l(avatar cryptée par la clé K du compte
+- cvA: CV de l'avatar cryptée par sa clé A
+
+- clePK: clé P de sa partition cryptée par la clé K du nouveau compte
+- cleAP: clé A de son avatar principâl cryptée par la clé P de sa partition
+- clePA: cle P de la partition cryptée par la clé A du nouveau compte
+
+- ch: { cck, ccP, t1c, t2c }
+  - ccK: clé C du chat cryptée par la clé K du compte
+  - ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
+  - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
+  - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
+  - t1c: mot du sponsor crypté par la clé C
+  - t2c: mot du sponsorisé crypté par la clé C
+
+Retour: 
+- rowCompte
+- rowCompti
+- rowAvater 
+- rowChat si la confidentialité n'a pas été requise
+
+Exceptions:
+- `A_SRV, 13` : sponsorings non trouvé
+- `F_SRV, 9` : le sponsoring a déjà été accepté ou refusé ou est hors limite.
+- F_SRV, 212: solde du sonsor ne couvre pas son don
+- A_SRV, 999: application close
+- F_SRV, 101: application figée
+- F_SRV, 211: quotas restants de la partition insuffisants pour couvrir les quotas proposés au compte
+- A_SRV, 16: syntheses non trouvée
+- A_SRV, 1: espace non trouvé
+- A_SRV, 2: partition non trouvée
+- A_SRV, 8: avatar sponsor non trouvé
+*/
+operations.SyncSp = class SyncSp extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    this.ns = ID.ns(args.idsp)
+    await this.getEspaceLazy(this.ns)
+    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+
+    // Recherche du sponsorings
+    const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
+    if (!sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idssp])
+    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.idsp, args.idsp])
+    if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
+
+    // Maj du sponsoring: st dconf2 dh ardYC
+    const avsponsor = compile(await this.getRowAvatar(args.idsp, 'SyncSp-10'))
+    const vsp = await this.getV(avsponsor, 'SyncSp-3')
+    vsp.v++
+    sp.v = vsp.v
+    const dhsp = sp.dh || 0
+    sp.dh = this.dh
+    sp.st = 2
+    sp.ardYC = args.ardYC
+    sp.dconf2 = args.dconf
+    this.update(sp.toRow())
+    this.setV(vsp)
+
+    // Maj compta du sponsor (si don)
+    if (sp.don) { 
+      const csp = compile(await this.getRowCompta(args.idsp, 'SyncSp-8'))
+      if (csp.estA) {
+        if (csp.solde <= sp.don + 2)
+          throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
+        csp.v++
+        csp.solde-= sp.don
+        this.update(csp.toRow()) 
+      }
+    }
+
+    // Refus si espace figé ou clos
+    this.espace = compile(await this.getRowEspace(this.ns, 'SyncSp-3'))
+    if (this.espace.notifE) {
+      // Espace bloqué
+      const n = this.espace.notifE
+      if (n.nr === 3) // application close
+        throw new AppExc(A_SRV, 999, [n.texte])
+      if (n.nr === 2) 
+        throw new AppExc(F_SRV, 101, [n.texte])
+    }
+
+    // Création du nouveau compte
+    const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
+    const rdsav = ID.rds(ID.RDSAVATAR)
+    const qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
+    const q = { qc: qv.qc, qn: qv.qn, qv: qv.qv, c: 0, n: 0, v: 0 } // partition
+
+    const o = sp.partitionId ? { clePA: args.clePA, del: sp.del, idp: sp.partitionId } : null
+    // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
+    this.compte = Comptes.nouveau(args.id, 
+      (this.ns * d14) + (args.hXR % d14), 
+      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, sp.quotas, o)
+    /* Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
+      this.setRes('rowCompte', this.compte.toShortRow())
+    */
+
+    /* Compti */
+    const compti = new Comptis().init({ id: args.id, v: 1, mc: {} })
+    this.setRes('rowCompti', this.insert(compti.toRow()))
+
+    /* Compta */
+    this.compta = Comptas.nouveau(args.id, qv)
+    this.compta.solde = sp.don || 0
+    this.compta.compile() // pour calculer c2m ...
+
+    /* Avatar  (id, rdsav, pub, privK, cvA) */
+    const avatar = Avatars.nouveau(args.id, rdsav, args.pub, args.privK, args.cvA)
+    this.setNV(avatar)
+    this.insert(avatar.toRow()) 
+    this.setRes('rowAvatar', avatar.toShortRow())
+
+    // création du dataSync
+    const ds = DataSync.deserial()
+    ds.rdsId = {}
+    ds.compte.vb = 1
+    ds.rdsC = ID.long(this.compte.rds, this.ns)
+    const a = { id: avatar.id, vs: 0, vb: avatar.v }
+    ds.avatars.set(a.id, a)
+    ds.rdsId[ID.long(avatar.rds, this.ns)] = avatar.id
+    ds.tousRds.length = 0
+    for(const rdsx in ds.rdsId) ds.tousRds.push(parseInt(rdsx))
+    ds.tousRds.push(ds.rdsC) // rds du compte
+    ds.tousRds.push(this.ns) // espace
+    // Sérialisation et retour de dataSync
+    this.setRes('dataSync', ds.serial(this.dh, this.crypt, this.db.appKey))
+
+    // Compte O : partition: ajout d'un compte (si quotas suffisants)
+    if (pid) {
+      if (!this.partitions) this.partitions = new Map()
+      const partition =  compile(await this.getRowPartition(pid), 'SyncSp-4')
+      this.partitions.set(pid, partition)
+      const s = partition.getSynthese()
+      // restants à attribuer suffisant pour satisfaire les quotas ?
+      if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.qv - s.qt.qv))
+        throw new AppExc(F_SRV, 211, [pid, args.id])
+      // (compta, cleAP, del)
+      partition.ajoutCompte(this.compta, args.cleAP, sp.del)
+    }
+    
+    /* Création chat */
+    if (!sp.dconf && !args.dconf) {
+      /*- ccK: clé C du chat cryptée par la clé K du compte
+        - ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
+        - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
+        - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
+      */
+      const idsI = this.idsChat(args.id, sp.id)
+      const idsE = this.idsChat(sp.id, args.id)
+      const chI = new Chats().init({ // du sponsorisé
+        id: args.id,
+        ids: ID.long(idsI, this.ns),
+        v: 1,
+        st: 10,
+        idE: ID.court(sp.id),
+        idsE: idsE,
+        cvE: avsponsor.cvA,
+        cleCKP: args.ch.ccK,
+        cleEC: args.ch.cleE1C,
+        items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
+      })
+      this.setRes('rowChat', this.insert(chI.toRow()))
+      this.compta.ncPlus(1)
+
+      const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
+      vchE.v++
+      this.setV(vchE)
+      const chE = new Chats().init({
+        id: sp.id,
+        ids: ID.long(idsE, this.ns),
+        v: vchE.v,
+        st: 1,
+        idE: ID.court(chI.id),
+        idsE: idsI,
+        cvE: avatar.cvA,
+        cleCKP: args.ch.ccP,
+        cleEC: args.ch.cleE2C,
+        items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
+      })
+      this.insert(chE.toRow())
+    }
+  }
+
+  async phase3 () {
+    /* Le row compte A ETE MIS A JOUR après la phase 2 */
+    this.setRes('rowCompte', this.compte.toRow())
+  }
+}
+
+/* `RefusSponsoring` : refus d'un sponsoring
+args.id ids : identifiant du sponsoring
+args.ardYC : réponse du filleul
+args.hYC: hash du PBKFD de la phrase de sponsoring
+*/
+operations.RefusSponsoring = class RefusSponsoring extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2(args) {
+    this.ns = ID.ns(args.id)
+    await this.getEspaceLazy(this.ns)
+    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+
+    // Recherche du sponsorings
+    const sp = compile(await this.db.get(this, 'sponsorings', args.id, args.ids))
+    if (!sp) throw assertKO('SyncSp-1', 13, [args.id, args.ids])
+    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.id, args.ids])
+    if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
+
+    // Maj du sponsoring: st dconf2 dh ardYC
+    const avsponsor = compile(await this.getRowAvatar(args.id, 'SyncSp-10'))
+    const vsp = await this.getV(avsponsor, 'SyncSp-3')
+    vsp.v++
+    sp.v = vsp.v
+    sp.dh = this.dh
+    sp.st = 1
+    sp.ardYC = args.ardYC
+    this.update(sp.toRow())
+    this.setV(vsp)
+  }
+}
+
+/*******************************************************************************
+* Opérations AVEC connexion (donc avec contrôle de l'espace)
+* Lectures SANS restriction, pouvant être utilisées pour les actions d'URGENCE
+*******************************************************************************/
+
+/* Recherche hash de phrase ******
+args.hps1 : ns + hps1 de la phrase de contact / de connexion
+args.t :
+  - 2 : phrase de sponsoring (ids)
+  - 3 : phrase de contact (hpc d'avatar)
+Retour:
+- existe : true si le hash de la phrase existe
+*/
+operations.ExistePhrase = class ExistePhrase extends Operation {
+  constructor (nom) { super(nom, 1, 1)  }
+
+  async phase2 (args) {
+    await this.getEspaceLazy(ID.ns(args.hps1))
+    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+
+    if (args.t === 2) {
+      if (await this.db.getSponsoringIds(this, args.hps1)) {
+        this.setRes('existe', true)
+        return
+      }
+    } if (args.t === 3) {
+      if (await this.db.getAvatarHpc(this, args.hps1)) {
+        this.setRes('existe', true)
+        return
+      }
+    }
   }
 }
 
@@ -131,68 +452,35 @@ operations.GetPartition = class GetPartition extends Operation {
   }
 }
 
-/* Recherche hash de phrase ***************************************
-args.hps1 : ns + hps1 de la phrase de contact / de connexion
-args.t :
-  - 1 : phrase de connexion(hps1 de compta)
-Retour:
-- existe : true si le hash de la phrase existe
-*/
-operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2 (args) {
-    if (await this.db.getCompteHXR(this, args.hps1)) this.setRes('existe', true)
-  }
-}
-
-/* Recherche hash de phrase ******
-args.hps1 : ns + hps1 de la phrase de contact / de connexion
-args.t :
-  - 2 : phrase de sponsoring (ids)
-  - 3 : phrase de contact (hpc d'avatar)
-Retour:
-- existe : true si le hash de la phrase existe
-*/
-operations.ExistePhrase = class ExistePhrase extends Operation {
-  constructor (nom) { super(nom, 1)  }
-
-  async phase2 (args) {
-    if (args.t === 2) {
-      if (await this.db.getSponsoringIds(this, args.hps1)) {
-        this.setRes('existe', true)
-        return
-      }
-    } if (args.t === 3) {
-      if (await this.db.getAvatarHpc(this, args.hps1)) {
-        this.setRes('existe', true)
-        return
-      }
-    }
-  }
-}
-
-/* Get Sponsoring **************************************************
+/* Get Espace **************************************************
 args.token: éléments d'authentification du compte.
-args.org : organisation
-args.hps1 : hash du PBKFD de la phrase de contact réduite SANS ns
+args.ns : ns pour l'administrateur
+**Propriétés accessibles :**
+- administrateur technique : toutes de tous les espaces.
+- Comptable : toutes de _son_ espace.
+- Délégués : sur leur espace seulement,
+  - `id v org creation notifE opt`
+  - la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
+- Autres comptes: pas d'accès.
 Retour:
-- rowSponsoring s'il existe
+- rowEspace s'il existe
 */
-operations.GetSponsoring = class GetSponsoring extends Operation {
-  constructor (nom) { super(nom, 0) }
+operations.GetEspace = class GetEspace extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const espace = await this.getEspaceOrg(args.org)
-    if (!espace) { sleep(3000); return }
-    const ids = (espace.id * d14) + (args.hps1 % d14) // par précaution
-    const row = await this.db.getSponsoringIds(this, ids)
-    if (!row) { sleep(3000); return }
-    this.setRes('rowSponsoring', row)
+    const espace = compile(await this.getRowEspace(this.estAdmin ? args.ns : this.ns, 'GetEspace'))
+    let rowEspace
+    if (this.estAdmin || this.estComptable) rowEspace = espace.toRow()
+    else rowEspace = espace.toShortRow(this.compte.idp)
+    this.setRes('rowEspace', rowEspace)
   }
 }
 
-/* Opérations de Synchronisation et de lectures non synchronisées ********/
+/*******************************************************************************
+* Opérations AVEC connexion (donc avec contrôle de l'espace)
+* Opération (unique) de Synchronisation
+*******************************************************************************/
 
 /* Sync : opération générique de synchronisation d'une session cliente
 LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / groupes tirés du compte
@@ -357,224 +645,129 @@ operations.Sync = class Sync extends Operation {
   }
 }
 
-/* SyncSp - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
-- `token` : éléments d'authentification du compte à créer
-- idsp idssp : identifiant du sponsoring
-- id : id du compte sponsorisé à créer
-- hXR: hash du PBKD de sa phrase secrète réduite
-- hXC: hash du PBKD de sa phrase secrète complète
-- `hYC`: hash du PNKFD de la phrase de sponsoring
-- cleKXC: clé K du nouveau compte cryptée par le PBKFD de sa phrase secrète complète
-- cleAK: clé A de son avatar principal cryptée par la clé K du compte
-- ardYC: ardoise du sponsoring
-- dconf: du sponsorisé
-- pub: clé RSA publique de l'avatar
-- privK: clé privée RSA de l(avatar cryptée par la clé K du compte
-- cvA: CV de l'avatar cryptée par sa clé A
+/*******************************************************************************
+* Opérations AVEC connexion ADMINISTRATEUR EXCLUSIVEMENT
+*******************************************************************************/
 
-- clePK: clé P de sa partition cryptée par la clé K du nouveau compte
-- cleAP: clé A de son avatar principâl cryptée par la clé P de sa partition
-- clePA: cle P de la partition cryptée par la clé A du nouveau compte
+/* `CreerEspace` : création d'un nouvel espace et du comptable associé
+- token : jeton d'authentification du compte de **l'administrateur**
+- ns : numéro de l'espace
+- org : code de l'organisation
+- hXR : hash du PBKFD de la phrase secrète réduite
+- hXC : hash du PBKFD de la phrase secrète complète
+- pub: clé RSA publique du Comptable
+- privK: clé RSA privée du Comptable cryptée par la clé K
+- clePK: clé P de la partition 1 cryptée par la clé K du Comptable
+- cleAP: clé A du Comptable cryptée par la clé de la partition
+- cleAK: clé A du Comptable cryptée par la clé K du Comptable
+- cleKXC: clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
+- clePA: cle P de la partition cryptée par la clé A du Comptable
+- ck: `{ cleP, code }` crypté par la clé K du comptable
+Retour: rien
 
-- ch: { cck, ccP, t1c, t2c }
-  - ccK: clé C du chat cryptée par la clé K du compte
-  - ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
-  - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
-  - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
-  - t1c: mot du sponsor crypté par la clé C
-  - t2c: mot du sponsorisé crypté par la clé C
+Création des rows:
+- espace, synthese
+- partition : primitive, avec le Comptable comme premier participant et délégué
+- compte, compta, avatar: du Comptable
 
-Retour: 
-- rowCompte
-- rowCompti
-- rowAvater 
-- rowChat si la confidentialité n'a pas été requise
-
-Exceptions:
-- `A_SRV, 13` : sponsorings non trouvé
-- `F_SRV, 9` : le sponsoring a déjà été accepté ou refusé ou est hors limite.
-- F_SRV, 212: solde du sonsor ne couvre pas son don
-- A_SRV, 999: application close
-- F_SRV, 101: application figée
-- F_SRV, 211: quotas restants de la partition insuffisants pour couvrir les quotas proposés au compte
-- A_SRV, 16: syntheses non trouvée
-- A_SRV, 1: espace non trouvé
-- A_SRV, 2: partition non trouvée
-- A_SRV, 8: avatar sponsor non trouvé
+Exceptions: 
+- F_SRV, 202 : ns non conforme.
+- F_SRV, 201: code d'organisation invalide.
+- F_SRV, 203 : Espace déjà créé.
+- F_SRV, 204 : code d'organisation déjà attribué
 */
-operations.SyncSp = class SyncSp extends Operation {
-  constructor (nom) { super(nom, 0) }
+operations.CreerEspace = class CreerEspace extends Operation {
+  constructor (nom) { super(nom, 3) }
 
-  async phase2 (args) {
-    this.ns = ID.ns(args.idsp)
+  // eslint-disable-next-line no-useless-escape
+  static reg = /^([a-z0-9\-]+)$/
 
-    // Recherche du sponsorings
-    const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
-    if (!sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idssp])
-    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.idsp, args.idsp])
-    if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
+  async phase2(args) {
+    this.ns = args.ns
+    if (args.ns < 10 || args.ns > 89) throw new AppExc(F_SRV, 202, [args.ns])
+    if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreerEspace.reg))) 
+      throw new AppExc(F_SRV, 201, [args.org])
 
-    // Maj du sponsoring: st dconf2 dh ardYC
-    const avsponsor = compile(await this.getRowAvatar(args.idsp, 'SyncSp-10'))
-    const vsp = await this.getV(avsponsor, 'SyncSp-3')
-    vsp.v++
-    sp.v = vsp.v
-    const dhsp = sp.dh || 0
-    sp.dh = this.dh
-    sp.st = 2
-    sp.ardYC = args.ardYC
-    sp.dconf2 = args.dconf
-    this.update(sp.toRow())
-    this.setV(vsp)
+    if (await this.getRowEspace(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
+    if (await this.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
-    // Maj compta du sponsor (si don)
-    if (sp.don) { 
-      const csp = compile(await this.getRowCompta(args.idsp, 'SyncSp-8'))
-      if (csp.estA) {
-        if (csp.solde <= sp.don + 2)
-          throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
-        csp.v++
-        csp.solde-= sp.don
-        this.update(csp.toRow()) 
-      }
-    }
-
-    // Refus si espace figé ou clos
-    this.espace = compile(await this.getRowEspace(this.ns, 'SyncSp-3'))
-    if (this.espace.notifE) {
-      // Espace bloqué
-      const n = this.espace.notifE
-      if (n.nr === 3) // application close
-        throw new AppExc(A_SRV, 999, [n.texte])
-      if (n.nr === 2) 
-        throw new AppExc(F_SRV, 101, [n.texte])
-    }
-
-    // Création du nouveau compte
-    const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
+    const idComptable = ID.duComptable(args.ns)
+    const aco = config.allocComptable
+    const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
+    const qvc = { qc: aco[0], qn: aco[1], qv: aco[2] }
+    const apr = config.allocPrimitive
+    const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
     const rdsav = ID.rds(ID.RDSAVATAR)
-    const qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
-    const q = { qc: qv.qc, qn: qv.qn, qv: qv.qv, c: 0, n: 0, v: 0 } // partition
 
-    const o = sp.partitionId ? { clePA: args.clePA, del: sp.del, idp: sp.partitionId } : null
+    /* Espace */
+    this.espace = Espaces.nouveau(args.ns, args.org, this.auj)
+
+    /* Partition et Synthese */
+    if (!this.partitions) this.partitions = new Map()
+    const partition = Partitions.nouveau(args.ns, 1, qc)
+    this.partitions.set(partition.id, partition)
+    this.synthese = Syntheses.nouveau(args.ns, this.dh)
+
+    /* Compte Comptable */
+    const o = { clePA: args.clePA, del: true, idp: 1 }
     // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
-    this.compte = Comptes.nouveau(args.id, 
-      (this.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, sp.quotas, o)
-    this.setRes('rowCompte', this.compte.toShortRow())
-
+    this.compte = Comptes.nouveau(idComptable, 
+      (args.ns * d14) + (args.hXR % d14), 
+      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, qvc, o, args.ck)
+    
     /* Compti */
-    const compti = new Comptis().init({ id: args.id, v: 1, mc: {} })
-    this.setRes('rowCompti', this.insert(compti.toRow()))
+    const compti = new Comptis().init({ id: idComptable, v: 1, mc: {} })
+    this.insert(compti.toRow())
 
     /* Compta */
-    this.compta = Comptas.nouveau(args.id, qv)
-    this.compta.solde = sp.don || 0
-    this.compta.compile() // pour calculer c2m ...
+    this.compta = Comptas.nouveau(idComptable, qv).compile()
+    partition.ajoutCompte(this.compta, args.cleAP, true)
 
     /* Avatar  (id, rdsav, pub, privK, cvA) */
-    const avatar = Avatars.nouveau(args.id, rdsav, args.pub, args.privK, args.cvA)
+    const cvA = { id: ID.court(idComptable) }
+    const avatar = Avatars.nouveau(idComptable, rdsav, args.pub, args.privK, cvA)
     this.setNV(avatar)
-    this.insert(avatar.toRow()) 
-    this.setRes('rowAvatar', avatar.toShortRow())
-
-    // création du dataSync
-    const ds = DataSync.deserial()
-    ds.rdsId = {}
-    ds.compte.vb = 1
-    ds.rdsC = ID.long(this.compte.rds, this.ns)
-    const a = { id: avatar.id, vs: 0, vb: avatar.v }
-    ds.avatars.set(a.id, a)
-    ds.rdsId[ID.long(avatar.rds, this.ns)] = avatar.id
-    ds.tousRds.length = 0
-    for(const rdsx in ds.rdsId) ds.tousRds.push(parseInt(rdsx))
-    ds.tousRds.push(ds.rdsC) // rds du compte
-    ds.tousRds.push(this.ns) // espace
-    // Sérialisation et retour de dataSync
-    this.setRes('dataSync', ds.serial(this.dh, this.crypt, this.db.appKey))
-
-    // Compte O : partition: ajout d'un compte (si quotas suffisants)
-    if (pid) {
-      if (!this.partitions) this.partitions = new Map()
-      const partition =  compile(await this.getRowPartition(pid), 'SyncSp-4')
-      this.partitions.set(pid, partition)
-      const s = partition.getSynthese()
-      // restants à attribuer suffisant pour satisfaire les quotas ?
-      if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.qv - s.qt.qv))
-        throw new AppExc(F_SRV, 211, [pid, args.id])
-      // (compta, cleAP, del)
-      partition.ajoutCompte(this.compta, args.cleAP, sp.del)
-    }
-    
-    /* Création chat */
-    if (!sp.dconf && !args.dconf) {
-      /*- ccK: clé C du chat cryptée par la clé K du compte
-        - ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
-        - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
-        - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
-      */
-      const idsI = this.idsChat(args.id, sp.id)
-      const idsE = this.idsChat(sp.id, args.id)
-      const chI = new Chats().init({ // du sponsorisé
-        id: args.id,
-        ids: ID.long(idsI, this.ns),
-        v: 1,
-        st: 10,
-        idE: ID.court(sp.id),
-        idsE: idsE,
-        cvE: avsponsor.cvA,
-        cleCKP: args.ch.ccK,
-        cleEC: args.ch.cleE1C,
-        items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
-      })
-      this.setRes('rowChat', this.insert(chI.toRow()))
-      this.compta.ncPlus(1)
-
-      const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
-      vchE.v++
-      this.setV(vchE)
-      const chE = new Chats().init({
-        id: sp.id,
-        ids: ID.long(idsE, this.ns),
-        v: vchE.v,
-        st: 1,
-        idE: ID.court(chI.id),
-        idsE: idsI,
-        cvE: avatar.cvA,
-        cleCKP: args.ch.ccP,
-        cleEC: args.ch.cleE2C,
-        items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
-      })
-      this.insert(chE.toRow())
-    }
-  }
-
-  async phase3 () {
-    this.setRes('rowCompte', this.compte.toRow())
+    this.insert(avatar.toRow())
   }
 }
 
-/* Get Espace **************************************************
-args.token: éléments d'authentification du compte.
-args.ns : ns pour l'administrateur
-**Propriétés accessibles :**
-- administrateur technique : toutes de tous les espaces.
-- Comptable : toutes de _son_ espace.
-- Délégués : sur leur espace seulement,
-  - `id v org creation notifE opt`
-  - la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
-- Autres comptes: pas d'accès.
-Retour:
-- rowEspace s'il existe
+/*`SetEspaceNprof` : déclaration du profil de volume de l'espace par l'administrateur
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace notifié.
+- `nprof` : numéro de profil de 0 à N. Liste spécifiée dans config.mjs de l'application.
+
+Retour: rien
+
+Assertion sur l'existence du row `Espaces`.
+
+C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
+Elle n'écrit QUE dans espaces.
 */
-operations.GetEspace = class GetEspace extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
+  constructor (nom) { super(nom, 3)}
 
   async phase2 (args) {
-    const espace = compile(await this.getRowEspace(this.estAdmin ? args.ns : this.ns, 'GetEspace'))
-    let rowEspace
-    if (this.estAdmin || this.estComptable) rowEspace = espace.toRow()
-    else rowEspace = espace.toShortRow(this.compte.idp)
-    this.setRes('rowEspace', rowEspace)
+    this.espace = compile(await this.getRowEspace(args.ns, 'SetEspaceNprof'))
+    this.espace._maj = true
+    this.espace.nprof = args.nprof
+  }
+}
+
+/* `SetNotifE` : déclaration d'une notification à un espace par l'administrateur
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ns` : id de l'espace notifié
+- `ntf` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
+
+C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
+Elle n'écrit QUE dans espaces.
+*/
+operations.SetNotifE = class SetNotifE extends Operation {
+  constructor (nom) { super(nom, 3) }
+
+  async phase2 (args) {
+    this.espace = compile(await this.getRowEspace(args.ns, 'SetNotifG'))
+    this.espace._maj = true
+    if (args.ntf) args.ntf.dh = Date.now()
+    this.espace.notifE = args.ntf || null
   }
 }
