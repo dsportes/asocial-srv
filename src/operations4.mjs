@@ -324,6 +324,49 @@ operations.NouveauChat = class NouveauChat extends Operation {
   }
 }
 
+class OperationCh extends Operation {
+
+  /* Vérification des restrictions, initialisation de :
+  chI, vchI, chE
+  */
+  async intro () {
+    this.chI = compile(await this.getRowChat(this.args.id, this.args.ids, 'MajChat-9'))
+
+    /* Restriction MINI NE s'applique QUE,
+    a) si l'interlocuteur n'est pas le comptable,
+    b) ET:
+      - compte 0 délégué: 
+        - si l'interlocuteur n'est pas COMPTE O de la même partition
+      - compte 0 NON délégué: 
+        - l'interlocuteur n'est pas COMPTE délégué de la même partition
+    */
+    if (this.setR.has(R.MINI)) {
+      const idE = ID.long(this.chI.idE, this.ns)
+      if (!ID.estComptable(idE)) {
+        if (this.compte._estA) throw new AppExc(F_SRV, 802)
+        else {
+          const cptE = compile(await this.getRowCompte(idE))
+          if (!this.compte.del) {
+            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          } else {
+            if (!cptE || cptE.idp !== this.compte.idp) 
+              throw new AppExc(F_SRV, 802)
+          }
+        }
+      }
+    }
+    this.avI = compile(await this.getRowAvatar(this.args.id, 'MajChat-2'))
+    this.vchI = await this.getV(this.avI, 'MajChat-3')
+    this.vchI.v++
+    this.chI.v = this.vchI.v
+
+    this.idEL = ID.long(this.chI.idE, this.ns)
+    this.chE = compile(await this.getRowChat(this.idEL, this.chI.idsE))
+  }
+
+}
+
 /* Ajout ou suppression d\'un item à un chat ***************************************
 - `token` : éléments d'authentification du compte auteur
 - id, ids: id du chat
@@ -333,7 +376,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
 Retour:
 - disp: true si E a disparu (pas de maj faite)
 */
-operations.MajChat = class MajChat extends Operation {
+operations.MajChat = class MajChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
   addChatItem (items, item) {
@@ -361,50 +404,17 @@ operations.MajChat = class MajChat extends Operation {
   }
 
   async phase2 (args) {
-    const chI = compile(await this.getRowChat(args.id, args.ids, 'MajChat-9'))
+    await this.intro(args)
 
-    /* Restriction MINI NE s'applique QUE,
-    a) si l'interlocuteur n'est pas le comptable,
-    b) ET:
-      - compte 0 délégué: 
-        - si l'interlocuteur n'est pas COMPTE O de la même partition
-      - compte 0 NON délégué: 
-        - l'interlocuteur n'est pas COMPTE délégué de la même partition
-    */
-    if (this.setR.has(R.MINI)) {
-      const idE = ID.long(chI.idE, this.ns)
-      if (!ID.estComptable(idE)) {
-        if (this.compte._estA) throw new AppExc(F_SRV, 802)
-        else {
-          const cptE = compile(await this.getRowCompte(idE))
-          if (!this.compte.del) {
-            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          } else {
-            if (!cptE || cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          }
-        }
-      }
-    }
-
-    const avI = compile(await this.getRowAvatar(args.id, 'MajChat-2'))
-    const vchI = await this.getV(avI, 'MajChat-3')
-    vchI.v++
-    this.setV(vchI)
-
-    const idEL = ID.long(chI.idE, this.ns)
-    const chE = compile(await this.getRowChat(idEL, chI.idsE))
-
-    if (!chE) {
-      // E disparu. Maj interdite:
-      const st1 = Math.floor(chI.st / 10)
-      chI.st = (st1 * 10) + 2 
-      chI.vcv = 0
-      chI.cvE = null
+    if (!this.chE) {
+      // E disparu. Maj interdite: statut disparu
+      const st1 = Math.floor(this.chI.st / 10)
+      this.chI.st = (st1 * 10) + 2 
+      this.chI.vcv = 0
+      this.chI.cvE = null
       this.setRes('disp', true)
-      chI.v = vchI.v
-      this.update(chI.toRow())
+      this.update(this.chI.toRow())
+      this.setV(this.vchI)
       return
     }
 
@@ -463,52 +473,54 @@ Nombre de chat - 1, items vidé
 Retour
 - disp: true si E a disparu
 */
-operations.PassifChat = class PassifChat extends Operation {
+operations.PassifChat = class PassifChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
-  async phase2 (args) { 
-    const chI = compile(await this.getRowChat(args.id, args.ids, 'PassifChat-1'))
-    const vchI = await this.getV(chI, 'PassifChat-2')
-    vchI.v++
-    chI.v = vchI.v
-    let stI = Math.floor(chI.st / 10)
-    let stE = chI.st % 10
+  async phase2 () { 
+    await this.intro()
 
-    const idEL = ID.long(chI.idE, this.ns)
-    const chE = compile(await this.getRowChat(idEL, chI.idsE))
-    if (!chE) {
-      // E disparu. Maj interdite:
-      stE = 2
-      chI.vcv = 0
-      chI.cvE = null
-      this.setRes('disp', true)
+    if (!this.chE) {
+      // E disparu. Il voulait être passif, devient détruit
+      this.chI._zombi = true
+      this.setRes('suppr', true)
+      this.update(this.chI.toRow())
+      this.setV(this.vchI)
+      return
     }
 
-    if (stI === 1) {
-      // était actif, devient passif
-      stI = 0
-      chI.st = stE
-      chI.items = []
-      this.compta.ncPlus(-1)
-      if (chE) {
-        // l'autre n'était pas disparu, MAJ de son st
-        const vchE = await this.getV(chE, 'PassifChat-3')
-        vchE.v++
-        chE.v = vchI.v
-        const stE1 = Math.floor(chE.st / 10)
-        chE.st = stE1 * 10
-        this.update(chE.toRow())
-        this.setV(vchE)
-      }
+    const stI = Math.floor(this.chI.st / 10)
+    const stE = this.chI.st % 10
+
+    if (stI === 0) {
+      // était passif, reste passif, rien n'a changé
+      return
     }
-    if (chE) {
-      const avE = compile(await this.getRowAvatar(idEL, 'PassifChat-4'))
-      chI.cvE = avE.cvA
-      chI.vcv = chI.cvE.v || 0
+
+    // était actif, devient passif
+    this.chI.st = stE
+    this.chI.items = []
+    this.compta.ncPlus(-1)
+    if (this.chE) {
+      // l'autre n'était pas disparu, MAJ de cv et st
+      const vchE = await this.getV(this.chE, 'PassifChat-3')
+      vchE.v++
+      this.chE.v = this.vchE.v
+
+      const avI = compile(await this.getRowAvatar(this.id, 'PassifChat-4'))
+      this.chE.cvE = avI.cvA
+      this.chE.vcv = this.chE.cvE.v || 0
+      this.chE.st = Math.floor(this.chE.st / 10) * 10
+
+      this.update(this.chE.toRow())
+      this.setV(vchE)
+
+      // Maj CV de I
+      const avE = compile(await this.getRowAvatar(this.idEL, 'PassifChat-4'))
+      this.chI.cvE = avE.cvA
+      this.chI.vcv = this.chI.cvE.v || 0
     }
-    chI.st = (stI * 10) + stE
-    this.update(chI.toRow())
-    this.setV(vchI)
+    this.update(this.chI.toRow())
+    this.setV(this.vchI)
   }
 }
 
