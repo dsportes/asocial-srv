@@ -316,7 +316,7 @@ operations.SyncSp = class SyncSp extends Operation {
       const idsE = this.idsChat(sp.id, args.id)
       const chI = new Chats().init({ // du sponsorisé
         id: args.id,
-        ids: ID.long(idsI, this.ns),
+        ids: idsI,
         v: 1,
         st: 10,
         idE: ID.court(sp.id),
@@ -334,7 +334,7 @@ operations.SyncSp = class SyncSp extends Operation {
       this.setV(vchE)
       const chE = new Chats().init({
         id: sp.id,
-        ids: ID.long(idsE, this.ns),
+        ids: idsE,
         v: vchE.v,
         st: 1,
         idE: ID.court(chI.id),
@@ -505,17 +505,21 @@ operations.Sync = class Sync extends Operation {
   async getGrRows (ida, x) { 
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
-    if (!gr) gr = await this.db.getV(this, 'groupes', ida, x.vs[1])
+    if (!gr) gr = await this.db.getV(this, 'groupes', ida, x.vs)
     if (gr) this.addRes('rowGroupes', gr.toShortRow(x.m))
 
     if (x.m) {
-      for (const row of await this.db.scoll(this, 'membres', ida, x.vs[2]))
+      /* SI la session avait des membres chargés, chargement incrémental depuis vs
+      SINON chargement initial de puis 0 */
+      for (const row of await this.db.scoll(this, 'membres', ida, x.ms ? x.vs : 0))
         this.addRes('rowMembres', row)
-      for (const row of await this.db.scoll(this, 'chatgrs', ida, x.vs[2]))
+      for (const row of await this.db.scoll(this, 'chatgrs', ida, x.ms ? x.vs : 0))
         this.addRes('rowChatgrs', row)
     }
 
-    if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.vs[3])) {
+    /* SI la session avait des notes chargées, chargement incrémental depuis vs
+    SINON chargement initial de puis 0 */
+    if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.ns ? x.vs : 0)) {
       const note = compile(row)
       this.addRes('rowNotes', note.toShortRow(this.id))
     }
@@ -559,7 +563,7 @@ operations.Sync = class Sync extends Operation {
         delete this.idRds[idg]; delete this.rdsId[rds]
         this.ds.groupes.delete(idg)
       } else {
-        x.vb = [...version.tv]
+        x.vb = version.v
         // reset de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
         const sim = this.compte.imGr(idg)
         if (sim.size) { const [mx, nx] = g.amAn(sim); x.m = mx; x.n = nx }
@@ -620,14 +624,23 @@ operations.Sync = class Sync extends Operation {
     } else {
       const n = this.nl
       for(const [ida, x] of this.ds.avatars) {
+        x.chg = false
+        /* Si la version en base est supérieure à celle en session, chargement */
         if (x.vs < x.vb) {
           await this.getAvRows(ida, x)
+          x.chg = true
           if (this.nl - n > 20) break
         }
       }
       if (this.nl - n <= 20) for(const [idg, x] of this.ds.groupes) {
-        if (x.vs[0] < x.vb[0]) {
+        x.chg = false
+        /* Si la version en base est supérieure à celle en session, 
+        OU s'il faut désormais des membres alors qu'il n'y en a pas en session
+        OU s'il faut désormais des notes alors qu'il n'y en a pas en session
+        chargement */
+        if (x.vs < x.vb || (x.m && !x.ms) || (x.n && !x.ns)) {
           await this.getGrRows(idg, x)
+          x.chg = true
           if (this.nl - n > 20) break
         }
       }

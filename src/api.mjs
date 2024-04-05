@@ -1076,8 +1076,7 @@ export class Compteurs {
 /** DataSync ****************************************************/
 export class DataSync {
   static vide = { vs: 0, vb: 0 }
-  static videg = { vs: [0,0,0,0], vb: [0,0,0,0], m: false, n:false } 
-  // vs / vb : versions [générale, groupe, membres, notes]
+  static videg = { vs: 0, vb: 0, ms: false, ns: false, m: false, n:false } 
 
   static deserial (serial, decrypt, k) {
     const ds = new DataSync()
@@ -1101,7 +1100,6 @@ export class DataSync {
 
   serial (dh, crypt, k) {
     const x = {
-      dh: dh || 0,
       compte: this.compte || { ...DataSync.vide },
       avatars: [],
       groupes: [],
@@ -1118,9 +1116,7 @@ export class DataSync {
   get estAJour() {
     if (this.compte.vs < this.compte.vb) return false
     for(const [,e] of this.avatars) if (e.vs < e.vb) return false
-    for(const [,e] of this.groupes) {
-      for(let i = 0; i < 4; i++) if (e.vs[i] < e.vb[i]) return false
-    }
+    for(const [,e] of this.groupes) if (e.vs < e.vb) return false
     return true
   }
 }
