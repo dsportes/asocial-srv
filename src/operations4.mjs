@@ -593,3 +593,42 @@ operations.EstAutonome = class EstAutonome extends Operation {
     this.setRes('st', compte.idp ? 2 : 1)
   }
 }
+
+/* OP_RafraichirCvsAv: 'Rafraichissement des CVs des chats de l\'avatar'
+- token : jeton d'authentification du compte de **l'administrateur**
+- id : id de l'avatar
+Retour:
+- `n`: nombre de CV mises à jour
+*/
+operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
+    if (this.setR.has(R.MINI) && !this.estComptable) 
+      throw new AppExc(F_SRV, 802)
+    if (!this.compte.mav[ID.court(args.id)])
+      throw new AppExc(F_SRV, 227)
+
+    const avatar = compile(await this.getRowAvatar(args.id, 'RafCVsAv-1'))
+    const vav = await this.getV(avatar)
+    vav.v++
+    let nc = 0
+    let nv = 0
+    // liste des chats
+    for (const row of await this.db.scoll(this, 'chats', args.id, 0)) {
+      const chI = compile(row)
+      nv++
+      if (chI.vcv < avatar.vcv) {
+        chI.cvE = avatar.cvA
+        chI.vcv = avatar.cvA.vcv
+        chI.v = vav.v
+        this.update(chI.toRow())
+        nc++
+      }
+    }
+    if (nc) this.setV(vav)
+    this.setRes('ncnv', [nc, nv])
+  }
+}
+
