@@ -208,7 +208,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
       this.setRes('cleAZC', avatar.cleAZC)
       this.setRes('cvA', avatar.cvA)
     }
-    if (avatar) this.setRes('collision', true)
+    if (!avatar) this.setRes('collision', true)
   }
 }
 
@@ -235,6 +235,8 @@ operations.NouveauChat = class NouveauChat extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2 (args) {
+    if (this.compte.mav[ID.court(args.idE)]) throw new AppExc(F_SRV, 226)
+
     const avI = compile(await this.getRowAvatar(args.idI, 'NouveauChat-1'))
     const avE = compile(await this.getRowAvatar(args.idE, 'NouveauChat-2'))
 
@@ -292,14 +294,14 @@ operations.NouveauChat = class NouveauChat extends Operation {
     this.setV(vchI)
     const chI = new Chats().init({ 
       id: args.idI,
-      ids: ID.long(idsI, this.ns),
+      ids: idsI,
       v: vchI.v,
       st: 10,
       idE: ID.court(args.idE),
       idsE: idsE,
       cvE: avE.cvA,
       cleCKP: args.ch.ccK,
-      cleEC: args.ch.cleE1C,
+      cleEC: args.ch.cleE2C,
       items: [{a: 1, dh: this.dh, t: args.ch.txt}]
     })
     this.setRes('rowChat', this.insert(chI.toRow()))
@@ -309,16 +311,16 @@ operations.NouveauChat = class NouveauChat extends Operation {
     vchE.v++
     this.setV(vchE)
     const chE = new Chats().init({
-      id: args.idI,
-      ids: ID.long(idsE, this.ns),
+      id: args.idE,
+      ids: idsE,
       v: vchE.v,
       st: 1,
       idE: ID.court(args.idI),
       idsE: idsI,
       cvE: avI.cvA,
       cleCKP: args.ch.ccP,
-      cleEC: args.ch.cleE2C,
-      items: [{a: 0, dh: this.dh, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
+      cleEC: args.ch.cleE1C,
+      items: [{a: 0, dh: this.dh, t: args.ch.txt}]
     })
     this.insert(chE.toRow())
   }
@@ -557,12 +559,12 @@ operations.ChangementPC = class ChangementPC extends Operation {
     avatar.v = vav.v
 
     if (args.pcK) {
-      avatar.hZR = ID.long(args.hZR, this.ns)
+      avatar.hpc = ID.long(args.hZR, this.ns)
       avatar.hZC = args.hZC
       avatar.cleAZC = args.cleAZC
       avatar.pcK = args.pcK
     } else {
-      delete avatar.hZC
+      avatar.hpc = 0
       delete avatar.hZR
       delete avatar.pcK
       delete avatar.cleAZC
