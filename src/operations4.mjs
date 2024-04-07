@@ -166,7 +166,7 @@ operations.GetCompta = class GetCompta extends Operation {
       if (!this.compte.del) throw new AppExc(F_SRV, 218)
       const idp = ID.long(this.compte.idp, this.ns)
       const partition = compile(await this.getRowPartition(idp, 'GetCompta-2'))
-      const e = partition.mcpt(ID.court(id))
+      const e = partition.mcpt[ID.court(id)]
       if (!e) throw new AppExc(F_SRV, 219)
     }
     const rowCompta = await this.getRowCompta(id, 'GetCompta-1')
@@ -632,3 +632,46 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
   }
 }
 
+/* `SetQuotas` : déclaration des quotas d'un compte par un sponsor de sa tribu
+- token: éléments d'authentification du compte.
+- idp : id de la partition
+- idc: id du compte
+- q: {qc, qn, qv}*
+*/
+operations.SetQuotas = class SetQuotas extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 () {
+    /* TODO
+    this.compta.quotas(args.q)
+
+    const compta = compile(await this.getRowCompta(args.idc, 'SetQuotas-1'))
+
+    compta.v++
+    compta.qv.qc = args.q[0]
+    compta.qv.q1 = args.q[1]
+    compta.qv.q2 = args.q[2]
+    compta.compteurs = new Compteurs(compta.compteurs, compta.qv).serial
+
+    if (args.idt) {
+      const tribu = compile(await this.getRowTribu(args.idt, 'SetQuotas-1'))
+      tribu.v++
+      const x = tribu.act[compta.it]
+      if (!x || x.vide) return
+      x.qc = args.q[0]
+      x.q1 = args.q[1]
+      x.q2 = args.q[2]
+      this.update(tribu.toRow())
+      await this.MajSynthese(tribu)
+    } else {
+      // compte A: changement de dlv et propagation aux versions d'avatars et des membres
+      if (compta.dlv !== args.dlv) {
+        compta.dlv = args.dlv
+        await this.propagerDlv(args) 
+      }
+    }
+
+    this.update(compta.toRow())
+    */
+  }
+}

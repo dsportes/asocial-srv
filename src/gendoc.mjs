@@ -287,8 +287,8 @@ export class Partitions extends GenDoc {
     if (!del) {
       const m = {}
       for(const idx in this.mcpt) {
-        const e = this.mcpt(idx)
-        if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAp }
+        const e = this.mcpt[idx]
+        if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAP }
       }
       this.mcpt = m
     }

@@ -121,8 +121,8 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
     const espace = await this.getEspaceOrg(args.org)
     if (!espace) { sleep(3000); return }
 
-    this.ns = this.espace.id
-    const n = this.espace.notifE
+    this.ns = espace.id
+    const n = espace.notifE
     if (n && n.nr === 3) // application close
       throw new AppExc(A_SRV, 999, [n.texte, n.dh])
 

@@ -1035,53 +1035,6 @@ operations.SetSponsor = class SetSponsor extends Operation {
   }
 }
 
-/* `SetQuotas` : déclaration des quotas d'un compte par un sponsor de sa tribu
-POST:
-- `token` : éléments d'authentification du sponsor.
-- `idc` : id du compte
-- `idt` : id de sa tribu pour un compte O
-- q = { qc, q1, q2 }
-- `[qc, q1, q2]` : ses nouveaux quotas de volume V1 et V2.
-args.dlv: si compte A, la future dlv calculée
-args.lavLmb : liste des avatars et membres à qui propager le changement de dlv
-Assertion sur l'existence des rows `Comptas` du compte et `Tribus` de la tribu.
-*/
-operations.SetQuotas = class SetQuotas extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) {
-    this.compta.quotas(args.q)
-
-    const compta = compile(await this.getRowCompta(args.idc, 'SetQuotas-1'))
-
-    compta.v++
-    compta.qv.qc = args.q[0]
-    compta.qv.q1 = args.q[1]
-    compta.qv.q2 = args.q[2]
-    compta.compteurs = new Compteurs(compta.compteurs, compta.qv).serial
-
-    if (args.idt) {
-      const tribu = compile(await this.getRowTribu(args.idt, 'SetQuotas-1'))
-      tribu.v++
-      const x = tribu.act[compta.it]
-      if (!x || x.vide) return
-      x.qc = args.q[0]
-      x.q1 = args.q[1]
-      x.q2 = args.q[2]
-      this.update(tribu.toRow())
-      await this.MajSynthese(tribu)
-    } else {
-      // compte A: changement de dlv et propagation aux versions d'avatars et des membres
-      if (compta.dlv !== args.dlv) {
-        compta.dlv = args.dlv
-        await this.propagerDlv(args) 
-      }
-    }
-
-    this.update(compta.toRow())
-  }
-}
-
 /* `MajCletKCompta` : mise à jour de la tribu d'un compte 
 POST: 
 - `token` : éléments d'authentification du compte.
