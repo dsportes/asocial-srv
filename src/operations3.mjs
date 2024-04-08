@@ -1,7 +1,7 @@
 import { AppExc, F_SRV, A_SRV, ID, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { sleep } from './util.mjs'
+import { sleep, crypterSrv } from './util.mjs'
 
 import { Operation, assertKO, Cache, R } from './modele.mjs'
 import { compile, Espaces, Partitions, Syntheses, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
@@ -257,7 +257,7 @@ operations.SyncSp = class SyncSp extends Operation {
     // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
     this.compte = Comptes.nouveau(args.id, 
       (this.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, sp.quotas, o)
+      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, null, sp.quotas, o)
     /* Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
       this.setRes('rowCompte', this.compte.toShortRow())
     */
@@ -671,6 +671,8 @@ operations.Sync = class Sync extends Operation {
 - pub: clé RSA publique du Comptable
 - privK: clé RSA privée du Comptable cryptée par la clé K
 - clePK: clé P de la partition 1 cryptée par la clé K du Comptable
+- cleEK: clé E cryptée par la clé K
+- cleE: clé en clair
 - cleAP: clé A du Comptable cryptée par la clé de la partition
 - cleAK: clé A du Comptable cryptée par la clé K du Comptable
 - cleKXC: clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
@@ -713,7 +715,8 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const rdsav = ID.rds(ID.RDSAVATAR)
 
     /* Espace */
-    this.espace = Espaces.nouveau(args.ns, args.org, this.auj)
+    const cleES = crypterSrv(this.db.appKey, args.cleE)
+    this.espace = Espaces.nouveau(args.ns, args.org, this.auj, cleES)
 
     /* Partition et Synthese */
     if (!this.partitions) this.partitions = new Map()
@@ -726,7 +729,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
     this.compte = Comptes.nouveau(idComptable, 
       (args.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, qvc, o, args.ck)
+      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, args.cleEK, qvc, o, args.ck)
     
     /* Compti */
     const compti = new Comptis().init({ id: idComptable, v: 1, mc: {} })

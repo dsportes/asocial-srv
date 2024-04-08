@@ -200,6 +200,7 @@ _data_ :
 - `moisStat` : dernier mois de calcul de la statistique des comptas.
 - `moisStatT` : dernier mois de calcul de la statistique des tickets.
 - `dlvat` : `dlv` de l'administrateur technique.
+- `cleES` : clé de l'espace cryptée par la clé du site. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
 - `notifE` : notification pour l'espace de l'administrateur technique. Le texte n'est pas crypté.
 - `notifP` : pour un délégué, la notification de sa partition.
 - `opt`: option des comptes autonomes.
@@ -214,7 +215,7 @@ export class Espaces extends GenDoc {
     this._maj = false
   } 
 
-  static nouveau (ns, org, auj) {
+  static nouveau (ns, org, auj, cleES) {
     return new Espaces().init({
       _ins: true,
       _maj: true,
@@ -230,7 +231,8 @@ export class Espaces extends GenDoc {
       dlvat: 0,
       opt: 0,
       nbmi: 12,
-      tnotifP: []
+      tnotifP: [],
+      cleES: cleES
     })
   }
 
@@ -359,7 +361,7 @@ _data_ :
 - `rds` : null en session.
 - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
 - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
-- `cleEK` : clé de l'espace cryptée par la clé K du compte, à la création de l'espace pour le Comptable, à l'acceptation du sponsoring pour les autres comptes.
+- `cleEK` : clé de l'espace cryptée par la clé K du compte, à la création de l'espace pour le Comptable. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
 
 - `dhvuK` : date-heure de dernière vue des notifications par le titulaire du compte, cryptée par la clé K.
 - `qv` : `{ qc, qn, qv, pcc, pcn, pcv, nbj }`
@@ -418,13 +420,14 @@ export class Comptes extends GenDoc {
     return row
   }
 
-  static nouveau (id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk) {
+  static nouveau (id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
     const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
     const r = {
       _ins: true, _maj: true, id: id, v: 1, rds: ID.rds(ID.RDSCOMPTE),
       hxr: hXR, dlv: AMJ.max, cleKXC, hXC, idp: 0, qv: qv, clePK,
       mav: {}, mpg: {}
     }
+    if (cleEK) r.cleEK = cleEK
     r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
     if (o) { r.clePA = o.clePA; r.idp = o.idp; r.del = o.del }
     if (tpk) r.tpk = [null, tpk]
@@ -555,7 +558,10 @@ export class Comptas extends GenDoc {
     this.qv.qc = q.qc
     this.qv.qn = q.qn
     this.qv.qv = q.qv
-    const c = new Compteurs(this.compteurs, q).serial
+    const c = new Compteurs(this.compteurs, this.qv)
+    this._nbj = c.estA ? c.nbj(this.solde) : 0
+    this._c2m = c.conso2M
+    this._pc = c.pourcents
     this.compteurs = c.serial
     this._maj = true
   }
@@ -616,6 +622,7 @@ export class Comptas extends GenDoc {
     const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
     const c = new Compteurs(this.compteurs, null, x)
     const pc = c.pourcents
+    this.compteurs = c.serial
     const nbj = op.compte._estA ? c.nbj(this.solde) : 0
     const qvc = op.compte.qv // `qv` : `{ qc, qn, qv, pcc, pcn, pcv, nbj }`
     const rep = op.compte._ins || this.reporter(pc, nbj, qvc)
