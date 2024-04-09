@@ -431,8 +431,8 @@ operations.GetSynthese = class GetSynthese extends Operation {
 
   async phase2 (args) {
     const ns = this.estAdmin ? args.ns : this.ns
-    const rowSynthese = await this.getRowSynthese(ns, 'getSynthese')
-    this.setRes('rowSynthese', rowSynthese)
+    const rowSynthese = compile(await this.getRowSynthese(ns, 'getSynthese'))
+    this.setRes('rowSynthese', rowSynthese.toRow())
   }
 }
 
@@ -722,7 +722,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if (!this.partitions) this.partitions = new Map()
     const partition = Partitions.nouveau(args.ns, 1, qc)
     this.partitions.set(partition.id, partition)
-    this.synthese = Syntheses.nouveau(args.ns, this.dh)
+    this.synthese = Syntheses.nouveau(args.ns)
 
     /* Compte Comptable */
     const o = { clePA: args.clePA, del: true, idp: 1 }

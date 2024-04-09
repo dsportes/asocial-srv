@@ -276,10 +276,17 @@ export class Operation {
     const conso = this.compta ? await this.compta.finaliser(this) : null
 
     if (this.compte && this.compte._maj) {
-      if (this.compte._ins) this.compte.v = 1; else this.compte.v++
-      const row = this.compte.toRow()
-      this.setNV(this.compte)
-      if (this.compte._ins) this.insert(row); else this.update(row)
+      if (this.compte.v === 0) {
+        this.compte.v = 1
+        this.setNV(this.compte)
+        this.insert(this.compte.toRow())
+      } else {
+        const vcpt = await this.getV(this.compte)
+        vcpt.v++
+        this.compte.v = vcpt.v
+        this.setV(vcpt)
+        this.update(this.compte.toRow())
+      }
     }
 
     /* Maj des partitions modifiées dans l'opération */
@@ -298,9 +305,10 @@ export class Operation {
     /* Maj de la synthese de l'espace si elle a été modifiée dans l'opération
     par intégration / maj d'une partition */
     if (this.synthese && this.synthese._maj) {
+      this.synthese.v++
       this.synthese.dh = this.dh
       const row = this.synthese.toRow()
-      if (this.synthese._ins) this.insert(row); else this.update(row)
+      if (this.synthese.v === 1) this.insert(row); else this.update(row)
     }
     
     if (conso) this.result.conso = conso

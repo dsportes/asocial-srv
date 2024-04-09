@@ -231,9 +231,14 @@ export class Espaces extends GenDoc {
       dlvat: 0,
       opt: 0,
       nbmi: 12,
-      tnotifP: [],
+      tnotifP: [null],
       cleES: cleES
     })
+  }
+
+  setPartition (n) {
+    for (let i = 0; i < n - this.tnotifP.length + 1; i++) this.tnotifP.push(null)
+    this._maj = true
   }
 
   /* Restriction pour les délégués de la partition idp
@@ -320,7 +325,7 @@ export class Partitions extends GenDoc {
 _data_:
 _data_:
 - `id` : ns de son espace.
-- `v` : date-heure de dernière mise à jour (à titre informatif).
+- `v` : 
 
 - `tsp` : table des _synthèses_ des partitions.
   - _index_: numéro de la partition.
@@ -336,16 +341,18 @@ _data_:
 export class Syntheses extends GenDoc { 
   constructor () { super('syntheses') }
 
-  static nouveau (ns, dh) { 
-    return new Syntheses().init({id: ns, v: dh, tsp: [], _ins: true})
+  static nouveau (ns) { 
+    return new Syntheses().init({id: ns, v: 0, tsp: [], _ins: true})
+  }
+
+  compile () {
+    if (this.v > 10000) this.v = 10
+    return this
   }
 
   setPartition(p) {
-    if (!this.tsp.length) this._ins = true
     const n = ID.court(p.id)
-    if (n > this.tsp.length) {
-      for(let i = this.tsp.length; i <= n; i++) this.tsp.push(null)
-    }
+    for(let i = this.tsp.length; i <= n; i++) this.tsp.push(null)
     this.tsp[n] = synthesesPartition(p)
     this._maj = true
   }
@@ -423,7 +430,7 @@ export class Comptes extends GenDoc {
   static nouveau (id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
     const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
     const r = {
-      _ins: true, _maj: true, id: id, v: 1, rds: ID.rds(ID.RDSCOMPTE),
+      _ins: true, _maj: true, id: id, v: 0, rds: ID.rds(ID.RDSCOMPTE),
       hxr: hXR, dlv: AMJ.max, cleKXC, hXC, idp: 0, qv: qv, clePK,
       mav: {}, mpg: {}
     }

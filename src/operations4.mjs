@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile, Sponsorings, Chats } from './gendoc.mjs'
+import { compile, Sponsorings, Chats, Partitions } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -677,5 +677,33 @@ operations.SetQuotas = class SetQuotas extends Operation {
       this.update(compta.toRow())
       this.update(compte.toRow())
     }
+  }
+}
+
+/* OP_NouvellePartition: 'Création d\'une nouvelle partition' *******
+Dans Comptes : **Comptable seulement:**
+- `tpK` : table des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
+  - `cleP` : clé P de la partition.
+  - `code` : code / commentaire court de convenance attribué par le Comptable
+
+- token: éléments d'authentification du compte.
+- n : numéro de partition
+- itemK: {cleP, code} crypté par la clé K du Comptable.
+- quotas: { qc, qn, qv }
+Retour:
+*/
+operations.NouvellePartition = class NouvellePartition extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    const np = this.compte.tpk.length
+    if (np !== args.n) throw new AppExc(F_SRV, 228)
+    this.compte.tpk.push(args.itemK)
+    this.compte._maj = true
+    if (!this.partitions) this.partitions = new Map()
+    const partition = Partitions.nouveau(this.ns, np, args.quotas)
+    this.partitions.set(partition.id, partition)
+    this.espace = compile (await this.getRowEspace(this.ns, 'NouvellePartition-1'))
+    this.espace.setPartition(np)
   }
 }

@@ -901,32 +901,6 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   }
 }
 
-/* `NouvelleTribu` : création d'une nouvelle tribu par le comptable
-POST: 
-- `token` : éléments d'authentification du comptable.
-- `rowTribu` : row de la nouvelle tribu.
-- `atrItem` : item à insérer dans le row Comptas du comptable en dernière position.
-
-Assertion sur l'existence du row `Comptas` du comptable.
-*/
-operations.NouvelleTribu = class NouvelleTribu extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) {
-    if (this.compta.atr.length !== ID.court(args.rowTribu.id)) {
-      this.setRes('KO', true)
-      return
-    }
-    this.compta.v++
-    this.compta.atr.push(args.atrItem)
-    this.update(this.compta.toRow())
-
-    const tribu = compile(args.rowTribu)
-    this.insert(tribu.toRow())
-    await this.MajSynthese(tribu)
-  }
-}
-
 /* `SetNotifT` : notification de la tribu
 POST:
 - `token` : éléments d'authentification du compte.
