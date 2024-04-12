@@ -669,12 +669,12 @@ operations.SetQuotas = class SetQuotas extends Operation {
 
     if (args.idc !== this.id) {
       // Le compte mis à jour n'est pas le compte de la session
+      compta.v = compta.v++
+      this.update(compta.toRow())
       const vcpt = await this.getV(compte, 'SetQuotas-3')
       vcpt.v++
-      compta.v = vcpt.v
       compte.v = vcpt.v
       this.setV(vcpt)
-      this.update(compta.toRow())
       this.update(compte.toRow())
     }
   }

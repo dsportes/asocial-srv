@@ -6,7 +6,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "startX": "node src/server.js",
+    "run": "node src/server.js",
     "debug": "node --inspect node_modules/.bin/functions-framework --port=8443 --target=asocialGCF",
     "start": "functions-framework --port=8443 --target=asocialGCF --signature-type=http",
     "build": "webpack"
