@@ -787,3 +787,23 @@ operations.SetNotifE = class SetNotifE extends Operation {
     this.espace.notifE = args.ntf || null
   }
 }
+
+/* `GetNotifC` : obtention de la notification d'un compte
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `id` : id du compte dont on cherche la notification
+Réservée au comptable et aux délégués de la partition du compte
+Retour:
+- notif
+*/
+operations.GetNotifC = class GetNotifC extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
+
+  async phase2 (args) {
+    const cc = compile(await this.getRowCompte(args.id, 'GetNotifC-1'))
+    if (!cc.idp) throw new AppExc(F_SRV, 230)
+    if (cc.notif) this.setRes('notif', cc.notif)
+    if (this.estComptable) return
+    const part = compile(await this.getRowPartition(ID.long(cc.idp, this.ns), 'GetNotifC-2'))
+    if (!part.estDel(this.id)) throw new AppExc(F_SRV, 231)
+  }
+}

@@ -950,34 +950,6 @@ operations.SetNotifC = class SetNotifC extends Operation {
   }
 }
 
-/* `SetAtrItemComptable` : Set des quotas OU de l'info d'une tribu
-POST:
-- `token` : éléments d'authentification du compte.
-- `id` : id de la tribu
-- `atrItem` : élément de `atr` `{clet, info, q}` cryptés par sa clé K.
-- `quotas` : `[qc, q1, q2]` si changement des quotas, sinon null
-
-Assertion sur l'existence des rows `Comptas` du comptable et `Tribus` de la tribu.
-*/
-operations.SetAtrItemComptable = class SetAtrItemComptable extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) {
-    if (args.quotas) {
-      const tribu = compile(await this.getRowTribu(args.id, 'SetAtrItemComptable-1'))
-      tribu.v++
-      tribu.qc = args.quotas[0]
-      tribu.q1 = args.quotas[1]
-      tribu.q2 = args.quotas[2]
-      this.update(tribu.toRow())
-      await this.MajSynthese(tribu)
-    }
-    this.compta.v++
-    this.compta.atr[ID.court(args.id)] = args.atrItem
-    this.update(this.compta.toRow())
-  }
-}
-
 /* `SetSponsor` : déclare la qualité de sponsor d'un compte dans une tribu
 POST:
 - `token` : éléments d'authentification du sponsor.

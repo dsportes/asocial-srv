@@ -302,6 +302,11 @@ export class Partitions extends GenDoc {
     return this.toRow()
   }
 
+  setQuotas (q) {
+    this.q.qc = q.qc; this.q.qn = q.qn; this.q.qv = q.qv
+    this._maj = true
+  }
+
   ajoutCompte (compta, cleAP, del) { // compta: { id, qv }
     const id = ID.court(compta.id)
     const r = { cleAP, nr: 0, q: { ...compta.qv }}

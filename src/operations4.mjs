@@ -707,3 +707,38 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
     this.espace.setPartition(np)
   }
 }
+
+/* OP_SetQuotasPart: 'Mise à jour des quotas d\'une tpartition'
+- token: éléments d'authentification du compte.
+- idp : id de la partition
+- quotas: {qc, qn, qv}
+Retour:
+*/
+operations.SetQuotasPart = class SetQuotasPart extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    this.partitions = new Map()
+    const partition = compile(await this.getRowPartition(args.idp, 'SetQuotasPart-1'))
+    this.partitions.set(args.idp, partition)
+    partition.setQuotas(args.quotas)
+  }
+}
+
+/* OP_SetCodePart: 'Mise à jour du code d\'une partition'
+- token: éléments d'authentification du compte.
+- idp : id de la partition
+- etpk: {codeP, code} crypté par la clé K du Comptable
+Retour:
+*/
+operations.SetCodePart = class SetCodePart extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    const np = ID.court(args.idp)
+    const e = this.compte.tpk[np]
+    if (!e) throw new AppExc(F_SRV, 229)
+    this.compte.tpk[np] = args.etpk
+    this.compte._maj = true
+  }
+}
