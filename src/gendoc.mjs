@@ -269,7 +269,7 @@ _data_:
 - `q`: `{ qc, qn, qv }` quotas globaux attribués à la partition par le Comptable.
 - `mcpt` : map des comptes attachés à la partition. 
   - _clé_: id du compte.
-  - _valeur_: `{ nr, cleA, del, q }`
+  - _valeur_: `{ nr, cleAP, del, q }`
     - `nr`: niveau de restriction de la notification de niveau _compte_ (0 s'il n'y en a pas, 1 (sans restriction), 2 ou 3).
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.

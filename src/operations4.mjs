@@ -742,3 +742,57 @@ operations.SetCodePart = class SetCodePart extends Operation {
     this.compte._maj = true
   }
 }
+
+/*  OP_ChangerPartition: 'Transfert d\'un compte dans une autre tranche de quotas' ************
+- token: éléments d'authentification du compte.
+- id : id du compte qui change de partition
+- idp : id de la nouvelle partition
+- cleAP : clé A du compte cryptée par la clé P de la nouvelle partition
+- clePK : clé de la nouvelle partition cryptée par la clé publique du compte
+- notif: notification du compte cryptée par la clé P de la nouvelle partition
+Retour:
+*/
+operations.ChangerPartition = class ChangerPartition extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    const cpt = compile(await this.getRowCompte(args.id, 'ChangerPartition-1'))
+    const partav = compile(await this.getRowPartition(ID.long(cpt.idp, this.ns), 'ChangerPartition-2'))
+    const idc = ID.court(args.id)
+    const idpc = ID.court(args.idp)
+    const epav = partav.mcpt[idc]
+    if (!epav) throw new AppExc(F_SRV, 232)
+    const partap = compile(await this.getRowPartition(args.idp, 'ChangerPartition-3'))
+    const epap = partap.mcpt[idc]
+    if (epap) throw new AppExc(F_SRV, 233)
+
+    // Retrait de l'ancienne partition, ajout à la nouvelle
+    this.partitions = new Map()
+    this.partitions.set(partav.id, partav)
+    this.partitions.set(partap.id, partap)
+    partap.mcpt[idc] = { // { nr, cleAP, del, q }
+      nr: args.notif ? args.notif.nr : 0,
+      cleAP: args.cleAP,
+      del: epav.del,
+      q: epav.q
+    }
+    partap._maj = true
+    delete partav.mcpt[idc]
+    partav._maj = true
+
+    // Maj du compte
+    cpt._maj = true
+    cpt.idp = idpc
+    cpt.clePK = args.clePK
+    cpt.notif = args.notif || null
+    cpt.del = epav.del
+
+    if (this.id !== args.id) {
+      const vcpt = await this.getV(cpt, 'ChangerPartition-4')
+      vcpt.v++
+      cpt.v = vcpt.v
+      this.setV(vcpt)
+      this.update(cpt.toRow())
+    }
+  }
+}
