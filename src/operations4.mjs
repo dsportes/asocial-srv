@@ -743,7 +743,7 @@ operations.SetCodePart = class SetCodePart extends Operation {
   }
 }
 
-/*  OP_ChangerPartition: 'Transfert d\'un compte dans une autre tranche de quotas' ************
+/*  OP_ChangerPartition: 'Transfert d\'un compte O dans une autre partition' ************
 - token: éléments d'authentification du compte.
 - id : id du compte qui change de partition
 - idp : id de la nouvelle partition
@@ -756,6 +756,7 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
+    if (this.id === args.id) throw new AppExc(F_SRV, 234)
     const cpt = compile(await this.getRowCompte(args.id, 'ChangerPartition-1'))
     const partav = compile(await this.getRowPartition(ID.long(cpt.idp, this.ns), 'ChangerPartition-2'))
     const idc = ID.court(args.id)
@@ -787,12 +788,44 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
     cpt.notif = args.notif || null
     cpt.del = epav.del
 
-    if (this.id !== args.id) {
-      const vcpt = await this.getV(cpt, 'ChangerPartition-4')
-      vcpt.v++
-      cpt.v = vcpt.v
-      this.setV(vcpt)
-      this.update(cpt.toRow())
-    }
+    const vcpt = await this.getV(cpt, 'ChangerPartition-4')
+    vcpt.v++
+    cpt.v = vcpt.v
+    this.setV(vcpt)
+    this.update(cpt.toRow())
+  }
+}
+
+/*  OP_DeleguePartition: 'Changement de statut délégué d\'un compte dans sa partition' ************
+- token: éléments d'authentification du compte.
+- id : id du compte qui change de statut
+- del: true / false, statut délégué
+Retour:
+*/
+operations.DeleguePartition = class DeleguePartition extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    if (this.id === args.id) throw new AppExc(F_SRV, 234)
+    const cpt = compile(await this.getRowCompte(args.id, 'DeleguePartition-1'))
+    const part = compile(await this.getRowPartition(ID.long(cpt.idp, this.ns), 'DeleguePartition-2'))
+    const idc = ID.court(args.id)
+    const epart = part.mcpt[idc]
+    if (!epart) throw new AppExc(F_SRV, 232)
+
+    // Retrait de l'ancienne partition, ajout à la nouvelle
+    this.partitions = new Map()
+    this.partitions.set(part.id, part)
+    epart.del = args.del
+    part._maj = true
+
+    // Maj du compte
+    cpt._maj = true
+    cpt.del = args.del
+    const vcpt = await this.getV(cpt, 'DeleguePartition-4')
+    vcpt.v++
+    cpt.v = vcpt.v
+    this.setV(vcpt)
+    this.update(cpt.toRow())
   }
 }
