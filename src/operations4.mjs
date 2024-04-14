@@ -829,3 +829,54 @@ operations.DeleguePartition = class DeleguePartition extends Operation {
     this.update(cpt.toRow())
   }
 }
+
+/* `SetNotifP` : notification d'une partition
+- `token` : éléments d'authentification du compte.
+- `idp` : id de la partition
+- `notif` : notification cryptée par la clé de la partition.
+*/
+operations.SetNotifP = class SetNotifP extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    if (!this.estComptable) {
+      if (this.compte.idp !== args.idp || !this.compte.del)
+        throw new AppExc(F_SRV, 235)
+    }
+    this.espace = compile(await this.getRowEspace(this.ns, 'SetNotifP-1'))
+    this.espace.setNotifP(args.notif, ID.court(args.idp))
+
+    this.partitions= new Map()
+    const partition = compile(await this.getRowPartition(args.idp, 'SetNotifP-2'))
+    this.partitions.set(args.idp, partition)
+    partition._maj = true
+    partition.nrp = args.notif ? args.notif.nr : 0
+  }
+}
+
+/* `SetNotifC` : notification d'un compte d'une tribu
+POST:
+- `token` : éléments d'authentification du compte.
+- `id` : id de la tribu
+- `idc` : id du compte
+- `notif` : notification du compte cryptée par la clé de la tribu
+- `stn` : 0:simple 1:lecture 2:accès minimal, 9:aucune
+
+Assertion sur l'existence du row `Tribus` de la tribu et `Comptas` du compte.
+*/
+operations.SetNotifC = class SetNotifC extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    const compta = compile(await this.getRowCompta(args.idc, 'SetNotifC-1'))
+    const tribu = compile(await this.getRowTribu(args.id, 'SetNotifC-1'))
+    tribu.v++
+    const e = tribu.act[compta.it]
+    if (!e || e.vide) return
+    e.stn = args.stn
+    e.notif = args.notif
+    tribu.act[compta.it] = e
+    this.update(tribu.toRow())
+    await this.MajSynthese(tribu)
+  }
+}

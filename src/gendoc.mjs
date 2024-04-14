@@ -241,6 +241,12 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
+  setNotifP (ntf, n) {
+    if (n > this.tnotifP.length) throw new AppExc(F_SRV, 236)
+    this.tnotifP[n] = ntf
+    this._maj = true
+  }
+
   /* Restriction pour les délégués de la partition idp
   **Propriétés accessibles :**
     - administrateur technique : toutes de tous les espaces.

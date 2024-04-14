@@ -901,55 +901,6 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   }
 }
 
-/* `SetNotifT` : notification de la tribu
-POST:
-- `token` : éléments d'authentification du compte.
-- `id` : id de la tribu
-- `notif` : notification cryptée par la clé de la tribu.
-- `stn`: statut de notif 0:simple 1 2 9:aucune notif
-
-Assertion sur l'existence du row `Tribus` de la tribu.
-*/
-operations.SetNotifT = class SetNotifT extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) {
-    const tribu = compile(await this.getRowTribu(args.id, 'SetNotifT-1'))
-    tribu.v++
-    tribu.notif = args.notif
-    tribu.stn = args.stn
-    this.update(tribu.toRow())
-    await this.MajSynthese(tribu)
-  }
-}
-
-/* `SetNotifC` : notification d'un compte d'une tribu
-POST:
-- `token` : éléments d'authentification du compte.
-- `id` : id de la tribu
-- `idc` : id du compte
-- `notif` : notification du compte cryptée par la clé de la tribu
-- `stn` : 0:simple 1:lecture 2:accès minimal, 9:aucune
-
-Assertion sur l'existence du row `Tribus` de la tribu et `Comptas` du compte.
-*/
-operations.SetNotifC = class SetNotifC extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) {
-    const compta = compile(await this.getRowCompta(args.idc, 'SetNotifC-1'))
-    const tribu = compile(await this.getRowTribu(args.id, 'SetNotifC-1'))
-    tribu.v++
-    const e = tribu.act[compta.it]
-    if (!e || e.vide) return
-    e.stn = args.stn
-    e.notif = args.notif
-    tribu.act[compta.it] = e
-    this.update(tribu.toRow())
-    await this.MajSynthese(tribu)
-  }
-}
-
 /* `SetSponsor` : déclare la qualité de sponsor d'un compte dans une tribu
 POST:
 - `token` : éléments d'authentification du sponsor.
