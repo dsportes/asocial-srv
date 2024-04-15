@@ -839,11 +839,15 @@ operations.SetNotifP = class SetNotifP extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    if (!this.estComptable) {
-      if (this.compte.idp !== args.idp || !this.compte.del)
-        throw new AppExc(F_SRV, 235)
-    }
+    const ec = this.estComptable
+    const ed = !ec && this.compte.del
+    if ((!ec && !ed) || (ed && this.compte.idp !== ID.court(args.idp))) throw new AppExc(F_SRV, 235)
+    
     this.espace = compile(await this.getRowEspace(this.ns, 'SetNotifP-1'))
+    const ntf = this.espace.notifP
+    const aut = ntf ? (ntf.idDel ? ID.long(ntf.idDel, this.ns) : ID.duComptable(this.ns)) : null
+    if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
+    if (args.notif) args.notif.idDel = ID.court(this.id)
     this.espace.setNotifP(args.notif, ID.court(args.idp))
 
     this.partitions= new Map()

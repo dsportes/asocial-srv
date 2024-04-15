@@ -1126,7 +1126,7 @@ Correspond à la ligne de la partition dans la synthèse de l'espace
 */
 export function synthesesPartition (p) {
   const ntfp = [0,0,0]
-  if (p.nrp) ntfp[p.nrp] = 1
+  if (p.nrp) ntfp[p.nrp - 1] = 1
   const r = {
     id: ID.court(p.id),
     ntfp: ntfp,
