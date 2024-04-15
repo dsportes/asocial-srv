@@ -471,8 +471,8 @@ operations.GetEspace = class GetEspace extends Operation {
   async phase2 (args) {
     const espace = compile(await this.getRowEspace(this.estAdmin ? args.ns : this.ns, 'GetEspace'))
     let rowEspace
-    if (this.estAdmin || this.estComptable) rowEspace = espace.toRow()
-    else rowEspace = espace.toShortRow(this.compte.idp)
+    if (this.estAdmin) rowEspace = espace.toRow()
+    else rowEspace = espace.toShortRow(this.compte)
     this.setRes('rowEspace', rowEspace)
   }
 }
