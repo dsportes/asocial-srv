@@ -859,28 +859,35 @@ operations.SetNotifP = class SetNotifP extends Operation {
 }
 
 /* `SetNotifC` : notification d'un compte d'une tribu
-POST:
 - `token` : éléments d'authentification du compte.
-- `id` : id de la tribu
 - `idc` : id du compte
-- `notif` : notification du compte cryptée par la clé de la tribu
-- `stn` : 0:simple 1:lecture 2:accès minimal, 9:aucune
-
-Assertion sur l'existence du row `Tribus` de la tribu et `Comptas` du compte.
+- `notif` : notification du compte cryptée par la clé de partition
 */
 operations.SetNotifC = class SetNotifC extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compta = compile(await this.getRowCompta(args.idc, 'SetNotifC-1'))
-    const tribu = compile(await this.getRowTribu(args.id, 'SetNotifC-1'))
-    tribu.v++
-    const e = tribu.act[compta.it]
-    if (!e || e.vide) return
-    e.stn = args.stn
-    e.notif = args.notif
-    tribu.act[compta.it] = e
-    this.update(tribu.toRow())
-    await this.MajSynthese(tribu)
+    const compte = compile(await this.getRowCompte(args.idc, 'SetNotifC-1'))
+
+    const ec = this.estComptable
+    const ed = !ec && this.compte.del
+    if ((!ec && !ed) || (ed && this.compte.idp !== compte.idp)) throw new AppExc(F_SRV, 238)
+
+    const ntf = compte.notif
+    const aut = ntf ? (ntf.idDel ? ID.long(ntf.idDel, this.ns) : ID.duComptable(this.ns)) : null
+    if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
+    if (args.notif) args.notif.idDel = ID.court(this.id)
+
+    const vcpt = await this.getV(compte, 'SetNotifC-2')
+    vcpt.v++
+    compte.v = vcpt.v
+    compte.notif = args.notif || null
+    this.setV(vcpt)
+    this.update(compte.toRow())
+
+    this.partitions = new Map()
+    const partition = compile(await this.getRowPartition(ID.long(compte.idp, this.ns), 'SetNotifC-3'))
+    this.partitions.set(args.idp, partition)
+    partition.setNotifC(args.idc, args.notif || null)
   }
 }

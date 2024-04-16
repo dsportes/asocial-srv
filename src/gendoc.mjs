@@ -321,6 +321,15 @@ export class Partitions extends GenDoc {
     this._maj = true
   }
 
+  setNotifC (id, notif) {
+    const e = this.mcpt[ID.court(id)]
+    if (e) {
+      e.nr = notif ? notif.nr : 0
+      e.notif = notif
+    }
+    this._maj = true
+  }
+
   estDel (id) {
     const e = this.mcpt[ID.court(id)]
     return e && e.del
