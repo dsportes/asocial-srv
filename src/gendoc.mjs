@@ -255,12 +255,8 @@ export class Espaces extends GenDoc {
       - `id v org creation notifE opt`
     - tous comptes: la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
   */
-  toShortRow (compte) {
-    if (!ID.estComptable(compte.id)) {
-      delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
-    }
-    if (compte.idp) this.notifP = this.tnotifP[ID.court(compte.idp)]
-    if (!compte.del) delete this.tnotifP
+  toShortRow () {
+    delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
     return this.toRow()
   }
 }

@@ -844,7 +844,7 @@ operations.SetNotifP = class SetNotifP extends Operation {
     if ((!ec && !ed) || (ed && this.compte.idp !== ID.court(args.idp))) throw new AppExc(F_SRV, 235)
     
     this.espace = compile(await this.getRowEspace(this.ns, 'SetNotifP-1'))
-    const ntf = this.espace.notifP
+    const ntf = this.espace.tnotifP[ID.court(args.idp)]
     const aut = ntf ? (ntf.idDel ? ID.long(ntf.idDel, this.ns) : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
     if (args.notif) args.notif.idDel = ID.court(this.id)
