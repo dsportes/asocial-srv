@@ -533,8 +533,10 @@ operations.Sync = class Sync extends Operation {
     for (const row of await this.db.scoll(this, 'sponsorings', ida, x.vs))
       this.addRes('rowSponsorings', compile(row).toShortRow())
     if (ID.estComptable(this.id)) 
-      for (const row of await this.db.scoll(this, 'tickets', ida, x.vs))
-        this.addRes('rowTickets', row)
+      for (const row of await this.db.scoll(this, 'tickets', ida, x.vs)) {
+        const tk = compile(row)
+        this.addRes('rowTickets', tk.toShortRow())
+      }
   }
 
   async setAv (ida, rds) {

@@ -261,7 +261,30 @@ export class Espaces extends GenDoc {
   }
 }
 
-export class Tickets extends GenDoc { constructor () { super('tickets') } }
+export class Tickets extends GenDoc { 
+  constructor () { super('tickets') } 
+
+  static nouveau (idc, ids, ma, refa) {
+    return new Tickets().init( {
+      idc: ID.court(idc), ids, ma, refa: refa || '', refc: '',
+      mc: 0, di: 0, dr: 0, dg: AMJ.amjUtc()
+    })
+  }
+
+  shortTk () {
+    return {
+      ids: this.ids, ma: this.ma, refa: this.refa, 
+      mc: this.mc, refc: this.refc, di: this.di, dr: this.dr, dg: this.dg
+    }
+  }
+
+  toShortRow () {
+    const idc = this.idc; delete this.idc
+    const row = this.toRow()
+    this.idc = idc
+    return row
+  }
+}
 
 export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
 
@@ -524,26 +547,23 @@ export class Comptis extends GenDoc {
 
 /** Comptas ************************************************
 _data_ :
+_data_:
 - `id` : numéro du compte = id de son avatar principal.
 - `v` : 1..N.
-
-- `rds`
-- `dhvuK` : date-heure de dernière vue des notifications par le titulaire du compte, cryptée par la clé K.
 - `qv` : `{qc, qn, qv, nn, nc, ng, v}`: quotas et nombre de groupes, chats, notes, volume fichiers. Valeurs courantes.
 - `compteurs` sérialisation des quotas, volumes et coûts.
-
-_Comptes "A" seulement_
-- `solde`: résultat, 
-  - du cumul des crédits reçus depuis le début de la vie du compte (ou de son dernier passage en compte A), 
-  - plus les dons reçus des autres,
-  - moins les dons faits aux autres.
-- `ticketsK`: liste des tickets cryptée par la clé K du compte `{ids, v, dg, dr, ma, mc, refa, refc, di}`.
-
-- `apropos` : map à propos des contacts (des avatars) et des groupes _connus_ du compte,
-  - _cle_: `id` court de l'avatar ou du groupe,
-  - _valeur_ : `{ hashtags, texte }` cryptée par la clé K du compte.
-    - `hashtags` : liste des hashtags attribués par le compte.
-    - `texte` : commentaire écrit par le compte.
+- _Comptes "A" seulement_
+  - `solde`: résultat, 
+    - du cumul des crédits reçus depuis le début de la vie du compte (ou de son dernier passage en compte A), 
+    - plus les dons reçus des autres,
+    - moins les dons faits aux autres.
+  - `tickets`: map des tickets / dons:
+    - _clé_: `ids`
+    - _valeur_: `{dg, iddb, dr, ma, mc, refa, refc, di}`
+    - Pour un don :
+      - `dg` est la date du don.
+      - `ma` est le montant du don (positif ou négatif)
+      - `iddb`: id du donateur / bénéficiaire (selon le signe de `ma`).
 */
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
@@ -610,6 +630,12 @@ export class Comptas extends GenDoc {
     this.qv.ng += q
     const c = new Compteurs(this.compteurs, this.qv)
     this.compteurs = c.serial
+    this._maj = true
+  }
+
+  addTk (tk) {
+    if (!this.tickets) this.tickets = {}
+    this.tickets[tk.ids] = tk.shortTk()
     this._maj = true
   }
 

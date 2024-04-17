@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile, Sponsorings, Chats, Partitions } from './gendoc.mjs'
+import { compile, Sponsorings, Chats, Partitions, Tickets } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -889,5 +889,77 @@ operations.SetNotifC = class SetNotifC extends Operation {
     const partition = compile(await this.getRowPartition(ID.long(compte.idp, this.ns), 'SetNotifC-3'))
     this.partitions.set(args.idp, partition)
     partition.setNotifC(args.idc, args.notif || null)
+  }
+}
+
+/* OP_PlusTicket: 'Génération d\'un ticket de crédit'
+et ajout du ticket au Comptable
+- token : jeton d'authentification du compte de **l'administrateur**
+- ma: montant attendu
+- refa: référence éventuelle du compte
+- ids: ids du ticket généré
+Retour: 
+- rowCompta: du compte après insertion du ticket
+*/
+operations.PlusTicket = class PlusTicket extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    const idc = ID.duComptable(this.ns)
+
+    const rtk = await this.getRowTicket(idc, args.ids)
+    if (rtk) throw new AppExc(F_SRV, 239)
+
+    const tk = Tickets.nouveau(this.id, args.ids, args.ma, args.refa || '')
+    this.compta.addTk(tk)
+
+    const comptable = compile(await this.getRowCompte(idc, 'PlusTicket-1'))
+    const version = await this.getV(comptable, 'PlusTicket-2')
+    version.v++
+    tk.id = idc
+    tk.v = version.v
+    this.insert(tk.toRow())
+    this.setV(version)
+  }
+
+  phase3() {
+    this.setRes('rowCompta', this.compta.toRow())
+  }
+}
+
+/* `MoinsTicket` : retrait d'un ticket à un compte A
+et retrait d'un ticket au Comptable
+POST:
+- `token` : jeton d'authentification du compte
+- `credits` : credits crypté par la clé K du compte
+- `ids` : du ticket
+- v: version de compta
+
+Retour: 
+- KO: true si régression de version de compta
+*/
+operations.MoinsTicket = class MoinsTicket extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    const idc = ID.duComptable(this.ns)
+    const ticket = compile(await this.getRowTicket(idc, args.ids, 'MoinsTicket-1'))
+    if (ticket.dr) throw new AppExc(F_SRV, 24)
+    const version = compile(await this.getRowVersion(idc, 'MoinsTicket-2'))
+    version.v++
+    this.update(version.toRow())
+    ticket.v = version.v
+    ticket._zombi = true
+    this.update(ticket.toRow())
+
+    const compta = this.compta
+    if (compta.v !== args.v) {
+      this.setRes('KO', true)
+      return
+    }
+    compta.v++
+    compta.credits = args.credits
+    // console.log('CREDITS MoinsTicket', compta.v, compta.credits.length)
+    this.update(compta.toRow())
   }
 }
