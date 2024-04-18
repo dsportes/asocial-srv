@@ -428,16 +428,19 @@ operations.MajChat = class MajChat extends OperationCh {
       if (!comptaE) throw new AppExc(F_SRV, 213)
       if (!comptaE._estA) throw new AppExc(F_SRV, 214)
       if (!this.compta._estA) throw new AppExc(F_SRV, 214)
-      comptaE.donCR(args.don)
       const compteE = compile(await this.getRowCompte(this.idEL, 'MajChat-8'))
+      comptaE.don(compteE, this.dh, args.don, TouchList.id)
+      this.calculDlv(compteE, comptaE)
       const vcptE = this.getV(compteE, 'MajChat-6')
       vcptE.v++
-      comptaE.v = vcptE.v
-      this.setNV(comptaE)
+      compteE.v = vcptE.v
+      this.update(compteE.toRow())
+      this.setV(vcptE)
+      comptaE.v++
       this.update(comptaE.toRow())
 
-      this.compta.donDB(args.don)
-      this.compta._maj = true
+      this.compta.don(this.compte, this.dh, -args.don, compteE.id)
+      this.calculDlv(this.compte, this.compta)
     }
 
     const avE = compile(await this.getRowAvatar(this.idEL, 'MajChat-4'))
