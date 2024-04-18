@@ -267,14 +267,14 @@ export class Tickets extends GenDoc {
   static nouveau (idc, ids, ma, refa) {
     return new Tickets().init( {
       idc: ID.court(idc), ids, ma, refa: refa || '', refc: '',
-      mc: 0, di: 0, dr: 0, dg: AMJ.amjUtc()
+      mc: 0, dr: 0, dg: AMJ.amjUtc()
     })
   }
 
   shortTk () {
     return {
       ids: this.ids, ma: this.ma, refa: this.refa, 
-      mc: this.mc, refc: this.refc, di: this.di, dr: this.dr, dg: this.dg
+      mc: this.mc, refc: this.refc, dr: this.dr, dg: this.dg
     }
   }
 
@@ -560,10 +560,10 @@ _data_:
   - `tickets`: map des tickets / dons:
     - _clé_: `ids`
     - _valeur_: `{dg, iddb, dr, ma, mc, refa, refc, di}`
-    - Pour un don :
-      - `dg` est la date du don.
-      - `ma` est le montant du don (positif ou négatif)
-      - `iddb`: id du donateur / bénéficiaire (selon le signe de `ma`).
+  - `dons` : liste des dons effectués / reçus
+    - `dh`: date-heure du don
+    - `m`: montant du don (positif ou négatif)
+    - `iddb`: id du donateur / bénéficiaire (selon le signe de `m`).
 */
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
@@ -633,9 +633,34 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  addTk (tk) {
+  plusTk (tk) {
     if (!this.tickets) this.tickets = {}
     this.tickets[tk.ids] = tk.shortTk()
+    this._maj = true
+  }
+
+  moinsTk (tk) {
+    if (this.tickets) delete this.tickets[tk.ids]
+    this._maj = true
+  }
+
+  enregTk (compte, tk, mc, refc) {
+    if (!this.tickets) this.tickets = {}
+    const m = mc < 0 ? 0 : mc
+    tk.mc = m
+    tk.refc = refc || ''
+    this.tickets[tk.ids] = tk.shortTk()
+    this.majSolde(compte, m)
+  }
+
+  majSolde (compte, m) {
+    this.solde += m
+    const c = new Compteurs(this.compteurs)
+    this._nbj = c.nbj(this.solde)
+    const qv = compte.qv
+    const pc = c.pourcents
+    qv.nbj = this._nbj; qv.pcn = pc.pcn; qv.pcv = pc.pcv
+    compte._maj = true
     this._maj = true
   }
 

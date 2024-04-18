@@ -229,14 +229,28 @@ export class Operation {
 
   async phase3 () { return }
 
-  calculDlv () {
-    if (ID.estComptable(this.compte.id)) return AMJ.max
-    const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
-    if (this.compte.idp) // Compte O
-      return this.espace.dlvat && (dlvmax > this.espace.dlvat) ? this.espace.dlvat : dlvmax
-    // Compte A
-    const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.compta._nbj))
-    return dlvmax > d ? d : dlvmax
+  calculDlv (compte, compta) {
+    let dlv
+    if (ID.estComptable(compte.id)) dlv = AMJ.max
+    else {
+      const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
+      if (compte.idp) // Compte O
+        return this.espace.dlvat && (dlvmax > this.espace.dlvat) ? this.espace.dlvat : dlvmax
+      // Compte A
+      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, compta._nbj))
+      dlv = dlvmax > d ? d : dlvmax
+    }
+    let diff1 = AMJ.diff(dlv, compte.dlv); if (diff1 < 0) diff1 = -diff1
+    if (diff1) {
+      /* Pour éviter des modifications mineures sur comptes, on ne met à jour la dlv que :
+      - si elle est dans moins de 20 jours
+      - si elle diffère de l'actuelle de plus de 10 jours
+      */
+      if (AMJ.diff(dlv, this.auj) < 20 || diff1 > 10) {
+        compte.dlv = dlv
+        compte._maj = true
+      }
+    }
   }
 
   async transac () { // Appelé par this.db.doTransaction
@@ -257,21 +271,9 @@ export class Operation {
     }
     
     // Maj dlv si nécessaire) et pas de restriction grave
-    if (this.compte && this.espace && this.compta && !R.estGrave(this.setR)) {
-      const dlv = this.calculDlv()
-      let diff1 = AMJ.diff(dlv, this.compte.dlv); if (diff1 < 0) diff1 = -diff1
-      if (diff1) {
-        /* Pour éviter des modifications mineures sur comptes, on ne met à jour la dlv que :
-        - si elle est dans moins de 20 jours
-        - si elle diffère de l'actuelle de plus de 10 jours
-        */
-        if (AMJ.diff(dlv, this.auj) < 20 || diff1 > 10) {
-          this.compte.dlv = dlv
-          this.compte._maj = true
-        }
-      }
-    }
-
+    if (this.compte && this.espace && this.compta && !R.estGrave(this.setR))
+      this.calculDlv(this.compte, this.compta)
+    
     // Incorporation de consommation dans compta et insert/update compta
     const conso = this.compta ? await this.compta.finaliser(this) : null
 

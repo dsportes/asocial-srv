@@ -911,9 +911,9 @@ operations.PlusTicket = class PlusTicket extends Operation {
     if (rtk) throw new AppExc(F_SRV, 239)
 
     const tk = Tickets.nouveau(this.id, args.ids, args.ma, args.refa || '')
-    this.compta.addTk(tk)
+    this.compta.plusTk(tk)
 
-    const comptable = compile(await this.getRowCompte(idc, 'PlusTicket-1'))
+    const comptable = compile(await this.getRowAvatar(idc, 'PlusTicket-1'))
     const version = await this.getV(comptable, 'PlusTicket-2')
     version.v++
     tk.id = idc
@@ -929,37 +929,75 @@ operations.PlusTicket = class PlusTicket extends Operation {
 
 /* `MoinsTicket` : retrait d'un ticket à un compte A
 et retrait d'un ticket au Comptable
-POST:
-- `token` : jeton d'authentification du compte
-- `credits` : credits crypté par la clé K du compte
-- `ids` : du ticket
-- v: version de compta
-
+- token : jeton d'authentification du compte
+- ids : ticket à enlever
 Retour: 
-- KO: true si régression de version de compta
+- rowCompta
 */
 operations.MoinsTicket = class MoinsTicket extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2(args) {
     const idc = ID.duComptable(this.ns)
-    const ticket = compile(await this.getRowTicket(idc, args.ids, 'MoinsTicket-1'))
-    if (ticket.dr) throw new AppExc(F_SRV, 24)
-    const version = compile(await this.getRowVersion(idc, 'MoinsTicket-2'))
-    version.v++
-    this.update(version.toRow())
-    ticket.v = version.v
-    ticket._zombi = true
-    this.update(ticket.toRow())
 
-    const compta = this.compta
-    if (compta.v !== args.v) {
-      this.setRes('KO', true)
-      return
+    const tk = compile(await this.getRowTicket(idc, args.ids))
+    if (!tk) throw new AppExc(F_SRV, 240)
+
+    this.compta.moinsTk(tk)
+
+    const comptable = compile(await this.getRowAvatar(idc, 'PlusTicket-1'))
+    const version = await this.getV(comptable, 'PlusTicket-2')
+    version.v++
+    tk._zombi = true
+    tk.v = version.v
+    this.update(tk.toRow())
+    this.setV(version)
+  }
+
+  phase3() {
+    this.setRes('rowCompta', this.compta.toRow())
+  }
+}
+
+/* OP_ReceptionTicket: 'Réception d\'un ticket par le Comptable'
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- `ids` : du ticket
+- `mc` : montant reçu
+- `refc` : référence du Comptable
+Retour: rien
+*/
+operations.ReceptionTicket = class ReceptionTicket extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+
+    const tk = compile(await this.getRowTicket(this.id, args.ids))
+    if (!tk) throw new AppExc(F_SRV, 240)
+    if (tk.dr) throw new AppExc(F_SRV, 241)
+
+    const comptable = compile(await this.getRowAvatar(this.id, 'ReceptionTicket-1'))
+    const version = await this.getV(comptable, 'ReceptionTicket-2')
+    version.v++
+    tk.dr = this.auj
+    tk.v = version.v
+
+    const compte = compile(await this.getRowCompte(ID.long(tk.idc, this.ns)))
+    const compta = compile(await this.getRowCompta(ID.long(tk.idc, this.ns)))
+    if (!compta || !compte) { // Compte disparu
+      tk.disp = true
+    } else {
+      compta.enregTk(compte, tk, args.mc, args.refc)
+      this.calculDlv(compte, compta)
+      compta.v++
+      this.update(compta.toRow())
+      const vcpt = await this.getV(compte, 'ReceptionTicket-3')
+      vcpt.v++
+      compte.v = vcpt.v
+      this.setV(vcpt)
+      this.update(compte.toRow())
     }
-    compta.v++
-    compta.credits = args.credits
-    // console.log('CREDITS MoinsTicket', compta.v, compta.credits.length)
-    this.update(compta.toRow())
+
+    this.update(tk.toRow())
+    this.setV(version)
   }
 }

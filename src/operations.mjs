@@ -77,31 +77,6 @@ operations.CreerEspace = class CreerEspace extends Operation {
   }
 }
 
-/* `ReceptionTicket` : réception d'un ticket par le Comptable
-POST:
-- `token` : jeton d'authentification du Comptable
-- `ids` : du ticket
-- `mc` : montant reçu
-- `refc` : référence du Comptable
-
-Retour: rien
-*/
-operations.ReceptionTicket = class ReceptionTicket extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
-
-  async phase2(args) {
-    const version = compile(await this.getRowVersion(this.id, 'PlusTicket-2'))
-    const ticket = compile(await this.getRowTicket(this.id, args.ids, 'ReceptionTicket-1'))
-    version.v++
-    this.update(version.toRow())
-    ticket.v = version.v
-    ticket.mc = args.mc
-    ticket.refc = args.refc
-    ticket.dr = AMJ.amjUtc()
-    this.update(ticket.toRow())
-  }
-}
-
 /* `MajCredits` : mise a jour du crédits d'un compte A
 POST:
 - `token` : jeton d'authentification du compte
@@ -114,7 +89,7 @@ POST:
 
 Retour:
 - KO: true - La version v est en régression, refaire l'incorporation des crédits.
-*/
+
 operations.MajCredits = class MajCredits extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
@@ -134,6 +109,7 @@ operations.MajCredits = class MajCredits extends Operation {
     if (dlvAvant !== args.dlv) this.propagerDlv(args)
   }
 }
+*/
 
 /*`SetEspaceT` : déclaration du profil de volume de l'espace par l'administrateur
 POST:
