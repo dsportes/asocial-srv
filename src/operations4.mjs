@@ -429,9 +429,9 @@ operations.MajChat = class MajChat extends OperationCh {
       if (!comptaE._estA) throw new AppExc(F_SRV, 214)
       if (!this.compta._estA) throw new AppExc(F_SRV, 214)
       const compteE = compile(await this.getRowCompte(this.idEL, 'MajChat-8'))
-      comptaE.don(compteE, this.dh, args.don, TouchList.id)
+      comptaE.don(compteE, this.dh, args.don, this.id)
       this.calculDlv(compteE, comptaE)
-      const vcptE = this.getV(compteE, 'MajChat-6')
+      const vcptE = await this.getV(compteE, 'MajChat-6')
       vcptE.v++
       compteE.v = vcptE.v
       this.update(compteE.toRow())

@@ -843,7 +843,8 @@ export class Compteurs {
     const [ac, mc] = AMJ.am(this.dh)
     const cu = Tarif.cu(ac, mc)
     const abo = (this.qv.qn * cu[0]) + (this.qv.qv * cu[1])
-    return Math.floor(solde / (abo + this.conso4M) * 30)
+    const n = Math.floor(solde / (abo + this.conso4M) * 30)
+    return n < 999 ? n : 999
   }
 
   notifS (credits) { // notification de dépassement des crédits

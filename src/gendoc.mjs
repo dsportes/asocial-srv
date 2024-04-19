@@ -665,10 +665,10 @@ export class Comptas extends GenDoc {
   }
 
   don (compte, dh, m, iddb) {
-    if (m < 0 && this.solde < m - 2) throw new AppExc(F_SRV, 215, [-m, this.total])
+    if (m < 0 && this.solde + m < 2) throw new AppExc(F_SRV, 215, [-m, this.total])
     this.majSolde(compte, m)
     if (!this.dons) this.dons = []
-    this.don.push({dh, m, iddb: ID.court(iddb)})
+    this.dons.push({dh, m, iddb: ID.court(iddb)})
   }
 
   reporter (pc, nbj, qvc) {
