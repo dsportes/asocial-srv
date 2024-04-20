@@ -1004,3 +1004,91 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
     this.setV(version)
   }
 }
+
+/* MajCv : Mise à jour de la carte de visite d\'un avatar ******************************************
+- token : jeton d'authentification du compte
+- cv : carte de visite (photo / texte cryptés)
+Retour:
+*/
+operations.MajCv = class MajCv extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
+    const idag = ID.long(args.cv.id, this.ns)
+
+    if (!ID.estGroupe(idag)) {
+      const avatar = compile(await this.getRowAvatar(idag, 'MajCv-1'))
+      if (!this.compte.mav[args.cv.id]) throw new AppExc(F_SRV, 242)
+      const vav = await this.getV(avatar, 'MajCv-2')
+      vav.v++
+      args.cv.v = vav.v
+      avatar.v = vav.v
+      avatar.vcv = vav.v
+      avatar.cvA = args.cv
+      this.update(avatar.toRow())
+      this.setV(vav)
+    } else {
+      const e = this.compte.mpg[args.cv.id]
+      if (!e) throw new AppExc(F_SRV, 243)
+      const groupe = compile(await this.getRowGroupe((idag, 'MajCv-3')))
+      let ok = false
+      for(const ida of e.lav) {
+        const im = groupe.mmb.get(ida)
+        if (im) {
+          const f = groupe.flags[im]
+          if ((f & FLAGS.AC) && (f & FLAGS.PA)) ok = true
+        }
+      }
+      if (!ok) throw new AppExc(F_SRV, 243)
+      const vgr = await this.getV(groupe, 'MajCv-4')
+      vgr.v++
+      args.cv.v = vgr.v
+      groupe.v = vgr.v
+      groupe.vcv = vgr.v
+      groupe.cvA = args.cv
+      this.update(groupe.toRow())
+      this.setV(vgr)
+    }
+  }
+}
+
+/* OP_GetCv : Obtention de la carte de visite d\'un avatar ******************************************
+- token : jeton d'authentification du compte
+- id : id du people
+- ch: [id, ids] id d'un chat d'un des avatars du compte avec le people
+Retour:
+- cv: si trouvée
+*/
+operations.GetCv = class GetCv extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
+    const idag = ID.long(args.id, this.ns)
+
+    if (!ID.estGroupe(idag)) {
+      if (args.ch) {
+        if (this.compte.mav[ID.court(args.ch[0])]) {
+          const chat = await this.getRowChat(args.ch[0], args.ch[1])
+          if (!chat) throw new AppExc(F_SRV, 244)
+        } else throw new AppExc(F_SRV, 244)
+      } else {
+        if (!this.compte.mav[ID.court(args.id)]) throw new AppExc(F_SRV, 242)
+      }
+      const avatar = compile(await this.getRowAvatar(idag, 'MajCv-1'))
+      this.setRes('cv', avatar.cvA)
+    } else {
+      const e = this.compte.mpg[args.cv.id]
+      if (!e) throw new AppExc(F_SRV, 243)
+      const groupe = compile(await this.getRowGroupe((idag, 'MajCv-3')))
+      let ok = false
+      for(const ida of e.lav) {
+        if (groupe.mmb.get(ida)) ok = true
+      }
+      if (!ok) throw new AppExc(F_SRV, 243)
+      this.setRes('cv', groupe.cvG)
+    }
+  }
+}
