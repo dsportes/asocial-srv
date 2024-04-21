@@ -628,7 +628,7 @@ operations.Sync = class Sync extends Operation {
       for(const [ida, x] of this.ds.avatars) {
         x.chg = false
         /* Si la version en base est supérieure à celle en session, chargement */
-        if (x.vs < x.vb) {
+        if (!x.vb || (x.vs < x.vb)) {
           await this.getAvRows(ida, x)
           x.chg = true
           if (this.nl - n > 20) break

@@ -483,6 +483,11 @@ export class Comptes extends GenDoc {
     return new Comptes().init(r)
   }
 
+  ajoutAvatar (avatar, cleAK) {
+    this.mav[ID.court(avatar.id)] = { rds: avatar.rds, cleAK: cleAK }
+    this._maj = true
+  }
+
   get ns () { return ID.ns(this.id) }
 
   get _estA () { return this.idp === 0 }
@@ -726,7 +731,8 @@ export class Avatars extends GenDoc {
   constructor() { super('avatars') } 
 
   static nouveau (id, rdsav, pub, privK, cvA) {
-    return new Avatars().init({ id, v: 1, rds: rdsav, pub, privK, cvA })
+    cvA.v = 1
+    return new Avatars().init({ id, v: 1,vcv: 1, rds: rdsav, pub, privK, cvA })
   }
 
   toShortRow () {

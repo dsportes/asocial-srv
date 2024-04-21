@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile, Sponsorings, Chats, Partitions, Tickets } from './gendoc.mjs'
+import { compile, Sponsorings, Chats, Partitions, Tickets, Avatars } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -1097,5 +1097,33 @@ operations.GetCv = class GetCv extends Operation {
       if (!ok) throw new AppExc(F_SRV, 243)
       this.setRes('cv', groupe.cvG)
     }
+  }
+}
+
+/*OP_NouvelAvatar: 'Création d\'un nouvel avatar du compte' **********************
+- token: éléments d'authentification du compte.
+- id: de l'avatar à créér
+- cleAK : sa clé A cryptée par la clé K
+- pub: sa clé RSA publique
+- priv: sa clé RSA privée cryptée par la clé K
+- cvA: sa CV cryptée par sa clé A
+Retour:
+*/
+operations.NouvelAvatar = class NouvelAvatar extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
+
+    if (this.compte.mav[ID.court(args.id)]) return // création déjà faite pour le compte
+    let avatar = compile(await this.getRowAvatar(args.id))
+    if (avatar) throw new AppExc(F_SRV, 245)
+
+    const rdsav = ID.rds(ID.RDSAVATAR)
+    avatar = Avatars.nouveau(args.id, rdsav, args.pub, args.privK, args.cvA) 
+    this.setNV(avatar)
+    this.insert(avatar.toRow())
+    this.compte.ajoutAvatar(avatar, args.cleAK)
   }
 }
