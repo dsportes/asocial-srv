@@ -776,11 +776,16 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
     this.partitions = new Map()
     this.partitions.set(partav.id, partav)
     this.partitions.set(partap.id, partap)
+    let qx = epav.q
+    if (!qx) { // Contournement de bug
+      const cpta = compile(await this.getRowCompta(args.id))
+      qx = cpta.qv
+    }
     partap.mcpt[idc] = { // { nr, cleAP, del, q }
       nr: args.notif ? args.notif.nr : 0,
       cleAP: args.cleAP,
       del: epav.del,
-      q: epav.q
+      q: qx
     }
     partap._maj = true
     delete partav.mcpt[idc]
