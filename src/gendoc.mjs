@@ -251,9 +251,8 @@ export class Espaces extends GenDoc {
   **Propriétés accessibles :**
     - administrateur technique : toutes de tous les espaces.
     - Comptable : toutes de _son_ espace.
-    - Délégués : sur leur espace seulement,
-      - `id v org creation notifE opt`
-    - tous comptes: la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
+    - Délégués : pas stats dlvat ...
+    - tous comptes: la notification de _leur_ partition sera seule lisible.
   */
   toShortRow () {
     delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
@@ -411,6 +410,7 @@ _data_ :
 - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
 - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
 - `cleEK` : clé de l'espace cryptée par la clé K du compte, à la création de l'espace pour le Comptable. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
+- `privK` : clé privée RSA de son avatar principal cryptée par la clé K du compte.
 
 - `dhvuK` : date-heure de dernière vue des notifications par le titulaire du compte, cryptée par la clé K.
 - `qv` : `{ qc, qn, qv, pcc, pcn, pcv, nbj }`
@@ -469,11 +469,11 @@ export class Comptes extends GenDoc {
     return row
   }
 
-  static nouveau (id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
+  static nouveau (id, hXR, hXC, cleKXC, privK, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
     const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
     const r = {
       _ins: true, _maj: true, id: id, v: 0, rds: ID.rds(ID.RDSCOMPTE),
-      hxr: hXR, dlv: AMJ.max, cleKXC, hXC, idp: 0, qv: qv, clePK,
+      hxr: hXR, dlv: AMJ.max, cleKXC, privK, hXC, idp: 0, qv: qv, clePK,
       mav: {}, mpg: {}
     }
     if (cleEK) r.cleEK = cleEK

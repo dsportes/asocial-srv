@@ -180,6 +180,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   - t2c: mot du sponsorisé crypté par la clé C
 
 Retour: 
+- rowEspace
 - rowCompte
 - rowCompti
 - rowAvater 
@@ -257,7 +258,7 @@ operations.SyncSp = class SyncSp extends Operation {
     // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
     this.compte = Comptes.nouveau(args.id, 
       (this.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, null, sp.quotas, o)
+      args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, null, sp.quotas, o)
     /* Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
       this.setRes('rowCompte', this.compte.toShortRow())
     */
@@ -346,6 +347,8 @@ operations.SyncSp = class SyncSp extends Operation {
       })
       this.insert(chE.toRow())
     }
+    const espace = compile(await this.getRowEspace(this.ns, 'SyncSp-es')) 
+    this.setRes('rowEspace', espace.toShortRow())
   }
 
   async phase3 () {
@@ -728,7 +731,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
     this.compte = Comptes.nouveau(idComptable, 
       (args.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, rdsav, args.cleAK, args.clePK, args.cleEK, qvc, o, args.ck)
+      args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, args.cleEK, qvc, o, args.ck)
     
     /* Compti */
     const compti = new Comptis().init({ id: idComptable, v: 1, mc: {} })
