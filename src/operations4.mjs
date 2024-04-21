@@ -88,12 +88,13 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       const partition = compile(await this.getRowPartition(args.partitionId))
       if (!partition) 
         throw new AppExc(F_SRV, 208, [args.partitionId])
-      const e = partition.mcpt[ID.court(this.compte.id)]
-      if (!e || !eqU8(e.cleAP, args.cleAP)) 
-        throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
-      if (!e.del) 
-        throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
-
+      if (!this.estComptable) {
+        const e = partition.mcpt[ID.court(this.compte.id)]
+        if (!e || !eqU8(e.cleAP, args.cleAP)) 
+          throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
+        if (!e.del) 
+          throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
+      }
       const s = partition.getSynthese()
       const q = args.quotas
       // restants à attribuer suffisant pour satisfaire les quotas ?
@@ -532,6 +533,7 @@ operations.PassifChat = class PassifChat extends OperationCh {
       this.chI.cvE = avE.cvA
       this.chI.vcv = this.chI.cvE.v || 0
     }
+    this.chI.v = this.vchI.v
     this.update(this.chI.toRow())
     this.setV(this.vchI)
   }

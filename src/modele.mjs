@@ -235,10 +235,11 @@ export class Operation {
     else {
       const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
       if (compte.idp) // Compte O
-        return this.espace.dlvat && (dlvmax > this.espace.dlvat) ? this.espace.dlvat : dlvmax
-      // Compte A
-      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, compta._nbj))
-      dlv = dlvmax > d ? d : dlvmax
+        dlv = this.espace.dlvat && (dlvmax > this.espace.dlvat) ? this.espace.dlvat : dlvmax
+      else { // Compte A
+        const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, compta._nbj))
+        dlv = dlvmax > d ? d : dlvmax
+      }
     }
     let diff1 = AMJ.diff(dlv, compte.dlv); if (diff1 < 0) diff1 = -diff1
     if (diff1) {
