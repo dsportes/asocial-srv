@@ -404,7 +404,7 @@ export class Syntheses extends GenDoc {
 _data_ :
 - `id` : numéro du compte = id de son avatar principal.
 - `v` : 1..N.
-- `hXR` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
+- `hxr` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
 - `dlv` : dernier jour de validité du compte.
 
 - `rds` : null en session.

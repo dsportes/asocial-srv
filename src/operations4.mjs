@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, ID, FLAGS } from './api.mjs'
+import { AppExc, F_SRV, ID, FLAGS, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
@@ -1148,5 +1148,27 @@ operations.McMemo = class McMemo extends Operation {
     compti.v = vcpt.v
     this.update(compti.toRow())
     this.setV(vcpt)
+  }
+}
+
+/* OP_ChangementPS: 'Changement de la phrase secrete de connexion du compte' ********************
+- token: éléments d'authentification du compte.
+- hps1: hash du PBKFD de la phrase secrète réduite du compte.
+- hXC: hash du PBKFD de la phrase secrète complète.
+- cleKXC: clé K cryptée par la phrase secrète
+*/
+operations.ChangementPS = class ChangementPS extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    /*
+    - `hxr` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
+    - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
+    - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
+    */
+    this.compte.hxr = (this.ns * d14) + args.hps1
+    this.compte.hXC = args.hXC
+    this.compte.cleKXC = args.cleKXC
+    this.compte._maj = true
   }
 }
