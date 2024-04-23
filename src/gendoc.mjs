@@ -136,6 +136,7 @@ export class GenDoc {
     case 'syntheses' : { obj = new Syntheses(); break }
     case 'comptes' : { obj = new Comptes(); break }
     case 'comptas' : { obj = new Comptas(); break }
+    case 'comptis' : { obj = new Comptis(); break }
     case 'versions' : { obj = new Versions(); break }
     case 'avatars' : { obj = new Avatars(); break }
     case 'notes' : { obj = new Notes(); break }
@@ -541,7 +542,17 @@ export class Comptes extends GenDoc {
   }
 }
 
-/* Comptis **************************************************/
+/* Comptis *************************************************
+_data_:
+- `id` : id du compte.
+- `v` : version.
+
+- `mc` : map à propos des contacts (des avatars) et des groupes _connus_ du compte,
+  - _cle_: `id` court de l'avatar ou du groupe,
+  - _valeur_ : `{ ht, tx }`.
+    - `ht` : liste des hashtags séparés par un espace attribués par le compte et cryptée par la clé K du compte.
+    - `tx` : commentaire écrit par le compte gzippé et crypté par la clé K du compte.
+*/
 export class Comptis extends GenDoc { 
   constructor() { super('comptis') } 
 

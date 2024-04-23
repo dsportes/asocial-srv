@@ -1127,3 +1127,26 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     this.compte.ajoutAvatar(avatar, args.cleAK)
   }
 }
+
+/* OP_McMemo Changement des mots clés et mémo attachés à un contact ou groupe ********************************
+- token: éléments d'authentification du compte.
+- id: de l'avatar ou du groupe
+- htK : hashtags séparés par un espace et crypté par la clé K
+- txK : texte du mémo gzippé et crypté par la clé K
+*/
+operations.McMemo = class McMemo extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
+
+    const vcpt = await this.getV(this.compte, 'McMemo-1')
+    vcpt.v++
+    const compti = compile(await this.getRowCompti(this.id, 'McMemo-2'))
+    compti.mc[ID.court(args.id)] = { ht: args.htK, tx: args.txK }
+    compti.v = vcpt.v
+    this.update(compti.toRow())
+    this.setV(vcpt)
+  }
+}
