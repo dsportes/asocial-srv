@@ -43,35 +43,24 @@ export const limitesjour = {
 
 /************************************************************************/
 export const FLAGS = {
-  AC: 1 << 0, // **est _actif_**
-  IN: 1 << 1, // **a une invitation en cours**
-  AN: 1 << 2, // **a accès aux notes**: un membre _actif_ décide s'il souhaite ou non accéder aux notes (il faut qu'il en ait le _droit_): un non accès allège sa session.
-  AM: 1 << 3, // **a accès aux membres**: un membre _actif_ décide s'il souhaite ou non accéder aux autres membres (il faut qu'il en ait le _droit_): un non accès allège sa session.
-  DM: 1 << 4, // **droit d'accès à la liste des membres**: s'il est invité s'appliquera quand il sera actif.
-  DN: 1 << 5, // **droit d'accès aux notes du groupe**:  s'il est invité s'appliquera quand il sera actif.
-  DE: 1 << 6, // **droit d'écriture sur les notes du groupe**: s'il est invité s'appliquera quand il sera actif.
-  PA: 1 << 7, // **pouvoir d'animateur du groupe**: s'il est invité s'appliquera quand il sera actif. _Remarque_: un animateur sans droit d'accès aux notes peut déclarer une invitation et être hébergeur.
-  HA: 1 << 0, // **a été actif**
-  HN: 1 << 1, // **a eu accès aux notes**
-  HM: 1 << 2, // **a eu accès aux membres**
-  HE: 1 << 3 // **a pu écrire des notes**
+  AM: 1 << 0, // **a accès aux notes**: un membre _actif_ décide s'il souhaite ou non accéder aux notes (il faut qu'il en ait le _droit_): un non accès allège sa session.
+  AN: 1 << 1, // **a accès aux membres**: un membre _actif_ décide s'il souhaite ou non accéder aux autres membres (il faut qu'il en ait le _droit_): un non accès allège sa session.
+  DM: 1 << 2, // **droit d'accès à la liste des membres**: s'il est invité s'appliquera quand il sera actif.
+  DN: 1 << 3, // **droit d'accès aux notes du groupe**:  s'il est invité s'appliquera quand il sera actif.
+  DE: 1 << 4, // **droit d'écriture sur les notes du groupe**: s'il est invité s'appliquera quand il sera actif.
+  HM: 1 << 5, // **a eu accès aux notes**
+  HN: 1 << 6, // **a eu accès aux membres**
+  HE: 1 << 7 // **a pu écrire des notes**
 }
 
 export const LFLAGS = [
-  'est actif',
-  'a une invitation en cours',
   'a accès aux notes', 
   'a accès aux membres',
   'a droit d\'accès à la liste des membres',
   'a droit d\'accès aux notes du groupe',
   'a droit d\'écriture sur les notes',
-  'a pouvoir d\'animateur'
-]
-
-export const LHISTS = [
-  'a été actif',
-  'a eu accès aux notes',
   'a eu accès aux membres',
+  'a eu accès aux notes',
   'a pu écrire des notes'
 ]
 
@@ -82,8 +71,6 @@ export function edit (n, t, sep) {
   const x = []
   for (let i = 0; i < LFLAGS.length; i++)
     if (n & (1 << i)) x.push(t ? t('FLAGS' + i) : LFLAGS[i])
-  for (let i = 0; i < LHISTS.length; i++)
-    if (n & (1 << i)) x.push(t ? t('FLAGS' + i) : LHISTS[i])
   return x.join(sep || ', ')
 }
 
