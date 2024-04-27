@@ -140,7 +140,7 @@ export function hash (arg) {
 
 /** Cles **********************************************************************/
 export class Cles {
-  /* Génération des clés pour les CCEP */
+  /* Génération des clés */
 
   /* idx : numéro de partition */
   static partition (idx) {

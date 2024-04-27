@@ -6,7 +6,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
 import { Operation, trace} from './modele.mjs'
-import { compile, Versions, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
+import { compile, Transferts, Gcvols, Chatgrs } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
 import { FLAGS, edit, A_SRV, idTkToL6, IDBOBSGC, statistiques } from './api.mjs'
 
@@ -557,54 +557,6 @@ operations.MuterCompte = class MuterCompte extends operations.MajChat {
     await this.propagerDlv(args)
 
     if (this.updCompta) this.update(this.compta.toRow())
-  }
-}
-
-/* Nouveau groupe *****************************************************
-args.token donne les éléments d'authentification du compte.
-args.rowGroupe : le groupe créé
-args.rowMembre : le membre
-args.id: id de l'avatar créateur
-args.quotas : [q1, q2] attribué au groupe
-args.npgk: clé dans mpg du compte (hash du cryptage par la clé K du compte de `idg / idav`)
-args.empgk: élément de mpg dans le compte de l'avatar créateur
-Retour:
-*/
-operations.NouveauGroupe = class NouveauGroupe extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) { 
-    const groupe = compile(args.rowGroupe)
-    const membre = compile(args.rowMembre)
-    membre.dlv = this.compta.dlv
-    const version = new Versions().init(
-      { id: groupe.id, 
-        v: 1,
-        dlv: AMJ.max,
-        vols: { v1:0, v2: 0, q1: args.quotas[0], q2: args.quotas[1]} 
-      })
-    const versionav = compile(await this.getRowVersion(this.id, 'NouveauGroupe-1', true))
-    const avatar = compile(await this.getRowAvatar(this.id, 'NouveauGroupe-2'))
-
-    versionav.v++
-    avatar.v = versionav.v
-    if (!avatar.mpgk) avatar.mpgk = {}
-    avatar.mpgk[args.npgk] = args.empgk
-    this.update(avatar.toRow())
-    this.update(versionav.toRow())
-
-    this.insert(version.toRow())
-
-    membre.v = version.v
-    groupe.v = version.v
-    this.insert(groupe.toRow())
-    this.insert(membre.toRow())
-    const chatgr = new Chatgrs()
-    chatgr.items = []
-    chatgr.id = groupe.id
-    chatgr.ids = 1
-    chatgr.v = version.v
-    this.insert(chatgr.toRow())
   }
 }
 

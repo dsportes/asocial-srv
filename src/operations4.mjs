@@ -1172,3 +1172,53 @@ operations.ChangementPS = class ChangementPS extends Operation {
     this.compte._maj = true
   }
 }
+
+/* Nouveau groupe *****************************************************
+- token donne les éléments d'authentification du compte.
+- idg : du groupe
+- ida : de l'avatar fondateur
+- cleGA : clé G cryptée par la clé A de l'avatar
+- cvG: carte de visite du groupe crypté par la clé G du groupe
+- msu: true si mode simple
+- quotas: { qn, qv } maximum de nombre de notes et de volume fichiers
+Retour:
+*/
+operations.NouveauGroupe = class NouveauGroupe extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 () { 
+    /*
+    const groupe = compile(args.rowGroupe)
+    const membre = compile(args.rowMembre)
+    membre.dlv = this.compta.dlv
+    const version = new Versions().init(
+      { id: groupe.id, 
+        v: 1,
+        dlv: AMJ.max,
+        vols: { v1:0, v2: 0, q1: args.quotas[0], q2: args.quotas[1]} 
+      })
+    const versionav = compile(await this.getRowVersion(this.id, 'NouveauGroupe-1', true))
+    const avatar = compile(await this.getRowAvatar(this.id, 'NouveauGroupe-2'))
+
+    versionav.v++
+    avatar.v = versionav.v
+    if (!avatar.mpgk) avatar.mpgk = {}
+    avatar.mpgk[args.npgk] = args.empgk
+    this.update(avatar.toRow())
+    this.update(versionav.toRow())
+
+    this.insert(version.toRow())
+
+    membre.v = version.v
+    groupe.v = version.v
+    this.insert(groupe.toRow())
+    this.insert(membre.toRow())
+    const chatgr = new Chatgrs()
+    chatgr.items = []
+    chatgr.id = groupe.id
+    chatgr.ids = 1
+    chatgr.v = version.v
+    this.insert(chatgr.toRow())
+    */
+  }
+}
