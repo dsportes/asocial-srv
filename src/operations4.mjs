@@ -4,7 +4,8 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile, Sponsorings, Chats, Partitions, Tickets, Avatars } from './gendoc.mjs'
+import { compile, Sponsorings, Chats, Partitions, Tickets, Avatars,
+  Groupes, Membres } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -1177,7 +1178,8 @@ operations.ChangementPS = class ChangementPS extends Operation {
 - token donne les éléments d'authentification du compte.
 - idg : du groupe
 - ida : de l'avatar fondateur
-- cleGA : clé G cryptée par la clé A de l'avatar
+- cleAG : clé A de l'avatar cryptée par la clé G
+- cleGK : clé du groupe cryptée par la clé K du compte
 - cvG: carte de visite du groupe crypté par la clé G du groupe
 - msu: true si mode simple
 - quotas: { qn, qv } maximum de nombre de notes et de volume fichiers
@@ -1186,39 +1188,27 @@ Retour:
 operations.NouveauGroupe = class NouveauGroupe extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
-  async phase2 () { 
-    /*
-    const groupe = compile(args.rowGroupe)
-    const membre = compile(args.rowMembre)
-    membre.dlv = this.compta.dlv
-    const version = new Versions().init(
-      { id: groupe.id, 
-        v: 1,
-        dlv: AMJ.max,
-        vols: { v1:0, v2: 0, q1: args.quotas[0], q2: args.quotas[1]} 
-      })
-    const versionav = compile(await this.getRowVersion(this.id, 'NouveauGroupe-1', true))
-    const avatar = compile(await this.getRowAvatar(this.id, 'NouveauGroupe-2'))
+  async phase2 (args) { 
+    const rg = await this.getRowGroupe(args.idg)
+    if (rg) throw new AppExc(F_SRV, 246)
 
-    versionav.v++
-    avatar.v = versionav.v
-    if (!avatar.mpgk) avatar.mpgk = {}
-    avatar.mpgk[args.npgk] = args.empgk
-    this.update(avatar.toRow())
-    this.update(versionav.toRow())
-
-    this.insert(version.toRow())
-
-    membre.v = version.v
-    groupe.v = version.v
+    const rds = ID.rds(ID.RDSGROUPE)
+    const groupe = Groupes.nouveau (args.idg, args.ida, rds, 
+      args.quotas, args.msu, args.cvG)
     this.insert(groupe.toRow())
+    this.setNV(groupe)
+
+    const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauGroupe-1'))
+    const membre = Membres.nouveau(args.idg, 1, avatar.cvA, args.cleAG)
+    membre.dac = this.auj
+    membre.dln = this.auj
+    membre.den = this.auj
+    membre.dam = this.auj
+    membre.v = 1
     this.insert(membre.toRow())
-    const chatgr = new Chatgrs()
-    chatgr.items = []
-    chatgr.id = groupe.id
-    chatgr.ids = 1
-    chatgr.v = version.v
-    this.insert(chatgr.toRow())
-    */
+
+    this.groupe.ajoutGroupe(args.idg, args.ida, args.cleGK, rds)
+
+    this.compta.ngPlus(1)
   }
 }

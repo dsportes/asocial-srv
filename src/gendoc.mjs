@@ -489,6 +489,15 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
+  ajoutGroupe (idg, ida, cleGK, rds) {
+    const idgc = ID.court(idg)
+    let e = this.mpg[idgc]
+    if (!e) { e = { cleGK, rds, lna: []}; this.mpg[idgc] }
+    const idac = ID.court(ida)
+    if (e.lna.indexOf(idac) === -1) e.lna.push(idac)
+    this._maj = true
+  }
+
   get ns () { return ID.ns(this.id) }
 
   get _estA () { return this.idp === 0 }
@@ -843,8 +852,8 @@ _data_:
   - `null` : mode simple.
   - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
 - `tid` : table des ids courts des membres.
+- `st` : table des statuts.
 - `flags` : tables des flags.
-- `hists` : tables des flags historiques.
 - `lng` : liste noire _groupe_ des ids (courts) des membres.
 - `lnc` : liste noire _compte_ des ids (courts) des membres.
 - `cvG` : carte de visite du groupe, textes cryptés par la clé du groupe `{v, photo, info}`.
@@ -860,12 +869,33 @@ export class Groupes extends GenDoc {
     return this
   }
 
+  static nouveau (idg, ida, rds, quotas, msu, cvG) {
+    return new Groupes().init({
+      id: idg, v: 1, dfh: 0, rds: rds, msu: msu,
+      nn: 0, qn: quotas.qn, vf: 0, qv: quotas.qv,
+      tid: [0, ID.court(ida)],
+      st: new Uint8Array([0, 4]),
+      flags: new Uint8Array([0, 255]),
+      lnc: [], lng: [],
+      cvG: cvG
+    })
+  }
+
   /* Sérialisation en row après avoir enlevé 
   les champs non pertinents selon l'accès aux membres */
   toShortRow (m) {
-    delete this.idh
-    if (!m) { delete this.tid; delete this.lng; delete this.lnc }
-    return this.toRow()
+    let row
+    const idh = this.idh; delete this.idh
+    if (!m) { 
+      const tid = this.tid, lng = this.lng, lnc = this.lnc
+      delete this.tid; delete this.lng; delete this.lnc
+      row = this.toRow()
+      this.tid = tid; this.lnc = lnc; this.lng = lng
+    } else {
+      row = this.toRow()
+    }
+    this.idh = idh
+    return row()
   }
 
   /* Accès [membres, notes] d'un set d'im (compte ou avatar en fait) */
@@ -881,22 +911,47 @@ export class Groupes extends GenDoc {
 
   get anims () {
     const s = new Set()
-    for (let im = 1; im < this.flags.length; im++) { 
-      const f = this.flags[im]
-      if ((f & FLAGS.AC) && (f & FLAGS.PA)) s.add(im) 
-    }
+    for (let im = 1; im < this.st.length; im++) if (this.st[im] === 4) s.add(im) 
     return s
   }
 
-  get aActifs () {
-    for (let im = 1; im < this.flags.length; im++) { 
-      const f = this.flags[im]
-      if (f & FLAGS.AC) return true 
+  get vraisActifs () {
+    const s = new Set()
+    for (let im = 1; im < this.st.length; im++) { 
+      if (this.st[im] >= 3) {
+        const f = this.flags[im]
+        if (((f & FLAGS.AN) && (f & FLAGS.DN)) || ((f & FLAGS.AM) && (f & FLAGS.DM))) s.add(im) 
+      }
     }
-    return false
+    return s
   }
 }
 
-export class Membres extends GenDoc { constructor() { super('membres') } }
+/* Membres ***********************************************************
+- `id` : id du groupe.
+- `ids`: identifiant, indice `im` de membre relatif à son groupe.
+- `v` : 
+- `vcv` : version de la carte de visite du membre.
+
+- `ddi` : date d'invitation.
+- `dac` : date de début d'activité
+- **dates de début de la première et fin de la dernière période...**
+  - `dln fln` : d'accès en lecture aux notes.
+  - `den fen` : d'accès en écriture aux notes.
+  - `dam fam` : d'accès aux membres.
+- `inv` : Liste des im des animateurs ayant validé la dernière invitation.
+- `cleAG` : clé A de l'avatar membre cryptée par la clé G du groupe.
+- `cvA` : carte de visite du membre `{id, v, photo, info}`, textes cryptés par la clé A de l'avatar membre.
+*/
+export class Membres extends GenDoc { 
+  constructor() { super('membres') } 
+
+  static nouveau(idg, im, cvA, cleAG) {
+    return new Membres().init({
+      id: idg, ids: im, vcv: cvA.v, cvA: cvA, cleAG: cleAG,
+      inv: [], dac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
+    })
+  }
+}
 
 export class Chatgrs extends GenDoc { constructor() { super('chatgrs') } }
