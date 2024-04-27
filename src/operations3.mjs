@@ -494,7 +494,7 @@ operations.Sync = class Sync extends Operation {
 
   // Obtient un groupe et le garde en cache locale de l'opération
   async getGr (idg) {
-    let g = this.mgr(idg)
+    let g = this.mgr.get(idg)
     if (g === undefined) {
       g = compile(await this.getRowGroupe(idg)) || null
       this.mgr.set(idg, g)
@@ -505,7 +505,7 @@ operations.Sync = class Sync extends Operation {
   async getGrRows (ida, x) { 
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
-    if (!gr) gr = await this.db.getV(this, 'groupes', ida, x.vs)
+    if (!gr) gr = compile(await this.db.getV(this, 'groupes', ida, x.vs))
     if (gr) this.addRes('rowGroupes', gr.toShortRow(x.m))
 
     if (x.m) {
@@ -567,8 +567,11 @@ operations.Sync = class Sync extends Operation {
       } else {
         x.vb = version.v
         // reset de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
-        const sim = this.compte.imGr(idg)
-        if (sim.size) { const [mx, nx] = g.amAn(sim); x.m = mx; x.n = nx }
+        const sid = this.compte.idMbGr(idg)
+        if (sid.size) { 
+          const [mx, nx] = g.amAn(sid)
+          x.m = mx; x.n = nx 
+        }
         else { x.m = false; x.n = false }
       }
     }
@@ -604,7 +607,7 @@ operations.Sync = class Sync extends Operation {
       for(const [ida,] of this.ds.avatars)
         await this.setAv(ida, this.ds.idRds[ida])
 
-      // Recherche des versions vb[] de TOUS les groupes requis
+      // Recherche des versions vb de TOUS les groupes requis
       for(const [idg,] of this.ds.groupes) 
         await this.setGr(idg, this.ds.idRds[idg])
         
@@ -640,7 +643,7 @@ operations.Sync = class Sync extends Operation {
         OU s'il faut désormais des membres alors qu'il n'y en a pas en session
         OU s'il faut désormais des notes alors qu'il n'y en a pas en session
         chargement */
-        if (x.vs < x.vb || (x.m && !x.ms) || (x.n && !x.ns)) {
+        if (!x.vb || (x.vs < x.vb) || (x.m && !x.ms) || (x.n && !x.ns)) {
           await this.getGrRows(idg, x)
           x.chg = true
           if (this.nl - n > 20) break

@@ -492,9 +492,9 @@ export class Comptes extends GenDoc {
   ajoutGroupe (idg, ida, cleGK, rds) {
     const idgc = ID.court(idg)
     let e = this.mpg[idgc]
-    if (!e) { e = { cleGK, rds, lna: []}; this.mpg[idgc] }
+    if (!e) { e = { cleGK, rds, lav: []}; this.mpg[idgc] = e }
     const idac = ID.court(ida)
-    if (e.lna.indexOf(idac) === -1) e.lna.push(idac)
+    if (e.lav.indexOf(idac) === -1) e.lav.push(idac)
     this._maj = true
   }
 
@@ -541,12 +541,12 @@ export class Comptes extends GenDoc {
     }
   }
 
-  // Set des indices membres des participations au groupe idg (court)
-  imGr (idg) {
+  // Set des id (long) des membres des participations au groupe idg (court)
+  idMbGr (idg) {
     const s = new Set()
     const x = this.mpg[ID.court(idg)]
     if (!x) return s
-    for(const ida in x.lav) s.add(ida)
+    for(const ida of x.lav) s.add(ID.long(parseInt(ida), this.ns))
     return s
   }
 }
@@ -865,13 +865,15 @@ export class Groupes extends GenDoc {
   compile () {
     this.ns = ID.ns(this.id)
     this.mmb = new Map()
-    this.tid.forEach((id, im) => { this.mmb.set(ID.long(id, this.ns), im)})
+    this.tid.forEach((id, im) => { 
+      if (im) this.mmb.set(ID.long(id, this.ns), im)
+    })
     return this
   }
 
-  static nouveau (idg, ida, rds, quotas, msu, cvG) {
+  static nouveau (idg, ida, idh, rds, quotas, msu, cvG) {
     return new Groupes().init({
-      id: idg, v: 1, dfh: 0, rds: rds, msu: msu,
+      id: idg, v: 1, dfh: 0, rds: rds, msu: msu, idh: idh,
       nn: 0, qn: quotas.qn, vf: 0, qv: quotas.qv,
       tid: [0, ID.court(ida)],
       st: new Uint8Array([0, 4]),
@@ -895,13 +897,14 @@ export class Groupes extends GenDoc {
       row = this.toRow()
     }
     this.idh = idh
-    return row()
+    return row
   }
 
-  /* Accès [membres, notes] d'un set d'im (compte ou avatar en fait) */
+  /* Accès [membres, notes] d'un set d'id (compte ou avatar en fait) */
   amAn (s) {
     let n = false, m = false
-    for (const im of s) {
+    for (const id of s) {
+      const im = this.mmb.get(id)
       const f = this.flags[im]
       if ((f & FLAGS.AN) && (f & FLAGS.DN)) n = true 
       if ((f & FLAGS.AM) && (f & FLAGS.DM)) m = true 
@@ -949,9 +952,29 @@ export class Membres extends GenDoc {
   static nouveau(idg, im, cvA, cleAG) {
     return new Membres().init({
       id: idg, ids: im, vcv: cvA.v, cvA: cvA, cleAG: cleAG,
-      inv: [], dac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
+      inv: [], ddi: 0, dac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
     })
   }
 }
 
-export class Chatgrs extends GenDoc { constructor() { super('chatgrs') } }
+/* Chatgrs ******************************************************
+- `id` : id du groupe
+- `ids` : `1`
+- `v` : sa version.
+
+- `items` : liste ordonnée des items de chat `{im, dh, dhx, t}`
+  - `im` : im du membre auteur,
+  - `dh` : date-heure d'écriture.
+  - `dhx` : date-heure de suppression.
+  - `t` : texte crypté par la clé G du groupe (vide s'il a été supprimé).
+*/
+export class Chatgrs extends GenDoc { 
+  constructor() { super('chatgrs') } 
+
+  static nouveau (idg) {
+    return new Chatgrs().init({
+      id: idg, ids: 1, v: 1, items: []
+    })
+  }
+
+}

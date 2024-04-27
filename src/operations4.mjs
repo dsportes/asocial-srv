@@ -5,7 +5,7 @@ import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
 import { compile, Sponsorings, Chats, Partitions, Tickets, Avatars,
-  Groupes, Membres } from './gendoc.mjs'
+  Groupes, Membres, Chatgrs } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -1193,10 +1193,13 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     if (rg) throw new AppExc(F_SRV, 246)
 
     const rds = ID.rds(ID.RDSGROUPE)
-    const groupe = Groupes.nouveau (args.idg, args.ida, rds, 
+    const groupe = Groupes.nouveau (args.idg, args.ida, this.id, rds, 
       args.quotas, args.msu, args.cvG)
     this.insert(groupe.toRow())
     this.setNV(groupe)
+    
+    const chatgr = Chatgrs.nouveau(args.idg)
+    this.insert(chatgr.toRow())
 
     const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauGroupe-1'))
     const membre = Membres.nouveau(args.idg, 1, avatar.cvA, args.cleAG)
@@ -1207,7 +1210,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     membre.v = 1
     this.insert(membre.toRow())
 
-    this.groupe.ajoutGroupe(args.idg, args.ida, args.cleGK, rds)
+    this.compte.ajoutGroupe(args.idg, args.ida, args.cleGK, rds)
 
     this.compta.ngPlus(1)
   }
