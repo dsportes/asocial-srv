@@ -888,13 +888,18 @@ export class Groupes extends GenDoc {
   }
 
   /* Sérialisation en row après avoir enlevé 
-  les champs non pertinents selon l'accès aux membres */
-  toShortRow (m) {
+  les champs non pertinents selon l'accès aux membres?
+  Pas accès membre: tid ne contient que les entrées des avatars du compte */
+  toShortRow (c, m) { // c : compte, m: le compte à accès aux membres
     let row
     const idh = this.idh; delete this.idh
-    if (!m) { 
+    if (!m) {
       const tid = this.tid, lng = this.lng, lnc = this.lnc
-      delete this.tid; delete this.lng; delete this.lnc
+      const tidn = new Array(tid.length)
+      const s = new Set()
+      for (const im of c.mmb(this.id)) s.add(im)
+      for (let im = 0; im < tid.length; im++) tidn[im] = s.has(im) ? tid[im] : 0
+      this.tid = tidn; delete this.lng; delete this.lnc
       row = this.toRow()
       this.tid = tid; this.lnc = lnc; this.lng = lng
     } else {

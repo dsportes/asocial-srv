@@ -506,7 +506,7 @@ operations.Sync = class Sync extends Operation {
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
     if (!gr) gr = compile(await this.db.getV(this, 'groupes', ida, x.vs))
-    if (gr) this.addRes('rowGroupes', gr.toShortRow(x.m))
+    if (gr) this.addRes('rowGroupes', gr.toShortRow(this.compte, x.m))
 
     if (x.m) {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
