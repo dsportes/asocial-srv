@@ -580,6 +580,7 @@ operations.Sync = class Sync extends Operation {
   async phase2(args) {
     this.mgr = new Map() // Cache locale des groupes acquis dans l'opération
     this.cnx = !args.dataSync
+    const srds = args.lrds ? new Set(args.lrds) : new Set()
 
     /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */
     this.ds = DataSync.deserial(this.cnx ? null : args.dataSync, this.decrypt, this.db.appKey)
@@ -600,7 +601,7 @@ operations.Sync = class Sync extends Operation {
     Ajoute les manquants dans ds, supprime ceux de ds absents de mav / mpg
     Pour CHAQUE GROUPE les indicateurs m et n NE SONT PAS bien positionnés.
     */
-    this.compte.majPerimetreDataSync(this.ds)  
+    this.compte.majPerimetreDataSync(this.ds, srds)  
 
     if (this.cnx) {
       // Recherche des versions vb de TOUS les avatars requis
@@ -613,8 +614,9 @@ operations.Sync = class Sync extends Operation {
         
     } else {
       /* Recherche des versions uniquement pour les avatars / groupes signalés 
-      comme ayant (a priori) changé de version */
-      if (args.lrds) for(const rds of args.lrds) {
+      comme ayant (a priori) changé de version 
+      OU ceux apparus / disparus détectés par la maj du périmètre vi-avant*/
+      if (srds.size) for(const rds of srds) {
         const id = this.ds.rdsId[rds]
         if (id) {
           if (ID.estAvatar(id)) await this.setAv(id, rds)

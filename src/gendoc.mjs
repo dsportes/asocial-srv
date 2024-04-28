@@ -506,12 +506,13 @@ export class Comptes extends GenDoc {
   en fonction des avatars et groupes listés dans mav/mpg du compte 
   Ajoute les manquants dans ds, supprime ceux de ids absents de mav / mpg
   */
-  majPerimetreDataSync (ds) {
+  majPerimetreDataSync (ds, srds) {
 
     // Ajout dans ds des avatars existants dans le compte et inconnus de ds
     for(const idx in this.mav) {
       const ida = ID.long(parseInt(idx), this.ns)
       const rds = ID.long(this.mav[idx].rds, this.ns)
+      srds.add(rds)
       ds.idRds[ida] = rds; ds.rdsId[rds] = ida
       if (!ds.avatars.has(ida)) ds.avatars.set(ida, { ...DataSync.vide, id: ida})
     }
@@ -520,6 +521,7 @@ export class Comptes extends GenDoc {
     const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
     for(const ida of sa) if (!this.mav[ID.court(ida)]) {
       const rds = ds.idRds[ida]
+      srds.delete(rds)
       ds.avatars.delete(ida)
       if (rds) { delete ds.idRds[ida]; delete ds.rdsId[rds] }
     }
@@ -528,6 +530,7 @@ export class Comptes extends GenDoc {
     for(const idx in this.mpg) {
       const idg = ID.long(parseInt(idx), this.ns)
       const rds = ID.long(this.mpg[idx].rds, this.ns)
+      srds.add(rds)
       ds.idRds[idg] = rds; ds.rdsId[rds] = idg
       if (!ds.groupes.has(idg)) ds.groupes.set(idg,{ ...DataSync.videg, id: idg} )
     }
@@ -536,6 +539,7 @@ export class Comptes extends GenDoc {
     const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
     for(const idg of sg) if (!this.mpg[ID.court(idg)]) {
       const rds = ds.idRds[idg]
+      srds.delete(rds)
       ds.avatars.delete(idg)
       if (rds) { delete ds.idRds[idg]; delete ds.rdsId[rds] }
     }
@@ -873,7 +877,7 @@ export class Groupes extends GenDoc {
 
   static nouveau (idg, ida, idh, rds, quotas, msu, cvG) {
     return new Groupes().init({
-      id: idg, v: 1, dfh: 0, rds: rds, msu: msu, idh: idh,
+      id: idg, v: 1, dfh: 0, rds: rds, msu: msu, idh: idh, imh: 1,
       nn: 0, qn: quotas.qn, vf: 0, qv: quotas.qv,
       tid: [0, ID.court(ida)],
       st: new Uint8Array([0, 4]),
