@@ -48,20 +48,20 @@ export const FLAGS = {
   DM: 1 << 2, // **droit d'accès à la liste des membres**: s'il est invité s'appliquera quand il sera actif.
   DN: 1 << 3, // **droit d'accès aux notes du groupe**:  s'il est invité s'appliquera quand il sera actif.
   DE: 1 << 4, // **droit d'écriture sur les notes du groupe**: s'il est invité s'appliquera quand il sera actif.
-  HM: 1 << 5, // **a eu accès aux notes**
-  HN: 1 << 6, // **a eu accès aux membres**
+  HM: 1 << 5, // **a eu accès aux membres**
+  HN: 1 << 6, // **a eu accès aux notes**
   HE: 1 << 7 // **a pu écrire des notes**
 }
 
 export const LFLAGS = [
-  'a accès aux notes', 
-  'a accès aux membres',
-  'a droit d\'accès à la liste des membres',
-  'a droit d\'accès aux notes du groupe',
-  'a droit d\'écriture sur les notes',
-  'a eu accès aux membres',
-  'a eu accès aux notes',
-  'a pu écrire des notes'
+  'a activé l\'accès aux membres', // AM
+  'a activé l\'accès aux notes',  // AN
+  'a accès de voir membres', // DM
+  'a droit de voir les notes', // DN
+  'a droit d\'éditer les notes', // DE
+  'a pu voir les membres', // HM
+  'a pu voir les notes', // HN
+  'a pu éditer les notes' // HE
 ]
 
 // function t (intl) { return intl}
