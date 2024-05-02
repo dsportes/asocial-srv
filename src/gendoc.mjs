@@ -855,12 +855,14 @@ _data_:
 - `msu` : mode _simple_ ou _unanime_.
   - `null` : mode simple.
   - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
+- `invits` : map `{ fl, li[] }` des invitations en attente de vote ou de réponse.
 - `tid` : table des ids courts des membres.
 - `st` : table des statuts.
 - `flags` : tables des flags.
 - `lng` : liste noire _groupe_ des ids (courts) des membres.
 - `lnc` : liste noire _compte_ des ids (courts) des membres.
 - `cvG` : carte de visite du groupe, textes cryptés par la clé du groupe `{v, photo, info}`.
+
 Calculée : mmb: Map des membres. Clé: id long du membre, Valeur: son im
 */
 export class Groupes extends GenDoc { 
@@ -878,9 +880,9 @@ export class Groupes extends GenDoc {
   static nouveau (idg, ida, idh, rds, quotas, msu, cvG) {
     return new Groupes().init({
       id: idg, v: 1, dfh: 0, rds: rds, msu: msu, idh: idh, imh: 1,
-      nn: 0, qn: quotas.qn, vf: 0, qv: quotas.qv,
+      nn: 0, qn: quotas.qn, vf: 0, qv: quotas.qv, invits: {},
       tid: [0, ID.court(ida)],
-      st: new Uint8Array([0, 4]),
+      st: new Uint8Array([0, 5]),
       flags: new Uint8Array([0, 255]),
       lnc: [], lng: [],
       cvG: cvG
@@ -923,14 +925,14 @@ export class Groupes extends GenDoc {
 
   get anims () {
     const s = new Set()
-    for (let im = 1; im < this.st.length; im++) if (this.st[im] === 4) s.add(im) 
+    for (let im = 1; im < this.st.length; im++) if (this.st[im] === 5) s.add(im) 
     return s
   }
 
   get vraisActifs () {
     const s = new Set()
     for (let im = 1; im < this.st.length; im++) { 
-      if (this.st[im] >= 3) {
+      if (this.st[im] >= 4) {
         const f = this.flags[im]
         if (((f & FLAGS.AN) && (f & FLAGS.DN)) || ((f & FLAGS.AM) && (f & FLAGS.DM))) s.add(im) 
       }
@@ -945,15 +947,16 @@ export class Groupes extends GenDoc {
 - `v` : 
 - `vcv` : version de la carte de visite du membre.
 
-- `ddi` : date d'invitation.
-- `dac` : date de début d'activité
+- `dpc` : date de premier contact (ou de première invitation s'il a été directement invité).
+- `ddi` : date de la dernière invitation (envoyée au membre, c'est à dire _votée_).
 - **dates de début de la première et fin de la dernière période...**
+  - `dac fac` : d'activité.
   - `dln fln` : d'accès en lecture aux notes.
   - `den fen` : d'accès en écriture aux notes.
   - `dam fam` : d'accès aux membres.
-- `inv` : Liste des im des animateurs ayant validé la dernière invitation.
 - `cleAG` : clé A de l'avatar membre cryptée par la clé G du groupe.
 - `cvA` : carte de visite du membre `{id, v, photo, info}`, textes cryptés par la clé A de l'avatar membre.
+- `msgG`: message d'invitation crypté par la clé G pour une invitation en attente de vote ou de réponse. 
 */
 export class Membres extends GenDoc { 
   constructor() { super('membres') } 
@@ -961,7 +964,7 @@ export class Membres extends GenDoc {
   static nouveau(idg, im, cvA, cleAG) {
     return new Membres().init({
       id: idg, ids: im, vcv: cvA.v, cvA: cvA, cleAG: cleAG,
-      inv: [], ddi: 0, dac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
+      dpc: 0, ddi: 0, dac: 0, fac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
     })
   }
 }

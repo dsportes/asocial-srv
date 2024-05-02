@@ -1203,6 +1203,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 
     const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauGroupe-1'))
     const membre = Membres.nouveau(args.idg, 1, avatar.cvA, args.cleAG)
+    membre.dpc = this.auj
     membre.dac = this.auj
     membre.dln = this.auj
     membre.den = this.auj
