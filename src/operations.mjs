@@ -1134,43 +1134,6 @@ operations.OublierMembre = class OublierMembre extends Operation {
   }
 }
 
-/* Mode simple / unanime d'un groupe *******************************************
-args.token donne les éléments d'authentification du compte.
-args.id : id du groupe
-args.ids : ids du membre demandant le retour au mode simple.
-  Si 0, mode unanime.
-Retour:
-*/
-operations.ModeSimple = class ModeSimple extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) { 
-    const gr = compile(await this.getRowGroupe(args.id, 'ModeSimple-1'))
-    const vg = compile(await this.getRowVersion(args.id, 'ModeSimple-2', true))
-    vg.v++
-    gr.v = vg.v
-    if (!args.ids) {
-      // mode unanime
-      gr.msu = []
-    } else {
-      // demande de retour au mode simple
-      if (!gr.msu) gr.msu = []
-      const s = new Set(gr.msu)
-      s.add(args.ids)
-      let ok = true
-      gr.anims.forEach(im => { if (!s.has(im)) ok = false })
-      if (ok) {
-        // tous les animateurs ont voté pour
-        gr.msu = null
-      } else {
-        gr.msu = Array.from(s)
-      }
-    }
-    this.update(vg.toRow())
-    this.update(gr.toRow())
-  }
-}
-
 /* ItemChatgr : ajout / effacement d'un item de chat de groupe *************************************************
 args.token: éléments d'authentification du compte.
 args.chatit : item

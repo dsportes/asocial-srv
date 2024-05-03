@@ -1253,3 +1253,49 @@ operations.NouveauContact = class NouveauContact extends Operation {
     this.insert(membre.toRow())
   }
 }
+
+/* OP_ModeSimple: 'Demande de retour au mode simple d\'invitation à un groupe' **********
+- token donne les éléments d'authentification du compte.
+- idg : id du groupe
+- ida : id de l'avatar demandant le retour au mode simple.
+- simple:
+  - true 'Je vote pour passer au mode "SIMPLE"'
+  - false: 'Annuler les votes et rester en mode UNANIME'
+Retour:
+*/
+operations.ModeSimple = class ModeSimple extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = compile(await this.getRowGroupe(args.idg, 'ModeSimple-1'))
+    const vg = await this.getV(gr)
+    vg.v++
+    gr.v = vg.v
+
+    if (!this.compte.mav[ID.court(args.ida)]) throw new AppExc(F_SRV, 249)
+    const im = gr.mmb.get(args.ida)
+    if (!im || gr.st[im] !== 5) throw new AppExc(F_SRV, 250)
+
+    /* - `msu` : mode _simple_ ou _unanime_.
+        - `null` : mode simple.
+        - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
+    */
+    if (!args.simple) gr.msu = []
+    else {
+      // demande de retour au mode simple
+      if (!gr.msu) gr.msu = []
+      const s = new Set(gr.msu)
+      s.add(im)
+      let ok = true
+      gr.anims.forEach(imx => { if (!s.has(imx)) ok = false })
+      if (ok) {
+        // tous les animateurs ont voté pour
+        gr.msu = null
+      } else {
+        gr.msu = Array.from(s)
+      }
+    }
+    this.setV(vg)
+    this.update(gr.toRow())
+  }
+}
