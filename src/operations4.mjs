@@ -1216,3 +1216,40 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     this.compta.ngPlus(1)
   }
 }
+
+/* Nouveau contact *****************************************************
+- token donne les éléments d'authentification du compte.
+- idg : du groupe
+- ida : de l'avatar contact
+- cleAG : clé A du contact cryptée par la clé G du groupe
+Retour:
+*/
+operations.NouveauContact = class NouveauContact extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const groupe = compile(await this.getRowGroupe(args.idg, 'NouveauContact-1'))
+    let ok = false
+    for(const x in this.compte.mav) {
+      const idav = ID.long(parseInt(x), this.ns)
+      const im = groupe.mmb.get(idav)
+      const f = groupe.flags[im]
+      if (im && groupe.st[im] >= 4 && (f & FLAGS.AM) && (f & FLAGS.DM) ) { ok = true; break }
+    }
+    if (!ok) throw new AppExc(F_SRV, 247)
+    if (groupe.mmb.get(args.ida)) throw new AppExc(F_SRV, 248)
+    
+    const vg = await this.getV(groupe)
+    vg.v++
+    groupe.v = vg.v
+    const im = groupe.nvContact(args.ida)
+    this.update(groupe.toRow())
+    this.setV(vg)
+  
+    const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauContact-2'))
+    const membre = Membres.nouveau(args.idg, im, avatar.cvA, args.cleAG)
+    membre.dpc = this.auj
+    membre.v = vg.v
+    this.insert(membre.toRow())
+  }
+}

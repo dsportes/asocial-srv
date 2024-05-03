@@ -751,6 +751,30 @@ export class Versions extends GenDoc {
   constructor() { super('versions') } 
 }
 
+/**************************************************************
+_data_:
+- `id` : id de l'avatar.
+- `v` : 1..N. Par convention, une version à 999999 désigne un **avatar logiquement détruit** mais dont les données sont encore présentes. L'avatar est _en cours de suppression_.
+- `vcv` : version de la carte de visite afin qu'une opération puisse détecter (sans lire le document) si la carte de visite est plus récente que celle qu'il connaît.
+- `hZR` : `ns` + hash du PBKFD de la phrase de contact réduite.
+
+- `rds` : pas transmis en session.
+- `cleAZC` : clé A cryptée par ZC (PBKFD de la phrase de contact complète).
+- `pcK` : phrase de contact complète cryptée par la clé K du compte.
+- `hZC` : hash du PBKFD de la phrase de contact complète.
+
+- `cvA` : carte de visite de l'avatar `{id, v, photo, texte}`. photo et texte cryptés par la clé A de l'avatar.
+
+- `pub privK` : couple des clés publique / privée RSA de l'avatar.
+
+- `invits`: map des invitations en cours de l'avatar:
+  - _clé_: `idg` id court du groupe.
+  - _valeur_: `{cleGA, cvG, ivpar, dh}` 
+    - `cleGA`: clé du groupe crypté par la clé A de l'avatar.
+    - `cvG` : carte de visite du groupe (photo et texte sont cryptés par la clé G du groupe).
+    - `idiv` : id court de l'invitant.
+    - `dh` : date-heure d'invitation. Le couple `[idiv, dh]` permet de retrouver l'item dans le chat du groupe donnant le message de bienvenue / invitation émis par l'invitant.
+*/
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 
 
@@ -887,6 +911,20 @@ export class Groupes extends GenDoc {
       lnc: [], lng: [],
       cvG: cvG
     })
+  }
+
+  nvContact (ida) {
+    const im = this.st.length
+    this.tid.push(ID.court(ida))
+    const x = new Uint8Array(this.flags.length + 1)
+    this.flags.forEach((v, i) => {x[i] = v})
+    x[this.flags.length] = 0
+    this.flags = x
+    const y = new Uint8Array(this.st.length + 1)
+    this.st.forEach((v, i) => {y[i] = v})
+    y[this.st.length] = 1
+    this.st = y
+    return im
   }
 
   /* Sérialisation en row après avoir enlevé 
