@@ -553,6 +553,17 @@ export class Comptes extends GenDoc {
     for(const ida of x.lav) s.add(ID.long(parseInt(ida), this.ns))
     return s
   }
+
+  imAnimsDeGr (gr) {
+    const s = []
+    const e = this.mpg[ID.court(gr.id)]
+    if (!e || !e.lav || !e.lav.length) return s
+    e.lav.forEach(idc => { 
+      const im = gr.mmb.get(idc)
+      if (im && gr.st[im] === 5) s.push(im)
+    })
+    return s
+  }
 }
 
 /* Comptis *************************************************

@@ -1299,3 +1299,76 @@ operations.ModeSimple = class ModeSimple extends Operation {
     this.update(gr.toRow())
   }
 }
+
+/* OP_InvitationGroupe: 'Invitation à un groupe' **********
+- token donne les éléments d'authentification du compte.
+- idg: id du groupe
+- idm: id du membre invité
+- rmsv: 0: inviter, 2: modifier, 3: supprimer, 4: voter pour
+- flags: flags d'invitation
+- msgG: message de bienvenue crypté par la clé G du groupe
+- idi: id de l'invitant pour le mode d'invitation simple 
+  (sinon tous les avatars du comptes animateurs du groupe)
+- suppr: 1-contact, 2:radié, 3-radié + LN
+Retour:
+*/
+operations.InvitationGroupe = class InvitationGroupe extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = compile(await this.getRowGroupe(args.idg, 'InvitationGroupe-1'))
+    const vg = await this.getV(gr)
+    const idgc = ID.court(args.idg)
+    vg.v++
+    gr.v = vg.v
+
+    const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-2'))
+    const va = await this.getV(avatar)
+    va.v++
+    avatar.v = va.v
+
+    const im = gr.mmb.get(args.idm)
+    if (!im) throw new AppExc(F_SRV, 251)
+    const membre = compile(await this.getRowMembre(args.idg, im, 'InvitationGroupe-3'))
+    membre.v = vg.v
+
+    const s = gr.st[im]
+    
+    if (args.suppr) { // suppression de l'invitation
+
+      if (s < 2 || s > 3) throw new AppExc(F_SRV, 252)
+      delete gr.invits[im]
+      gr.st[im] = args.suppr > 1 ? 0 : 1
+      if (args.suppr > 1) gr.tid[im] = 0
+      gr.flags[im] = 0
+      if (args.suppr === 3 && gr.lmg.indexOf(idgc) === -1) gr.lmg.push(idgc)
+      this.update(gr.toRow())
+
+      delete avatar.invits[idgc]
+      this.update(avatar.toRow())
+
+      if (args.suppr === 1) membre.msgG = null
+      else membre._zombi = true
+      this.update(membre.toRow())
+      return
+    } 
+    
+    if (args.rmsv === 0 && s !== 1) throw new AppExc(F_SRV, 256)
+    if ((args.rmsv === 2 || args.rmsv > 3) && (s < 2 || s > 3)) 
+      throw new AppExc(F_SRV, 257)
+    if (gr.msu && args.rmsv === 4) throw new AppExc(F_SRV, 258)
+    if (!gr.msu && !args.idi) throw new AppExc(F_SRV, 255)
+
+    const invit = { fl: args.fl, li: [] }
+    if (args.idi) {
+      if (!this.compte.mav[ID.court(args.idi)]) throw new AppExc(F_SRV, 249)
+      const imi = gr.mmb.get(ID.long(args.idi, this.ns))
+      if (!imi || gr.st[imi] !== 5) throw new AppExc(F_SRV, 254)
+      invit.fl.push(imi)
+    } else {
+      invit.li = this.compte.imAnimsDeGr(gr)
+    }
+    gr.invits[im] = invit
+
+  }
+}
