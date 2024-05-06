@@ -668,7 +668,7 @@ export class Operation {
   }
 
   async getRowChatgr (id, assert) {
-    const rc = await this.db.get(this.transaction, 'chatgrs', id, 1)
+    const rc = await this.db.get(this, 'chatgrs', id, 1)
     if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [id, 1])
     return rc
   }

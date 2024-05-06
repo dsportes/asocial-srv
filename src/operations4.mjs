@@ -1310,6 +1310,7 @@ operations.ModeSimple = class ModeSimple extends Operation {
 - idi: id de l'invitant pour le mode d'invitation simple 
   (sinon tous les avatars du comptes animateurs du groupe)
 - suppr: 1-contact, 2:radié, 3-radié + LN
+- cleGA: clé G du groupe cryptée par la clé A de l'invité
 Retour:
 */
 operations.InvitationGroupe = class InvitationGroupe extends Operation {
@@ -1343,32 +1344,92 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       gr.flags[im] = 0
       if (args.suppr === 3 && gr.lmg.indexOf(idgc) === -1) gr.lmg.push(idgc)
       this.update(gr.toRow())
+      this.setV(vg)
 
       delete avatar.invits[idgc]
       this.update(avatar.toRow())
+      this.setV(va)
 
       if (args.suppr === 1) membre.msgG = null
       else membre._zombi = true
-      this.update(membre.toRow())
+      this.update(membre.toRow()) // version est vg set ci-dessus
       return
     } 
     
-    if (args.rmsv === 0 && s !== 1) throw new AppExc(F_SRV, 256)
-    if ((args.rmsv === 2 || args.rmsv > 3) && (s < 2 || s > 3)) 
-      throw new AppExc(F_SRV, 257)
-    if (gr.msu && args.rmsv === 4) throw new AppExc(F_SRV, 258)
-    if (!gr.msu && !args.idi) throw new AppExc(F_SRV, 255)
+    // Création 0 / modification 2 / vote pour 4
+    if (args.rmsv === 0 && s !== 1) throw new AppExc(F_SRV, 256) // création mais pas contact
+    if ((args.rmsv === 2 || args.rmsv === 4) && (s < 2 || s > 3)) 
+      throw new AppExc(F_SRV, 257) // modification ou vote mais pas déjà (pré) invité
+    if (gr.msu && args.rmsv === 4) throw new AppExc(F_SRV, 258) // vote mais pas en mode unanime
+    if (!gr.msu && !args.idi) throw new AppExc(F_SRV, 255) // mode simple et absence d'avatar invitant
 
-    const invit = { fl: args.fl, li: [] }
+    // construction de l'item invit dans groupe
+    let aInviter = false // inviter effectivement (sinon laisser en pré-invité)
+    const invit = { fl: args.flags, li: [] }
     if (args.idi) {
-      if (!this.compte.mav[ID.court(args.idi)]) throw new AppExc(F_SRV, 249)
+      if (!this.compte.mav[ID.court(args.idi)]) 
+        throw new AppExc(F_SRV, 249) // invitant non membre du groupe
       const imi = gr.mmb.get(ID.long(args.idi, this.ns))
-      if (!imi || gr.st[imi] !== 5) throw new AppExc(F_SRV, 254)
-      invit.fl.push(imi)
+      if (!imi || gr.st[imi] !== 5) 
+        throw new AppExc(F_SRV, 254) // invitant non animateur
+      invit.li.push(imi)
+      aInviter = true
     } else {
-      invit.li = this.compte.imAnimsDeGr(gr)
+      // Vote : TOUS les avatars du compte animateurs du groupe votent OUI ensemble
+      const s1 = this.compte.imAnimsDeGr(gr)
+      const invita = gr.invits[im]
+      if (invita && invita.fl === args.flags) // flags identiques : cumuls des votes
+        invita.li.forEach(i => { s1.add(i)})
+      const s2 = gr.anims // Tous les animateurs du groupe
+      s1.forEach(i => { if (s2.has(i)) invit.li.push(i)})
+      aInviter = s2.size === invit.li.length
     }
     gr.invits[im] = invit
+    gr.st[im] = aInviter ? 3 : 2
+    const f = gr.flags[im]
+    this.update(gr.toRow())
+    this.setV(vg)
 
+    // Construction de l'invitation à transmettre à l'avatar invité
+    /* Une invitation est enregistrée dans la map `invits` de l'avatar invité:
+      - _clé_: `idg` id du groupe.
+      - _valeur_: `{cleGA, cvG, cleAG, cvA, txtG}`
+        - `cleGA`: clé du groupe crypté par la clé A de l'avatar.
+        - `cvG` : carte de visite du groupe (photo et texte sont cryptés par la clé G du groupe).
+        - `invpar` : `[{ cleAG, cvA }]`
+          - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
+          - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
+        - `msgG` : message de bienvenue / invitation émis par l'invitant.
+    */
+    if (aInviter) {
+      const invpar = []
+      const invx = { cleGA: args.cleGA, cvG: gr.cvG, flags: args.flags, invpar, msgG: args.msgG }
+      for (const im of invit.li) {
+        const mb = compile(await this.getRowMembre(gr.id, im))
+        if (mb) invpar.push({ cleAG: mb.cleAG, cvA: mb.cvA })
+      }
+      if (!avatar.invits) avatar.invits = {}
+      avatar.invits[idgc] = invx
+      this.update(avatar.toRow())
+      this.setV(va)
+    }
+
+    // écriture du chat
+    if (aInviter) {
+      const ch = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-4'))
+      /*- `im` : im du membre auteur,
+        - `dh` : date-heure d'écriture.
+        - `dhx` : date-heure de suppression.
+        - `t` : texte crypté par la clé G du groupe (vide s'il a été supprimé).
+      */
+      ch.v = vg.v
+      ch.addItem(invit.li[0], this.dh, args.msgG)
+      this.update(ch.toRow())
+    }
+    
+    // maj du membre invité
+    if (aInviter) membre.ddi = this.auj
+    membre.msgG = args.msgG
+    this.update(membre.toRow())
   }
 }

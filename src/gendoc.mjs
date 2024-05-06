@@ -555,12 +555,12 @@ export class Comptes extends GenDoc {
   }
 
   imAnimsDeGr (gr) {
-    const s = []
+    const s = new Set()
     const e = this.mpg[ID.court(gr.id)]
     if (!e || !e.lav || !e.lav.length) return s
     e.lav.forEach(idc => { 
       const im = gr.mmb.get(idc)
-      if (im && gr.st[im] === 5) s.push(im)
+      if (im && gr.st[im] === 5) s.add(im)
     })
     return s
   }
@@ -780,11 +780,14 @@ _data_:
 
 - `invits`: map des invitations en cours de l'avatar:
   - _clé_: `idg` id court du groupe.
-  - _valeur_: `{cleGA, cvG, ivpar, dh}` 
+  - _valeur_: `{cleGA, cvG, invpar, txtG}`
     - `cleGA`: clé du groupe crypté par la clé A de l'avatar.
     - `cvG` : carte de visite du groupe (photo et texte sont cryptés par la clé G du groupe).
-    - `idiv` : id court de l'invitant.
-    - `dh` : date-heure d'invitation. Le couple `[idiv, dh]` permet de retrouver l'item dans le chat du groupe donnant le message de bienvenue / invitation émis par l'invitant.
+    - `flags` : d'invitation.
+    - `invpar` : `[{ cleAG, cvA }]`
+      - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
+      - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
+    - `msgG` : message de bienvenue / invitation émis par l'invitant.
 */
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 
@@ -875,7 +878,9 @@ export class Sponsorings extends GenDoc {
   }
 }
 
-export class Chats extends GenDoc { constructor() { super('chats') } }
+export class Chats extends GenDoc { 
+  constructor() { super('chats') } 
+}
 
 /* Classe Groupe ****************************************************
 _data_:
@@ -1038,4 +1043,15 @@ export class Chatgrs extends GenDoc {
     })
   }
 
+  addItem (im, dh, t) {
+    const it = { im, dh, dhx: 0, t }
+    const l = [it]
+    let sz = t.length
+    for(const x of this.items) {
+      sz += x.t.length
+      if (sz > 5000) break
+      l.push(x)
+    }
+    this.items = l
+  } 
 }
