@@ -1238,6 +1238,9 @@ operations.NouveauContact = class NouveauContact extends Operation {
     }
     if (!ok) throw new AppExc(F_SRV, 247)
     if (groupe.mmb.get(args.ida)) throw new AppExc(F_SRV, 248)
+    const idac = ID.court(args.ida)
+    if (groupe.lnc.indexOf(idac) !== -1) throw new AppExc(F_SRV, 260)
+    if (groupe.lng.indexOf(idac) !== -1) throw new AppExc(F_SRV, 261)
     
     const vg = await this.getV(groupe)
     vg.v++
@@ -1322,6 +1325,10 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     const idgc = ID.court(args.idg)
     vg.v++
     gr.v = vg.v
+
+    const idac = ID.court(args.idm)
+    if (gr.lnc.indexOf(idac) !== -1) throw new AppExc(F_SRV, 260)
+    if (gr.lng.indexOf(idac) !== -1) throw new AppExc(F_SRV, 261)
 
     const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-2'))
     const va = await this.getV(avatar)
@@ -1430,5 +1437,115 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (aInviter) membre.ddi = this.auj
     membre.msgG = args.msgG
     this.update(membre.toRow())
+  }
+}
+
+/* OP_AcceptInvitation: 'Acceptation d\'une invitation à un groupe' *************
+- token donne les éléments d'authentification du compte.
+- idg : id du groupe
+- idm: id du membre invité
+- iam: accepte accès aux membres
+- ian: accepte l'accès aux notes
+- cleGK: cle du groupe cryptée par la clé K du compte
+- cas: 1:accepte 2:contact 3:radié 4:radié + LN
+- msgG: message de remerciement crypté par la cle G du groupe
+Retour:
+*/
+operations.AcceptInvitation = class AcceptInvitation extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
+    const vg = await this.getV(gr)
+    const idgc = ID.court(args.idg)
+    vg.v++
+    gr.v = vg.v
+
+    const avatar = compile(await this.getRowAvatar(args.idm, 'AcceptInvitation-2'))
+    const va = await this.getV(avatar)
+    va.v++
+    avatar.v = va.v
+
+    const im = gr.mmb.get(args.idm)
+    if (!im) throw new AppExc(F_SRV, 251)
+    if (gr.st[im] !== 3) throw new AppExc(F_SRV, 259)
+    const membre = compile(await this.getRowMembre(args.idg, im, 'AcceptInvitation-3'))
+    membre.v = vg.v
+
+    if (args.cas === 1) { // acceptation
+      const fl = gr.invits[im].fl // flags d'invit
+      const f = gr.flags[im] // flags actuels
+      let nf = 0
+      if ((f & FLAGS.HM) || ((fl & FLAGS.DM) && args.iam)) nf |= FLAGS.HM
+      if ((f & FLAGS.HN) || (((fl & FLAGS.DN) || (fl & FLAGS.DE)) && args.ian)) nf |= FLAGS.HN
+      if ((f & FLAGS.HE) || ((fl & FLAGS.DE) && args.iam)) nf |= FLAGS.HE
+      if (fl & FLAGS.DM) nf |= FLAGS.DM
+      if (fl & FLAGS.DN) nf |= FLAGS.DN
+      if (fl & FLAGS.DE) nf |= FLAGS.DE
+      if (args.iam) nf |= FLAGS.AM
+      if (args.ian) nf |= FLAGS.AN
+      gr.flags[im] = nf
+      gr.st[im] = (fl & FLAGS.AN) ? 5 : 4
+      delete gr.invits[im]
+      this.update(gr.toRow())
+      this.setV(vg)
+      const ln = (nf & FLAGS.DN) && (nf & FLAGS.AN)
+      const en = ln && (nf & FLAGS.DE)
+      const am = (nf && FLAGS.DM) && (nf & FLAGS.AM)
+      
+      // avatar
+      delete avatar.invits[idgc]
+      this.update(avatar.toRow())
+      this.setV(va)
+
+      // maj du membre invité: dac dln den dam
+      if (!membre.dac) membre.dac = this.auj
+      if (!membre.dln && ln) membre.dln = this.auj
+      if (!membre.den && en) membre.den = this.auj
+      if (!membre.dam && am) membre.dam = this.auj
+      membre.msgG = null
+      membre.v = vg.v
+      this.update(membre.toRow())
+
+      // écriture du chat
+      const ch = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-4'))
+      ch.v = vg.v
+      ch.addItem(im, this.dh, args.msgG)
+      this.update(ch.toRow())
+
+      // enreg compte et compta
+      this.compte.ajoutGroupe(args.idg, args.idm, args.cleGK, gr.rds)
+      this.compta.ngPlus(1)
+      return
+    }
+
+    // refus - cas: 2:contact 3:radié 4:radié + LN
+    gr.st[im] = args.cas === 2 ? 1 : 0
+    delete gr.invits[im]
+    if (args.cas > 2) {
+      gr.tid[im] = 0
+      gr.flags[im] = 0
+      const idmc = ID.court(args.idm)
+      if (args.cas === 4 && gr.lnc.indexOf(idmc) === -1) gr.lnc.push(idmc)
+    }
+    this.update(gr.toRow())
+    this.setV(vg)
+
+    // avatar
+    delete avatar.invits[idgc]
+    this.update(avatar.toRow())
+    this.setV(va)
+
+    // maj du membre invité: dac dln den dam
+    if (args.cas === 2) membre.msgG = null
+    else membre._zombi = true
+    membre.v = vg.v
+    this.update(membre.toRow())
+
+    // écriture du chat
+    const ch = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-4'))
+    ch.v = vg.v
+    ch.addItem(im, this.dh, args.msgG)
+    this.update(ch.toRow())
   }
 }
