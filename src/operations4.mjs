@@ -1386,7 +1386,6 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     }
     gr.invits[im] = invit
     gr.st[im] = aInviter ? 3 : 2
-    const f = gr.flags[im]
     this.update(gr.toRow())
     this.setV(vg)
 
