@@ -1549,3 +1549,84 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     this.update(ch.toRow())
   }
 }
+
+/* OP_MajDroitsMembre: 'Mise à jour des droits d\'un membre sur un groupe' *******
+- token donne les éléments d'authentification du compte.
+- idg : id du groupe
+- idm : id du membre
+- nvflags : nouveau flags. Peuvent changer DM DN DE AM AN
+- anim: true si animateur
+Retour:
+*/
+operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = compile(await this.getRowGroupe(args.idg, 'MajDroitsMembre-1'))
+    const vg = await this.getV(gr)
+    vg.v++
+    gr.v = vg.v
+    // Set des im des avatars du compte étant animateur */
+    const anc = this.compte.imAnimsDeGr(gr)
+
+    await this.getRowAvatar(args.idm, 'MajDroitsMembre-2')
+
+    const im = gr.mmb.get(args.idm)
+    if (!im) throw new AppExc(F_SRV, 251)    
+    const stm = gr.st[im] 
+    if (stm < 4) throw new AppExc(F_SRV, 262)
+
+    if (args.anim && stm === 4) {
+      // passer le membre en animateur
+      if (!anc.size) throw new AppExc(F_SRV, 263)
+      gr.st[im] = 5
+    }
+    if (!args.anim && stm === 5) {
+      // supprimer le statut d'animateur du membre - Possible pour soi-même seulement
+      if (!anc.has(im)) throw new AppExc(F_SRV, 264)
+      gr.st[im] = 4
+    }
+
+    /* Ajouter un ou des flags: n |= FLAGS.HA | FLAGS.AC | FLAGS.IN
+       Enlever un ou des flags: n &= ~FLAGS.AC & ~FLAGS.IN */
+    const fl = gr.flags[im]
+    let nvfl = fl
+    const iam = args.nvflags & FLAGS.AM
+    const ian = args.nvflags & FLAGS.AN
+    const iamav = fl & FLAGS.AM
+    const ianav = fl & FLAGS.AN
+    if (iam !== iamav || ian !== ianav) {
+      if (!this.compte.estAvc(args.idm)) throw new AppExc(F_SRV, 265)
+      if (iam) nvfl |= FLAGS.AM; else nvfl &= ~FLAGS.AM
+      if (ian) nvfl |= FLAGS.AN; else nvfl &= ~FLAGS.AN
+    }
+    const idm = args.nvflags & FLAGS.DM
+    const idn = args.nvflags & FLAGS.DN
+    const ide = idn ? args.nvflags & FLAGS.DE : false
+    const idmav = fl & FLAGS.DM
+    const idnav = fl & FLAGS.DN
+    const ideav = fl & FLAGS.DE
+    const chgFl = idm !== idmav || idn !== idnav || ide !== ideav
+    if (chgFl) {
+      if (!anc.size) throw new AppExc(F_SRV, 266)
+      if (idm) nvfl |= FLAGS.DM; else nvfl &= ~FLAGS.DM
+      if (idn) nvfl |= FLAGS.DN; else nvfl &= ~FLAGS.DN
+      if (ide) nvfl |= FLAGS.DE; else nvfl &= ~FLAGS.DE
+    }
+    gr.flags[im] = nvfl
+    this.update(gr.toRow())
+    this.setV(vg)
+
+    if (chgFl) {
+      const mb = compile(await this.getRowMembre(args.idg, im, 'AcceptInvitation-3'))
+      mb.v = vg.v
+      if (!mb.dam && idm && iam) mb.dam = this.auj
+      if (mb.dam && (!idm || !iam)) mb.fam = this.auj
+      if (!mb.dan && idn && ian) mb.dan = this.auj
+      if (mb.dam && (!idn || !ian)) mb.fam = this.auj
+      if (!mb.den && ide && ian) mb.den = this.auj
+      if (mb.den && (!ide || !ian)) mb.fen = this.auj
+      this.update(mb.toRow())  
+    }
+  }
+}

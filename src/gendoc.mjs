@@ -502,6 +502,8 @@ export class Comptes extends GenDoc {
 
   get _estA () { return this.idp === 0 }
 
+  estAvc (id) { return this.mav[ID.court(id)] }
+
   /* Mise à niveau des listes avatars / groupes du dataSync
   en fonction des avatars et groupes listés dans mav/mpg du compte 
   Ajoute les manquants dans ds, supprime ceux de ids absents de mav / mpg
@@ -554,12 +556,13 @@ export class Comptes extends GenDoc {
     return s
   }
 
+  // Set des im des avatars du compte étant animateur */
   imAnimsDeGr (gr) {
     const s = new Set()
     const e = this.mpg[ID.court(gr.id)]
     if (!e || !e.lav || !e.lav.length) return s
     e.lav.forEach(idc => { 
-      const im = gr.mmb.get(idc)
+      const im = gr.mmb.get(ID.long(idc, this.ns))
       if (im && gr.st[im] === 5) s.add(im)
     })
     return s
