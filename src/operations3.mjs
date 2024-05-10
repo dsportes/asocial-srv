@@ -461,10 +461,7 @@ args.ns : ns pour l'administrateur
 **Propriétés accessibles :**
 - administrateur technique : toutes de tous les espaces.
 - Comptable : toutes de _son_ espace.
-- Délégués : sur leur espace seulement,
-  - `id v org creation notifE opt`
-  - la notification de _leur_ partition est recopiée de tnotifP[p] en notifP.
-- Autres comptes: pas d'accès.
+- autres : sauf moisStat moisStatT dlvat nbmi
 Retour:
 - rowEspace s'il existe
 */
@@ -473,7 +470,7 @@ operations.GetEspace = class GetEspace extends Operation {
 
   async phase2 (args) {
     const espace = compile(await this.getRowEspace(this.estAdmin ? args.ns : this.ns, 'GetEspace'))
-    this.setRes('rowEspace', this.estAdmin ? espace.toRow() : espace.toShortRow())
+    this.setRes('rowEspace', this.estAdmin || this.estComptable ? espace.toRow() : espace.toShortRow())
   }
 }
 
@@ -534,7 +531,7 @@ operations.Sync = class Sync extends Operation {
     for (const row of await this.db.scoll(this, 'chats', ida, x.vs))
       this.addRes('rowChats', row)
     for (const row of await this.db.scoll(this, 'sponsorings', ida, x.vs))
-      this.addRes('rowSponsorings', compile(row).toShortRow())
+      this.addRes('rowSponsorings', row)
     if (ID.estComptable(this.id)) 
       for (const row of await this.db.scoll(this, 'tickets', ida, x.vs)) {
         const tk = compile(row)

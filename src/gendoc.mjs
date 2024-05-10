@@ -203,7 +203,6 @@ _data_ :
 - `dlvat` : `dlv` de l'administrateur technique.
 - `cleES` : clé de l'espace cryptée par la clé du site. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
 - `notifE` : notification pour l'espace de l'administrateur technique. Le texte n'est pas crypté.
-- `notifP` : pour un délégué, la notification de sa partition.
 - `opt`: option des comptes autonomes.
 - `nbmi`: nombre de mois d'inactivité acceptable pour un compte O fixé par le comptable. Ce changement n'a pas d'effet rétroactif.
 - `tnotifP` : table des notifications de niveau _partition_.
@@ -228,7 +227,6 @@ export class Espaces extends GenDoc {
       moisStatT: 0,
       nprof: 0,
       notifE: null,
-      notifP: null,
       dlvat: 0,
       opt: 0,
       nbmi: 12,
@@ -827,12 +825,6 @@ export class Transferts extends GenDoc { constructor() { super('transferts') } }
 
 export class Sponsorings extends GenDoc { 
   constructor() { super('sponsorings') } 
-
-  toShortRow () {
-    delete this.csp
-    delete this.itsp
-    return this.toRow()
-  }
 
   nouveau (args) {
     /* 
