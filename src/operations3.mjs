@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
 
 import { Operation, assertKO, Cache, R } from './modele.mjs'
-import { compile, Espaces, Partitions, Syntheses, Comptes, Comptis, Avatars, Comptas, Chats } from './gendoc.mjs'
+import { compile, Espaces, Partitions, Syntheses, Comptes, Comptis, Invits, Avatars, Comptas, Chats } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -264,8 +264,12 @@ operations.SyncSp = class SyncSp extends Operation {
     */
 
     /* Compti */
-    const compti = new Comptis().init({ id: args.id, v: 1, mc: {} })
+    const compti = Comptis.nouveau(args.id)
     this.setRes('rowCompti', this.insert(compti.toRow()))
+
+    /* Invit */
+    const invit = Invits.nouveau(args.id)
+    this.setRes('rowInvit', this.insert(invit.toRow()))
 
     /* Compta */
     this.compta = Comptas.nouveau(args.id, qv)
@@ -273,7 +277,7 @@ operations.SyncSp = class SyncSp extends Operation {
     this.compta.compile() // pour calculer c2m ...
 
     /* Avatar  (id, rdsav, pub, privK, cvA) */
-    const avatar = Avatars.nouveau(args.id, rdsav, args.pub, args.privK, args.cvA)
+    const avatar = Avatars.nouveau(args.id, args.id, rdsav, args.pub, args.privK, args.cvA)
     this.setNV(avatar)
     this.insert(avatar.toRow()) 
     this.setRes('rowAvatar', avatar.toShortRow())
@@ -592,7 +596,11 @@ operations.Sync = class Sync extends Operation {
     if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
     if (this.cnx || (rowCompti.v > this.ds.compte.vs)) 
       this.setRes('rowCompti', rowCompti)
-
+    let rowInvit = Cache.aVersion('invits', this.compte.id, vcpt.v) // déjà en cache ?
+    if (!rowInvit) rowInvit = await this.getRowCompti(this.compte.id)
+    if (this.cnx || (rowInvit.v > this.ds.compte.vs)) 
+      this.setRes('rowInvit', rowInvit)
+  
     /* Mise à niveau des listes avatars / groupes du dataSync
     en fonction des avatars et groupes listés dans mav/mpg du compte 
     Ajoute les manquants dans ds, supprime ceux de ds absents de mav / mpg
@@ -736,16 +744,20 @@ operations.CreerEspace = class CreerEspace extends Operation {
       args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, args.cleEK, qvc, o, args.ck)
     
     /* Compti */
-    const compti = new Comptis().init({ id: idComptable, v: 1, mc: {} })
+    const compti = Comptis.nouveau(idComptable)
     this.insert(compti.toRow())
 
+    /* Invit */
+    const invit = Invits.nouveau(idComptable)
+    this.insert(invit.toRow())
+    
     /* Compta */
     this.compta = Comptas.nouveau(idComptable, qv).compile()
     partition.ajoutCompte(this.compta, args.cleAP, true)
 
     /* Avatar  (id, rdsav, pub, privK, cvA) */
     const cvA = { id: ID.court(idComptable) }
-    const avatar = Avatars.nouveau(idComptable, rdsav, args.pub, args.privK, cvA)
+    const avatar = Avatars.nouveau(idComptable, idComptable, rdsav, args.pub, args.privK, cvA)
     this.setNV(avatar)
     this.insert(avatar.toRow())
   }

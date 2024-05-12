@@ -7,6 +7,7 @@ DELETE FROM partitions;
 DELETE FROM comptes;
 DELETE FROM comptas;
 DELETE FROM comptis;
+DELETE FROM invits;
 DELETE FROM avatars;
 DELETE FROM chats;
 DELETE FROM notes;

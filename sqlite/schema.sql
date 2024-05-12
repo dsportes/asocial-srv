@@ -53,6 +53,13 @@ CREATE TABLE IF NOT EXISTS "comptis" (
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "comptis_id_v" ON "comptis" ( "id", "v" );
+CREATE TABLE IF NOT EXISTS "invits" (
+  "id"	INTEGER,
+  "v" INTEGER,
+  "_data_"	BLOB,
+  PRIMARY KEY("id")
+) WITHOUT ROWID;
+CREATE INDEX "invits_id_v" ON "invits" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "versions" (
   "id"	INTEGER,
   "v" INTEGER,

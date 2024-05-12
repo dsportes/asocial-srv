@@ -1122,7 +1122,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     if (avatar) throw new AppExc(F_SRV, 245)
 
     const rdsav = ID.rds(ID.RDSAVATAR)
-    avatar = Avatars.nouveau(args.id, rdsav, args.pub, args.privK, args.cvA) 
+    avatar = Avatars.nouveau(args.id, this.id, rdsav, args.pub, args.privK, args.cvA) 
     this.setNV(avatar)
     this.insert(avatar.toRow())
     this.compte.ajoutAvatar(avatar, args.cleAK)
@@ -1331,9 +1331,12 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (gr.lng.indexOf(idac) !== -1) throw new AppExc(F_SRV, 261)
 
     const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-2'))
-    const va = await this.getV(avatar)
-    va.v++
-    avatar.v = va.v
+    const idc = ID.long(avatar.idc, this.ns)
+    const cptinv = compile(await this.getRowCompte(idc, 'InvitationGroupe-2c'))
+    const cinvit = compile(await this.getRowInvit(idc, 'InvitationGroupe-2b'))
+    const vcpt = await this.getV(cptinv)
+    vcpt.v++
+    cinvit.v = vcpt.v
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
@@ -1353,9 +1356,9 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       this.update(gr.toRow())
       this.setV(vg)
 
-      delete avatar.invits[idgc]
-      this.update(avatar.toRow())
-      this.setV(va)
+      cinvit.supprInv(args.idg, args.idm)
+      this.update(cinvit.toRow())
+      this.setV(vcpt)
 
       if (args.suppr === 1) membre.msgG = null
       else membre._zombi = true
@@ -1397,27 +1400,35 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     this.setV(vg)
 
     // Construction de l'invitation à transmettre à l'avatar invité
-    /* Une invitation est enregistrée dans la map `invits` de l'avatar invité:
-      - _clé_: `idg` id du groupe.
-      - _valeur_: `{cleGA, cvG, cleAG, cvA, txtG}`
-        - `cleGA`: clé du groupe crypté par la clé A de l'avatar.
-        - `cvG` : carte de visite du groupe (photo et texte sont cryptés par la clé G du groupe).
-        - `invpar` : `[{ cleAG, cvA }]`
-          - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
-          - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
-        - `msgG` : message de bienvenue / invitation émis par l'invitant.
+    /* - `invits`: liste des invitations en cours (dans le document invits)
+      - `idg`: id du groupe,
+      - `ida`: id de l('avatar invité
+      - `cleGA`: clé du groupe crypté par la clé A de l'avatar.
+      - `cvG` : carte de visite du groupe (photo et texte sont cryptés par la clé G du groupe).
+      - `flags` : d'invitation.
+      - `invpar` : `[{ cleAG, cvA }]`
+        - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
+        - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
+      - `msgG` : message de bienvenue / invitation émis par l'invitant.
     */
     if (aInviter) {
       const invpar = []
-      const invx = { cleGA: args.cleGA, cvG: gr.cvG, flags: args.flags, invpar, msgG: args.msgG }
+      const invx = { 
+        idg: ID.court(args.idg),
+        ida: ID.court(args.idm),
+        cleGA: args.cleGA, 
+        cvG: gr.cvG, 
+        flags: args.flags, 
+        invpar, 
+        msgG: args.msgG 
+      }
       for (const im of invit.li) {
         const mb = compile(await this.getRowMembre(gr.id, im))
         if (mb) invpar.push({ cleAG: mb.cleAG, cvA: mb.cvA })
       }
-      if (!avatar.invits) avatar.invits = {}
-      avatar.invits[idgc] = invx
-      this.update(avatar.toRow())
-      this.setV(va)
+      cinvit.addInv(invx)
+      this.update(cinvit.toRow())
+      this.setV(vcpt)
     }
 
     // écriture du chat

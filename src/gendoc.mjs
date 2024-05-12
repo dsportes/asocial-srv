@@ -93,14 +93,14 @@ export class GenDoc {
   /* Descriptifs des collections et sous-collection */
   static collsExp1 = ['espaces', 'syntheses']
 
-  static collsExp2 = ['fpurges', 'partitions', 'comptes', 'comptas', 'comptis', 'avatars', 'groupes', 'versions']
+  static collsExp2 = ['fpurges', 'partitions', 'comptes', 'comptas', 'comptis', 'invits', 'avatars', 'groupes', 'versions']
 
   static collsExpA = ['notes', 'transferts', 'sponsorings', 'chats', 'tickets']
 
   static collsExpG = ['notes', 'transferts', 'membres', 'chatgrs']
 
   // Gérés en Cache - Pour Firestore gère une propriété id_V (A REVOIR)
-  static majeurs = new Set(['partitions', 'comptes', 'comptas', 'comptis', 'versions', 'avatars', 'groupes'])
+  static majeurs = new Set(['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'versions', 'avatars', 'groupes'])
 
   static sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
   
@@ -112,6 +112,7 @@ export class GenDoc {
     syntheses: ['id', 'v', '_data_'],
     comptes: ['id', 'v', 'hxr', '_data_'],
     comptis: ['id', 'v', '_data_'],
+    invits: ['id', 'v', '_data_'],
     comptas: ['id', 'v', '_data_'],
     versions: ['id', 'v', 'suppr', '_data_'],
     avatars: ['id', 'v', 'vcv', 'hpc', '_data_'],
@@ -137,6 +138,7 @@ export class GenDoc {
     case 'comptes' : { obj = new Comptes(); break }
     case 'comptas' : { obj = new Comptas(); break }
     case 'comptis' : { obj = new Comptis(); break }
+    case 'invits' : { obj = new Invits(); break }
     case 'versions' : { obj = new Versions(); break }
     case 'avatars' : { obj = new Avatars(); break }
     case 'notes' : { obj = new Notes(); break }
@@ -296,7 +298,6 @@ _data_:
 - `mcpt` : map des comptes attachés à la partition. 
   - _clé_: id du compte.
   - _valeur_: `{ nr, cleAP, del, q }`
-    - `nr`: niveau de restriction de la notification de niveau _compte_ (0 s'il n'y en a pas, 1 (sans restriction), 2 ou 3).
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
     - `q` : `qc qn qv c2m nn nc ng v` extraits du document `comptas` du compte.
@@ -344,10 +345,7 @@ export class Partitions extends GenDoc {
 
   setNotifC (id, notif) {
     const e = this.mcpt[ID.court(id)]
-    if (e) {
-      e.nr = notif ? notif.nr : 0
-      e.notif = notif
-    }
+    if (e) e.notif = notif
     this._maj = true
   }
 
@@ -581,8 +579,48 @@ _data_:
 export class Comptis extends GenDoc { 
   constructor() { super('comptis') } 
 
-  static nouveau (id, rds) {
-    return new Comptes().init({ id, v: 1, rds, mc: {} })
+  static nouveau (id) {
+    return new Comptis().init({ id, v: 1, mc: {} })
+  }
+}
+
+/* Invits *************************************************
+_data_:
+- `id` : id du compte.
+- `v` : version.
+
+- `invits`: liste des invitations en cours:
+  - _valeur_: `{idg, ida, cleGA, cvG, ivpar, dh}`
+    - `idg`: id du groupe,
+    - `ida`: id de l'avatar invité
+    - `cleGA`: clé du groupe crypté par la clé A de l'avatar.
+    - `cvG` : carte de visite du groupe (photo et texte sont cryptés par la clé G du groupe).
+    - `flags` : d'invitation.
+    - `invpar` : `[{ cleAG, cvA }]`
+      - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
+      - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
+    - `msgG` : message de bienvenue / invitation émis par l'invitant.
+*/
+export class Invits extends GenDoc { 
+  constructor() { super('invits') } 
+
+  static nouveau (id) {
+    return new Invits().init({ id, v: 1, invits: [] })
+  }
+
+  addInv (inv) {
+    const l = []
+    this.invits.forEach(i => { if (i.idg !== inv.idg || i.ida !== inv.ida) l.pudh(i)})
+    l.push(inv)
+    this.invits = l
+  }
+
+  supprInv (idgl, idal) {
+    const idg = ID.court(idgl)
+    const ida = ID.court(idal)
+    const l = []
+    this.invits.forEach(i => { if (i.idg !== idg || i.ida !== ida) l.pudh(i)})
+    this.invits = l
   }
 }
 
@@ -632,13 +670,6 @@ export class Comptas extends GenDoc {
     this._nbj = c.estA ? c.nbj(this.solde) : 0
     this._c2m = c.conso2M
     return this
-  }
-
-  setQcnv (q) {
-    q.n = this.qv.nn + this.qv.nc + this.qv.ng
-    q.v = this.qv.v
-    const c = new Compteurs(this.compteurs)
-    q.c = c.conso2M
   }
 
   quotas (q) { // q: { qc: qn: qv: }
@@ -759,6 +790,8 @@ export class Comptas extends GenDoc {
   }
 }
 
+/* Versions ************************************************************
+*/
 export class Versions extends GenDoc { 
   constructor() { super('versions') } 
 }
@@ -778,24 +811,13 @@ _data_:
 - `cvA` : carte de visite de l'avatar `{id, v, photo, texte}`. photo et texte cryptés par la clé A de l'avatar.
 
 - `pub privK` : couple des clés publique / privée RSA de l'avatar.
-
-- `invits`: map des invitations en cours de l'avatar:
-  - _clé_: `idg` id court du groupe.
-  - _valeur_: `{cleGA, cvG, invpar, txtG}`
-    - `cleGA`: clé du groupe crypté par la clé A de l'avatar.
-    - `cvG` : carte de visite du groupe (photo et texte sont cryptés par la clé G du groupe).
-    - `flags` : d'invitation.
-    - `invpar` : `[{ cleAG, cvA }]`
-      - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
-      - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
-    - `msgG` : message de bienvenue / invitation émis par l'invitant.
 */
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 
 
-  static nouveau (id, rdsav, pub, privK, cvA) {
+  static nouveau (id, idc, rdsav, pub, privK, cvA) {
     cvA.v = 1
-    return new Avatars().init({ id, v: 1,vcv: 1, rds: rdsav, pub, privK, cvA })
+    return new Avatars().init({ id, idc: ID.court(idc), v: 1,vcv: 1, rds: rdsav, pub, privK, cvA })
   }
 
   toShortRow () {

@@ -566,6 +566,12 @@ export class Operation {
     return cp
   }
 
+  async getRowInvit (id, assert) {
+    const cp = await Cache.getRow(this, 'invits', id)
+    if (assert && !cp) throw assertKO('getRowInvit/' + assert, 12, [id])
+    return cp
+  }
+
   async getRowVersion (id, assert) {
     const v = await Cache.getRow(this, 'versions', id)
     if (assert && !v) throw assertKO('getRowVersion/' + assert, 14, [id])

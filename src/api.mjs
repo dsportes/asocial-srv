@@ -1132,7 +1132,7 @@ export function synthesesPartition (p) {
     r.qt.c2m += x.q.c2m
     r.qt.n += x.q.nn + x.q.nc + x.q.ng
     r.qt.v += x.q.v
-    if (x.nr) r.ntf[x.nr - 1]++
+    if (x.notif && x.notif.nr) r.ntf[x.notif.nr - 1]++
     r.nbc++
     if (x.del) r.nbd++
   }
@@ -1143,28 +1143,4 @@ export function synthesesPartition (p) {
   r.pcn = !r.q.qn ? 0 : Math.round(r.qt.n * 100 / (r.q.qn * UNITEN)) 
   r.pcv = !r.q.qv ? 0 : Math.round(r.qt.v * 100 / (r.q.qv * UNITEV)) 
   return r
-}
-
-/* Compile un row partition dans un objet self
-La fonction async locComp effectue la compilation locale d'une cleAP
-*/
-export async function compileMcpt (self, row, locComp) {
-  self.dhic = row.dhic || 0
-  self.nrp = row.nrp || 0
-  self.q = row.q
-  const ns = ID.ns(self.id)
-  self.mcpt = {}
-  self.sdel = new Set() // Set des délégués
-  
-  if (row.mcpt) for(const idx in row.mcpt) {
-    const id = ID.long(parseInt(idx), ns)
-    const e = row.mcpt[idx]
-    if (e.del) { self.sdel.add(id); e.del = true }
-    if (locComp) await locComp(self.id, e.cleAP)
-    const q = { ...e.q }
-    q.pcc = !q.qc ? 0 : Math.round(q.c2m * 100 / q.qc) 
-    q.pcn = !q.qn ? 0 : Math.round((q.nn + q.nc + q.ng) * 100 / q.qn) 
-    q.pcv = !q.qv ? 0 : Math.round(q.v * 100 / q.qv) 
-    self.mcpt[id] = { nr: e.nr || 0, q: e.q }
-  }
 }
