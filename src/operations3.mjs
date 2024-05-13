@@ -284,16 +284,11 @@ operations.SyncSp = class SyncSp extends Operation {
 
     // création du dataSync
     const ds = DataSync.deserial()
-    ds.rdsId = {}
     ds.compte.vb = 1
-    ds.rdsC = ID.long(this.compte.rds, this.ns)
-    const a = { id: avatar.id, vs: 0, vb: avatar.v }
+    ds.compte.rds = this.compte.rds
+    const a = { id: avatar.id, rds: rdsav, vs: 0, vb: avatar.v }
     ds.avatars.set(a.id, a)
-    ds.rdsId[ID.long(avatar.rds, this.ns)] = avatar.id
-    ds.tousRds.length = 0
-    for(const rdsx in ds.rdsId) ds.tousRds.push(parseInt(rdsx))
-    ds.tousRds.push(ds.rdsC) // rds du compte
-    ds.tousRds.push(this.ns) // espace
+
     // Sérialisation et retour de dataSync
     this.setRes('dataSync', ds.serial())
 
@@ -353,6 +348,9 @@ operations.SyncSp = class SyncSp extends Operation {
     }
     const espace = compile(await this.getRowEspace(this.ns, 'SyncSp-es')) 
     this.setRes('rowEspace', espace.toShortRow())
+
+    // Mise à jour des abonnements aux versions
+    if (this.sync) this.sync.setAboRds(ds.setLongsRds(this.ns), this.dh)
   }
 
   async phase3 () {
@@ -586,7 +584,7 @@ operations.Sync = class Sync extends Operation {
     if (this.cnx || (rowCompti.v > this.ds.compte.vs)) 
       this.setRes('rowCompti', compile(rowCompti).toShortRow())
     let rowInvit = Cache.aVersion('invits', this.compte.id, vcpt.v) // déjà en cache ?
-    if (!rowInvit) rowInvit = await this.getRowCompti(this.compte.id)
+    if (!rowInvit) rowInvit = await this.getRowInvit(this.compte.id)
     if (this.cnx || (rowInvit.v > this.ds.compte.vs)) 
       this.setRes('rowInvit', compile(rowInvit).toShortRow())
   

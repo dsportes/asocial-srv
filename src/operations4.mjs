@@ -109,7 +109,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       }
     }
 
-    const av = compile(await this.getRowAvatar(sponsoring.id, 'AjoutSponsoring-1'))
+    const av = compile(await this.getRowAvatar(args.id, 'AjoutSponsoring-1'))
     const sponsoring = Sponsorings.nouveau(args, av.rds)
     const vsp = await this.getV(av)
     vsp.v++
@@ -1470,14 +1470,14 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
   async phase2 (args) { 
     const gr = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
     const vg = await this.getV(gr)
-    const idgc = ID.court(args.idg)
     vg.v++
     gr.v = vg.v
 
     const avatar = compile(await this.getRowAvatar(args.idm, 'AcceptInvitation-2'))
-    const va = await this.getV(avatar)
-    va.v++
-    avatar.v = va.v
+    const invit = compile(await this.getRowInvit(ID.long(avatar.idc, this.ns), 'AcceptInvitation-2b'))
+    const vinvit = await this.getV(invit)
+    vinvit.v++
+    invit.v = vinvit.v
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
@@ -1506,10 +1506,10 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       const en = ln && (nf & FLAGS.DE)
       const am = (nf && FLAGS.DM) && (nf & FLAGS.AM)
       
-      // avatar
-      delete avatar.invits[idgc]
-      this.update(avatar.toRow())
-      this.setV(va)
+      // invit
+      invit.supprInv(args.idg, args.idm)
+      this.update(invit.toRow())
+      this.setV(vinvit)
 
       // maj du membre invité: dac dln den dam
       if (!membre.dac) membre.dac = this.auj
@@ -1544,10 +1544,10 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     this.update(gr.toRow())
     this.setV(vg)
 
-    // avatar
-    delete avatar.invits[idgc]
-    this.update(avatar.toRow())
-    this.setV(va)
+    // invit
+    invit.supprInv(args.idg, args.idm)
+    this.update(invit.toRow())
+    this.setV(vinvit)
 
     // maj du membre invité: dac dln den dam
     if (args.cas === 2) membre.msgG = null

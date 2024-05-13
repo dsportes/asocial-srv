@@ -869,32 +869,33 @@ export class Sponsorings extends GenDoc {
     - dconf: true, si le sponsor demande la confidentialité (pas de chat à l'avcceptation)
     - del: true si le compte est délégué de la partition
     */
-    this.id = args.id
-    this.rds = rds
-    this.ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
-    this.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
-    this.st = 0
-    this.psK = args.psK
-    this.YCK = args.YCK
-    this.hYC = args.hYC,
-    this.cleAYC = args.cleAYC
-    this.nomYC = args.nomYC
-    this.cvA = args.cvA
-    this.ardYC = args.ardYC
-    this.dconf = args.dconf || false
+    const sp = new Sponsorings()
+    sp.id = args.id
+    sp.rds = rds
+    sp.ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
+    sp.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
+    sp.st = 0
+    sp.psK = args.psK
+    sp.YCK = args.YCK
+    sp.hYC = args.hYC,
+    sp.cleAYC = args.cleAYC
+    sp.nomYC = args.nomYC
+    sp.cvA = args.cvA
+    sp.ardYC = args.ardYC
+    sp.dconf = args.dconf || false
     if (!args.partitionId) { // compte A
-      this.don = args.don
-      this.quotas = { qc: 0, qn: 1, qv: 1 }
+      sp.don = args.don
+      sp.quotas = { qc: 0, qn: 1, qv: 1 }
     } else {
-      this.clePYC = args.clePYC
-      this.partitionId = ID.court(args.partitionId)
-      this.quotas = args.quotas
-      this.del = args.del
+      sp.clePYC = args.clePYC
+      sp.partitionId = ID.court(args.partitionId)
+      sp.quotas = args.quotas
+      sp.del = args.del
     }
-    return this
+    return sp
   }
 
-  toShortRow () { return this.row() }
+  toShortRow () { return this.toRow() }
 }
 
 /* Chats *************************************************/
@@ -1074,6 +1075,8 @@ export class Chatgrs extends GenDoc {
     })
   }
 
+  toShortRow () { return this.toRow() }
+  
   addItem (im, dh, t) {
     const it = { im, dh, dhx: 0, t }
     const l = [it]

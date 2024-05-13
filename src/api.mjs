@@ -1089,10 +1089,11 @@ export class DataSync {
   }
 
   idDeRds (rds) {
+    const rdsc = ID.court(rds)
     if (ID.rdsType(rds) === ID.RDSAVATAR) {
-      for(const [id, e] of this.avatars) if (rds === e.rds) return id
+      for(const [id, e] of this.avatars) if (rdsc === e.rds) return id
     } else {
-      for(const [id, e] of this.groupes) if (rds === e.rds) return id
+      for(const [id, e] of this.groupes) if (rdsc === e.rds) return id
     }
     return 0
   }
