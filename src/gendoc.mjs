@@ -1012,15 +1012,10 @@ export class Groupes extends GenDoc {
     return s
   }
 
-  get vraisActifs () {
-    const s = new Set()
-    for (let im = 1; im < this.st.length; im++) { 
-      if (this.st[im] >= 4) {
-        const f = this.flags[im]
-        if (((f & FLAGS.AN) && (f & FLAGS.DN)) || ((f & FLAGS.AM) && (f & FLAGS.DM))) s.add(im) 
-      }
-    }
-    return s
+  get nbActifs () {
+    let n = 0
+    for (let im = 1; im < this.st.length; im++) if (this.st[im] >= 4) n++
+    return n
   }
 }
 
@@ -1076,7 +1071,7 @@ export class Chatgrs extends GenDoc {
   }
 
   toShortRow () { return this.toRow() }
-  
+
   addItem (im, dh, t) {
     const it = { im, dh, dhx: 0, t }
     const l = [it]

@@ -1643,3 +1643,93 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
     }
   }
 }
+
+/* OP_RadierMembre: 'Radiation d\'un membre d\'un groupe' **************
+- token donne les éléments d'authentification du compte.
+- idg : id du groupe
+- idm : id du membre
+- rad: 1-redevient contact, 2-radiation, 3-radiation + ln
+Retour:
+*/
+operations.RadierMembre = class RadierMembre extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = compile(await this.getRowGroupe(args.idg, 'RadierMembre-1'))
+    const vg = await this.getV(gr)
+    vg.v++
+    gr.v = vg.v
+    // Set des im des avatars du compte étant animateur */
+
+    const im = gr.mmb.get(args.idm)
+    if (!im) throw new AppExc(F_SRV, 251)    
+    const stm = gr.st[im]
+    const fl = gr.flags[im]
+    const anc = this.compte.imAnimsDeGr(gr)
+
+    const avatar = compile(await this.getRowAvatar(args.idm, 'RadierMembre-2'))
+    const compte = compile(await this.getRowCompte(avatar.idc, 'RadierMembre-2'))
+    const moi = compte.estAvc(args.idm)
+
+    if (moi) { // auto-radiation
+      if (stm < 4) throw new AppExc(F_SRV, 270)
+    } else {
+      // radiation d'un autre
+      if (!anc.size) throw new AppExc(F_SRV, 267)
+      // mais pas un animateur
+      if (stm === 5) throw new AppExc(F_SRV, 269)
+      // et à condition d'avoir accès aux membres
+      const [am, ] = gr.amAn(anc)
+      if (!am) throw new AppExc(F_SRV, 268)
+    }
+
+    const mb = compile(await this.getRowMembre(args.idg, im, 'RadierMembre-3'))
+    mb.v = vg.v
+
+    if (args.rad === 1) {
+      gr.st[im] = 1
+      let nvfl = 0
+      if (fl & FLAGS.HM) nvfl |= FLAGS.HM
+      if (fl & FLAGS.HN) nvfl |= FLAGS.HN
+      if (fl & FLAGS.HE) nvfl |= FLAGS.HE
+      gr.flags[im] = nvfl
+      delete gr.invits[im]
+      if (mb.dac && !mb.fac) mb.fac = this.auj
+      if (mb.dam && !mb.fam) mb.fam = this.auj
+      if (mb.dan && !mb.fan) mb.fan = this.auj
+      if (mb.den && !mb.fen) mb.fen = this.auj
+      mb.msgG = null
+    } else {
+      gr.st[im] = 0
+      gr.tid[im] = 0
+      gr.flags[im] = 0
+      delete gr.invits[im]
+      if (args.rad === 3) {
+        const idmc = ID.court(args.idm)
+        if (moi) {
+          if (gr.lnc.indexOf(idmc) === -1) gr.lnc.push(idmc)
+        } else if (gr.lng.indexOf(idmc) === -1) gr.lng.push(idmc)
+      }
+      mb._zombi = true
+    }
+
+    if (gr.nbActifs) { // il reste desz actifs, le groupe n'est pas supprimé
+      if (gr.imh === im) {
+        gr.imh = 0
+        gr.dfh = this.auj
+        // répercussion dans compas de idc
+      }
+      this.update(gr.toRow())
+      this.update(mb.toRow())
+      return
+    }
+
+    // suppression des invitations en cours
+
+    // suppression de tous les membres
+
+    gr.v = 999999
+    gr._zombi = true
+    this.update(gr.toRow())
+  }
+}
