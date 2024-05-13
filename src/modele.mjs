@@ -5,7 +5,7 @@ import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8, decrypterSrv, crypterSrv } from './util.mjs'
-import { GenDoc, compile, Chats, Versions } from './gendoc.mjs'
+import { GenDoc, compile, Versions } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -488,12 +488,6 @@ export class Operation {
     this.setV(version)
   }
 
-  async getVAvGr (id, src) {
-    const avgr = compile(
-      ID.estGroupe(id) ? await this.getRowGroupe(id, src) : await this.getRowAvatar(id, src))
-    return await this.getV(avgr, src)
-  }
-
   decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }
 
   crypt (k, x) { return crypterSrv(k, Buffer.from(encode(x))) }
@@ -713,100 +707,6 @@ export class Operation {
 
   async purgeDlv (nom, dlv) { // nom: sponsorings, versions
     return this.db.purgeDlv (this, nom, dlv)
-  }
-
-  async nvChat (args, xavatarE, xavatarI) {
-    /*
-    xavatarI et xavatarE : depuis AcceptionSponsoring
-    - `idI idsI` : id du chat, côté _interne_.
-    - `idE idsE` : id du chat, côté _externe_.
-    - `ccKI` : clé cc du chat cryptée par la clé K du compte de I.
-    - `ccPE` : clé cc cryptée par la clé **publique** de l'avatar E.
-    - `naccI` : [nomI, cleI] crypté par la clé cc
-    - `naccE` : [nomE, cleE] crypté par la clé cc
-    - `txt1` : texte 1 du chat crypté par la clé cc.
-    - `lgtxt1` : longueur du texte 1 du chat.
-    - `txt2` : texte 2 du chat crypté par la clé cc.
-    - `lgtxt2` : longueur du texte 2 du chat.
-    */
-    const avatarE = xavatarE || compile(await this.getRowAvatar(args.idE))
-    if (!avatarE) return null
-
-    const dh = Date.now()
-    const itemsI = []
-    itemsI.push({ a: 0, dh, txt: args.txt1, l: args.lgtxt1 })
-    if (args.txt2) itemsI.push({ a: 1, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
-
-    const itemsE = []
-    itemsE.push({ a: 1, dh, txt: args.txt1, l: args.lgtxt1 })
-    if (args.txt2) itemsE.push({ a: 0, dh: Date.now(), txt: args.txt2, l: args.lgtxt2 })
-
-    const cvE = avatarE.cva
-    const vcvE = avatarE.vcv
-
-    const avatarI = xavatarI || compile(await this.getRowAvatar(args.idI, 'NouveauChat-1'))
-    const cvI = avatarI.cva
-    const vcvI = avatarI.vcv
-
-    let rowChatI = await this.getRowChat(args.idI, args.idsI)
-
-    if (!rowChatI) {
-      // cas normal : chatI n'existe pas
-      let vI = 1
-      if (!xavatarI) {
-        // Depuis SyncSp version I vient d'être créee
-        const versionI = compile(await this.getRowVersion(args.idI, 'NouveauChat-5', true))
-        versionI.v++
-        vI = versionI.v
-        this.update(versionI.toRow())
-      }
-      const chatI = new Chats().init({
-        id: args.idI,
-        ids: args.idsI,
-        v: vI,
-        vcv: vcvE,
-        st: 10,
-        cc: args.ccKI,
-        nacc: args.naccE,
-        cva: cvE || null,
-        items: itemsI
-      })
-      rowChatI = this.insert(chatI.toRow())
-
-      const versionE = compile(await this.getRowVersion(args.idE, 'NouveauChat-2', true))
-      versionE.v++
-      this.update(versionE.toRow())
-      const chatE = new Chats().init({
-        id: args.idE,
-        ids: args.idsE,
-        v: versionE.v,
-        vcv: vcvI,
-        st: 1,
-        cc: args.ccPE,
-        nacc: args.naccI,
-        cva: cvI || null,
-        items: itemsE
-      })
-      this.insert(chatE.toRow())
-
-      this.setRes('st', 1)
-      this.setRes('rowChat', rowChatI)
-
-      if (!xavatarI) { // Si AcceptatinSponsoring, le nombre de chats est déjà fixé
-        const compta = compile(await this.getRowCompta(this.id, 'majNbChat-1'))
-        compta.v++
-        compta.qv.nc += 1
-        const c = new Compteurs(compta.compteurs, compta.qv)
-        compta.compteurs = c.serial
-        this.update(compta.toRow())
-      }
-    } else {
-      // chatI existe création croisée malencontreuse 
-      // soit par l'avatar E, soit par une autre session de I
-      this.setRes('st', 2)
-      this.setRes('rowChat', rowChatI)
-    }
-    return rowChatI
   }
 
   addChatgrItem (items, item) {

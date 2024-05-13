@@ -2,7 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, AppExc, d14 } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
-import { Compteurs, ID, AMJ, limitesjour, synthesesPartition, DataSync } from './api.mjs'
+import { Compteurs, ID, AMJ, limitesjour, synthesesPartition } from './api.mjs'
 
 /* GenDoc **************************************************
 Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
@@ -509,37 +509,34 @@ export class Comptes extends GenDoc {
     // Ajout dans ds des avatars existants dans le compte et inconnus de ds
     for(const idx in this.mav) {
       const ida = ID.long(parseInt(idx), this.ns)
-      const rds = ID.long(this.mav[idx].rds, this.ns)
-      srds.add(rds)
-      ds.idRds[ida] = rds; ds.rdsId[rds] = ida
-      if (!ds.avatars.has(ida)) ds.avatars.set(ida, { ...DataSync.vide, id: ida})
+      const rds = this.mav[idx].rds
+      srds.add(ID.long(rds, this.ns))
+      if (!ds.avatars.has(ida)) { ds.avatars.set(ida, { id: ida, rds, vs: 0, vb: 0 }) }
     }
     /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte
     Suppression de leurs entrées dans idRds / rdsId */
     const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
     for(const ida of sa) if (!this.mav[ID.court(ida)]) {
-      const rds = ds.idRds[ida]
-      srds.delete(rds)
+      const dsav = ds.avatars.get(ida)
+      srds.delete(ID.long(dsav.rds, this.ns))
       ds.avatars.delete(ida)
-      if (rds) { delete ds.idRds[ida]; delete ds.rdsId[rds] }
     }
 
     // Ajout dans ds des groupes existants dans le compte et inconnus de ds
     for(const idx in this.mpg) {
       const idg = ID.long(parseInt(idx), this.ns)
-      const rds = ID.long(this.mpg[idx].rds, this.ns)
-      srds.add(rds)
-      ds.idRds[idg] = rds; ds.rdsId[rds] = idg
-      if (!ds.groupes.has(idg)) ds.groupes.set(idg,{ ...DataSync.videg, id: idg} )
+      const rds = this.mpg[idx].rds
+      srds.add(ID.long(rds, this.ns))
+      const x = { id: idg, rds, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false }
+      if (!ds.groupes.has(idg)) ds.groupes.set(idg, x)
     }
     /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte
     Suppression de leurs entrées dans idRds / rdsId */
     const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
     for(const idg of sg) if (!this.mpg[ID.court(idg)]) {
-      const rds = ds.idRds[idg]
-      srds.delete(rds)
-      ds.avatars.delete(idg)
-      if (rds) { delete ds.idRds[idg]; delete ds.rdsId[rds] }
+      const dsgr = ds.groupes.get(idg)
+      srds.delete(ID.long(dsgr.rds, this.ns))
+      ds.groupes.delete(idg)
     }
   }
 
@@ -579,9 +576,11 @@ _data_:
 export class Comptis extends GenDoc { 
   constructor() { super('comptis') } 
 
-  static nouveau (id) {
-    return new Comptis().init({ id, v: 1, mc: {} })
+  static nouveau (id, rds) {
+    return new Comptis().init({ id, v: 1, rds, mc: {} })
   }
+
+  toShortRow() { return this.toRow() }
 }
 
 /* Invits *************************************************
@@ -589,6 +588,7 @@ _data_:
 - `id` : id du compte.
 - `v` : version.
 
+- `rds`:
 - `invits`: liste des invitations en cours:
   - _valeur_: `{idg, ida, cleGA, cvG, ivpar, dh}`
     - `idg`: id du groupe,
@@ -604,9 +604,11 @@ _data_:
 export class Invits extends GenDoc { 
   constructor() { super('invits') } 
 
-  static nouveau (id) {
-    return new Invits().init({ id, v: 1, invits: [] })
+  static nouveau (id, rds) {
+    return new Invits().init({ id, v: 1, rds: rds, invits: [] })
   }
+
+  toShortRow () { return this.toRow() }
 
   addInv (inv) {
     const l = []
@@ -803,7 +805,7 @@ _data_:
 - `vcv` : version de la carte de visite afin qu'une opération puisse détecter (sans lire le document) si la carte de visite est plus récente que celle qu'il connaît.
 - `hZR` : `ns` + hash du PBKFD de la phrase de contact réduite.
 
-- `rds` : pas transmis en session.
+- `rds` :
 - `cleAZC` : clé A cryptée par ZC (PBKFD de la phrase de contact complète).
 - `pcK` : phrase de contact complète cryptée par la clé K du compte.
 - `hZC` : hash du PBKFD de la phrase de contact complète.
@@ -820,13 +822,7 @@ export class Avatars extends GenDoc {
     return new Avatars().init({ id, idc: ID.court(idc), v: 1,vcv: 1, rds: rdsav, pub, privK, cvA })
   }
 
-  toShortRow () {
-    const x1 = this.rds
-    delete this.rds
-    const r = this.toRow()
-    this.rds = x1
-    return r
-  }
+  toShortRow () { return this.toRow() }
 }
 
 /* Classe Notes ******************************************************/
@@ -834,12 +830,15 @@ export class Notes extends GenDoc {
   constructor() { super('notes') } 
 
   toShortRow (idc) { //idc : id du compte demandeur
-    if (this.htm) {
-      const ht = this.htm[idc]
+    const htmx = this.htm
+    if (idc && this.htm) {
+      const ht = this.htm[ID.court(idc)]
       if (ht) this.ht = ht
       delete this.htm
     }
-    return this.toRow()
+    const r = this.toRow()
+    this.htm = htmx
+    return r
   }
 }
 
@@ -848,7 +847,7 @@ export class Transferts extends GenDoc { constructor() { super('transferts') } }
 export class Sponsorings extends GenDoc { 
   constructor() { super('sponsorings') } 
 
-  nouveau (args) {
+  static nouveau (args, rds) {
     /* 
     - id : id du sponsor
     - hYR : hash du PBKFD de la phrase de sponsoring réduite
@@ -871,6 +870,7 @@ export class Sponsorings extends GenDoc {
     - del: true si le compte est délégué de la partition
     */
     this.id = args.id
+    this.rds = rds
     this.ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
     this.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
     this.st = 0
@@ -893,10 +893,21 @@ export class Sponsorings extends GenDoc {
     }
     return this
   }
+
+  toShortRow () { return this.row() }
 }
 
+/* Chats *************************************************/
 export class Chats extends GenDoc { 
   constructor() { super('chats') } 
+
+  static nouveau (arg, rds) {
+    const c = new Chats().init(arg)
+    c.rds = rds
+    return c
+  }
+
+  toShortRow () { return this.toRow()}
 }
 
 /* Classe Groupe ****************************************************
@@ -905,7 +916,7 @@ _data_:
 - `v` :  1..N, Par convention, une version à 999999 désigne un **groupe logiquement détruit** mais dont les données sont encore présentes. Le groupe est _en cours de suppression_.
 - `dfh` : date de fin d'hébergement.
 
-- `rds` : pas transmis en session.
+- `rds` :
 - `nn qn vf qv`: nombres de notes actuel et maximum attribué par l'hébergeur, volume total actuel des fichiers des notes et maximum attribué par l'hébergeur.
 - `idh` : id du compte hébergeur (pas transmise aux sessions).
 - `imh` : indice `im` du membre dont le compte est hébergeur.
@@ -1018,6 +1029,7 @@ export class Groupes extends GenDoc {
 - `v` : 
 - `vcv` : version de la carte de visite du membre.
 
+- `rds`: 
 - `dpc` : date de premier contact (ou de première invitation s'il a été directement invité).
 - `ddi` : date de la dernière invitation (envoyée au membre, c'est à dire _votée_).
 - **dates de début de la première et fin de la dernière période...**
@@ -1032,12 +1044,14 @@ export class Groupes extends GenDoc {
 export class Membres extends GenDoc { 
   constructor() { super('membres') } 
 
-  static nouveau(idg, im, cvA, cleAG) {
+  static nouveau(idg, rds, im, cvA, cleAG) {
     return new Membres().init({
-      id: idg, ids: im, vcv: cvA.v, cvA: cvA, cleAG: cleAG,
+      id: idg, rds, ids: im, vcv: cvA.v, cvA: cvA, cleAG: cleAG,
       dpc: 0, ddi: 0, dac: 0, fac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
     })
   }
+
+  toShortRow () { return this.toRow() }
 }
 
 /* Chatgrs ******************************************************
@@ -1054,9 +1068,9 @@ export class Membres extends GenDoc {
 export class Chatgrs extends GenDoc { 
   constructor() { super('chatgrs') } 
 
-  static nouveau (idg) {
+  static nouveau (idg, rds) {
     return new Chatgrs().init({
-      id: idg, ids: 1, v: 1, items: []
+      id: idg, rds, ids: 1, v: 1, items: []
     })
   }
 

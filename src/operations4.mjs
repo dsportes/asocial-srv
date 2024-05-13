@@ -109,8 +109,9 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       }
     }
 
-    const sponsoring = new Sponsorings().nouveau(args)
-    const vsp = await this.getVAvGr(sponsoring.id, 'AjoutSponsoring-1')
+    const av = compile(await this.getRowAvatar(sponsoring.id, 'AjoutSponsoring-1'))
+    const sponsoring = Sponsorings.nouveau(args, av.rds)
+    const vsp = await this.getV(av)
     vsp.v++
     this.setV(vsp)
     sponsoring.v = vsp.v
@@ -139,7 +140,7 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
 
     const sp = compile(await this.getRowSponsoring(args.id, args.ids, 'ProlongerSponsoring'))
     if (sp.st === 0) {
-      const vsp = await this.getVAvGr(args.id, 'ProlongerSponsoring-2')
+      const vsp = await this.getV(sp)
       vsp.v++
       sp.v = vsp.v
       sp.dh = Date.now()
@@ -294,7 +295,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
     const vchI = await this.getV(avI, 'NouveauChat-3') // du sponsor
     vchI.v++
     this.setV(vchI)
-    const chI = new Chats().init({ 
+    const chI = Chats.nouveau({ 
       id: args.idI,
       ids: idsI,
       v: vchI.v,
@@ -305,14 +306,14 @@ operations.NouveauChat = class NouveauChat extends Operation {
       cleCKP: args.ch.ccK,
       cleEC: args.ch.cleE2C,
       items: [{a: 1, dh: this.dh, t: args.ch.txt}]
-    })
+    }, avI.rds)
     this.setRes('rowChat', this.insert(chI.toRow()))
     this.compta.ncPlus(1)
 
     const vchE = await this.getV(avE, 'NouveauChat-4')
     vchE.v++
     this.setV(vchE)
-    const chE = new Chats().init({
+    const chE = Chats.nouveau({
       id: args.idE,
       ids: idsE,
       v: vchE.v,
@@ -323,7 +324,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
       cleCKP: args.ch.ccP,
       cleEC: args.ch.cleE1C,
       items: [{a: 0, dh: this.dh, t: args.ch.txt}]
-    })
+    }, avE.rds)
     this.insert(chE.toRow())
   }
 }
@@ -921,10 +922,11 @@ operations.PlusTicket = class PlusTicket extends Operation {
     const rtk = await this.getRowTicket(idc, args.ids)
     if (rtk) throw new AppExc(F_SRV, 239)
 
-    const tk = Tickets.nouveau(this.id, args.ids, args.ma, args.refa || '')
+    const comptable = compile(await this.getRowAvatar(idc, 'PlusTicket-1'))
+
+    const tk = Tickets.nouveau(this.id, comptable.rds, args.ids, args.ma, args.refa || '')
     this.compta.plusTk(tk)
 
-    const comptable = compile(await this.getRowAvatar(idc, 'PlusTicket-1'))
     const version = await this.getV(comptable, 'PlusTicket-2')
     version.v++
     tk.id = idc
@@ -1198,11 +1200,11 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     this.insert(groupe.toRow())
     this.setNV(groupe)
     
-    const chatgr = Chatgrs.nouveau(args.idg)
+    const chatgr = Chatgrs.nouveau(args.idg, rds)
     this.insert(chatgr.toRow())
 
     const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauGroupe-1'))
-    const membre = Membres.nouveau(args.idg, 1, avatar.cvA, args.cleAG)
+    const membre = Membres.nouveau(args.idg, groupe.rds, 1, avatar.cvA, args.cleAG)
     membre.dpc = this.auj
     membre.dac = this.auj
     membre.dln = this.auj
@@ -1250,7 +1252,7 @@ operations.NouveauContact = class NouveauContact extends Operation {
     this.setV(vg)
   
     const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauContact-2'))
-    const membre = Membres.nouveau(args.idg, im, avatar.cvA, args.cleAG)
+    const membre = Membres.nouveau(args.idg, groupe.rds, im, avatar.cvA, args.cleAG)
     membre.dpc = this.auj
     membre.v = vg.v
     this.insert(membre.toRow())

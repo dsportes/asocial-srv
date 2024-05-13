@@ -82,7 +82,7 @@ export class SyncSession {
 
   setAboRds (s, dh) { // A chaque Sync
     this.dhping = dh
-    this.aboRds = new Set(s)
+    this.aboRds = s
   }
 
   /*

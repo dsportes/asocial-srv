@@ -1063,10 +1063,10 @@ export class Compteurs {
 
 /** DataSync ****************************************************/
 export class DataSync {
-  static vide = { vs: 0, vb: 0 }
-  static videg = { vs: 0, vb: 0, ms: false, ns: false, m: false, n:false } 
+  static vide = { rds: 0, vs: 0, vb: 0 }
+  static videg = { rds: 0, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false } 
 
-  static deserial (serial, decrypt, k) {
+  static deserial (serial) {
     const ds = new DataSync()
     const x = serial ? decode(serial) : {}
     ds.compte = x.compte || { ...DataSync.vide },
@@ -1074,31 +1074,36 @@ export class DataSync {
     if (x.avatars) x.avatars.forEach(t => ds.avatars.set(t.id, t))
     ds.groupes = new Map()
     if (x.groupes) x.groupes.forEach(t => ds.groupes.set(t.id, t))
-    if (decrypt) {
-      // Dans le serveur : secret est décrypté
-      const s = x.secret ? decode(decrypt(k, x.secret)) : {}
-      ds.rdsId = s.rdsId || {}
-      ds.idRds = {}
-      ds.rdsC = s.rdsC || 0
-      for (const rds in ds.rdsId) ds.idRds[ds.rdsId[rds]] = parseInt(rds)
-    } else ds.secret = x.secret || null
-    ds.tousRds = x.tousRds || []
     return ds
   }
 
-  serial (dh, crypt, k) {
+  serial () {
     const x = {
       compte: this.compte || { ...DataSync.vide },
       avatars: [],
-      groupes: [],
-      tousRds: this.tousRds || []
+      groupes: []
     }
     if (this.avatars) this.avatars.forEach(t => x.avatars.push(t))
     if (this.groupes) this.groupes.forEach(t => x.groupes.push(t))
-    /* Sur le serveur, rdsId est retransmis crypté, illisable en session
-    En session, rdsId est retransmis tel que reçu la dernière fois du serveur */
-    x.secret = crypt ? crypt(k, encode({ rdsId: this.rdsId, rdsC: this.rdsC})) : (this.secret || null)
     return new Uint8Array(encode(x))
+  }
+
+  idDeRds (rds) {
+    if (ID.rdsType(rds) === ID.RDSAVATAR) {
+      for(const [id, e] of this.avatars) if (rds === e.rds) return id
+    } else {
+      for(const [id, e] of this.groupes) if (rds === e.rds) return id
+    }
+    return 0
+  }
+
+  setLongsRds (ns) {
+    const s = new Set()
+    s.add(ns) // espaces
+    s.add(ID.long(this.compte.rds, ns)) // compte
+    if (this.avatars) this.avatars.forEach(t => s.add(ID.long(t.rds, ns))) // avatars
+    if (this.groupes) this.groupes.forEach(t => s.add(ID.long(t.rds, ns))) // groupes
+    return s
   }
 
   get estAJour() {

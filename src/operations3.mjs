@@ -264,11 +264,11 @@ operations.SyncSp = class SyncSp extends Operation {
     */
 
     /* Compti */
-    const compti = Comptis.nouveau(args.id)
+    const compti = Comptis.nouveau(args.id, this.compte.rds)
     this.setRes('rowCompti', this.insert(compti.toRow()))
 
     /* Invit */
-    const invit = Invits.nouveau(args.id)
+    const invit = Invits.nouveau(args.id, this.compte.rds)
     this.setRes('rowInvit', this.insert(invit.toRow()))
 
     /* Compta */
@@ -295,7 +295,7 @@ operations.SyncSp = class SyncSp extends Operation {
     ds.tousRds.push(ds.rdsC) // rds du compte
     ds.tousRds.push(this.ns) // espace
     // Sérialisation et retour de dataSync
-    this.setRes('dataSync', ds.serial(this.dh, this.crypt, this.db.appKey))
+    this.setRes('dataSync', ds.serial())
 
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
     if (pid) {
@@ -319,7 +319,7 @@ operations.SyncSp = class SyncSp extends Operation {
       */
       const idsI = this.idsChat(args.id, sp.id)
       const idsE = this.idsChat(sp.id, args.id)
-      const chI = new Chats().init({ // du sponsorisé
+      const chI = Chats.nouveau({ // du sponsorisé
         id: args.id,
         ids: idsI,
         v: 1,
@@ -330,14 +330,14 @@ operations.SyncSp = class SyncSp extends Operation {
         cleCKP: args.ch.ccK,
         cleEC: args.ch.cleE1C,
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
-      })
+      }, avatar.rds)
       this.setRes('rowChat', this.insert(chI.toRow()))
       this.compta.ncPlus(1)
 
       const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
       vchE.v++
       this.setV(vchE)
-      const chE = new Chats().init({
+      const chE = Chats.nouveau({
         id: sp.id,
         ids: idsE,
         v: vchE.v,
@@ -348,7 +348,7 @@ operations.SyncSp = class SyncSp extends Operation {
         cleCKP: args.ch.ccP,
         cleEC: args.ch.cleE2C,
         items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
-      })
+      }, avsponsor.rds)
       this.insert(chE.toRow())
     }
     const espace = compile(await this.getRowEspace(this.ns, 'SyncSp-es')) 
@@ -513,17 +513,15 @@ operations.Sync = class Sync extends Operation {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
       SINON chargement initial de puis 0 */
       for (const row of await this.db.scoll(this, 'membres', ida, x.ms ? x.vs : 0))
-        this.addRes('rowMembres', row)
+        this.addRes('rowMembres', compile(row).toShortRow())
       for (const row of await this.db.scoll(this, 'chatgrs', ida, x.ms ? x.vs : 0))
-        this.addRes('rowChatgrs', row)
+        this.addRes('rowChatgrs', compile(row).toShortRow())
     }
 
     /* SI la session avait des notes chargées, chargement incrémental depuis vs
     SINON chargement initial de puis 0 */
-    if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.ns ? x.vs : 0)) {
-      const note = compile(row)
-      this.addRes('rowNotes', note.toShortRow(this.id))
-    }
+    if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.ns ? x.vs : 0))
+      this.addRes('rowNotes', compile(row).toShortRow(this.id))
   }
   
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
@@ -531,27 +529,21 @@ operations.Sync = class Sync extends Operation {
     if (rav) this.addRes('rowAvatars', rav)
 
     for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
-      this.addRes('rowNotes', row)
+      this.addRes('rowNotes', compile(row).toShortRow())
     for (const row of await this.db.scoll(this, 'chats', ida, x.vs))
-      this.addRes('rowChats', row)
+      this.addRes('rowChats', compile(row).toShortRow())
     for (const row of await this.db.scoll(this, 'sponsorings', ida, x.vs))
-      this.addRes('rowSponsorings', row)
+      this.addRes('rowSponsorings', compile(row).toShortRow())
     if (ID.estComptable(this.id)) 
-      for (const row of await this.db.scoll(this, 'tickets', ida, x.vs)) {
-        const tk = compile(row)
-        this.addRes('rowTickets', tk.toShortRow())
-      }
+      for (const row of await this.db.scoll(this, 'tickets', ida, x.vs))
+        this.addRes('rowTickets', compile(row).toShortRow())
   }
 
   async setAv (ida, rds) {
     const x = this.ds.avatars.get(ida)
     if (x) {
       const version = rds ? await this.getV({ rds }) : null
-      if (!version || version.suppr) {
-        // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
-        delete this.idRds[ida]; delete this.rdsId[rds]
-        this.ds.avatars.delete(ida)
-      }
+      if (!version || version.suppr) this.ds.avatars.delete(ida) // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
       else x.vb = version.v
     }
   }
@@ -561,11 +553,8 @@ operations.Sync = class Sync extends Operation {
     const g = await this.getGr(idg)
     if (x) {
       const version = rds ? await this.getV({rds}) : null
-      if (!g || !version || version.suppr) {
-        // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
-        delete this.idRds[idg]; delete this.rdsId[rds]
-        this.ds.groupes.delete(idg)
-      } else {
+      if (!g || !version || version.suppr) this.ds.groupes.delete(idg) // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
+      else {
         x.vb = version.v
         // reset de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
         const sid = this.compte.idMbGr(idg)
@@ -584,22 +573,22 @@ operations.Sync = class Sync extends Operation {
     const srds = args.lrds ? new Set(args.lrds) : new Set()
 
     /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */
-    this.ds = DataSync.deserial(this.cnx ? null : args.dataSync, this.decrypt, this.db.appKey)
+    this.ds = DataSync.deserial(this.cnx ? null : args.dataSync)
 
     const vcpt = await this.getV(this.compte)
+    this.ds.compte.rds = this.compte.rds
     this.ds.compte.vb = vcpt.v
-    this.ds.rdsC = ID.long(this.compte.rds, this.ns)
 
     if (this.cnx || (this.ds.compte.vs < this.ds.compte.vb))
       this.setRes('rowCompte', this.compte.toShortRow())
     let rowCompti = Cache.aVersion('comptis', this.compte.id, vcpt.v) // déjà en cache ?
     if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
     if (this.cnx || (rowCompti.v > this.ds.compte.vs)) 
-      this.setRes('rowCompti', rowCompti)
+      this.setRes('rowCompti', compile(rowCompti).toShortRow())
     let rowInvit = Cache.aVersion('invits', this.compte.id, vcpt.v) // déjà en cache ?
     if (!rowInvit) rowInvit = await this.getRowCompti(this.compte.id)
     if (this.cnx || (rowInvit.v > this.ds.compte.vs)) 
-      this.setRes('rowInvit', rowInvit)
+      this.setRes('rowInvit', compile(rowInvit).toShortRow())
   
     /* Mise à niveau des listes avatars / groupes du dataSync
     en fonction des avatars et groupes listés dans mav/mpg du compte 
@@ -610,23 +599,23 @@ operations.Sync = class Sync extends Operation {
 
     if (this.cnx) {
       // Recherche des versions vb de TOUS les avatars requis
-      for(const [ida,] of this.ds.avatars)
-        await this.setAv(ida, this.ds.idRds[ida])
+      for(const [ida, dsav] of this.ds.avatars)
+        await this.setAv(ida, dsav.rds)
 
       // Recherche des versions vb de TOUS les groupes requis
-      for(const [idg,] of this.ds.groupes) 
-        await this.setGr(idg, this.ds.idRds[idg])
+      for(const [idg, dsgr] of this.ds.groupes) 
+        await this.setGr(idg, dsgr.rds)
         
     } else {
       /* Recherche des versions uniquement pour les avatars / groupes signalés 
       comme ayant (a priori) changé de version 
       OU ceux apparus / disparus détectés par la maj du périmètre vi-avant*/
       if (srds.size) for(const rds of srds) {
-        const id = this.ds.rdsId[rds]
+        const id = this.ds.idDeRds(rds)
         if (id) {
           if (ID.estAvatar(id)) await this.setAv(id, rds)
           if (ID.estGroupe(id)) await this.setGr(id, rds)
-        } else delete this.ds.rdsId[rds]
+        }
       }
     }
 
@@ -658,15 +647,11 @@ operations.Sync = class Sync extends Operation {
       }
     }
 
-    this.ds.tousRds.length = 0
-    for(const rdsx in this.ds.rdsId) this.ds.tousRds.push(parseInt(rdsx))
-    this.ds.tousRds.push(this.ds.rdsC) // rds du compte
-    this.ds.tousRds.push(this.ns) // espace
     // Sérialisation et retour de dataSync
-    this.setRes('dataSync', this.ds.serial(this.dh, this.crypt, this.db.appKey))
+    this.setRes('dataSync', this.ds.serial())
 
     // Mise à jour des abonnements aux versions
-    if (this.sync) this.sync.setAboRds(this.ds.tousRds, this.dh)
+    if (this.sync) this.sync.setAboRds(this.ds.setLongsRds(this.ns), this.dh)
   }
 }
 
@@ -744,11 +729,11 @@ operations.CreerEspace = class CreerEspace extends Operation {
       args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, args.cleEK, qvc, o, args.ck)
     
     /* Compti */
-    const compti = Comptis.nouveau(idComptable)
+    const compti = Comptis.nouveau(idComptable, this.compte.rds)
     this.insert(compti.toRow())
 
     /* Invit */
-    const invit = Invits.nouveau(idComptable)
+    const invit = Invits.nouveau(idComptable, this.compte.rds)
     this.insert(invit.toRow())
     
     /* Compta */
