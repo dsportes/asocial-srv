@@ -16,6 +16,8 @@ ne soit considérée comme obsolète */
 export const IDBOBS = 18 * 30
 export const IDBOBSGC = 19 * 30
 
+export const V99 = 99999999
+
 // Liste des statistiques mensuelles et délai / mois courant
 export const statistiques = { moisStat: 1, moisStatT: 3 }
 

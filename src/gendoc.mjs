@@ -1,6 +1,7 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, AppExc, d14 } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
+import { config } from './config.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 import { Compteurs, ID, AMJ, limitesjour, synthesesPartition } from './api.mjs'
 
@@ -466,7 +467,43 @@ export class Comptes extends GenDoc {
     return row
   }
 
-  static nouveau (id, hXR, hXC, cleKXC, privK, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
+  static nouveau (args, sp) {
+    const ns = ID.ns(args.id)
+    const r = {
+      id: args.id,
+      hxr: (ns * d14) + (args.hXR % d14),
+      hXC: args.hXC,
+      dlv: AMJ.max, 
+      cleKXC: args.cleKX, 
+      privK: args.privK,
+      clePK: args.clePK,
+      mav: {},
+      mpg: {}
+    }
+    if (sp) { // sponsorisé
+      if (sp.partitionId) {
+        r.clePA = args.clePA
+        r.idp = sp.partitionId
+        r.del = sp.del
+      } else {
+        r.idp = 0
+      }
+      r.qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
+    } else { // Comptable
+      r.cleEK = args.cleEK
+      r.clePA = args.clePA
+      r.idp = 1
+      r.del = true
+      const aco = config.allocComptable
+      r.qv = { qc: aco[0], qn: aco[1], qv: aco[2], pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
+      // args.ck: `{ cleP, code }` crypté par la clé K du comptable
+      r.tpk = [null, args.ck]
+    }
+    return new Comptes().init(r)
+  }
+
+  /*
+  static nouveau2 (id, hXR, hXC, cleKXC, privK, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
     const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
     const r = {
       _ins: true, _maj: true, id: id, v: 0, rds: ID.rds(ID.RDSCOMPTE),
@@ -476,9 +513,11 @@ export class Comptes extends GenDoc {
     if (cleEK) r.cleEK = cleEK
     r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
     if (o) { r.clePA = o.clePA; r.idp = o.idp; r.del = o.del }
-    if (tpk) r.tpk = [null, tpk]
+
+    if (tpk) r.tpk = [null, args.ck]
     return new Comptes().init(r)
   }
+  */
 
   ajoutAvatar (avatar, cleAK) {
     this.mav[ID.court(avatar.id)] = { rds: avatar.rds, cleAK: cleAK }
@@ -817,10 +856,21 @@ _data_:
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 
 
-  static nouveau (id, idc, rdsav, pub, privK, cvA) {
+  static nouveau (args, cvA) {
+    return new Avatars().init({ 
+      id: args.id,
+      pub: args.pub,
+      privK: args.privK,
+      cvA
+    })
+  }
+
+  /*
+  static nouveau2 (id, idc, rdsav, pub, privK, cvA) {
     cvA.v = 1
     return new Avatars().init({ id, idc: ID.court(idc), v: 1,vcv: 1, rds: rdsav, pub, privK, cvA })
   }
+  */
 
   toShortRow () { return this.toRow() }
 }

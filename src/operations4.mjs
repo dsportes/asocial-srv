@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile, Sponsorings, Chats, Partitions, Tickets, Avatars,
+import { compile, Sponsorings, Chats, Partitions, Tickets,
   Groupes, Membres, Chatgrs } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
@@ -1120,14 +1120,10 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     if (this.compte.mav[ID.court(args.id)]) return // création déjà faite pour le compte
-    let avatar = compile(await this.getRowAvatar(args.id))
-    if (avatar) throw new AppExc(F_SRV, 245)
+    const a = compile(await this.getRowAvatar(args.id))
+    if (a) throw new AppExc(F_SRV, 245)
 
-    const rdsav = ID.rds(ID.RDSAVATAR)
-    avatar = Avatars.nouveau(args.id, this.id, rdsav, args.pub, args.privK, args.cvA) 
-    this.setNV(avatar)
-    this.insert(avatar.toRow())
-    this.compte.ajoutAvatar(avatar, args.cleAK)
+    this.dop.nouvAV(this.compte, args, args.cvA)
   }
 }
 

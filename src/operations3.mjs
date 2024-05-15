@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
 
 import { Operation, assertKO, Cache, R } from './modele.mjs'
-import { compile, Espaces, Partitions, Syntheses, Comptes, Comptis, Invits, Avatars, Comptas, Chats } from './gendoc.mjs'
+import { compile, Espaces, Partitions, Syntheses, Comptis, Invits, Comptas, Chats } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -250,18 +250,25 @@ operations.SyncSp = class SyncSp extends Operation {
 
     // Création du nouveau compte
     const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
-    const rdsav = ID.rds(ID.RDSAVATAR)
     const qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
     const q = { qc: qv.qc, qn: qv.qn, qv: qv.qv, c: 0, n: 0, v: 0 } // partition
 
+    /*
+    const rdsav = ID.rds(ID.RDSAVATAR)
+
     const o = sp.partitionId ? { clePA: args.clePA, del: sp.del, idp: sp.partitionId } : null
-    // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
+    // args {id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
     this.compte = Comptes.nouveau(args.id, 
       (this.ns * d14) + (args.hXR % d14), 
       args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, null, sp.quotas, o)
+    */
+
+    this.compte = this.dop.nouvCO(args, sp)
     /* Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
       this.setRes('rowCompte', this.compte.toShortRow())
     */
+    const avatar = this.dop.nouvAV(this.compte, args)
+    this.setRes('rowAvatar', avatar.toShortRow())
 
     /* Compti */
     const compti = Comptis.nouveau(args.id, this.compte.rds)
@@ -276,17 +283,11 @@ operations.SyncSp = class SyncSp extends Operation {
     this.compta.solde = sp.don || 0
     this.compta.compile() // pour calculer c2m ...
 
-    /* Avatar  (id, rdsav, pub, privK, cvA) */
-    const avatar = Avatars.nouveau(args.id, args.id, rdsav, args.pub, args.privK, args.cvA)
-    this.setNV(avatar)
-    this.insert(avatar.toRow()) 
-    this.setRes('rowAvatar', avatar.toShortRow())
-
     // création du dataSync
     const ds = DataSync.deserial()
     ds.compte.vb = 1
     ds.compte.rds = this.compte.rds
-    const a = { id: avatar.id, rds: rdsav, vs: 0, vb: avatar.v }
+    const a = { id: avatar.id, rds: avatar.rds, vs: 0, vb: avatar.v }
     ds.avatars.set(a.id, a)
 
     // Sérialisation et retour de dataSync
@@ -704,10 +705,8 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const idComptable = ID.duComptable(args.ns)
     const aco = config.allocComptable
     const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
-    const qvc = { qc: aco[0], qn: aco[1], qv: aco[2] }
     const apr = config.allocPrimitive
     const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
-    const rdsav = ID.rds(ID.RDSAVATAR)
 
     /* Espace */
     const cleES = crypterSrv(this.db.appKey, args.cleE)
@@ -720,12 +719,18 @@ operations.CreerEspace = class CreerEspace extends Operation {
     this.synthese = Syntheses.nouveau(args.ns)
 
     /* Compte Comptable */
+    this.compte = this.dop.nouvCO(args)
+    const cvA = { id: ID.court(idComptable) }
+    this.dop.nouvAV(this.compte, args, cvA)
+
+    /*
     const o = { clePA: args.clePA, del: true, idp: 1 }
     // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
     this.compte = Comptes.nouveau(idComptable, 
       (args.ns * d14) + (args.hXR % d14), 
       args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, args.cleEK, qvc, o, args.ck)
-    
+    */
+
     /* Compti */
     const compti = Comptis.nouveau(idComptable, this.compte.rds)
     this.insert(compti.toRow())
@@ -737,12 +742,6 @@ operations.CreerEspace = class CreerEspace extends Operation {
     /* Compta */
     this.compta = Comptas.nouveau(idComptable, qv).compile()
     partition.ajoutCompte(this.compta, args.cleAP, true)
-
-    /* Avatar  (id, rdsav, pub, privK, cvA) */
-    const cvA = { id: ID.court(idComptable) }
-    const avatar = Avatars.nouveau(idComptable, idComptable, rdsav, args.pub, args.privK, cvA)
-    this.setNV(avatar)
-    this.insert(avatar.toRow())
   }
 }
 

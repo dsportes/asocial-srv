@@ -1,11 +1,11 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
-  UNITEN, UNITEV, d14, edvol, hash } from './api.mjs'
+  UNITEN, UNITEV, d14, edvol, hash, V99 } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8, decrypterSrv, crypterSrv } from './util.mjs'
-import { GenDoc, compile, Versions } from './gendoc.mjs'
+import { GenDoc, compile, Versions, Comptes, Avatars } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -185,6 +185,129 @@ export class Cache {
 
 }
 
+/** class Dop : documents d'une opération **************************
+
+*/
+class Dop {
+  constructor (op) {
+    this.op = op
+    
+    this.comptes = new Map()
+    this.versions = new Map()
+    this.avatars = new Map()
+    this.comptas = new Map()
+
+    this.partitions = new Map()
+    
+    this.synthese = null
+  }
+
+  async getES (org) {
+    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
+    this.espace = await Cache.getEspaceOrg(this.op, org, true)
+    if (!this.espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+    return this.espace
+  }
+
+  nouvCO (args, sp) {
+    const c = Comptes.nouveau(args, sp)
+    c.rds = ID.rds(ID.RDSCOMPTE)
+    c.v = 1
+    c._maj = true
+    this.comptes.set(c.id, c)
+    const version = new Versions()
+    version.v = 1
+    const lrds = ID.long(c.rds, this.op.ns)
+    version.id = lrds
+    this.versions.set(lrds, version)
+    return c
+  } 
+
+  nouvAV (compte, args, cvA) {
+    const a = Avatars.nouveau(args, cvA)
+    a.rds = ID.rds(ID.RDSAVATAR)
+    a.v = 1
+    a.vcv = 1
+    a.idc = ID.court(compte.id)
+    a._maj = true
+    compte.ajoutAvatar(a, args.cleAK)
+    this.avatars.set(a.id, a)
+    const version = new Versions()
+    version.v = 1
+    const lrds = ID.long(a.rds, this.op.ns)
+    version.id = lrds
+    this.versions.set(lrds, version)
+    return a
+  }
+
+  async getCO (id, hXR, hXC) {
+    let c
+    if (id) c = this.comptes.get(id)
+    if (c) return c
+    if (hXR) {
+      c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
+      if (!c || c.hXC !== hXC) { await sleep(3000); throw new AppExc(F_SRV, 998) }
+    } else c = compile(await this.op.db.getRowCompte(id))
+    if (!c || c.v === V99) throw new AppExc(F_SRV, 501)
+    await this.getV(c.rds)
+    this.comptes.set(id, c)
+    return c
+  }
+
+  async getV (rds) {
+    const lrds = ID.long(rds, this.op.ns)
+    let v = this.versions.get(lrds)
+    if (v) return v
+    if (!v) v = compile(await this.getRowVersion(lrds))
+    if (!v || v.suppr) throw new AppExc(F_SRV, 500 + ID.rdsType(rds))
+    v.v++
+    this.versions.set(lrds, v)
+    return v
+  }
+
+  async getCA (id) {
+    let c = this.comptas.get(id)
+    if (c) return c
+    c = compile(await this.getRowCompta(this.id, 'auth-compta'))
+    this.comptas.set(c, id)
+    return c
+  }
+
+  setV (version) {
+    const r = version.toRow()
+    if (version.v === 1) this.insert(r); else this.update(r)
+    this.versions.push(r)
+    return version
+  }
+
+  setNV (doc) {
+    const version = new Versions()
+    version.v = doc.v
+    if (doc._nom === 'espaces') {
+      version.id = doc.id
+      version.notif = doc.notifE || null
+    } else version.id = ID.long(doc.rds, ID.ns(doc.id))
+    this.setV(version)
+  }
+
+  async maj () {
+    for(const a of this.avatars) {
+      if (a._maj) {
+        if (a.v === 1) this.op.insert(a.toRow()); else this.op.update(a.toRow())
+        const v = await this.getV(a.rds)
+        if (!v._maj) {
+          const r = v.toRow()
+          if (v.v === 1) this.insert(r); else this.update(r)
+          this.versions.push(r)
+          v._maj = true
+        }
+      }
+    }
+
+  }
+
+}
+
 /** Operation *****************************************************/
 export class Operation {
   /* Initialisé APRES constructor() dans l'invocation d'une opération
@@ -358,13 +481,13 @@ export class Operation {
       await sleep(3000)
       throw new AppExc(F_SRV, 205) 
     } 
-    let authData = null
+    this.authData = null
     this.estAdmin = false
     if (t) try { 
-      authData = decode(b64ToU8(t)) 
-      if (authData.shax) {
+      this.authData = decode(b64ToU8(t)) 
+      if (this.authData.shax) {
         try {
-          const shax64 = Buffer.from(authData.shax).toString('base64')
+          const shax64 = Buffer.from(this.authData.shax).toString('base64')
           if (app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
         } catch (e) { /* */ }
       }
@@ -377,17 +500,18 @@ export class Operation {
 
     if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
 
-    if (authData && authData.sessionId) {
+    if (this.authData && this.authData.sessionId) {
       /* Récupérer la session WS afin de pouvoir lui transmettre les évolutions d'abonnements */
-      this.sync = SyncSession.getSession(authData.sessionId, this.dh)
+      this.sync = SyncSession.getSession(this.authData.sessionId, this.dh)
       if (!this.sync) throw new AppExc(E_SRV, 4)
     }
 
     if (this.authMode === 0) return
 
-    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    this.espace = await Cache.getEspaceOrg(this, authData.org, true)
-    if (!this.espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+    this.dop = new Dop(this)
+
+    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */ 
+    this.espace = await this.dop.getES(this.authData.org)
     this.ns = this.espace.id
     const n = this.espace.notifE
     if (n) {
@@ -401,12 +525,7 @@ export class Operation {
     }
     
     /* Compte */
-    const hXR = (this.espace.id * d14) + authData.hXR
-    const rowCompte = await this.db.getCompteHXR(this, hXR)
-    if (!rowCompte) { await sleep(3000); throw new AppExc(F_SRV, 998) }
-    this.compte = compile(rowCompte)
-    if (this.compte.hXC !== authData.hXC) { await sleep(3000);  throw new AppExc(F_SRV, 998) }
-    if (this.compte.dlv < this.auj)  { await sleep(3000); throw new AppExc(F_SRV, 998) }
+    this.compte = await this.dop.getCO(0, this.authData.hXR, this.authData.hXC)
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp
@@ -444,7 +563,7 @@ export class Operation {
     }
 
     /* Compta : requis en fin d'opération, autant le charger maintenant */
-    this.compta = compile(await this.getRowCompta(this.id, 'auth-compta'))
+    this.compta = await this.dop.getCA(this.id)
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
