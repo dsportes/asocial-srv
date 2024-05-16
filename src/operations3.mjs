@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
 
 import { Operation, assertKO, Cache, R } from './modele.mjs'
-import { compile, Espaces, Partitions, Syntheses, Comptis, Invits, Comptas, Chats } from './gendoc.mjs'
+import { compile, Chats } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -248,45 +248,23 @@ operations.SyncSp = class SyncSp extends Operation {
         throw new AppExc(F_SRV, 101, [n.texte])
     }
 
-    // Création du nouveau compte
-    const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
-    const qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
-    const q = { qc: qv.qc, qn: qv.qn, qv: qv.qv, c: 0, n: 0, v: 0 } // partition
+    // créé compte compta compti invit
+    const {compte, compta, compti, invit} = this.gd.nouvCO(args, sp, sp.quotas, sp.don)
+    // Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
+    this.compta = compta
+    this.setRes('rowCompti', compti.toShortRow())
+    this.setRes('rowInvit', invit.toShortRow())
 
-    /*
-    const rdsav = ID.rds(ID.RDSAVATAR)
-
-    const o = sp.partitionId ? { clePA: args.clePA, del: sp.del, idp: sp.partitionId } : null
-    // args {id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
-    this.compte = Comptes.nouveau(args.id, 
-      (this.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, null, sp.quotas, o)
-    */
-
-    this.compte = this.dop.nouvCO(args, sp)
-    /* Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
-      this.setRes('rowCompte', this.compte.toShortRow())
-    */
-    const avatar = this.dop.nouvAV(this.compte, args)
+    const avatar = this.gd.nouvAV(this.compte, args)
     this.setRes('rowAvatar', avatar.toShortRow())
 
-    /* Compti */
-    const compti = Comptis.nouveau(args.id, this.compte.rds)
-    this.setRes('rowCompti', this.insert(compti.toRow()))
-
-    /* Invit */
-    const invit = Invits.nouveau(args.id, this.compte.rds)
-    this.setRes('rowInvit', this.insert(invit.toRow()))
-
-    /* Compta */
-    this.compta = Comptas.nouveau(args.id, qv)
-    this.compta.solde = sp.don || 0
-    this.compta.compile() // pour calculer c2m ...
+    const espace = this.gr.getES(this.ns)
+    this.setRes('rowEspace', espace.toShortRow())
 
     // création du dataSync
     const ds = DataSync.deserial()
     ds.compte.vb = 1
-    ds.compte.rds = this.compte.rds
+    ds.compte.rds = compte.rds
     const a = { id: avatar.id, rds: avatar.rds, vs: 0, vb: avatar.v }
     ds.avatars.set(a.id, a)
 
@@ -294,16 +272,15 @@ operations.SyncSp = class SyncSp extends Operation {
     this.setRes('dataSync', ds.serial())
 
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
+    const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
     if (pid) {
-      if (!this.partitions) this.partitions = new Map()
-      const partition =  compile(await this.getRowPartition(pid), 'SyncSp-4')
-      this.partitions.set(pid, partition)
+      const partition = this.gr.getPA(pid)
       const s = partition.getSynthese()
       // restants à attribuer suffisant pour satisfaire les quotas ?
+      const q = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv }
       if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.qv - s.qt.qv))
         throw new AppExc(F_SRV, 211, [pid, args.id])
-      // (compta, cleAP, del)
-      partition.ajoutCompte(this.compta, args.cleAP, sp.del)
+      partition.ajoutCompte(compta, args.cleAP, sp.del)
     }
     
     /* Création chat */
@@ -347,8 +324,6 @@ operations.SyncSp = class SyncSp extends Operation {
       }, avsponsor.rds)
       this.insert(chE.toRow())
     }
-    const espace = compile(await this.getRowEspace(this.ns, 'SyncSp-es')) 
-    this.setRes('rowEspace', espace.toShortRow())
 
     // Mise à jour des abonnements aux versions
     if (this.sync) this.sync.setAboRds(ds.setLongsRds(this.ns), this.dh)
@@ -702,46 +677,25 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if (await this.getRowEspace(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
     if (await this.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
-    const idComptable = ID.duComptable(args.ns)
-    const aco = config.allocComptable
-    const qv = { qc: aco[0], qn: aco[1], qv: aco[2], nn: 0, nc: 0, ng: 0, v: 0 }
-    const apr = config.allocPrimitive
-    const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
+    args.id = ID.duComptable(args.ns)
 
     /* Espace */
     const cleES = crypterSrv(this.db.appKey, args.cleE)
-    this.espace = Espaces.nouveau(args.ns, args.org, this.auj, cleES)
+    // this.espace = Espaces.nouveau(args.ns, args.org, this.auj, cleES)
+    this.gd.nouvES(args.ns, args.org, cleES)
 
-    /* Partition et Synthese */
-    if (!this.partitions) this.partitions = new Map()
-    const partition = Partitions.nouveau(args.ns, 1, qc)
-    this.partitions.set(partition.id, partition)
-    this.synthese = Syntheses.nouveau(args.ns)
+    const apr = config.allocPrimitive
+    const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
+    const partition = this.gd.nouvPA(args.ns, 1, qc)
 
     /* Compte Comptable */
-    this.compte = this.dop.nouvCO(args)
-    const cvA = { id: ID.court(idComptable) }
-    this.dop.nouvAV(this.compte, args, cvA)
-
-    /*
-    const o = { clePA: args.clePA, del: true, idp: 1 }
-    // id, hXR, hXC, cleKXC, rdsav, cleAK, clePK, qvc, o, tpk
-    this.compte = Comptes.nouveau(idComptable, 
-      (args.ns * d14) + (args.hXR % d14), 
-      args.hXC, args.cleKXC, args.privK, rdsav, args.cleAK, args.clePK, args.cleEK, qvc, o, args.ck)
-    */
-
-    /* Compti */
-    const compti = Comptis.nouveau(idComptable, this.compte.rds)
-    this.insert(compti.toRow())
-
-    /* Invit */
-    const invit = Invits.nouveau(idComptable, this.compte.rds)
-    this.insert(invit.toRow())
-    
-    /* Compta */
-    this.compta = Comptas.nouveau(idComptable, qv).compile()
-    partition.ajoutCompte(this.compta, args.cleAP, true)
+    const aco = config.allocComptable
+    const quotas = { qc: aco[0], qn: aco[1], qv: aco[2] }
+    // eslint-disable-next-line no-unused-vars
+    const {compte, compta, compti, invit} = this.gd.nouvCO(args, null, quotas, 0)
+    partition.ajoutCompte(compta, args.cleAP, true)
+    const cvA = { id: args.id }
+    this.gd.nouvAV(this.compte, args, cvA)
   }
 }
 

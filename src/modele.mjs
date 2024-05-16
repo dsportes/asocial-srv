@@ -5,7 +5,8 @@ import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8, decrypterSrv, crypterSrv } from './util.mjs'
-import { GenDoc, compile, Versions, Comptes, Avatars } from './gendoc.mjs'
+import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, Chatgrs,
+  Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -185,21 +186,42 @@ export class Cache {
 
 }
 
-/** class Dop : documents d'une opération **************************
+/** class GD : gestionnaires des documents d'une opération **************************
 
 */
-class Dop {
+class GD {
   constructor (op) {
     this.op = op
-    
-    this.comptes = new Map()
-    this.versions = new Map()
-    this.avatars = new Map()
-    this.comptas = new Map()
 
+    this.comptes = new Map()
+    this.comptis = new Map()
+    this.invits = new Map()
+
+    this.avatars = new Map()
+    this.groupes = new Map()
+    this.sdocs = new Map()
+    this.versions = new Map()
+
+    this.comptas = new Map()
     this.partitions = new Map()
     
-    this.synthese = null
+  }
+
+  /* Création conjointe de espace et synthese */
+  nouvES (ns, org, cleES) {
+    const e = Espaces.nouveau(ns, org, this.op.auj, cleES)
+    e.v = 0
+    e._maj = true
+    const version = new Versions()
+    version.v = 1
+    version.id = ns
+    this.versions.set(ns, version)
+    this.op.espace = e
+    this.op.ns = ns
+    const s = Syntheses.nouveau(ns)
+    s.v = 0
+    this.op.synthese = s
+    return e
   }
 
   async getES (org) {
@@ -209,7 +231,26 @@ class Dop {
     return this.espace
   }
 
-  nouvCO (args, sp) {
+  /* Nouvelle partition de l'espace courant. Comptable est le compte courant */
+  nouvPA (np, qc, itemK) {
+    const p = Partitions.nouveau(this.op.ns, np, qc)
+    p.v = 1
+    p._maj = true
+    this.partitions.set(p.id, p)
+    this.espace.setPartition(np)
+    this.compte.ajoutPartition(itemK)
+    return p
+  }
+
+  async getPA (idp) {
+    let p = this.partitions.get(idp)
+    if (p) return p
+    p = compile(await this.op.getRowPartition(idp, 'getPA'))
+    this.partitions.set(idp, p)
+    return p
+  }
+
+  nouvCO (args, sp, quotas, don) {
     const c = Comptes.nouveau(args, sp)
     c.rds = ID.rds(ID.RDSCOMPTE)
     c.v = 1
@@ -220,8 +261,54 @@ class Dop {
     const lrds = ID.long(c.rds, this.op.ns)
     version.id = lrds
     this.versions.set(lrds, version)
+    const compta = Comptas.nouveau(c.id, quotas, don || 0)
+    this.comptas.set(c.id, compta)
+    const compti = Comptis.nouveau(c.id)
+    compti.v = 1
+    compti.rds = c.rds
+    this.comptis.set(compti.id, compti)
+    const invit = Invits.nouveau(c.id)
+    invit.v = 1
+    invit.rds = c.rds
+    this.invits.set(invit.id, invit)
+    return { compte:c, compta: compta, compti: compti, invit: invit }
+  }
+
+  async getCO (id, nex, hXR, hXC) {
+    let c
+    if (id) c = this.comptes.get(id)
+    if (c) return c
+    if (hXR) {
+      c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
+      if (!c || c.hXC !== hXC) { await sleep(3000); throw new AppExc(F_SRV, 998) }
+    } else c = compile(await this.op.getRowCompte(id))
+    if (!c || c.v === V99) throw new AppExc(F_SRV, nex || 501)
+    await this.getV(c.rds, nex || 501)
+    this.comptes.set(id, c)
     return c
-  } 
+  }
+
+  async getCI (id, nex) {
+    let c
+    if (id) c = this.comptis.get(id)
+    if (c) return c
+    c = compile(await this.op.getRowCompti(id))
+    if (!c) throw new AppExc(F_SRV, nex || 501)
+    await this.getV(c.rds, nex || 501)
+    this.comptis.set(id, c)
+    return c
+  }
+
+  async getIN (id, nex) {
+    let c
+    if (id) c = this.invits.get(id)
+    if (c) return c
+    c = compile(await this.op.getRowInvit(id))
+    if (!c) throw new AppExc(F_SRV, nex || 501)
+    await this.getV(c.rds, nex || 501)
+    this.invits.set(id, c)
+    return c
+  }
 
   nouvAV (compte, args, cvA) {
     const a = Avatars.nouveau(args, cvA)
@@ -240,26 +327,83 @@ class Dop {
     return a
   }
 
-  async getCO (id, hXR, hXC) {
-    let c
-    if (id) c = this.comptes.get(id)
-    if (c) return c
-    if (hXR) {
-      c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
-      if (!c || c.hXC !== hXC) { await sleep(3000); throw new AppExc(F_SRV, 998) }
-    } else c = compile(await this.op.db.getRowCompte(id))
-    if (!c || c.v === V99) throw new AppExc(F_SRV, 501)
-    await this.getV(c.rds)
-    this.comptes.set(id, c)
-    return c
+  async getAV(id, nex) {
+    let a = this.avatars.get(id)
+    if (a) return a
+    a = compile(await this.op.getRowAvatar(id))
+    if (!a || a.v === V99) throw new AppExc(F_SRV, nex || 502)
+    await this.getV(a.rds, nex || 502)
+    this.avatars.set(id, a)
+    return a
   }
 
-  async getV (rds) {
+  nouvGR (compte, args) {
+    const g = Groupes.nouveau(args)
+    g.rds = ID.rds(ID.RDSGROUPE)
+    g.v = 1
+    g.idh = ID.court(compte.id)
+    g._maj = true
+    compte.ajoutGroupe(g.id, args.ida, args.cleGK, g.rds)
+    this.groupes.set(g.id, g)
+    const ch = Chatgrs.nouveau(g.id)
+    ch.v = 1
+    ch.rds = g.rds
+    ch._maj = true
+    this.sg.set(g.id + '/' + 1, ch)
+    const version = new Versions()
+    version.v = 1
+    const lrds = ID.long(g.rds, this.op.ns)
+    version.id = lrds
+    this.versions.set(lrds, version)
+    return g
+  }
+
+  async getGR (id, nex) {
+    let g = this.avatars.get(id)
+    if (g) return g
+    g = compile(await this.op.getRowGroupe(id))
+    if (!g || g.v === V99) throw new AppExc(F_SRV, nex || 503)
+    await this.getV(g.rds, nex || 503)
+    this.groupes.set(id, g)
+    return g
+  }
+
+  async getCGR (id, nex) {
+    let d = this.sg.get(id)
+    if (d) return d
+    d = compile(await this.op.getRowChatgr(id))
+    if (!d) throw new AppExc(F_SRV, nex || 503)
+    await this.getV(d.rds, nex || 503)
+    this.sdocs.set(id, d)
+    return d
+  }
+
+  async nouvMBR (groupe, im, cvA, cleAG) {
+    const version = await this.getV(groupe.rds, 503)
+    const m = Membres.nouveau(groupe.id, im, cvA, cleAG)
+    m.rds = groupe.rds
+    m.v = version.v
+    m._maj = true
+    this.sdocs.set(groupe.id + '/' + im, m)
+    return m
+  }
+
+  async getMBR (id, im, nex) {
+    let d = this.sg.get(id + '/' + im)
+    if (d) return d
+    d = compile(await this.op.getRowMembre(id, im))
+    if (!d) throw new AppExc(F_SRV, nex || 503)
+    await this.getV(d.rds, nex || 503)
+    this.sdocs.set(id + '/' + im, d)
+    return d
+  }
+
+  async getV (rds, nex) {
     const lrds = ID.long(rds, this.op.ns)
     let v = this.versions.get(lrds)
     if (v) return v
-    if (!v) v = compile(await this.getRowVersion(lrds))
-    if (!v || v.suppr) throw new AppExc(F_SRV, 500 + ID.rdsType(rds))
+    if (!v) v = compile(await this.op.getRowVersion(lrds))
+    if (!v || v.suppr) throw new AppExc(F_SRV, nex || (500 + ID.rdsType(rds) - 6))
     v.v++
     this.versions.set(lrds, v)
     return v
@@ -268,11 +412,12 @@ class Dop {
   async getCA (id) {
     let c = this.comptas.get(id)
     if (c) return c
-    c = compile(await this.getRowCompta(this.id, 'auth-compta'))
+    c = compile(await this.op.getRowCompta(this.id, 'auth-compta'))
     this.comptas.set(c, id)
     return c
   }
 
+  /*
   setV (version) {
     const r = version.toRow()
     if (version.v === 1) this.insert(r); else this.update(r)
@@ -289,20 +434,77 @@ class Dop {
     } else version.id = ID.long(doc.rds, ID.ns(doc.id))
     this.setV(version)
   }
+  */
 
-  async maj () {
-    for(const a of this.avatars) {
-      if (a._maj) {
-        if (a.v === 1) this.op.insert(a.toRow()); else this.op.update(a.toRow())
-        const v = await this.getV(a.rds)
-        if (!v._maj) {
-          const r = v.toRow()
-          if (v.v === 1) this.insert(r); else this.update(r)
-          this.versions.push(r)
-          v._maj = true
-        }
+  calculDlv (compte, comptaNbj) {
+    let dlv
+    if (ID.estComptable(compte.id)) dlv = AMJ.max
+    else {
+      if (compte.idp) // Compte O
+        dlv = this.dlvmaxO
+      else { // Compte A
+        const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, comptaNbj))
+        dlv = this.dlvmax > d ? d : this.dlvmax
       }
     }
+    let diff1 = AMJ.diff(dlv, compte.dlv); if (diff1 < 0) diff1 = -diff1
+    if (diff1) {
+      /* Pour éviter des modifications mineures sur comptes, on ne met à jour la dlv que :
+      - si elle est dans moins de 20 jours
+      - si elle diffère de l'actuelle de plus de 10 jours
+      */
+      if (AMJ.diff(dlv, this.auj) < 20 || diff1 > 10) {
+        compte.dlv = dlv
+        compte._maj = true
+      }
+    }
+  }
+
+  async majdoc (d) {
+    if (d._maj) {
+      if (d.v === 1) this.op.insert(d.toRow()); else this.op.update(d.toRow())
+      const v = await this.getV(d.rds)
+      if (!v._maj) {
+        const r = v.toRow()
+        if (v.v === 1) this.insert(r); else this.update(r)
+        this.op.versions.push(r)
+        v._maj = true
+      }
+    }
+  }
+
+  async majCompta (compta) { // ET report dans compte -> partition
+    if (compta._maj) {
+      compta.v++
+      const compte = this.getCO(d.id)
+      compte.reportDeCompta(compta, this)
+      if (compta.v === 1) this.op.insert(compta.toRow()); else this.op.update(compta.toRow())
+    }
+  }
+
+  async maj () {
+    for(const [,d] of this.avatars) await this.majdoc(d)
+    for(const [,d] of this.groupes) await this.majdoc(d)
+    for(const [,d] of this.sdocs) await this.majdoc(d)
+    for(const [,d] of this.comptis) await this.majdoc(d)
+    for(const [,d] of this.invits) await this.majdoc(d)
+    
+    const e = this.op.espace
+    if (e && e._maj) {
+      e.v++
+      if (e.v === 1) this.insert(e.toRow()); else this.update(e.toRow())
+    }
+    // DLV maximale : N mois depuis aujourd'hui
+    this.dlvmax = !e ? 0 : (AMJ.djMois(AMJ.amjUtcPlusNbj(this.op.auj, e.nbmi * 30)))
+    // DLV maximale pour les comptes 0: dlvmax OU dlv de l'espace si plus proche
+    this.dlvmaxO = !e ? 0 :(e.dlvat && (this.dlvmax > e.dlvat) ? e.dlvat : this.dlvmax)
+
+    // comptas SAUF celle du compte
+    for(const [id, d] of this.comptas) 
+      if (id !== this.op.id) await this.majCompta(d)
+
+
+    // compta compte partition compta synthese
 
   }
 
@@ -326,6 +528,7 @@ export class Operation {
 
   /* Exécution de l'opération */
   async run () {
+    this.gd = new GD(this)
     await this.db.doTransaction(this) // Fait un appel à transac
 
     /* Envoi en cache des objets majeurs mis à jour / supprimés */  
@@ -508,10 +711,8 @@ export class Operation {
 
     if (this.authMode === 0) return
 
-    this.dop = new Dop(this)
-
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */ 
-    this.espace = await this.dop.getES(this.authData.org)
+    this.espace = await this.gd.getES(this.authData.org)
     this.ns = this.espace.id
     const n = this.espace.notifE
     if (n) {
@@ -525,7 +726,7 @@ export class Operation {
     }
     
     /* Compte */
-    this.compte = await this.dop.getCO(0, this.authData.hXR, this.authData.hXC)
+    this.compte = await this.gd.getCO(0, this.authData.hXR, this.authData.hXC)
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp
@@ -563,7 +764,7 @@ export class Operation {
     }
 
     /* Compta : requis en fin d'opération, autant le charger maintenant */
-    this.compta = await this.dop.getCA(this.id)
+    this.compta = await this.gd.getCA(this.id)
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/

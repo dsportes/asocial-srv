@@ -4,8 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile, Sponsorings, Chats, Partitions, Tickets,
-  Groupes, Membres, Chatgrs } from './gendoc.mjs'
+import { compile, Sponsorings, Chats, Tickets } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -703,15 +702,7 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
-    const np = this.compte.tpk.length
-    if (np !== args.n) throw new AppExc(F_SRV, 228)
-    this.compte.tpk.push(args.itemK)
-    this.compte._maj = true
-    if (!this.partitions) this.partitions = new Map()
-    const partition = Partitions.nouveau(this.ns, np, args.quotas)
-    this.partitions.set(partition.id, partition)
-    this.espace = compile (await this.getRowEspace(this.ns, 'NouvellePartition-1'))
-    this.espace.setPartition(np)
+    this.gd.nouvPA(args.n, args.qc, args.itemK)
   }
 }
 
@@ -725,9 +716,7 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
-    this.partitions = new Map()
-    const partition = compile(await this.getRowPartition(args.idp, 'SetQuotasPart-1'))
-    this.partitions.set(args.idp, partition)
+    const partition = await this.gd.getPA(args.idp)
     partition.setQuotas(args.quotas)
   }
 }
@@ -1123,7 +1112,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     const a = compile(await this.getRowAvatar(args.id))
     if (a) throw new AppExc(F_SRV, 245)
 
-    this.dop.nouvAV(this.compte, args, args.cvA)
+    this.gd.nouvAV(this.compte, args, args.cvA)
   }
 }
 
@@ -1190,26 +1179,17 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     const rg = await this.getRowGroupe(args.idg)
     if (rg) throw new AppExc(F_SRV, 246)
 
-    const rds = ID.rds(ID.RDSGROUPE)
-    const groupe = Groupes.nouveau (args.idg, args.ida, this.id, rds, 
-      args.quotas, args.msu, args.cvG)
-    this.insert(groupe.toRow())
-    this.setNV(groupe)
-    
-    const chatgr = Chatgrs.nouveau(args.idg, rds)
-    this.insert(chatgr.toRow())
+    const avatar = await this.gd.getAV(args.ida, 502)
 
-    const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauGroupe-1'))
-    const membre = Membres.nouveau(args.idg, groupe.rds, 1, avatar.cvA, args.cleAG)
+    // const groupe = Groupes.nouveau (args.idg, args.ida, this.id, rds, args.quotas, args.msu, args.cvG)
+    const groupe = this.gd.nouvGR(this.compte, args)
+    // const membre = Membres.nouveau(args.idg, groupe.rds, 1, avatar.cvA, args.cleAG)
+    const membre = this.gd.nouvMBR(groupe, 1, avatar.cvA, args.cleAG)
     membre.dpc = this.auj
     membre.dac = this.auj
     membre.dln = this.auj
     membre.den = this.auj
     membre.dam = this.auj
-    membre.v = 1
-    this.insert(membre.toRow())
-
-    this.compte.ajoutGroupe(args.idg, args.ida, args.cleGK, rds)
 
     this.compta.ngPlus(1)
   }
@@ -1221,12 +1201,18 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 - ida : de l'avatar contact
 - cleAG : clé A du contact cryptée par la clé G du groupe
 Retour:
+EXC: 
+- 503: groupe disparu
+- 502: avatar disparu
 */
 operations.NouveauContact = class NouveauContact extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const groupe = compile(await this.getRowGroupe(args.idg, 'NouveauContact-1'))
+    const groupe = this.gd.getGR(args.idg, 503)
+    const avatar = await this.gd.getAV(args.ida, 502)
+
+    // const groupe = compile(await this.getRowGroupe(args.idg, 'NouveauContact-1'))
     let ok = false
     for(const x in this.compte.mav) {
       const idav = ID.long(parseInt(x), this.ns)
@@ -1240,18 +1226,9 @@ operations.NouveauContact = class NouveauContact extends Operation {
     if (groupe.lnc.indexOf(idac) !== -1) throw new AppExc(F_SRV, 260)
     if (groupe.lng.indexOf(idac) !== -1) throw new AppExc(F_SRV, 261)
     
-    const vg = await this.getV(groupe)
-    vg.v++
-    groupe.v = vg.v
-    const im = groupe.nvContact(args.ida)
-    this.update(groupe.toRow())
-    this.setV(vg)
-  
-    const avatar = compile(await this.getRowAvatar(args.ida, 'NouveauContact-2'))
-    const membre = Membres.nouveau(args.idg, groupe.rds, im, avatar.cvA, args.cleAG)
+    const im = groupe.nvContact(args.ida)  
+    const membre = this.gd.nouvMBR(groupe, im, avatar.cvA, args.cleAG)
     membre.dpc = this.auj
-    membre.v = vg.v
-    this.insert(membre.toRow())
   }
 }
 

@@ -2,7 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, AppExc, d14 } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { config } from './config.mjs'
-import { decrypterSrv, crypterSrv } from './util.mjs'
+import { decrypterSrv, crypterSrv, eqU8 } from './util.mjs'
 import { Compteurs, ID, AMJ, limitesjour, synthesesPartition } from './api.mjs'
 
 /* GenDoc **************************************************
@@ -220,12 +220,10 @@ export class Espaces extends GenDoc {
 
   static nouveau (ns, org, auj, cleES) {
     return new Espaces().init({
-      _ins: true,
-      _maj: true,
       id: ns,
       org: org,
-      v: 0,
       creation: auj,
+      cleES: cleES,
       moisStat: 0,
       moisStatT: 0,
       nprof: 0,
@@ -233,8 +231,7 @@ export class Espaces extends GenDoc {
       dlvat: 0,
       opt: 0,
       nbmi: 12,
-      tnotifP: [null],
-      cleES: cleES
+      tnotifP: [null]
     })
   }
 
@@ -302,7 +299,7 @@ _data_:
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
     - `q` : `qc qn qv c2m nn nc ng v` extraits du document `comptas` du compte.
-      - `c2m` est le compteur `conso2M` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1 (observé à `dhic`). 
+      - `q.c2m` est le compteur `conso2M` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1 (observé à `dhic`). 
 */
 export class Partitions extends GenDoc { 
   constructor () { 
@@ -314,7 +311,10 @@ export class Partitions extends GenDoc {
 
   static nouveau (ns, id, q) { // // qc: apr[0], qn: apr[1], qv: apr[2],
     return new Partitions().init( {
-      _ins: true, _maj: true, id: ID.long(id, ns), q: q, v: 1, nrp: 0, mcpt: {}
+      id: ID.long(id, ns), 
+      q: q, 
+      nrp: 0, 
+      mcpt: {}
     })
   }
 
@@ -328,6 +328,15 @@ export class Partitions extends GenDoc {
       this.mcpt = m
     }
     return this.toRow()
+  }
+
+  majQC(idc, qv, c2m) {
+    const e = this.mcpt[ID.court(idc)]
+    if (e) {
+      e.q = { ...qv }
+      e.q.c2m = c2m
+      this._maj = true
+    }
   }
 
   setQuotas (q) {
@@ -381,7 +390,10 @@ export class Syntheses extends GenDoc {
   constructor () { super('syntheses') }
 
   static nouveau (ns) { 
-    return new Syntheses().init({id: ns, v: 0, tsp: [], _ins: true})
+    return new Syntheses().init({
+      id: ns,
+      tsp: []
+    })
   }
 
   compile () {
@@ -502,6 +514,55 @@ export class Comptes extends GenDoc {
     return new Comptes().init(r)
   }
 
+  // Comptable seulement
+  ajoutPartition (np, itemK) { // itemK: {cleP, code} crypté par la clé K du Comptable.
+    if (np !== this.tpk.length) throw new AppExc(F_SRV, 228)
+    for (const it of this.tpk)
+      if (eqU8(it.cleP, itemK.cleP) || it.code === itemK.code) throw new AppExc(F_SRV, 228)
+    this.tpk.push(itemK)
+    this._maj = true
+  }
+
+  reporter (pc, nbj) { // pc de compta, nbj de compta
+    if (Math.floor(this.qv.pcn / 20) !== Math.floor(pc.pcn / 20)) return true
+    if (Math.floor(this.qv.pcv / 20) !== Math.floor(pc.pcv / 20)) return true
+    if (this.qv.qc && (Math.floor(this.qv.pcc / 20) !== Math.floor(pc.pcc / 20))) return true
+    if (!this.qv.qc && (Math.floor(this.qv.nbj / 20) !== Math.floor(nbj / 20))) return true
+    return false
+  }
+
+  /* Report de compta et calcul DLV: seulement si,
+  - compte était déjà en maj
+  - OU chgt DLV significatif
+  - OU report des compteurs significatif
+  */
+  async reportDeCompta (compta, gd) {
+    compta.compile() // calcul _nbj _c2m _pc
+
+    let dlv
+    if (this.idp) // Compte O
+      dlv = gd.dlvmaxO
+    else { // Compte A
+      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, compta._nbj))
+      dlv = gd.dlvmax > d ? d : gd.dlvmax
+    }
+    let diff1 = AMJ.diff(dlv, this.dlv); if (diff1 < 0) diff1 = -diff1
+
+    const rep = this._maj || diff1 || this.reporter(compta._pc, compta._nbj)
+    if (rep) {
+      this.dlv = dlv
+      if (!this._estA) this.qv.pcc = compta._pc.pcc; else this.qv.nbj = compta._nbj
+      this.qv.pcn = compta._pc.pcn
+      this.qv.pcv = compta._pc.pcv
+      this._maj = true
+      if (!this._estA) {
+        // maj partition
+        const p = await gd.getPA(ID.long(this.idp, this.ns))
+        p.majQC(this.id, compta.qv, compta._c2m)
+      }
+    }
+  }
+
   /*
   static nouveau2 (id, hXR, hXC, cleKXC, privK, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
     const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
@@ -615,8 +676,11 @@ _data_:
 export class Comptis extends GenDoc { 
   constructor() { super('comptis') } 
 
-  static nouveau (id, rds) {
-    return new Comptis().init({ id, v: 1, rds, mc: {} })
+  static nouveau (id) {
+    return new Comptis().init({ 
+      id,
+      mc: {} 
+    })
   }
 
   toShortRow() { return this.toRow() }
@@ -643,8 +707,11 @@ _data_:
 export class Invits extends GenDoc { 
   constructor() { super('invits') } 
 
-  static nouveau (id, rds) {
-    return new Invits().init({ id, v: 1, rds: rds, invits: [] })
+  static nouveau (id) {
+    return new Invits().init({ 
+      id, 
+      invits: [] 
+    })
   }
 
   toShortRow () { return this.toRow() }
@@ -654,6 +721,7 @@ export class Invits extends GenDoc {
     this.invits.forEach(i => { if (i.idg !== inv.idg || i.ida !== inv.ida) l.pudh(i)})
     l.push(inv)
     this.invits = l
+    this._maj = true
   }
 
   supprInv (idgl, idal) {
@@ -662,6 +730,7 @@ export class Invits extends GenDoc {
     const l = []
     this.invits.forEach(i => { if (i.idg !== idg || i.ida !== ida) l.pudh(i)})
     this.invits = l
+    this._maj = true
   }
 }
 
@@ -690,19 +759,18 @@ export class Comptas extends GenDoc {
 
   get ns () { return ID.ns(this.id) }
 
-  static nouveau (id, qv) {
+  static nouveau (id, quotas, don) {
+    const qv = { qc: quotas.qc, qn: quotas.qn, qv: quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
     const c = new Compteurs(null, qv)
-    return new Comptas().init({
-      _ins: true, 
+    new Comptas().init({
       _maj: true, 
       id: id, 
       v: 0, 
-      qv: {...qv}, 
-      solde: 0,
-      compteurs: c.serial,
-      _estA: c.estA,
-      _c2m: c.conso2M
+      qv, 
+      solde: don || 0,
+      compteurs: c.serial
     })
+    return this.compile()
   }
 
   compile () {
@@ -710,6 +778,7 @@ export class Comptas extends GenDoc {
     this._estA = c.estA 
     this._nbj = c.estA ? c.nbj(this.solde) : 0
     this._c2m = c.conso2M
+    this._pc = c.pourcents
     return this
   }
 
@@ -782,14 +851,6 @@ export class Comptas extends GenDoc {
     this.majSolde(compte, m)
     if (!this.dons) this.dons = []
     this.dons.push({dh, m, iddb: ID.court(iddb)})
-  }
-
-  reporter (pc, nbj, qvc) {
-    if (Math.floor(qvc.pcn / 20) !== Math.floor(pc.pcn / 20)) return true
-    if (Math.floor(qvc.pcv / 20) !== Math.floor(pc.pcv / 20)) return true
-    if (qvc.qc && (Math.floor(qvc.pcc / 20) !== Math.floor(pc.pcc / 20))) return true
-    if (!qvc.qc && (Math.floor(qvc.nbj / 20) !== Math.floor(nbj / 20))) return true
-    return false
   }
 
   /* Les compteurs de consommation d'un compte extraits de `comptas` sont recopiés à l'occasion de la fin d'une opération:
@@ -996,15 +1057,23 @@ export class Groupes extends GenDoc {
     return this
   }
 
-  static nouveau (idg, ida, idh, rds, quotas, msu, cvG) {
+  static nouveau (args) {
     return new Groupes().init({
-      id: idg, v: 1, dfh: 0, rds: rds, msu: msu, idh: idh, imh: 1,
-      nn: 0, qn: quotas.qn, vf: 0, qv: quotas.qv, invits: {},
-      tid: [0, ID.court(ida)],
+      id: args.idg, // id du groupe
+      tid: [0, ID.court(args.ida)], // id de l'avatar fondateur
+      msu: args.msu, // mode simple (true) / unanime
+      qn: args.quotas.qn,  // quotas.qn
+      qv: args.quotas.qv, // quotas.qv
+      cvG: args.cvG, // CV du groupe cryptée clé G
+      dfh: 0, 
+      imh: 1,
+      nn: 0, 
+      vf: 0, 
+      invits: {},
       st: new Uint8Array([0, 5]),
       flags: new Uint8Array([0, 255]),
-      lnc: [], lng: [],
-      cvG: cvG
+      lnc: [], 
+      lng: []
     })
   }
 
@@ -1019,6 +1088,7 @@ export class Groupes extends GenDoc {
     this.st.forEach((v, i) => {y[i] = v})
     y[this.st.length] = 1
     this.st = y
+    this._maj = true
     return im
   }
 
@@ -1090,9 +1160,13 @@ export class Groupes extends GenDoc {
 export class Membres extends GenDoc { 
   constructor() { super('membres') } 
 
-  static nouveau(idg, rds, im, cvA, cleAG) {
+  static nouveau(idg, im, cvA, cleAG) {
     return new Membres().init({
-      id: idg, rds, ids: im, vcv: cvA.v, cvA: cvA, cleAG: cleAG,
+      id: idg, 
+      im, 
+      vcv: cvA.v, 
+      cvA: cvA, 
+      cleAG: cleAG,
       dpc: 0, ddi: 0, dac: 0, fac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
     })
   }
@@ -1114,9 +1188,9 @@ export class Membres extends GenDoc {
 export class Chatgrs extends GenDoc { 
   constructor() { super('chatgrs') } 
 
-  static nouveau (idg, rds) {
+  static nouveau (idg) {
     return new Chatgrs().init({
-      id: idg, rds, ids: 1, v: 1, items: []
+      id: idg, items: []
     })
   }
 
