@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile, Sponsorings, Chats, Tickets } from './gendoc.mjs'
+import { compile } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -57,6 +57,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
 - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
 - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
 - `hYC` : hash du PBKFD de la phrase de sponsoring,
+- `hYR` : hash du PBKFD de la phrase réduite de sponsoring,
 - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
 - `partitionId`: id de la partition si compte 0    
 - `cleAP` : clé A du COMPTE sponsor crypté par la clé P de la partition.
@@ -81,11 +82,12 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
 
-    if (await this.db.getCompteHXR(this.args.hps1)) 
+    const ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
+    if (await this.db.getSponsoringIds(ids)) 
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
-      const partition = compile(await this.getRowPartition(args.partitionId))
+      const partition = await this.gd.getPA(args.partitionId)
       if (!partition) 
         throw new AppExc(F_SRV, 208, [args.partitionId])
       if (!this.estComptable) {
@@ -101,21 +103,14 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.sv - s.qt.qv))
         throw new AppExc(F_SRV, 211, [args.partitionId, this.compte.id])
     } else {
-      if (this.estComptable || !this.compte.estA) args.don = 2
+      if (this.estComptable || !this.compte._estA) args.don = 2
       else {
         if (this.compta.solde <= args.don + 2)
           throw new AppExc(F_SRV, 212, [this.compta.solde, args.don])
       }
     }
 
-    const av = compile(await this.getRowAvatar(args.id, 'AjoutSponsoring-1'))
-    const sponsoring = Sponsorings.nouveau(args, av.rds)
-    const vsp = await this.getV(av)
-    vsp.v++
-    this.setV(vsp)
-    sponsoring.v = vsp.v
-    sponsoring.dh = this.dh
-    this.insert(sponsoring.toRow())
+    this.gd.nouvSPO(args)
   }
 }
 
@@ -291,13 +286,9 @@ operations.NouveauChat = class NouveauChat extends Operation {
     const rchI = await this.getRowChat(args.idI, idsI)
     if (rchI) { this.setRes('rowChat', rchI); return}
 
-    const vchI = await this.getV(avI, 'NouveauChat-3') // du sponsor
-    vchI.v++
-    this.setV(vchI)
-    const chI = Chats.nouveau({ 
+    const chI = this.gd.nouvCAV({ 
       id: args.idI,
       ids: idsI,
-      v: vchI.v,
       st: 10,
       idE: ID.court(args.idE),
       idsE: idsE,
@@ -305,17 +296,13 @@ operations.NouveauChat = class NouveauChat extends Operation {
       cleCKP: args.ch.ccK,
       cleEC: args.ch.cleE2C,
       items: [{a: 1, dh: this.dh, t: args.ch.txt}]
-    }, avI.rds)
-    this.setRes('rowChat', this.insert(chI.toRow()))
+    })
+    this.setRes('rowChat', chI.toRow())
     this.compta.ncPlus(1)
 
-    const vchE = await this.getV(avE, 'NouveauChat-4')
-    vchE.v++
-    this.setV(vchE)
-    const chE = Chats.nouveau({
+    const chE = this.gd.nouvCAV({
       id: args.idE,
       ids: idsE,
-      v: vchE.v,
       st: 1,
       idE: ID.court(args.idI),
       idsE: idsI,
@@ -323,7 +310,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
       cleCKP: args.ch.ccP,
       cleEC: args.ch.cleE1C,
       items: [{a: 0, dh: this.dh, t: args.ch.txt}]
-    }, avE.rds)
+    })
     this.insert(chE.toRow())
   }
 }
@@ -431,8 +418,8 @@ operations.MajChat = class MajChat extends OperationCh {
       if (!comptaE._estA) throw new AppExc(F_SRV, 214)
       if (!this.compta._estA) throw new AppExc(F_SRV, 214)
       const compteE = compile(await this.getRowCompte(this.idEL, 'MajChat-8'))
-      comptaE.don(compteE, this.dh, args.don, this.id)
-      this.calculDlv(compteE, comptaE)
+      comptaE.don(this.dh, args.don, this.id)
+      // this.calculDlv(compteE, comptaE)
       const vcptE = await this.getV(compteE, 'MajChat-6')
       vcptE.v++
       compteE.v = vcptE.v
@@ -441,8 +428,8 @@ operations.MajChat = class MajChat extends OperationCh {
       comptaE.v++
       this.update(comptaE.toRow())
 
-      this.compta.don(this.compte, this.dh, -args.don, compteE.id)
-      this.calculDlv(this.compte, this.compta)
+      this.compta.don(this.dh, -args.don, compteE.id)
+      // this.calculDlv(this.compte, this.compta)
     }
 
     const avE = compile(await this.getRowAvatar(this.idEL, 'MajChat-4'))
@@ -906,22 +893,11 @@ operations.PlusTicket = class PlusTicket extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2(args) {
-    const idc = ID.duComptable(this.ns)
-
-    const rtk = await this.getRowTicket(idc, args.ids)
+    const rtk = await this.gd.getTKT(args.ids)
     if (rtk) throw new AppExc(F_SRV, 239)
 
-    const comptable = compile(await this.getRowAvatar(idc, 'PlusTicket-1'))
-
-    const tk = Tickets.nouveau(this.id, comptable.rds, args.ids, args.ma, args.refa || '')
+    const tk = this.gd.nouvTKT(args)
     this.compta.plusTk(tk)
-
-    const version = await this.getV(comptable, 'PlusTicket-2')
-    version.v++
-    tk.id = idc
-    tk.v = version.v
-    this.insert(tk.toRow())
-    this.setV(version)
   }
 
   phase3() {
@@ -988,8 +964,8 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
     if (!compta || !compte) { // Compte disparu
       tk.disp = true
     } else {
-      compta.enregTk(compte, tk, args.mc, args.refc)
-      this.calculDlv(compte, compta)
+      compta.enregTk(tk, args.mc, args.refc)
+      // this.calculDlv(compte, compta)
       compta.v++
       this.update(compta.toRow())
       const vcpt = await this.getV(compte, 'ReceptionTicket-3')
@@ -1182,9 +1158,9 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     const avatar = await this.gd.getAV(args.ida, 502)
 
     // const groupe = Groupes.nouveau (args.idg, args.ida, this.id, rds, args.quotas, args.msu, args.cvG)
-    const groupe = this.gd.nouvGR(this.compte, args)
+    this.gd.nouvGR(args)
     // const membre = Membres.nouveau(args.idg, groupe.rds, 1, avatar.cvA, args.cleAG)
-    const membre = this.gd.nouvMBR(groupe, 1, avatar.cvA, args.cleAG)
+    const membre = this.gd.nouvMBR(args.idg, 1, avatar.cvA, args.cleAG)
     membre.dpc = this.auj
     membre.dac = this.auj
     membre.dln = this.auj
@@ -1227,7 +1203,7 @@ operations.NouveauContact = class NouveauContact extends Operation {
     if (groupe.lng.indexOf(idac) !== -1) throw new AppExc(F_SRV, 261)
     
     const im = groupe.nvContact(args.ida)  
-    const membre = this.gd.nouvMBR(groupe, im, avatar.cvA, args.cleAG)
+    const membre = this.gd.nouvMBR(args.idg, im, avatar.cvA, args.cleAG)
     membre.dpc = this.auj
   }
 }

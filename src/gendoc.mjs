@@ -1,9 +1,9 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS, F_SRV, AppExc, d14 } from './api.mjs'
+import { FLAGS, F_SRV, AppExc, d14, AMJ, 
+  Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { config } from './config.mjs'
 import { decrypterSrv, crypterSrv, eqU8 } from './util.mjs'
-import { Compteurs, ID, AMJ, limitesjour, synthesesPartition } from './api.mjs'
 
 /* GenDoc **************************************************
 Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
@@ -213,13 +213,17 @@ _data_ :
   - _valeur_ : notification (ou `null`), texte crypté par la clé P de la partition.
 */
 export class Espaces extends GenDoc { 
-  constructor () { 
-    super('espaces') 
-    this._maj = false
-  } 
+  constructor () { super('espaces') } 
+
+  get fige () { return this.notifE && this.notifE.nr === 2 }
+
+  get clos () { const n = this.notifE
+    return n && n.nr === 3 ? [n.texte, n.dh] : null
+  }
 
   static nouveau (ns, org, auj, cleES) {
     return new Espaces().init({
+      _maj: true, v: 0,
       id: ns,
       org: org,
       creation: auj,
@@ -262,10 +266,17 @@ export class Espaces extends GenDoc {
 export class Tickets extends GenDoc { 
   constructor () { super('tickets') } 
 
-  static nouveau (idc, ids, ma, refa) {
+  static nouveau (idc, args) {
     return new Tickets().init( {
-      idc: ID.court(idc), ids, ma, refa: refa || '', refc: '',
-      mc: 0, dr: 0, dg: AMJ.amjUtc()
+      _maj: true, v: 0,
+      idc: ID.court(idc), 
+      ids: args.ids, 
+      ma: args.ma, 
+      refa: args.refa || '', 
+      refc: '',
+      mc: 0, 
+      dr: 0, 
+      dg: AMJ.amjUtc()
     })
   }
 
@@ -302,15 +313,15 @@ _data_:
       - `q.c2m` est le compteur `conso2M` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1 (observé à `dhic`). 
 */
 export class Partitions extends GenDoc { 
-  constructor () { 
-    super('partitions')
-    this._maj = false
-  }
+  constructor () { super('partitions') }
+
+  get ns () { return ID.ns(this.id) }
 
   static qz = {qc: 0, qn: 0, qv: 0, c2m: 0, nn: 0, nc: 0, ng: 0, v: 0 }
 
   static nouveau (ns, id, q) { // // qc: apr[0], qn: apr[1], qv: apr[2],
     return new Partitions().init( {
+      _maj: true, v: 0,
       id: ID.long(id, ns), 
       q: q, 
       nrp: 0, 
@@ -391,14 +402,10 @@ export class Syntheses extends GenDoc {
 
   static nouveau (ns) { 
     return new Syntheses().init({
+      _maj: true, v: 0,
       id: ns,
       tsp: []
     })
-  }
-
-  compile () {
-    if (this.v > 10000) this.v = 10
-    return this
   }
 
   setPartition(p) {
@@ -460,10 +467,11 @@ _Comptes "O" seulement:_
   - `code` : code / commentaire court de convenance attribué par le Comptable
 */
 export class Comptes extends GenDoc { 
-  constructor() { 
-    super('comptes')
-    this._maj = false
-  } 
+  constructor() { super('comptes') }
+
+  get ns () { return ID.ns(this.id) }
+
+  get _estA () { return this.idp === 0 }
 
   toShortRow() {
     const x1 = this.rds
@@ -482,6 +490,7 @@ export class Comptes extends GenDoc {
   static nouveau (args, sp) {
     const ns = ID.ns(args.id)
     const r = {
+      _maj: true, v: 0,
       id: args.id,
       hxr: (ns * d14) + (args.hXR % d14),
       hXC: args.hXC,
@@ -539,46 +548,35 @@ export class Comptes extends GenDoc {
   async reportDeCompta (compta, gd) {
     compta.compile() // calcul _nbj _c2m _pc
 
+    const e = await gd.getES(true)
+    // DLV maximale : N mois depuis aujourd'hui
+    const dlvmax = !e ? 0 : (AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, e.nbmi * 30)))
+    // DLV maximale pour les comptes 0: dlvmax OU dlv de l'espace si plus proche
+    const dlvmaxO = !e ? 0 :(e.dlvat && (dlvmax > e.dlvat) ? e.dlvat : dlvmax)
+
     let dlv
     if (this.idp) // Compte O
-      dlv = gd.dlvmaxO
+      dlv = dlvmaxO
     else { // Compte A
       const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, compta._nbj))
-      dlv = gd.dlvmax > d ? d : gd.dlvmax
+      dlv = dlvmax > d ? d : dlvmax
     }
     let diff1 = AMJ.diff(dlv, this.dlv); if (diff1 < 0) diff1 = -diff1
 
     const rep = this._maj || diff1 || this.reporter(compta._pc, compta._nbj)
     if (rep) {
       this.dlv = dlv
-      if (!this._estA) this.qv.pcc = compta._pc.pcc; else this.qv.nbj = compta._nbj
+      if (!this._estA) this.qv.pcc = compta._pc.pcc 
+      else this.qv.nbj = compta._nbj
       this.qv.pcn = compta._pc.pcn
       this.qv.pcv = compta._pc.pcv
       this._maj = true
-      if (!this._estA) {
-        // maj partition
+      if (!this._estA) { // maj partition
         const p = await gd.getPA(ID.long(this.idp, this.ns))
         p.majQC(this.id, compta.qv, compta._c2m)
       }
     }
   }
-
-  /*
-  static nouveau2 (id, hXR, hXC, cleKXC, privK, rdsav, cleAK, clePK, cleEK, qvc, o, tpk) {
-    const qv = { qc: qvc.qc, qn: qvc.qn, qv: qvc.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
-    const r = {
-      _ins: true, _maj: true, id: id, v: 0, rds: ID.rds(ID.RDSCOMPTE),
-      hxr: hXR, dlv: AMJ.max, cleKXC, privK, hXC, idp: 0, qv: qv, clePK,
-      mav: {}, mpg: {}
-    }
-    if (cleEK) r.cleEK = cleEK
-    r.mav[ID.court(id)] = { rds: rdsav, cleAK: cleAK }
-    if (o) { r.clePA = o.clePA; r.idp = o.idp; r.del = o.del }
-
-    if (tpk) r.tpk = [null, args.ck]
-    return new Comptes().init(r)
-  }
-  */
 
   ajoutAvatar (avatar, cleAK) {
     this.mav[ID.court(avatar.id)] = { rds: avatar.rds, cleAK: cleAK }
@@ -593,10 +591,6 @@ export class Comptes extends GenDoc {
     if (e.lav.indexOf(idac) === -1) e.lav.push(idac)
     this._maj = true
   }
-
-  get ns () { return ID.ns(this.id) }
-
-  get _estA () { return this.idp === 0 }
 
   estAvc (id) { return this.mav[ID.court(id)] }
 
@@ -678,6 +672,7 @@ export class Comptis extends GenDoc {
 
   static nouveau (id) {
     return new Comptis().init({ 
+      _maj: true, v: 0,
       id,
       mc: {} 
     })
@@ -709,6 +704,7 @@ export class Invits extends GenDoc {
 
   static nouveau (id) {
     return new Invits().init({ 
+      _maj: true, v: 0,
       id, 
       invits: [] 
     })
@@ -763,9 +759,8 @@ export class Comptas extends GenDoc {
     const qv = { qc: quotas.qc, qn: quotas.qn, qv: quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
     const c = new Compteurs(null, qv)
     new Comptas().init({
-      _maj: true, 
+      _maj: true, v: 0, 
       id: id, 
-      v: 0, 
       qv, 
       solde: don || 0,
       compteurs: c.serial
@@ -773,12 +768,16 @@ export class Comptas extends GenDoc {
     return this.compile()
   }
 
-  compile () {
-    const c = new Compteurs(this.compteurs)
+  majcpt (c) {
     this._estA = c.estA 
     this._nbj = c.estA ? c.nbj(this.solde) : 0
     this._c2m = c.conso2M
     this._pc = c.pourcents
+  }
+
+  compile () {
+    const c = new Compteurs(this.compteurs)
+    this.majcpt(c)
     return this
   }
 
@@ -787,10 +786,8 @@ export class Comptas extends GenDoc {
     this.qv.qn = q.qn
     this.qv.qv = q.qv
     const c = new Compteurs(this.compteurs, this.qv)
-    this._nbj = c.estA ? c.nbj(this.solde) : 0
-    this._c2m = c.conso2M
-    this._pc = c.pourcents
     this.compteurs = c.serial
+    this.majcpt(c)
     this._maj = true
   }
 
@@ -798,6 +795,7 @@ export class Comptas extends GenDoc {
     this.qv.nc += q
     const c = new Compteurs(this.compteurs, this.qv)
     this.compteurs = c.serial
+    this.majcpt(c)
     this._maj = true
   }
 
@@ -805,6 +803,7 @@ export class Comptas extends GenDoc {
     this.qv.nn += q
     const c = new Compteurs(this.compteurs, this.qv)
     this.compteurs = c.serial
+    this.majcpt(c)
     this._maj = true
   }
 
@@ -812,6 +811,7 @@ export class Comptas extends GenDoc {
     this.qv.ng += q
     const c = new Compteurs(this.compteurs, this.qv)
     this.compteurs = c.serial
+    this.majcpt(c)
     this._maj = true
   }
 
@@ -826,31 +826,50 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  enregTk (compte, tk, mc, refc) {
+  enregTk (tk, mc, refc) {
     if (!this.tickets) this.tickets = {}
     const m = mc < 0 ? 0 : mc
     tk.mc = m
     tk.refc = refc || ''
     this.tickets[tk.ids] = tk.shortTk()
-    this.majSolde(compte, m)
+    // this.majSolde(compte, m)
+    this._maj = true
   }
 
+  /*
   majSolde (compte, m) {
     this.solde += m
     const c = new Compteurs(this.compteurs)
-    this._nbj = c.nbj(this.solde)
+    this.majcpt(c)
     const qv = compte.qv
     const pc = c.pourcents
     qv.nbj = this._nbj; qv.pcn = pc.pcn; qv.pcv = pc.pcv
     compte._maj = true
     this._maj = true
   }
+  */
 
-  don (compte, dh, m, iddb) {
+  don (dh, m, iddb) {
     if (m < 0 && this.solde + m < 2) throw new AppExc(F_SRV, 215, [-m, this.total])
-    this.majSolde(compte, m)
+    // this.majSolde(compte, m)
     if (!this.dons) this.dons = []
     this.dons.push({dh, m, iddb: ID.court(iddb)})
+    this._maj = true
+  }
+
+  async incorpConso (op) {
+    const conso = { 
+      nl: op.nl, 
+      ne: op.ne + 1 + op.toInsert.length + op.toUpdate.length + op.toDelete.length,
+      vd: op.vd, 
+      vm: op.vm 
+    }
+    const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
+    const c = new Compteurs(this.compteurs, null, x)
+    this.compteurs = c.serial
+    this.majcpt(c)
+    this._maj = true
+    op.setRes('conso', conso)
   }
 
   /* Les compteurs de consommation d'un compte extraits de `comptas` sont recopiés à l'occasion de la fin d'une opération:
@@ -858,7 +877,7 @@ export class Comptas extends GenDoc {
   - dans les compteurs `q: { qc qn qv c2m nn nc ng v }` de l'entrée du compte dans son document `partitions`.
     - par conséquence la ligne de synthèse de sa partition est reportée dans l'élément correspondant de son document `syntheses`.
   - afin d'éviter des mises à jour trop fréquentes, la procédure de report n'est engagée qui si les compteurs `pcc pcn pcv` passe un cap de 5% ou que `nbj` passe un cap de 5 jours.
-  */
+  
   async finaliser (op) {
     const conso = { 
       nl: op.nl, 
@@ -890,12 +909,21 @@ export class Comptas extends GenDoc {
     if (this._ins) op.insert(row); else op.update(row)
     return conso
   }
+  */
 }
 
 /* Versions ************************************************************
 */
 export class Versions extends GenDoc { 
   constructor() { super('versions') } 
+
+  static nouveau (id) {
+    return new Versions().init({
+      v: 0,
+      id: id,
+      suppr: 0
+    })
+  }
 }
 
 /**************************************************************
@@ -918,10 +946,13 @@ export class Avatars extends GenDoc {
   constructor() { super('avatars') } 
 
   static nouveau (args, cvA) {
+    cvA.v = 1
     return new Avatars().init({ 
+      _maj: true, v: 0,
       id: args.id,
       pub: args.pub,
       privK: args.privK,
+      vcv: 1,
       cvA
     })
   }
@@ -958,13 +989,13 @@ export class Transferts extends GenDoc { constructor() { super('transferts') } }
 export class Sponsorings extends GenDoc { 
   constructor() { super('sponsorings') } 
 
-  static nouveau (args, rds) {
+  static nouveau (args) {
     /* 
     - id : id du sponsor
     - hYR : hash du PBKFD de la phrase de sponsoring réduite
     - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
     - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
-    - `hYC`: hash du PNKFD de la phrase de sponsoring.
+    - `hYC`: hash du PBKFD de la phrase de sponsoring.
     - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
     - `partitionId`: id de la partition si compte 0    
     - `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD 
@@ -981,8 +1012,9 @@ export class Sponsorings extends GenDoc {
     - del: true si le compte est délégué de la partition
     */
     const sp = new Sponsorings()
+    sp._maj = true
+    sp.v = 0
     sp.id = args.id
-    sp.rds = rds
     sp.ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
     sp.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
     sp.st = 0
@@ -1013,9 +1045,10 @@ export class Sponsorings extends GenDoc {
 export class Chats extends GenDoc { 
   constructor() { super('chats') } 
 
-  static nouveau (arg, rds) {
+  static nouveau (arg) {
     const c = new Chats().init(arg)
-    c.rds = rds
+    c._maj = true
+    c.v = 0
     return c
   }
 
@@ -1059,6 +1092,7 @@ export class Groupes extends GenDoc {
 
   static nouveau (args) {
     return new Groupes().init({
+      _maj: true, v: 0,
       id: args.idg, // id du groupe
       tid: [0, ID.court(args.ida)], // id de l'avatar fondateur
       msu: args.msu, // mode simple (true) / unanime
@@ -1162,6 +1196,7 @@ export class Membres extends GenDoc {
 
   static nouveau(idg, im, cvA, cleAG) {
     return new Membres().init({
+      _maj: true, v: 0,
       id: idg, 
       im, 
       vcv: cvA.v, 
@@ -1190,6 +1225,7 @@ export class Chatgrs extends GenDoc {
 
   static nouveau (idg) {
     return new Chatgrs().init({
+      _maj: true, v: 0,
       id: idg, items: []
     })
   }

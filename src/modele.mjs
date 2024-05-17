@@ -1,11 +1,12 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, AMJ, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
-  UNITEN, UNITEV, d14, edvol, hash, V99 } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
+  UNITEN, UNITEV, d14, edvol, V99 } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6, sleep, b64ToU8, decrypterSrv, crypterSrv } from './util.mjs'
-import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, Chatgrs,
+import { rnd6, sleep, b64ToU8 } from './util.mjs'
+import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
+  Chatgrs, Chats, Tickets, /*Notes,*/
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
@@ -193,6 +194,10 @@ class GD {
   constructor (op) {
     this.op = op
 
+    this.espace = null
+    this.lazy = true
+    this.synthese = null
+
     this.comptes = new Map()
     this.comptis = new Map()
     this.invits = new Map()
@@ -210,35 +215,43 @@ class GD {
   /* Création conjointe de espace et synthese */
   nouvES (ns, org, cleES) {
     const e = Espaces.nouveau(ns, org, this.op.auj, cleES)
-    e.v = 0
-    e._maj = true
-    const version = new Versions()
-    version.v = 1
-    version.id = ns
-    this.versions.set(ns, version)
-    this.op.espace = e
     this.op.ns = ns
-    const s = Syntheses.nouveau(ns)
-    s.v = 0
-    this.op.synthese = s
+    this.op.org = e.org
+    this.espace = e
+    this.lazy = false
+    this.synthese = Syntheses.nouveau(ns)
     return e
   }
 
-  async getES (org) {
-    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    this.espace = await Cache.getEspaceOrg(this.op, org, true)
-    if (!this.espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+  // Depuis Authentification : l'espace a été obtenu depuis org et non son id
+  setEspace (espace) {
+    this.espace = espace
+    this.lazy = true
+  }
+
+  /* Gère l'espace courant unique d'une opération */
+  async getES (lazy) {
+    if (this.espace && lazy && this.lazy) return this.espace
+    if (this.espace && lazy) return this.espace
+    this.espace = await Cache.getRow(this.op, 'espaces', this.op.ns, lazy)
+    if (!this.espace) throw new AppExc(F_SRV, 50, [this.op.ns])
+    this.lazy = lazy
     return this.espace
   }
 
+  async getSY (ns) {
+    if (!this.synthese)
+      this.synthese = compile(await this.getRowSynthese(ns, 'getSY'))
+    return this.synthese
+  }
+
   /* Nouvelle partition de l'espace courant. Comptable est le compte courant */
-  nouvPA (np, qc, itemK) {
+  async nouvPA (np, qc, itemK) {
     const p = Partitions.nouveau(this.op.ns, np, qc)
-    p.v = 1
-    p._maj = true
     this.partitions.set(p.id, p)
-    this.espace.setPartition(np)
-    this.compte.ajoutPartition(itemK)
+    const espace = await this.getES()
+    espace.setPartition(np)
+    this.op.compte.ajoutPartition(itemK)
     return p
   }
 
@@ -253,232 +266,293 @@ class GD {
   nouvCO (args, sp, quotas, don) {
     const c = Comptes.nouveau(args, sp)
     c.rds = ID.rds(ID.RDSCOMPTE)
-    c.v = 1
-    c._maj = true
     this.comptes.set(c.id, c)
-    const version = new Versions()
-    version.v = 1
-    const lrds = ID.long(c.rds, this.op.ns)
-    version.id = lrds
-    this.versions.set(lrds, version)
+    this.nouvV(c.rds)
     const compta = Comptas.nouveau(c.id, quotas, don || 0)
     this.comptas.set(c.id, compta)
     const compti = Comptis.nouveau(c.id)
-    compti.v = 1
     compti.rds = c.rds
     this.comptis.set(compti.id, compti)
     const invit = Invits.nouveau(c.id)
-    invit.v = 1
     invit.rds = c.rds
     this.invits.set(invit.id, invit)
     return { compte:c, compta: compta, compti: compti, invit: invit }
   }
 
-  async getCO (id, nex, hXR, hXC) {
+  async getCO (id, hXR, hXC) {
     let c
-    if (id) c = this.comptes.get(id)
-    if (c) return c
-    if (hXR) {
+    let t = false
+    if (id) {
+      c = this.comptes.get(id)
+      if (!c) c = compile(await this.op.getRowCompte(id))
+      else t = true
+    } else {
       c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
       if (!c || c.hXC !== hXC) { await sleep(3000); throw new AppExc(F_SRV, 998) }
-    } else c = compile(await this.op.getRowCompte(id))
-    if (!c || c.v === V99) throw new AppExc(F_SRV, nex || 501)
-    await this.getV(c.rds, nex || 501)
-    this.comptes.set(id, c)
+    }
+    if (!c || c.v === V99) throw new AppExc(F_SRV, 501)
+    await this.getV(c.rds)
+    if (!t) this.comptes.set(id, c)
     return c
   }
 
-  async getCI (id, nex) {
+  async getCI (id) {
     let c
     if (id) c = this.comptis.get(id)
     if (c) return c
     c = compile(await this.op.getRowCompti(id))
-    if (!c) throw new AppExc(F_SRV, nex || 501)
-    await this.getV(c.rds, nex || 501)
+    if (!c) throw new AppExc(F_SRV, 501)
+    await this.getV(c.rds)
     this.comptis.set(id, c)
     return c
   }
 
-  async getIN (id, nex) {
+  async getIN (id) {
     let c
     if (id) c = this.invits.get(id)
     if (c) return c
     c = compile(await this.op.getRowInvit(id))
-    if (!c) throw new AppExc(F_SRV, nex || 501)
-    await this.getV(c.rds, nex || 501)
+    if (!c) throw new AppExc(F_SRV, 501)
+    await this.getV(c.rds)
     this.invits.set(id, c)
+    return c
+  }
+
+  async getCA (id) {
+    let c = this.comptas.get(id)
+    if (c) return c
+    c = compile(await this.op.getRowCompta(id, 'auth-compta'))
+    this.comptas.set(c, id)
     return c
   }
 
   nouvAV (compte, args, cvA) {
     const a = Avatars.nouveau(args, cvA)
     a.rds = ID.rds(ID.RDSAVATAR)
-    a.v = 1
-    a.vcv = 1
     a.idc = ID.court(compte.id)
-    a._maj = true
     compte.ajoutAvatar(a, args.cleAK)
     this.avatars.set(a.id, a)
-    const version = new Versions()
-    version.v = 1
-    const lrds = ID.long(a.rds, this.op.ns)
-    version.id = lrds
-    this.versions.set(lrds, version)
+    this.nouvV(a.rds)
     return a
   }
 
-  async getAV(id, nex) {
+  async getAV (id, nex) {
     let a = this.avatars.get(id)
     if (a) return a
     a = compile(await this.op.getRowAvatar(id))
     if (!a || a.v === V99) throw new AppExc(F_SRV, nex || 502)
-    await this.getV(a.rds, nex || 502)
+    await this.getV(a.rds)
     this.avatars.set(id, a)
     return a
   }
 
-  nouvGR (compte, args) {
+  nouvGR (args) {
     const g = Groupes.nouveau(args)
     g.rds = ID.rds(ID.RDSGROUPE)
-    g.v = 1
-    g.idh = ID.court(compte.id)
-    g._maj = true
-    compte.ajoutGroupe(g.id, args.ida, args.cleGK, g.rds)
+    g.idh = ID.court(this.op.compte.id)
+    this.op.compte.ajoutGroupe(g.id, args.ida, args.cleGK, g.rds)
     this.groupes.set(g.id, g)
+    this.nouvV(g.rds)
     const ch = Chatgrs.nouveau(g.id)
-    ch.v = 1
     ch.rds = g.rds
-    ch._maj = true
-    this.sg.set(g.id + '/' + 1, ch)
-    const version = new Versions()
-    version.v = 1
-    const lrds = ID.long(g.rds, this.op.ns)
-    version.id = lrds
-    this.versions.set(lrds, version)
+    this.sdocs.set(g.id + '/', ch)
     return g
   }
 
-  async getGR (id, nex) {
-    let g = this.avatars.get(id)
+  async getGR (id) {
+    let g = this.groupes.get(id)
     if (g) return g
     g = compile(await this.op.getRowGroupe(id))
-    if (!g || g.v === V99) throw new AppExc(F_SRV, nex || 503)
-    await this.getV(g.rds, nex || 503)
+    if (!g || g.v === V99) throw new AppExc(F_SRV, 503)
+    await this.getV(g.rds)
     this.groupes.set(id, g)
     return g
   }
 
   async getCGR (id, nex) {
-    let d = this.sg.get(id)
+    let d = this.sdocs.get(id + '/CGR/')
     if (d) return d
     d = compile(await this.op.getRowChatgr(id))
     if (!d) throw new AppExc(F_SRV, nex || 503)
-    await this.getV(d.rds, nex || 503)
-    this.sdocs.set(id, d)
+    await this.getV(d.rds)
+    this.sdocs.set(id + '/CGR/', d)
     return d
   }
 
-  async nouvMBR (groupe, im, cvA, cleAG) {
-    const version = await this.getV(groupe.rds, 503)
-    const m = Membres.nouveau(groupe.id, im, cvA, cleAG)
+  async nouvMBR (id, im, cvA, cleAG) {
+    const groupe = await this.getGR(id)
+    const m = Membres.nouveau(id, im, cvA, cleAG)
     m.rds = groupe.rds
-    m.v = version.v
-    m._maj = true
-    this.sdocs.set(groupe.id + '/' + im, m)
+    this.sdocs.set(groupe.id + '/MBR/' + im, m)
     return m
   }
 
-  async getMBR (id, im, nex) {
-    let d = this.sg.get(id + '/' + im)
+  async getMBR (id, im) {
+    let d = this.sg.get(id + '/MBR/' + im)
     if (d) return d
     d = compile(await this.op.getRowMembre(id, im))
-    if (!d) throw new AppExc(F_SRV, nex || 503)
-    await this.getV(d.rds, nex || 503)
-    this.sdocs.set(id + '/' + im, d)
+    if (!d) throw new AppExc(F_SRV, 503)
+    await this.getV(d.rds)
+    this.sdocs.set(id + '/MBR/' + im, d)
     return d
   }
 
-  async getV (rds, nex) {
-    const lrds = ID.long(rds, this.op.ns)
-    let v = this.versions.get(lrds)
-    if (v) return v
-    if (!v) v = compile(await this.op.getRowVersion(lrds))
-    if (!v || v.suppr) throw new AppExc(F_SRV, nex || (500 + ID.rdsType(rds) - 6))
-    v.v++
-    this.versions.set(lrds, v)
-    return v
+  async nouvCAV (args) {
+    const avatar = await this.gd.getAV(args.id)
+    this.getV(avatar.rds)
+    const d = Chats.nouveau(args)
+    d.rds = avatar.rds
+    this.sdocs.set(args.id + '/CAV/' + args.ids, d)
+    return d
   }
 
-  async getCA (id) {
-    let c = this.comptas.get(id)
-    if (c) return c
-    c = compile(await this.op.getRowCompta(this.id, 'auth-compta'))
-    this.comptas.set(c, id)
-    return c
+  async getCAV (id, ids) {
+    let d = this.sg.get(id + '/CAV/' + ids)
+    if (d) return d
+    d = compile(await this.op.getRowChat(id, ids))
+    if (!d) throw new AppExc(F_SRV, 503)
+    await this.getV(d.rds, 503)
+    this.sdocs.set(id + '/CAV/' + ids, d)
+    return d
+  }
+
+  async nouvTKT (args) {
+    const idc = ID.duComptable(this.op.ns)
+    const avatar = await this.gd.getAV(idc, 502)
+    this.getV(avatar.rds)
+    const d = Tickets.nouveau(idc, args)
+    d.rds = avatar.rds
+    this.sdocs.set(args.id + '/TKT/' + args.ids, d)
+    return d
+  }
+
+  async getTKT (ids) {
+    const idc = ID.duComptable(this.op.ns)
+    let d = this.sg.get(idc + '/TKT/' + ids)
+    if (d) return d
+    d = compile(await this.op.getRowTicket(idc, ids))
+    if (!d) throw new AppExc(F_SRV, 503)
+    await this.getV(d.rds)
+    this.sdocs.set(idc + '/TKT/' + ids, d)
+    return d
+  }
+
+  async nouvSPO (args) {
+    const avatar = await this.gd.getAV(args.id, 502)
+    this.getV(avatar.rds)
+    const d = Tickets.nouveau(args)
+    d.rds = avatar.rds
+    d.dh = this.op.dh
+    this.sdocs.set(d.id + '/SPO/' + d.ids, d)
+    return d
+  }
+
+  async getSPO (id, ids) {
+    let d = this.sg.get(id + '/SPO/' + ids)
+    if (d) return d
+    d = compile(await this.op.getRowSponsoring(id, ids))
+    if (!d) throw new AppExc(F_SRV, 503)
+    await this.getV(d.rds)
+    this.sdocs.set(id + '/SPO/' + ids, d)
+    return d
   }
 
   /*
-  setV (version) {
-    const r = version.toRow()
-    if (version.v === 1) this.insert(r); else this.update(r)
-    this.versions.push(r)
-    return version
+  async nouvNOT (id, nex) {
+
   }
 
-  setNV (doc) {
-    const version = new Versions()
-    version.v = doc.v
-    if (doc._nom === 'espaces') {
-      version.id = doc.id
-      version.notif = doc.notifE || null
-    } else version.id = ID.long(doc.rds, ID.ns(doc.id))
-    this.setV(version)
+  async getNOT (id, ids, nex) {
+    
   }
   */
 
-  calculDlv (compte, comptaNbj) {
-    let dlv
-    if (ID.estComptable(compte.id)) dlv = AMJ.max
-    else {
-      if (compte.idp) // Compte O
-        dlv = this.dlvmaxO
-      else { // Compte A
-        const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, comptaNbj))
-        dlv = this.dlvmax > d ? d : this.dlvmax
-      }
+  async getV (rds) {
+    const lrds = ID.long(rds, this.op.ns)
+    let v = this.versions.get(lrds)
+    if (!v) {
+      v = compile(await this.op.getRowVersion(lrds))
+      if (v) this.versions.set(lrds, v)
     }
-    let diff1 = AMJ.diff(dlv, compte.dlv); if (diff1 < 0) diff1 = -diff1
-    if (diff1) {
-      /* Pour éviter des modifications mineures sur comptes, on ne met à jour la dlv que :
-      - si elle est dans moins de 20 jours
-      - si elle diffère de l'actuelle de plus de 10 jours
-      */
-      if (AMJ.diff(dlv, this.auj) < 20 || diff1 > 10) {
-        compte.dlv = dlv
-        compte._maj = true
-      }
+    if (!v || v.suppr) throw new AppExc(F_SRV, 500 + ID.rdsType(rds) - 6)
+    return v
+  }
+
+  nouvV (rds) {
+    const lrds = ID.long(rds, this.op.ns)
+    const v = Versions.nouveau(lrds)
+    v.v = 0
+    this.versions.set(rds, v)
+  }
+
+  /* Met à jour le version d'un doc ou sous-doc,
+  - s'il était suppr -> EXCEPTION
+  - le version doit exister, sinon EXCEPTION
+  - s'il avait déjà été incrémenté, ne fait rien
+  */
+  async majV (rds) {
+    const lrds = ID.long(rds, this.op.ns)
+    let v = this.versions.get(lrds)
+    let f = false
+    if (!v) {
+      v = compile(await this.op.getRowVersion(lrds))
+      if (v) {
+        if (v.suppr) throw new AppExc(F_SRV, 500 + ID.rdsType(rds) - 6)
+        if (!v._maj) f = true // en fait v._maj n'est jamais true ici
+      } else throw new AppExc(F_SRV, 500 + ID.rdsType(rds) - 6)
+    } else {
+      if (!v._maj) f = true
     }
+    if (f) {
+      v.v++
+      v._maj = true
+      this.versions.set(lrds, v)
+      const rv = v.toRow()
+      if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
+      this.op.versions.push(rv)  
+    }
+    return v.v
   }
 
   async majdoc (d) {
     if (d._maj) {
-      if (d.v === 1) this.op.insert(d.toRow()); else this.op.update(d.toRow())
-      const v = await this.getV(d.rds)
-      if (!v._maj) {
-        const r = v.toRow()
-        if (v.v === 1) this.insert(r); else this.update(r)
-        this.op.versions.push(r)
-        v._maj = true
-      }
+      const ins = d.v === 0
+      d.v = await this.majV(d.rds)
+      if (ins) this.op.insert(d.row()); else this.op.update(d.row())
+    }
+  }
+
+  async majesp (d) {
+    if (d._maj) {
+      const ins = d.v === 0
+      d.v = await this.majV(d.id)
+      if (ins) this.op.insert(d.row()); else this.op.update(d.row())
     }
   }
 
   async majCompta (compta) { // ET report dans compte -> partition
     if (compta._maj) {
       compta.v++
-      const compte = this.getCO(d.id)
+      const compte = await this.getCO(compta.id)
       compte.reportDeCompta(compta, this)
       if (compta.v === 1) this.op.insert(compta.toRow()); else this.op.update(compta.toRow())
+    }
+  }
+
+  async majpart (p) {
+    if (p._maj) {
+      p.v++
+      if (p.v === 1) this.op.insert(p.toRow()); else this.op.update(p.toRow())
+      const s = await this.getSY(p.ns)
+      s.setPartition(p)
+    }
+  }
+
+  async majsynth (ns) {
+    const s = await this.getSY(ns)
+    if (s._maj) {
+      s.v++
+      if (s.v === 1) this.op.insert(s.toRow()); else this.op.update(s.toRow())
     }
   }
 
@@ -488,24 +562,31 @@ class GD {
     for(const [,d] of this.sdocs) await this.majdoc(d)
     for(const [,d] of this.comptis) await this.majdoc(d)
     for(const [,d] of this.invits) await this.majdoc(d)
+    if (this.espace) await this.majesp(this.espace)
     
-    const e = this.op.espace
-    if (e && e._maj) {
-      e.v++
-      if (e.v === 1) this.insert(e.toRow()); else this.update(e.toRow())
-    }
-    // DLV maximale : N mois depuis aujourd'hui
-    this.dlvmax = !e ? 0 : (AMJ.djMois(AMJ.amjUtcPlusNbj(this.op.auj, e.nbmi * 30)))
-    // DLV maximale pour les comptes 0: dlvmax OU dlv de l'espace si plus proche
-    this.dlvmaxO = !e ? 0 :(e.dlvat && (this.dlvmax > e.dlvat) ? e.dlvat : this.dlvmax)
-
-    // comptas SAUF celle du compte
+    // comptas SAUF celle du compte courant
     for(const [id, d] of this.comptas) 
       if (id !== this.op.id) await this.majCompta(d)
 
+    // comptes SAUF le compte courant
+    for(const [id, d] of this.comptes) 
+      if (id !== this.op.id) await this.majdoc(d)
 
-    // compta compte partition compta synthese
+    // Incorporation de la consommation dans compta courante
+    if (!this.op.SYS) {
+      const compta = await this.getCO(this.op.id)
+      await compta.incorpConso(this.op)
+      await this.majCompta(compta)
+    }
 
+    // maj compte courant
+    if (this.op.compte) await this.majdoc(this.op.compte)
+
+    // maj partitions (possiblement affectées aussi par maj des comptes O)
+    for(const [,d] of this.partitions) await this.majpart(d)
+    
+    // maj syntheses possiblement affectées par maj des partitions
+    await this.majsynth(this.op.ns)
   }
 
 }
@@ -524,61 +605,41 @@ export class Operation {
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
     this.result = { }
     this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.versions = []
+    this.ns = 0
+    this.org = ''
+    this.compte = null
   }
 
   /* Exécution de l'opération */
   async run () {
     this.gd = new GD(this)
+    await this.phase1(this.args)
+
     await this.db.doTransaction(this) // Fait un appel à transac
 
     /* Envoi en cache des objets majeurs mis à jour / supprimés */  
-    if (!this.result.KO) {
-      const updated = [] // rows mis à jour / ajoutés
-      const deleted = [] // paths des rows supprimés
-      this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-      this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-      this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-      Cache.update(updated, deleted)
+    const updated = [] // rows mis à jour / ajoutés
+    const deleted = [] // paths des rows supprimés
+    this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+    this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+    this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
+    Cache.update(updated, deleted)
 
-      await this.phase3(this.args) // peut ajouter des résultas
+    await this.phase3(this.args) // peut ajouter des résultas
 
-      if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
+    if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
 
-      if (this.setR.has(R.RAL1)) await sleep(3000)
-      if (this.setR.has(R.RAL2)) await sleep(6000)
-    }
+    if (this.setR.has(R.RAL1)) await sleep(3000)
+    if (this.setR.has(R.RAL2)) await sleep(6000)
 
     return this.result
   }
 
+  async phase1 () { return }
+
   async phase2 () { return }
 
   async phase3 () { return }
-
-  calculDlv (compte, compta) {
-    let dlv
-    if (ID.estComptable(compte.id)) dlv = AMJ.max
-    else {
-      const dlvmax = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, this.espace.nbmi * 30))
-      if (compte.idp) // Compte O
-        dlv = this.espace.dlvat && (dlvmax > this.espace.dlvat) ? this.espace.dlvat : dlvmax
-      else { // Compte A
-        const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, compta._nbj))
-        dlv = dlvmax > d ? d : dlvmax
-      }
-    }
-    let diff1 = AMJ.diff(dlv, compte.dlv); if (diff1 < 0) diff1 = -diff1
-    if (diff1) {
-      /* Pour éviter des modifications mineures sur comptes, on ne met à jour la dlv que :
-      - si elle est dans moins de 20 jours
-      - si elle diffère de l'actuelle de plus de 10 jours
-      */
-      if (AMJ.diff(dlv, this.auj) < 20 || diff1 > 10) {
-        compte.dlv = dlv
-        compte._maj = true
-      }
-    }
-  }
 
   async transac () { // Appelé par this.db.doTransaction
     await this.auth() // this.compta est accessible (si authentifié)
@@ -589,64 +650,12 @@ export class Operation {
 
     if (this.setR.has(R.FIGE)) return
 
-    // Maj espace
-    if (this.espace && this.espace._maj) {
-      if (this.espace._ins) this.espace.v = 1; else this.espace.v++
-      const row= this.espace.toRow()
-      this.setNV(this.espace)
-      if (this.espace._ins) this.insert(row); else this.update(row)
-    }
-    
-    // Maj dlv si nécessaire) et pas de restriction grave
-    if (this.compte && this.espace && this.compta && !R.estGrave(this.setR))
-      this.calculDlv(this.compte, this.compta)
-    
-    // Incorporation de consommation dans compta et insert/update compta
-    const conso = this.compta ? await this.compta.finaliser(this) : null
+    await this.gd.maj()
 
-    if (this.compte && this.compte._maj) {
-      if (this.compte.v === 0) {
-        this.compte.v = 1
-        this.setNV(this.compte)
-        this.insert(this.compte.toRow())
-      } else {
-        const vcpt = await this.getV(this.compte)
-        vcpt.v++
-        this.compte.v = vcpt.v
-        this.setV(vcpt)
-        this.update(this.compte.toRow())
-      }
-    }
+    if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
+    if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
+    if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
 
-    /* Maj des partitions modifiées dans l'opération */
-    if (this.partitions && this.partitions.size) {
-      for(const [, p] of this.partitions) if (p._maj) {
-        if (p._ins) p.v = 1; else p.v++
-        // réintegration dans synthese
-        if (!this.synthese)
-          this.synthese = compile(await this.getRowSynthese(this.ns, 'transac-fin'))
-        this.synthese.setPartition(p)
-        const row = p.toRow()
-        if (p._ins) this.insert(row); else this.update(row)
-      }
-    }
-
-    /* Maj de la synthese de l'espace si elle a été modifiée dans l'opération
-    par intégration / maj d'une partition */
-    if (this.synthese && this.synthese._maj) {
-      this.synthese.v++
-      this.synthese.dh = this.dh
-      const row = this.synthese.toRow()
-      if (this.synthese.v === 1) this.insert(row); else this.update(row)
-    }
-    
-    if (conso) this.result.conso = conso
-
-    if (!this.result.KO) {
-      if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
-      if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
-      if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
-    }
   }
 
   /* Authentification *************************************************************
@@ -684,49 +693,47 @@ export class Operation {
       await sleep(3000)
       throw new AppExc(F_SRV, 205) 
     } 
-    this.authData = null
+    let authData = null
     this.estAdmin = false
-    if (t) try { 
-      this.authData = decode(b64ToU8(t)) 
-      if (this.authData.shax) {
-        try {
-          const shax64 = Buffer.from(this.authData.shax).toString('base64')
-          if (app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
-        } catch (e) { /* */ }
+    if (t) 
+      try { 
+        authData = decode(b64ToU8(t)) 
+        if (authData.shax) {
+          try {
+            const shax64 = Buffer.from(authData.shax).toString('base64')
+            if (app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
+          } catch (e) { /* */ }
+        }
+        this.org = authData.org
+      } catch (e) { 
+        await sleep(3000)
+        throw new AppExc(F_SRV, 206, [e.message])
       }
-    } catch (e) { 
-      await sleep(3000)
-      throw new AppExc(F_SRV, 206, [e.message])
-    }
 
     if (this.estAdmin) return
 
     if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
 
-    if (this.authData && this.authData.sessionId) {
+    if (authData && authData.sessionId) {
       /* Récupérer la session WS afin de pouvoir lui transmettre les évolutions d'abonnements */
-      this.sync = SyncSession.getSession(this.authData.sessionId, this.dh)
+      this.sync = SyncSession.getSession(authData.sessionId, this.dh)
       if (!this.sync) throw new AppExc(E_SRV, 4)
     }
 
     if (this.authMode === 0) return
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */ 
-    this.espace = await this.gd.getES(this.authData.org)
-    this.ns = this.espace.id
-    const n = this.espace.notifE
-    if (n) {
-      // Espace bloqué
-      if (n.nr === 3) // application close
-        throw new AppExc(A_SRV, 999, [n.texte, n.dh])
-      if (n.nr === 2) {
-        this.setR.add(R.FIGE)
-        if (this.excFige === 2) throw new AppExc(F_SRV, 101, [n.texte])
-      }
-    }
+    const espace = await Cache.getEspaceOrg(this.op, this.org, true)
+    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+    this.ns = espace.id
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    if (espace.fige)
+      if (this.excFige === 2) throw new AppExc(F_SRV, 101, espace.fige)
+      else this.setR.add(R.FIGE)
+    this.gd.setEspace(espace)
     
     /* Compte */
-    this.compte = await this.gd.getCO(0, this.authData.hXR, this.authData.hXC)
+    this.compte = await this.gd.getCO(0, authData.hXR, authData.hXC)
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp
@@ -763,7 +770,7 @@ export class Operation {
       }
     }
 
-    /* Compta : requis en fin d'opération, autant le charger maintenant */
+    // Facilité
     this.compta = await this.gd.getCA(this.id)
   }
 
@@ -786,59 +793,15 @@ export class Operation {
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
 
-  async getV (doc, src) {
-    const id = ID.long(doc.rds, this.ns)
-    return compile(await this.getRowVersion(id, src))
-  }
-
-  setV (version) {
-    const r = version.toRow()
-    if (version.v === 1) this.insert(r); else this.update(r)
-    this.versions.push(r)
-    return version
-  }
-
-  setNV (doc) {
-    const version = new Versions()
-    version.v = doc.v
-    if (doc._nom === 'espaces') {
-      version.id = doc.id
-      version.notif = doc.notifE || null
-    } else version.id = ID.long(doc.rds, ID.ns(doc.id))
-    this.setV(version)
-  }
-
+  /*
   decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }
 
   crypt (k, x) { return crypterSrv(k, Buffer.from(encode(x))) }
-
-  idsChat (idI, idE) {
-    return hash(crypterSrv(this.db.appKey, Buffer.from(ID.court(idI) + '/' + ID.court(idE)))) % d14
-  }
+  */
 
   /* Helper d'accès depuis Cache */
 
   async org (ns) { return Cache.org(this, ns)}
-
-  async getEspaceOrg (org) { return Cache.getEspaceOrg(this, org) }
-
-  async getRowEspace (id, assert) {
-    const tr = await Cache.getRow(this, 'espaces', id)
-    if (assert && !tr) throw assertKO('getRowEspace/' + assert, 1, [id])
-    return tr
-  }
-
-  async getEspaceLazy (id, assert) {
-    this.espace = compile(await Cache.getRow(this, 'espaces', id, true))
-    if (assert && !this.espace) throw assertKO('getRowEspace/' + assert, 1, [id])
-    this.ns = this.espace.id
-    this.notifE = this.espace.notifE
-    if (this.notifE) {
-      // Espace bloqué
-      if (this.notifE.nr === 3) this.setR.add(R.CLOS)
-      else if (this.notifE.nr === 2) this.setR.add(R.FIGE)
-    }
-  }
 
   async getRowPartition (id, assert) {
     const tr = await Cache.getRow(this, 'partitions', id)

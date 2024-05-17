@@ -3,8 +3,8 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
 
-import { Operation, assertKO, Cache, R } from './modele.mjs'
-import { compile, Chats } from './gendoc.mjs'
+import { Operation, assertKO, Cache } from './modele.mjs'
+import { compile } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -99,10 +99,11 @@ operations.GetPub = class GetPub extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.getEspaceLazy(ID.ns(args.id))
-    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+    this.ns = ID.ns(args.id)
+    const espace = this.gd.getES(true)
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     
-    const avatar = compile(await this.getRowAvatar(args.id, 'getPub'))
+    const avatar = await this.gd.getAV(args.id)
     this.setRes('pub', avatar.pub)
   }
 }
@@ -118,15 +119,13 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const espace = await this.getEspaceOrg(args.org)
+    const espace = await Cache.getEspaceOrg(this, args.org, true)
     if (!espace) { sleep(3000); return }
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
 
     this.ns = espace.id
-    const n = espace.notifE
-    if (n && n.nr === 3) // application close
-      throw new AppExc(A_SRV, 999, [n.texte, n.dh])
 
-    const ids = (espace.id * d14) + (args.hps1 % d14) // par précaution
+    const ids = (espace.id * d14) + (args.hps1 % d14)
     const row = await this.db.getSponsoringIds(this, ids)
     if (!row) { sleep(3000); return }
     this.setRes('rowSponsoring', row)
@@ -145,8 +144,9 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.getEspaceLazy(ID.ns(args.hps1))
-    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+    this.ns = ID.ns(args.hps1)
+    const espace = this.gd.getES(true)
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
 
     if (await this.db.getCompteHXR(this, args.hps1)) this.setRes('existe', true)
   }
@@ -203,8 +203,10 @@ operations.SyncSp = class SyncSp extends Operation {
 
   async phase2 (args) {
     this.ns = ID.ns(args.idsp)
-    await this.getEspaceLazy(this.ns)
-    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+    const espace = this.gd.getES()
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    if (espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
+    this.setRes('rowEspace', espace.toShortRow())
 
     // Recherche du sponsorings
     const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
@@ -237,17 +239,6 @@ operations.SyncSp = class SyncSp extends Operation {
       }
     }
 
-    // Refus si espace figé ou clos
-    this.espace = compile(await this.getRowEspace(this.ns, 'SyncSp-3'))
-    if (this.espace.notifE) {
-      // Espace bloqué
-      const n = this.espace.notifE
-      if (n.nr === 3) // application close
-        throw new AppExc(A_SRV, 999, [n.texte])
-      if (n.nr === 2) 
-        throw new AppExc(F_SRV, 101, [n.texte])
-    }
-
     // créé compte compta compti invit
     const {compte, compta, compti, invit} = this.gd.nouvCO(args, sp, sp.quotas, sp.don)
     // Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
@@ -255,11 +246,8 @@ operations.SyncSp = class SyncSp extends Operation {
     this.setRes('rowCompti', compti.toShortRow())
     this.setRes('rowInvit', invit.toShortRow())
 
-    const avatar = this.gd.nouvAV(this.compte, args)
+    const avatar = this.gd.nouvAV(compte, args)
     this.setRes('rowAvatar', avatar.toShortRow())
-
-    const espace = this.gr.getES(this.ns)
-    this.setRes('rowEspace', espace.toShortRow())
 
     // création du dataSync
     const ds = DataSync.deserial()
@@ -292,10 +280,9 @@ operations.SyncSp = class SyncSp extends Operation {
       */
       const idsI = this.idsChat(args.id, sp.id)
       const idsE = this.idsChat(sp.id, args.id)
-      const chI = Chats.nouveau({ // du sponsorisé
+      const chI = this.gd.nouvCAV({ // du sponsorisé
         id: args.id,
         ids: idsI,
-        v: 1,
         st: 10,
         idE: ID.court(sp.id),
         idsE: idsE,
@@ -303,17 +290,16 @@ operations.SyncSp = class SyncSp extends Operation {
         cleCKP: args.ch.ccK,
         cleEC: args.ch.cleE1C,
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
-      }, avatar.rds)
-      this.setRes('rowChat', this.insert(chI.toRow()))
+      })
+      this.setRes('rowChat', chI.toRow())
       this.compta.ncPlus(1)
 
       const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
       vchE.v++
       this.setV(vchE)
-      const chE = Chats.nouveau({
+      const chE = this.gd.nouvCAV({
         id: sp.id,
         ids: idsE,
-        v: vchE.v,
         st: 1,
         idE: ID.court(chI.id),
         idsE: idsI,
@@ -321,7 +307,7 @@ operations.SyncSp = class SyncSp extends Operation {
         cleCKP: args.ch.ccP,
         cleEC: args.ch.cleE2C,
         items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
-      }, avsponsor.rds)
+      })
       this.insert(chE.toRow())
     }
 
@@ -345,8 +331,8 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
 
   async phase2(args) {
     this.ns = ID.ns(args.id)
-    await this.getEspaceLazy(this.ns)
-    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+    const espace = this.gd.getES(true)
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
 
     // Recherche du sponsorings
     const sp = compile(await this.db.get(this, 'sponsorings', args.id, args.ids))
@@ -384,8 +370,9 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
   constructor (nom) { super(nom, 1, 1)  }
 
   async phase2 (args) {
-    await this.getEspaceLazy(ID.ns(args.hps1))
-    if (this.setR.has(R.CLOS)) throw new AppExc(A_SRV, 999, [this.notifE.texte, this.notifE.dh])
+    this.ns = ID.ns(args.hps1)
+    const espace = this.gd.getES()
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
 
     if (args.t === 2) {
       if (await this.db.getSponsoringIds(this, args.hps1)) {
@@ -674,8 +661,8 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreerEspace.reg))) 
       throw new AppExc(F_SRV, 201, [args.org])
 
-    if (await this.getRowEspace(args.ns)) throw new AppExc(F_SRV, 203, [args.ns, args.org])
-    if (await this.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
+    if (await this.gd.getES()) throw new AppExc(F_SRV, 203, [args.ns, args.org])
+    if (await Cache.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
     args.id = ID.duComptable(args.ns)
 
@@ -695,7 +682,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const {compte, compta, compti, invit} = this.gd.nouvCO(args, null, quotas, 0)
     partition.ajoutCompte(compta, args.cleAP, true)
     const cvA = { id: args.id }
-    this.gd.nouvAV(this.compte, args, cvA)
+    this.gd.nouvAV(compte, args, cvA)
   }
 }
 
