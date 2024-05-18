@@ -1,10 +1,10 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
-  UNITEN, UNITEV, d14, edvol, V99 } from './api.mjs'
+  UNITEN, UNITEV, d14, edvol, V99, hash } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6, sleep, b64ToU8 } from './util.mjs'
+import { rnd6, sleep, b64ToU8, crypterSrv } from './util.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, /*Notes,*/
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
@@ -230,11 +230,12 @@ class GD {
   }
 
   /* Gère l'espace courant unique d'une opération */
-  async getES (lazy) {
+  async getES (lazy, assert) {
     if (this.espace && lazy && this.lazy) return this.espace
     if (this.espace && lazy) return this.espace
     this.espace = await Cache.getRow(this.op, 'espaces', this.op.ns, lazy)
-    if (!this.espace) throw new AppExc(F_SRV, 50, [this.op.ns])
+    if (!this.espace) {
+      if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
     this.lazy = lazy
     return this.espace
   }
@@ -279,41 +280,40 @@ class GD {
     return { compte:c, compta: compta, compti: compti, invit: invit }
   }
 
-  async getCO (id, hXR, hXC) {
+  async getCO (id, hXR, hXC, assert) {
     let c
     let t = false
     if (id) {
       c = this.comptes.get(id)
-      if (!c) c = compile(await this.op.getRowCompte(id))
-      else t = true
+      if (c) t = true; else c = compile(await this.op.getRowCompte(id))
     } else {
       c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
       if (!c || c.hXC !== hXC) { await sleep(3000); throw new AppExc(F_SRV, 998) }
     }
-    if (!c || c.v === V99) throw new AppExc(F_SRV, 501)
-    await this.getV(c.rds)
+    if (!c || c.v === V99 || !await this.getV(c.rds)) { 
+      if (!assert) return null; else assertKO(assert, 4, [c.id]) }
     if (!t) this.comptes.set(id, c)
     return c
   }
 
-  async getCI (id) {
+  async getCI (id, assert) {
     let c
     if (id) c = this.comptis.get(id)
     if (c) return c
     c = compile(await this.op.getRowCompti(id))
-    if (!c) throw new AppExc(F_SRV, 501)
-    await this.getV(c.rds)
+    if (!c || !await this.getV(c.rds)) { 
+      if (!assert) return null; else assertKO(assert, 12, [c.id]) }
     this.comptis.set(id, c)
     return c
   }
 
-  async getIN (id) {
+  async getIN (id, assert) {
     let c
     if (id) c = this.invits.get(id)
     if (c) return c
     c = compile(await this.op.getRowInvit(id))
-    if (!c) throw new AppExc(F_SRV, 501)
-    await this.getV(c.rds)
+    if (!c || !await this.getV(c.rds)) { 
+      if (!assert) return null; else assertKO(assert, 11, [c.id]) }
     this.invits.set(id, c)
     return c
   }
@@ -336,12 +336,12 @@ class GD {
     return a
   }
 
-  async getAV (id, nex) {
+  async getAV (id, assert) {
     let a = this.avatars.get(id)
     if (a) return a
     a = compile(await this.op.getRowAvatar(id))
-    if (!a || a.v === V99) throw new AppExc(F_SRV, nex || 502)
-    await this.getV(a.rds)
+    if (!a || a.v === V99 || !await this.getV(a.rds)) { 
+      if (!assert) return null; else assertKO(assert, 8, [a.id]) }
     this.avatars.set(id, a)
     return a
   }
@@ -359,101 +359,107 @@ class GD {
     return g
   }
 
-  async getGR (id) {
+  async getGR (id, assert) {
     let g = this.groupes.get(id)
     if (g) return g
     g = compile(await this.op.getRowGroupe(id))
-    if (!g || g.v === V99) throw new AppExc(F_SRV, 503)
-    await this.getV(g.rds)
+    if (!g || g.v === V99 || !await this.getV(g.rds)) { 
+      if (!assert) return null; else assertKO(assert, 9, [g.id]) }
     this.groupes.set(id, g)
     return g
   }
 
-  async getCGR (id, nex) {
-    let d = this.sdocs.get(id + '/CGR/')
+  async getCGR (id, assert) {
+    const k = id + '/CGR/'
+    let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowChatgr(id))
-    if (!d) throw new AppExc(F_SRV, nex || 503)
-    await this.getV(d.rds)
-    this.sdocs.set(id + '/CGR/', d)
+    if (!d || !await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 17, [k]) }
+    this.sdocs.set(k, d)
     return d
   }
 
-  async nouvMBR (id, im, cvA, cleAG) {
-    const groupe = await this.getGR(id)
+  async nouvMBR (id, im, cvA, cleAG, assert) {
+    const k = id + '/MBR/' + im
+    const g = await this.getGR(id, assert)
     const m = Membres.nouveau(id, im, cvA, cleAG)
-    m.rds = groupe.rds
-    this.sdocs.set(groupe.id + '/MBR/' + im, m)
+    m.rds = g.rds
+    this.sdocs.set(k, m)
     return m
   }
 
-  async getMBR (id, im) {
-    let d = this.sg.get(id + '/MBR/' + im)
+  async getMBR (id, im, assert) {
+    const k = id + '/MBR/' + im
+    let d = this.sg.get(k)
     if (d) return d
     d = compile(await this.op.getRowMembre(id, im))
-    if (!d) throw new AppExc(F_SRV, 503)
-    await this.getV(d.rds)
-    this.sdocs.set(id + '/MBR/' + im, d)
+    if (!d || !await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 10, [k]) }
+    this.sdocs.set(k, d)
     return d
   }
 
-  async nouvCAV (args) {
-    const avatar = await this.gd.getAV(args.id)
-    this.getV(avatar.rds)
+  async nouvCAV (args, assert) {
+    const k = args.id + '/CAV/' + args.ids
+    const a = await this.gd.getAV(args.id, assert)
     const d = Chats.nouveau(args)
-    d.rds = avatar.rds
-    this.sdocs.set(args.id + '/CAV/' + args.ids, d)
+    d.rds = a.rds
+    this.sdocs.set(k, d)
     return d
   }
 
-  async getCAV (id, ids) {
-    let d = this.sg.get(id + '/CAV/' + ids)
+  async getCAV (id, ids, assert) {
+    const k = id + '/CAV/' + ids
+    let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowChat(id, ids))
-    if (!d) throw new AppExc(F_SRV, 503)
-    await this.getV(d.rds, 503)
-    this.sdocs.set(id + '/CAV/' + ids, d)
+    if (!d || !await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 5, [k]) }
+    this.sdocs.set(k, d)
     return d
   }
 
-  async nouvTKT (args) {
+  async nouvTKT (args, assert) {
     const idc = ID.duComptable(this.op.ns)
-    const avatar = await this.gd.getAV(idc, 502)
-    this.getV(avatar.rds)
+    const k = idc + '/TKT/' + args.ids
+    const a = await this.gd.getAV(idc, assert)
     const d = Tickets.nouveau(idc, args)
-    d.rds = avatar.rds
-    this.sdocs.set(args.id + '/TKT/' + args.ids, d)
+    d.rds = a.rds
+    this.sdocs.set(k, d)
     return d
   }
 
-  async getTKT (ids) {
+  async getTKT (ids, assert) {
     const idc = ID.duComptable(this.op.ns)
-    let d = this.sg.get(idc + '/TKT/' + ids)
+    const k = idc + '/TKT/' + ids
+    let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowTicket(idc, ids))
-    if (!d) throw new AppExc(F_SRV, 503)
-    await this.getV(d.rds)
+    if (!d || !await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 15, [k]) }
     this.sdocs.set(idc + '/TKT/' + ids, d)
     return d
   }
 
-  async nouvSPO (args) {
-    const avatar = await this.gd.getAV(args.id, 502)
-    this.getV(avatar.rds)
+  async nouvSPO (args, assert) {
+    const k = args.id + '/SPO/' + args.ids
+    const a = await this.gd.getAV(args.id, assert)
     const d = Tickets.nouveau(args)
-    d.rds = avatar.rds
+    d.rds = a.rds
     d.dh = this.op.dh
-    this.sdocs.set(d.id + '/SPO/' + d.ids, d)
+    this.sdocs.set(k, d)
     return d
   }
 
-  async getSPO (id, ids) {
-    let d = this.sg.get(id + '/SPO/' + ids)
+  async getSPO (id, ids, assert) {
+    const k = id + '/SPO/' + ids
+    let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowSponsoring(id, ids))
-    if (!d) throw new AppExc(F_SRV, 503)
-    await this.getV(d.rds)
-    this.sdocs.set(id + '/SPO/' + ids, d)
+    if (!d || !await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 13, [k]) }
+    this.sdocs.set(k, d)
     return d
   }
 
@@ -474,8 +480,7 @@ class GD {
       v = compile(await this.op.getRowVersion(lrds))
       if (v) this.versions.set(lrds, v)
     }
-    if (!v || v.suppr) throw new AppExc(F_SRV, 500 + ID.rdsType(rds) - 6)
-    return v
+    return !v || v.suppr ? null : v
   }
 
   nouvV (rds) {
@@ -486,27 +491,16 @@ class GD {
   }
 
   /* Met à jour le version d'un doc ou sous-doc,
-  - s'il était suppr -> EXCEPTION
-  - le version doit exister, sinon EXCEPTION
+  - le version doit avoir été chargé par un getXX précédent, sinon EXCEPTION
   - s'il avait déjà été incrémenté, ne fait rien
   */
-  async majV (rds) {
+  async majV (rds, id) {
     const lrds = ID.long(rds, this.op.ns)
-    let v = this.versions.get(lrds)
-    let f = false
-    if (!v) {
-      v = compile(await this.op.getRowVersion(lrds))
-      if (v) {
-        if (v.suppr) throw new AppExc(F_SRV, 500 + ID.rdsType(rds) - 6)
-        if (!v._maj) f = true // en fait v._maj n'est jamais true ici
-      } else throw new AppExc(F_SRV, 500 + ID.rdsType(rds) - 6)
-    } else {
-      if (!v._maj) f = true
-    }
-    if (f) {
+    const v = this.versions.get(lrds)
+    if (!v) assertKO('majV', 20, [rds, id])
+    if (!v._maj) {
       v.v++
       v._maj = true
-      this.versions.set(lrds, v)
       const rv = v.toRow()
       if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
       this.op.versions.push(rv)  
@@ -517,7 +511,7 @@ class GD {
   async majdoc (d) {
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.rds)
+      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
       if (ins) this.op.insert(d.row()); else this.op.update(d.row())
     }
   }
@@ -525,7 +519,7 @@ class GD {
   async majesp (d) {
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.id)
+      d.v = await this.majV(d.id, d.id)
       if (ins) this.op.insert(d.row()); else this.op.update(d.row())
     }
   }
@@ -792,6 +786,10 @@ export class Operation {
 
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
+
+  idsChat (idI, idE) {
+    return hash(crypterSrv(this.db.appKey, Buffer.from(ID.court(idI) + '/' + ID.court(idE)))) % d14
+  }
 
   /*
   decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }

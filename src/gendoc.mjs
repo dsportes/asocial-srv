@@ -258,8 +258,11 @@ export class Espaces extends GenDoc {
     - tous comptes: la notification de _leur_ partition sera seule lisible.
   */
   toShortRow () {
+    const x1 = this.moisStat, x2 = this.moisStatT, x3 = this.dlvat, x4 = this.nbmi
     delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
-    return this.toRow()
+    const r = this.toRow()
+    this.moisStat = x1; this.moisStatT = x2; this.dlvat = x3; this.nbmi = x4
+    return r
   }
 }
 
@@ -330,15 +333,17 @@ export class Partitions extends GenDoc {
   }
 
   toShortRow (del) {
-    if (!del) {
-      const m = {}
-      for(const idx in this.mcpt) {
-        const e = this.mcpt[idx]
-        if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAP }
-      }
-      this.mcpt = m
+    if (del) return this.toRow()
+    const sv = this.mcpt
+    const m = {}
+    for(const idx in this.mcpt) {
+      const e = this.mcpt[idx]
+      if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAP }
     }
-    return this.toRow()
+    this.mcpt = m
+    const r = this.toRow()
+    this.mcpt = sv
+    return r
   }
 
   majQC(idc, qv, c2m) {
@@ -1036,6 +1041,21 @@ export class Sponsorings extends GenDoc {
       sp.del = args.del
     }
     return sp
+  }
+
+  acceptSp (dh, args) {
+    this.dh = dh
+    this.st = 2
+    this.ardYC = args.ardYC
+    this.dconf2 = args.dconf
+    this._maj = true
+  }
+
+  refusSp (dh, args) {
+    this.dh = dh
+    this.st = 1
+    this.ardYC = args.ardYC
+    this._maj = true
   }
 
   toShortRow () { return this.toRow() }

@@ -3,7 +3,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
 
-import { Operation, assertKO, Cache } from './modele.mjs'
+import { Operation, Cache } from './modele.mjs'
 import { compile } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
 
@@ -103,7 +103,7 @@ operations.GetPub = class GetPub extends Operation {
     const espace = this.gd.getES(true)
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     
-    const avatar = await this.gd.getAV(args.id)
+    const avatar = await this.gd.getAV(args.id, 'getPub')
     this.setRes('pub', avatar.pub)
   }
 }
@@ -120,23 +120,21 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
 
   async phase2 (args) {
     const espace = await Cache.getEspaceOrg(this, args.org, true)
-    if (!espace) { sleep(3000); return }
+    if (!espace) { sleep(3000); throw new AppExc(F_SRV, 102, [args.org]) }
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
 
     this.ns = espace.id
 
     const ids = (espace.id * d14) + (args.hps1 % d14)
     const row = await this.db.getSponsoringIds(this, ids)
-    if (!row) { sleep(3000); return }
+    if (!row) { sleep(3000); throw new AppExc(F_SRV, 11) }
     this.setRes('rowSponsoring', row)
   }
 }
 
-/* Recherche hash de phrase ***************************************
+/* Recherche hash de phrase de connexion ***************************************
 Pour Acceptation Sponsoring
 args.hps1 : ns + hps1 de la phrase de contact / de connexion
-args.t :
-  - 1 : phrase de connexion(hps1 de compta)
 Retour:
 - existe : true si le hash de la phrase existe
 */
@@ -185,75 +183,51 @@ Retour:
 - rowCompti
 - rowAvater 
 - rowChat si la confidentialité n'a pas été requise
-
-Exceptions:
-- `A_SRV, 13` : sponsorings non trouvé
-- `F_SRV, 9` : le sponsoring a déjà été accepté ou refusé ou est hors limite.
-- F_SRV, 212: solde du sonsor ne couvre pas son don
-- A_SRV, 999: application close
-- F_SRV, 101: application figée
-- F_SRV, 211: quotas restants de la partition insuffisants pour couvrir les quotas proposés au compte
-- A_SRV, 16: syntheses non trouvée
-- A_SRV, 1: espace non trouvé
-- A_SRV, 2: partition non trouvée
-- A_SRV, 8: avatar sponsor non trouvé
 */
 operations.SyncSp = class SyncSp extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
     this.ns = ID.ns(args.idsp)
-    const espace = this.gd.getES()
+    const espace = this.gd.getES(false, 'SyncSp')
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     if (espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
     this.setRes('rowEspace', espace.toShortRow())
 
+    const avsponsor = await this.gd.getAV(args.idsp)
+    if (!avsponsor) throw new AppExc(F_SRV, 401)
+
     // Recherche du sponsorings
     const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
-    if (!sp) throw assertKO('SyncSp-1', 13, [args.idsp, args.idssp])
-    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.idsp, args.idsp])
+    if (!sp) throw new AppExc(F_SRV, 11)
+    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 12, [args.idsp, args.idsp])
     if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
-
-    // Maj du sponsoring: st dconf2 dh ardYC
-    const avsponsor = compile(await this.getRowAvatar(args.idsp, 'SyncSp-10'))
-    const vsp = await this.getV(avsponsor, 'SyncSp-3')
-    vsp.v++
-    sp.v = vsp.v
     const dhsp = sp.dh || 0
-    sp.dh = this.dh
-    sp.st = 2
-    sp.ardYC = args.ardYC
-    sp.dconf2 = args.dconf
-    this.update(sp.toRow())
-    this.setV(vsp)
+    sp.acceptSp(this.dh, args) // Maj du sponsoring: st dconf2 dh ardYC
 
-    // Maj compta du sponsor (si don)
+    // Maj compta du sponsor si don
     if (sp.don) { 
-      const csp = compile(await this.getRowCompta(args.idsp, 'SyncSp-8'))
-      if (csp.estA) {
-        if (csp.solde <= sp.don + 2)
-          throw new AppExc(F_SRV, 212, [csp.solde, sp.don])
-        csp.v++
-        csp.solde-= sp.don
-        this.update(csp.toRow()) 
-      }
+      const csp = await this.gd.getCA(args.idsp)
+      if (!csp) throw new AppExc(F_SRV, 402)
+      if (csp.estA) csp.don(this.dh, -2, args.id)
     }
 
     // créé compte compta compti invit
     const {compte, compta, compti, invit} = this.gd.nouvCO(args, sp, sp.quotas, sp.don)
-    // Le row compte VA ETRE MIS A JOUR après la phase 2 - Voir phase 3
+    // pas de setRes pour le row compte qui VA ETRE MIS A JOUR après la phase 2 - Sera fait en phase 3
+    this.compte = compte
     this.compta = compta
     this.setRes('rowCompti', compti.toShortRow())
     this.setRes('rowInvit', invit.toShortRow())
 
-    const avatar = this.gd.nouvAV(compte, args)
+    const avatar = this.gd.nouvAV(compte, args, args.cvA)
     this.setRes('rowAvatar', avatar.toShortRow())
 
     // création du dataSync
     const ds = DataSync.deserial()
     ds.compte.vb = 1
     ds.compte.rds = compte.rds
-    const a = { id: avatar.id, rds: avatar.rds, vs: 0, vb: avatar.v }
+    const a = { id: avatar.id, rds: avatar.rds, vs: 0, vb: 1 }
     ds.avatars.set(a.id, a)
 
     // Sérialisation et retour de dataSync
@@ -262,7 +236,7 @@ operations.SyncSp = class SyncSp extends Operation {
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
     const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
     if (pid) {
-      const partition = this.gr.getPA(pid)
+      const partition = await this.gr.getPA(pid) // assert si n'existe pas
       const s = partition.getSynthese()
       // restants à attribuer suffisant pour satisfaire les quotas ?
       const q = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv }
@@ -294,10 +268,7 @@ operations.SyncSp = class SyncSp extends Operation {
       this.setRes('rowChat', chI.toRow())
       this.compta.ncPlus(1)
 
-      const vchE = await this.getV(avsponsor, 'SyncSp-11') // du sponsor
-      vchE.v++
-      this.setV(vchE)
-      const chE = this.gd.nouvCAV({
+      this.gd.nouvCAV({
         id: sp.id,
         ids: idsE,
         st: 1,
@@ -308,7 +279,6 @@ operations.SyncSp = class SyncSp extends Operation {
         cleEC: args.ch.cleE2C,
         items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
       })
-      this.insert(chE.toRow())
     }
 
     // Mise à jour des abonnements aux versions
@@ -330,26 +300,20 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2(args) {
-    this.ns = ID.ns(args.id)
-    const espace = this.gd.getES(true)
+    this.ns = ID.ns(args.idsp)
+    const espace = this.gd.getES(true, 'SyncSp')
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    if (espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
 
+    const avsponsor = await this.gd.getAV(args.idsp)
+    if (!avsponsor) throw new AppExc(F_SRV, 401)
+  
     // Recherche du sponsorings
-    const sp = compile(await this.db.get(this, 'sponsorings', args.id, args.ids))
-    if (!sp) throw assertKO('SyncSp-1', 13, [args.id, args.ids])
-    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 9, [args.id, args.ids])
+    const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
+    if (!sp) throw new AppExc(F_SRV, 11)
+    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 12, [args.idsp, args.idsp])
     if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
-
-    // Maj du sponsoring: st dconf2 dh ardYC
-    const avsponsor = compile(await this.getRowAvatar(args.id, 'SyncSp-10'))
-    const vsp = await this.getV(avsponsor, 'SyncSp-3')
-    vsp.v++
-    sp.v = vsp.v
-    sp.dh = this.dh
-    sp.st = 1
-    sp.ardYC = args.ardYC
-    this.update(sp.toRow())
-    this.setV(vsp)
+    sp.refusSp(this.dh, args) // Maj du sponsoring: st dconf2 dh ardYC
   }
 }
 
@@ -371,7 +335,7 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 
   async phase2 (args) {
     this.ns = ID.ns(args.hps1)
-    const espace = this.gd.getES()
+    const espace = this.gd.getES(true, 'SyncSp')
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
 
     if (args.t === 2) {
@@ -412,7 +376,7 @@ operations.GetPartition = class GetPartition extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    if (this.compte.estA) throw new AppExc(F_SRV, 220)
+    if (this.compte._estA) throw new AppExc(F_SRV, 220)
     let id = args.id
     if (!this.estComptable) id = ID.long(this.compte.idp, this.ns)
     const partition = compile(await this.getRowPartition(id, 'GetPartition'))
