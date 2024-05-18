@@ -250,6 +250,23 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
+  setNotifE (ntf) {
+    this.notifE = ntf || null
+    this._maj = true
+  }
+
+  setNprof (nprof) {
+    this.nprof = nprof
+    this._maj = true
+  }
+
+  setOptions (args) {
+    if (args.optionA) this.opt = args.optionA
+    if (args.dlvat) this.dlvat = args.dlvat
+    if (args.nbmi) this.nbmi = args.nbmi
+    this._maj = true
+  }
+
   /* Restriction pour les délégués de la partition idp
   **Propriétés accessibles :**
     - administrateur technique : toutes de tous les espaces.
@@ -537,6 +554,11 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
+  setDhvu (dhvu) {
+    this.dhvuK = dhvu
+    this._maj = true
+  }
+
   reporter (pc, nbj) { // pc de compta, nbj de compta
     if (Math.floor(this.qv.pcn / 20) !== Math.floor(pc.pcn / 20)) return true
     if (Math.floor(this.qv.pcv / 20) !== Math.floor(pc.pcv / 20)) return true
@@ -772,6 +794,8 @@ export class Comptas extends GenDoc {
     })
     return this.compile()
   }
+
+  toShortRow () { return this.toRow() }
 
   majcpt (c) {
     this._estA = c.estA 
@@ -1043,6 +1067,18 @@ export class Sponsorings extends GenDoc {
     return sp
   }
 
+  prolonger (dh, args) {
+    if (this.st === 0) {
+      this.dh = dh
+      if (args.dlv) {
+        this.dlv = args.dlv
+      } else {
+        this.st = 3
+      }
+      this._maj = true
+    }
+  }
+
   acceptSp (dh, args) {
     this.dh = dh
     this.st = 2
@@ -1071,6 +1107,74 @@ export class Chats extends GenDoc {
     c.v = 0
     return c
   }
+
+  chEdisp () {
+    const st1 = Math.floor(this.st / 10)
+    this.st = (st1 * 10) + 2 
+    this.vcv = 0
+    this.cvE = null
+    this._maj = true
+  }
+
+  addChatItem (item) {
+    const nl = [item]
+    let lg = item.t ? item.t.length : 0
+    for (const it of this.items) {
+      lg += it.t ? it.t.length : 0
+      if (lg > 5000) break
+      nl.push(it)
+    }
+    this.items = nl
+    this._maj = true
+  }
+
+  razChatItem (dh) { 
+    // a : 0:écrit par I, 1: écrit par E
+    const nl = []
+    for (const it of this.items) {
+      if (it.dh === dh) {
+        nl.push({a: it.a, dh, dhx: this.dh})
+      } else {
+        nl.push(it)
+      }
+    }
+    this.items = nl
+    this._maj = true
+  }
+
+  setCvE (cv) {
+    this.vcv = cv.v
+    this.cv = cv
+    this._maj = true
+  }
+
+  actifI () {
+    this.st = 10 + (this.st % 10)
+    this._maj = true
+  }
+
+  actifE () {
+    this.st = (Math.floor(this.st / 10) * 10) + 1 
+    this._maj = true
+  }
+
+  setZomi () {
+    this._zombi = true
+    this._maj = true
+  }
+
+  passifI () {
+    this.st = this.st % 10
+    this.items = []
+    this._maj = true
+  }
+
+  passifE () {
+    this.st = Math.floor(this.st / 10) * 10
+    this._maj = true
+  }
+
+  get estPassif () { return Math.floor(this.st / 10) === 0 }
 
   toShortRow () { return this.toRow()}
 }

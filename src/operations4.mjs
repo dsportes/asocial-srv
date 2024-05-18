@@ -34,19 +34,13 @@ export function load4 () {
 - dlvat: aaaammjj,
 - nbmi:
 Retour: rien
-Assertion sur l'existence du row `Espaces`.
-L'opération échappe au contrôle espace figé / clos.
-Elle n'écrit QUE dans espaces.
 */
 operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    this.espace = compile(await this.getRowEspace(args.ns, 'SetEspaceOptionA-1'))
-    if (args.optionA) this.espace.opt = args.optionA
-    if (args.dlvat) this.espace.dlvat = args.dlvat
-    if (args.nbmi) this.espace.nbmi = args.nbmi
-    this.espace._maj = true
+    const espace = this.getCheckEspace(args.ns, true)
+    espace.setOptions(args)
   }
 }
 
@@ -87,9 +81,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
-      const partition = await this.gd.getPA(args.partitionId)
-      if (!partition) 
-        throw new AppExc(F_SRV, 208, [args.partitionId])
+      const partition = await this.gd.getPA(args.partitionId, 'AjoutSponsoring')
       if (!this.estComptable) {
         const e = partition.mcpt[ID.court(this.compte.id)]
         if (!e || !eqU8(e.cleAP, args.cleAP)) 
@@ -110,7 +102,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       }
     }
 
-    this.gd.nouvSPO(args)
+    await this.gd.nouvSPO(args, 'AjoutSponsoring')
   }
 }
 
@@ -121,9 +113,7 @@ POST:
 - `id ids` : identifiant du sponsoring.
 - `dlv` : nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
 
-Retour: rien
-
-Assertion sur l'existence des rows `Sponsorings` et `Versions` du compte.
+Retour: 
 */
 operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   constructor (nom) { super(nom, 1, 2) }
@@ -132,20 +122,8 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
 
-    const sp = compile(await this.getRowSponsoring(args.id, args.ids, 'ProlongerSponsoring'))
-    if (sp.st === 0) {
-      const vsp = await this.getV(sp)
-      vsp.v++
-      sp.v = vsp.v
-      sp.dh = Date.now()
-      if (args.dlv) {
-        sp.dlv = args.dlv
-      } else {
-        sp.st = 3
-      }
-      this.update(sp.toRow())
-      this.setV(vsp)
-    }
+    const sp = await this.gd.getSPO(args.id, args.ids, 'ProlongerSponsoring')
+    sp.prolonger(this.dh, args)
   }
 }
 
@@ -162,28 +140,27 @@ operations.GetCompta = class GetCompta extends Operation {
     if (id !== this.id && !this.estComptable) {
       if (!this.compte.del) throw new AppExc(F_SRV, 218)
       const idp = ID.long(this.compte.idp, this.ns)
-      const partition = compile(await this.getRowPartition(idp, 'GetCompta-2'))
+      const partition = await this.gd.getPA(idp, 'GetCompta-2')
       const e = partition.mcpt[ID.court(id)]
       if (!e) throw new AppExc(F_SRV, 219)
     }
-    const rowCompta = await this.getRowCompta(id, 'GetCompta-1')
-    this.setRes('rowCompta', rowCompta)
+    const compta = await this.gd.getCA(id, 'GetCompta-1')
+    this.setRes('rowCompta', compta.toShortRow())
   }
 }
 
-/* `SetDhvuCompta` : enregistrement de la date-heure de _vue_ des notifications dans une session
+/* `SetDhvuCompte` : enregistrement de la date-heure de _vue_ des notifications dans une session
 POST: 
 - `token` : éléments d'authentification du compte.
 - `dhvu` : date-heure cryptée par la clé K.
 
 Assertion sur l'existence du row `Comptas` du compte.
 */
-operations.SetDhvuCompta = class SetDhvuCompta extends Operation {
+operations.SetDhvuCompte = class SetDhvuCompte extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    this.compte._maj = true
-    this.compte.dhvuK = args.dhvu
+    this.compte.setDhvu(args.dhvu)
   }
 }
 
@@ -200,12 +177,13 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2 (args) {
-    const avatar = compile(await this.getAvatarHpc(args.hZR))
+    const av = compile(await this.getAvatarHpc(args.hZR))
+    if (!av) return
+    const avatar = await this.gd.getAV(av.id, 'GetAvatarPC')
     if (avatar && avatar.hZC === args.hZC) {
       this.setRes('cleAZC', avatar.cleAZC)
       this.setRes('cvA', avatar.cvA)
-    }
-    if (!avatar) this.setRes('collision', true)
+    } else this.setRes('collision', true)
   }
 }
 
@@ -216,7 +194,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
 - mode 
   - 0: par phrase de contact - hZC en est le hash
   - 1: idE est délégué de la partition de idI
-  - idp: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
+  - idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
 - hZC : hash du PBKFD de la phrase de contact compléte pour le mode 0
 - ch: { cck, ccP, cleE1C, cleE2C, t1c }
   - ccK: clé C du chat cryptée par la clé K du compte de idI
@@ -234,18 +212,18 @@ operations.NouveauChat = class NouveauChat extends Operation {
   async phase2 (args) {
     if (this.compte.mav[ID.court(args.idE)]) throw new AppExc(F_SRV, 226)
 
-    const avI = compile(await this.getRowAvatar(args.idI, 'NouveauChat-1'))
-    const avE = compile(await this.getRowAvatar(args.idE, 'NouveauChat-2'))
+    const avI = await this.gd.getAV(args.idI, 'NouveauChat-1')
+    const avE = await this.gd.getAV(args.idE, 'NouveauChat-2')
 
     if (!args.mode) {
       if (avE.hZC !== args.hZC) throw new AppExc(F_SRV, 221)
     } else if (args.mode === 1) {
       if (!ID.estComptable(args.idE)) throw new AppExc(F_SRV, 225)
     } else if (args.mode === 2) {
-      const partition = compile(await this.getRowPartition(ID.long(this.compte.idp), this.ns))
+      const partition = await this.gd.getPA(ID.long(this.compte.idp), this.ns)
       if (!partition || !partition.estDel(args.idE)) throw new AppExc(F_SRV, 222)
     } else {
-      const groupe = compile(await this.getRowGroupe(args.mode))
+      const groupe = await this.gd.getGR(args.mode)
       if (!groupe) throw new AppExc(F_SRV, 223)
       const imI = groupe.mmb.get(args.idI)
       const imE = groupe.mmb.get(args.idE)
@@ -268,7 +246,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
       if (!ID.estComptable(idE)) {
         if (this.compte._estA) throw new AppExc(F_SRV, 802)
         else {
-          const cptE = compile(await this.getRowCompte(idE))
+          const cptE = await this.gd.getCO(idE)
           if (!this.compte.del) {
             if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
               throw new AppExc(F_SRV, 802)
@@ -283,10 +261,10 @@ operations.NouveauChat = class NouveauChat extends Operation {
     const idsI = this.idsChat(args.idI, args.idE)
     const idsE = this.idsChat(args.idE, args.idI)
 
-    const rchI = await this.getRowChat(args.idI, idsI)
-    if (rchI) { this.setRes('rowChat', rchI); return}
+    let chI = await this.gd.getCAV(args.idI, idsI)
+    if (chI) { this.setRes('rowChat', chI.toShortRow()); return}
 
-    const chI = this.gd.nouvCAV({ 
+    chI = this.gd.nouvCAV({ 
       id: args.idI,
       ids: idsI,
       st: 10,
@@ -297,10 +275,10 @@ operations.NouveauChat = class NouveauChat extends Operation {
       cleEC: args.ch.cleE2C,
       items: [{a: 1, dh: this.dh, t: args.ch.txt}]
     })
-    this.setRes('rowChat', chI.toRow())
+    this.setRes('rowChat', chI.toShortRow())
     this.compta.ncPlus(1)
 
-    const chE = this.gd.nouvCAV({
+    this.gd.nouvCAV({
       id: args.idE,
       ids: idsE,
       st: 1,
@@ -311,18 +289,19 @@ operations.NouveauChat = class NouveauChat extends Operation {
       cleEC: args.ch.cleE1C,
       items: [{a: 0, dh: this.dh, t: args.ch.txt}]
     })
-    this.insert(chE.toRow())
   }
 }
 
 class OperationCh extends Operation {
 
-  /* Vérification des restrictions, initialisation de :
-  chI, vchI, chE
-  */
+  // Vérification des restrictions, initialisations de :
   async intro () {
-    this.chI = compile(await this.getRowChat(this.args.id, this.args.ids, 'MajChat-9'))
-    this.chI.ids = ID.court(this.chI.ids) // Contournemnet bug
+    this.avI = await this.gd.getAV(this.args.id, 'MajChat-2')
+    this.chI = this.gd.getCAV(this.args.id, this.args.ids, 'MajChat-9')
+    this.idEL = ID.long(this.chI.idE, this.ns)
+    this.avE = await this.gd.getAV(this.idEL)
+    this.chE = this.avE ? await this.gd.getCAV(this.idEL, this.chI.idsE) : null
+    this.cptE = this.avE ? await this.gd.getCO(ID.long(this.avE.idv, this.ns)) : null
     /* Restriction MINI NE s'applique QUE,
     a) si l'interlocuteur n'est pas le comptable,
     b) ET:
@@ -332,28 +311,19 @@ class OperationCh extends Operation {
         - l'interlocuteur n'est pas COMPTE délégué de la même partition
     */
     if (this.setR.has(R.MINI)) {
-      const idE = ID.long(this.chI.idE, this.ns)
-      if (!ID.estComptable(idE)) {
+      if (!ID.estComptable(this.idEL)) {
         if (this.compte._estA) throw new AppExc(F_SRV, 802)
         else {
-          const cptE = compile(await this.getRowCompte(idE))
           if (!this.compte.del) {
-            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
+            if (!this.cptE || !this.cptE.del || this.cptE.idp !== this.compte.idp) 
               throw new AppExc(F_SRV, 802)
           } else {
-            if (!cptE || cptE.idp !== this.compte.idp) 
+            if (!this.cptE || this.cptE.idp !== this.compte.idp) 
               throw new AppExc(F_SRV, 802)
           }
         }
       }
     }
-    this.avI = compile(await this.getRowAvatar(this.args.id, 'MajChat-2'))
-    this.vchI = await this.getV(this.avI, 'MajChat-3')
-    this.vchI.v++
-
-    this.idEL = ID.long(this.chI.idE, this.ns)
-    this.chE = compile(await this.getRowChat(this.idEL, this.chI.idsE))
-    if (this.chE) this.chE.ids = ID.court(this.chE.ids) // Contournemnet bug
   }
 
 }
@@ -370,100 +340,44 @@ Retour:
 operations.MajChat = class MajChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
-  addChatItem (items, item) {
-    const nl = [item]
-    let lg = item.t ? item.t.length : 0
-    for (const it of items) {
-      lg += it.t ? it.t.length : 0
-      if (lg > 5000) return nl
-      nl.push(it)
-    }
-    return nl
-  }
-
-  razChatItem (items, dh) { 
-    // a : 0:écrit par I, 1: écrit par E
-    const nl = []
-    for (const it of items) {
-      if (it.dh === dh) {
-        nl.push({a: it.a, dh, dhx: this.dh})
-      } else {
-        nl.push(it)
-      }
-    }
-    return nl
-  }
-
   async phase2 (args) {
     await this.intro(args)
 
     if (!this.chE) {
-      // E disparu. Maj interdite: statut disparu
-      const st1 = Math.floor(this.chI.st / 10)
-      this.chI.st = (st1 * 10) + 2 
-      this.chI.vcv = 0
-      this.chI.cvE = null
-      this.chI.v = this.vchI.v
-      this.setRes('disp', true)
-      this.update(this.chI.toRow())
-      this.setV(this.vchI)
+      this.chI.chEdisp()
       return
     }
 
-    // cas normal : maj sur chI et chE
+    // cas normal : maj sur chI et chE - avE et cptE existent
 
     if (args.don) {
-      const comptaE = compile(await this.getRowCompta(this.idEL, 'MajChat-7'))
-      if (!comptaE) throw new AppExc(F_SRV, 213)
-      if (!comptaE._estA) throw new AppExc(F_SRV, 214)
-      if (!this.compta._estA) throw new AppExc(F_SRV, 214)
-      const compteE = compile(await this.getRowCompte(this.idEL, 'MajChat-8'))
+      const comptaE = await this.gd.getCA(this.cptE.id, 'MajChat-7')
+      if (!comptaE) throw new AppExc(F_SRV, 213) // ne doit jamais se produire
+      if (!this.cptE._estA) throw new AppExc(F_SRV, 214)
+      if (!this.compte._estA) throw new AppExc(F_SRV, 214)
       comptaE.don(this.dh, args.don, this.id)
-      // this.calculDlv(compteE, comptaE)
-      const vcptE = await this.getV(compteE, 'MajChat-6')
-      vcptE.v++
-      compteE.v = vcptE.v
-      this.update(compteE.toRow())
-      this.setV(vcptE)
-      comptaE.v++
-      this.update(comptaE.toRow())
-
-      this.compta.don(this.dh, -args.don, compteE.id)
-      // this.calculDlv(this.compte, this.compta)
+      this.compta.don(this.dh, -args.don, this.cptE.id) // ici chE existe, donc cptE
     }
-
-    const avE = compile(await this.getRowAvatar(this.idEL, 'MajChat-4'))
-    const vchE = await this.getV(avE, 'MajChat-5')
-    vchE.v++
-    this.setV(vchE)
 
     if (args.t) {
       const itemI = args.t ? { a: 0, dh: this.dh, t: args.t } : null
       const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null  
-      this.chI.items = this.addChatItem(this.chI.items, itemI)
-      this.chE.items = this.addChatItem(this.chE.items, itemE)
+      this.chI.addChatItem(itemI)
+      this.chE.addChatItem(itemE)
     } else if (args.dh) {
-      this.chI.items = this.razChatItem(this.chI.items, args.dh)
-      this.chE.items = this.razChatItem(this.chE.items, args.dh)
+      this.chI.razChatItem(args.dh)
+      this.chE.razChatItem(args.dh)
     }
 
     // Maj CVs
-    this.chI.cvE = avE.cvA || {id: ID.court(avE.id)}
-    this.chI.vcv = this.chI.cvE.v || 0
-    this.chE.cvE = this.avI.cvA || {id: this.avI.id}
-    this.chE.vcv = this.chE.cvE.v || 0
+    this.chI.setCvE(this.avE.cvA || {id: ID.court(this.avE.id), v: 0 })
+    this.chE.setCvE(this.avI.cvA || {id: this.avI.id, v: 0 })
    
     if (Math.floor(this.chI.st / 10) === 0) { // I était passif, redevient actif
-      this.chI.st = 10 + (this.chI.st % 10)
+      this.chI.actifI()
       this.compta.ncPlus(1)
-      this.chE.st = (Math.floor(this.chE.st / 10) * 10) + 1 
+      this.chE.actifE()
     }
-
-    this.chI.v = this.vchI.v
-    this.chE.v = vchE.v
-    this.setV(this.vchI)
-    this.update(this.chI.toRow())
-    this.update(this.chE.toRow())
   }
 }
 
@@ -483,47 +397,23 @@ operations.PassifChat = class PassifChat extends OperationCh {
 
     if (!this.chE) {
       // E disparu. Il voulait être passif, devient détruit
-      this.chI._zombi = true
+      this.chI.setZombi()
       this.setRes('suppr', true)
-      this.update(this.chI.toRow())
-      this.setV(this.vchI)
       return
     }
 
-    const stI = Math.floor(this.chI.st / 10)
-    const stE = this.chI.st % 10
+    if (this.chI.estPassif) return // était passif, reste passif, rien n'a changé
 
-    if (stI === 0) {
-      // était passif, reste passif, rien n'a changé
-      return
-    }
-
-    // était actif, devient passif
-    this.chI.st = stE
-    this.chI.items = []
+    // chI était actif, devient passif
+    this.chI.passifI()
     this.compta.ncPlus(-1)
     if (this.chE) {
       // l'autre n'était pas disparu, MAJ de cv et st
-      const avE = compile(await this.getRowAvatar(this.idEL, 'PassifChat-4'))
-      const vchE = await this.getV(avE, 'PassifChat-3')
-      vchE.v++
-      this.chE.v = vchE.v
-
-      const avI = compile(await this.getRowAvatar(this.id, 'PassifChat-4'))
-      this.chE.cvE = avI.cvA
-      this.chE.vcv = this.chE.cvE.v || 0
-      this.chE.st = Math.floor(this.chE.st / 10) * 10
-
-      this.update(this.chE.toRow())
-      this.setV(vchE)
-
+      this.chE.setCvE(this.avI.cvA)
+      this.chE.setPassifE()
       // Maj CV de I
-      this.chI.cvE = avE.cvA
-      this.chI.vcv = this.chI.cvE.v || 0
+      this.chI.setCvE(this.avE.cvA)
     }
-    this.chI.v = this.vchI.v
-    this.update(this.chI.toRow())
-    this.setV(this.vchI)
   }
 }
 

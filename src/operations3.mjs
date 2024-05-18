@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, A_SRV, ID, d14 } from './api.mjs'
+import { AppExc, F_SRV, A_SRV, ID, d14, V99 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
@@ -99,9 +99,7 @@ operations.GetPub = class GetPub extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    this.ns = ID.ns(args.id)
-    const espace = this.gd.getES(true)
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    await this.getCheckEspace(ID.ns(args.id))
     
     const avatar = await this.gd.getAV(args.id, 'getPub')
     this.setRes('pub', avatar.pub)
@@ -142,9 +140,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    this.ns = ID.ns(args.hps1)
-    const espace = this.gd.getES(true)
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    await this.getCheckEspace(ID.ns(args.hps1))
 
     if (await this.db.getCompteHXR(this, args.hps1)) this.setRes('existe', true)
   }
@@ -188,10 +184,7 @@ operations.SyncSp = class SyncSp extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    this.ns = ID.ns(args.idsp)
-    const espace = this.gd.getES(false, 'SyncSp')
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
-    if (espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
+    const espace = await this.getCheckEspace(ID.ns(args.idsp), true)
     this.setRes('rowEspace', espace.toShortRow())
 
     const avsponsor = await this.gd.getAV(args.idsp)
@@ -300,18 +293,15 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2(args) {
-    this.ns = ID.ns(args.idsp)
-    const espace = this.gd.getES(true, 'SyncSp')
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
-    if (espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
+    await this.getCheckEspace(ID.ns(args.id), true)
 
-    const avsponsor = await this.gd.getAV(args.idsp)
+    const avsponsor = await this.gd.getAV(args.ids)
     if (!avsponsor) throw new AppExc(F_SRV, 401)
   
     // Recherche du sponsorings
-    const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
+    const sp = compile(await this.db.get(this, 'sponsorings', args.id, args.ids))
     if (!sp) throw new AppExc(F_SRV, 11)
-    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 12, [args.idsp, args.idsp])
+    if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 12, [args.id, args.ids])
     if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
     sp.refusSp(this.dh, args) // Maj du sponsoring: st dconf2 dh ardYC
   }
@@ -334,9 +324,7 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
   constructor (nom) { super(nom, 1, 1)  }
 
   async phase2 (args) {
-    this.ns = ID.ns(args.hps1)
-    const espace = this.gd.getES(true, 'SyncSp')
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    await this.getCheckEspace(ID.ns(args.hps1))
 
     if (args.t === 2) {
       if (await this.db.getSponsoringIds(this, args.hps1)) {
@@ -368,7 +356,7 @@ operations.GetSynthese = class GetSynthese extends Operation {
   }
 }
 
-/* GetPartition : retourne une partition
+/* GetPartition : retourne une partition *********************************
 - token : éléments d'authentification du compte.
 - id : id de la partition
 */
@@ -398,7 +386,7 @@ operations.GetEspace = class GetEspace extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const espace = compile(await this.getRowEspace(this.estAdmin ? args.ns : this.ns, 'GetEspace'))
+    const espace = await this.getCheckEspace(args.ns)
     this.setRes('rowEspace', this.estAdmin || this.estComptable ? espace.toRow() : espace.toShortRow())
   }
 }
@@ -478,7 +466,8 @@ operations.Sync = class Sync extends Operation {
     const g = await this.getGr(idg)
     if (x) {
       const version = rds ? await this.getV({rds}) : null
-      if (!g || !version || version.suppr) this.ds.groupes.delete(idg) // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
+      if (!g || g.v === V99 || !version || version.suppr) 
+        this.ds.groupes.delete(idg) // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
       else {
         x.vb = version.v
         // reset de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
@@ -492,6 +481,11 @@ operations.Sync = class Sync extends Operation {
     }
   }
 
+  async getV (doc, src) {
+    const id = ID.long(doc.rds, this.ns)
+    return compile(await this.getRowVersion(id, src))
+  }
+
   async phase2(args) {
     this.mgr = new Map() // Cache locale des groupes acquis dans l'opération
     this.cnx = !args.dataSync
@@ -501,6 +495,7 @@ operations.Sync = class Sync extends Operation {
     this.ds = DataSync.deserial(this.cnx ? null : args.dataSync)
 
     const vcpt = await this.getV(this.compte)
+    // Compte/Version forcément trouvés, auth() vient de le checker
     this.ds.compte.rds = this.compte.rds
     this.ds.compte.vb = vcpt.v
 
@@ -607,11 +602,7 @@ Création des rows:
 - partition : primitive, avec le Comptable comme premier participant et délégué
 - compte, compta, avatar: du Comptable
 
-Exceptions: 
-- F_SRV, 202 : ns non conforme.
-- F_SRV, 201: code d'organisation invalide.
-- F_SRV, 203 : Espace déjà créé.
-- F_SRV, 204 : code d'organisation déjà attribué
+Exceptions:
 */
 operations.CreerEspace = class CreerEspace extends Operation {
   constructor (nom) { super(nom, 3) }
@@ -625,8 +616,10 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreerEspace.reg))) 
       throw new AppExc(F_SRV, 201, [args.org])
 
-    if (await this.gd.getES()) throw new AppExc(F_SRV, 203, [args.ns, args.org])
-    if (await Cache.getEspaceOrg(args.org)) throw new AppExc(F_SRV, 204, [args.ns, args.org])
+    if (await this.gd.getES()) 
+      throw new AppExc(F_SRV, 203, [args.ns, args.org])
+    if (await Cache.getEspaceOrg(args.org)) 
+      throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
     args.id = ID.duComptable(args.ns)
 
@@ -637,14 +630,15 @@ operations.CreerEspace = class CreerEspace extends Operation {
 
     const apr = config.allocPrimitive
     const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
-    const partition = this.gd.nouvPA(args.ns, 1, qc)
+    const partition = this.gd.nouvPA(1, qc)
 
     /* Compte Comptable */
     const aco = config.allocComptable
     const quotas = { qc: aco[0], qn: aco[1], qv: aco[2] }
-    // eslint-disable-next-line no-unused-vars
-    const {compte, compta, compti, invit} = this.gd.nouvCO(args, null, quotas, 0)
+    const {compte, compta } = this.gd.nouvCO(args, null, quotas, 0)
+
     partition.ajoutCompte(compta, args.cleAP, true)
+
     const cvA = { id: args.id }
     this.gd.nouvAV(compte, args, cvA)
   }
@@ -656,19 +650,13 @@ operations.CreerEspace = class CreerEspace extends Operation {
 - `nprof` : numéro de profil de 0 à N. Liste spécifiée dans config.mjs de l'application.
 
 Retour: rien
-
-Assertion sur l'existence du row `Espaces`.
-
-C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-Elle n'écrit QUE dans espaces.
 */
 operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
   constructor (nom) { super(nom, 3)}
 
   async phase2 (args) {
-    this.espace = compile(await this.getRowEspace(args.ns, 'SetEspaceNprof'))
-    this.espace._maj = true
-    this.espace.nprof = args.nprof
+    const espace = this.getCheckEspace(args.ns, true)
+    espace.setNprof(args.nprof)
   }
 }
 
@@ -684,10 +672,9 @@ operations.SetNotifE = class SetNotifE extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2 (args) {
-    this.espace = compile(await this.getRowEspace(args.ns, 'SetNotifG'))
-    this.espace._maj = true
-    if (args.ntf) args.ntf.dh = Date.now()
-    this.espace.notifE = args.ntf || null
+    const espace = this.getCheckEspace(args.ns, true)
+    if (args.ntf) args.ntf.dh = this.dh
+    espace.setNotifE(args.ntf || null)
   }
 }
 
@@ -702,11 +689,11 @@ operations.GetNotifC = class GetNotifC extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const cc = compile(await this.getRowCompte(args.id, 'GetNotifC-1'))
-    if (!cc.idp) throw new AppExc(F_SRV, 230)
-    if (cc.notif) this.setRes('notif', cc.notif)
+    const c = await this.gd.getCO(args.id, null, null, true)
+    if (!c.idp) throw new AppExc(F_SRV, 230)
+    if (c.notif) this.setRes('notif', c.notif)
     if (this.estComptable) return
-    const part = compile(await this.getRowPartition(ID.long(cc.idp, this.ns), 'GetNotifC-2'))
+    const part = await this.gd.getPA(c.idp, 'GetNotifC')
     if (!part.estDel(this.id)) throw new AppExc(F_SRV, 231)
   }
 }

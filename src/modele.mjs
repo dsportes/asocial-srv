@@ -247,19 +247,20 @@ class GD {
   }
 
   /* Nouvelle partition de l'espace courant. Comptable est le compte courant */
-  async nouvPA (np, qc, itemK) {
+  async nouvPA (np, qc) {
     const p = Partitions.nouveau(this.op.ns, np, qc)
     this.partitions.set(p.id, p)
     const espace = await this.getES()
     espace.setPartition(np)
-    this.op.compte.ajoutPartition(itemK)
     return p
   }
 
-  async getPA (idp) {
+  async getPA (idp, assert) {
     let p = this.partitions.get(idp)
     if (p) return p
-    p = compile(await this.op.getRowPartition(idp, 'getPA'))
+    p = compile(await this.op.getRowPartition(idp))
+    if (!p) {
+      if (!assert) return null; assertKO(assert, 2, [idp]) }
     this.partitions.set(idp, p)
     return p
   }
@@ -288,7 +289,8 @@ class GD {
       if (c) t = true; else c = compile(await this.op.getRowCompte(id))
     } else {
       c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
-      if (!c || c.hXC !== hXC) { await sleep(3000); throw new AppExc(F_SRV, 998) }
+      if (!c || c.hXC !== hXC || c.v === V99 || !await this.getV(c.rds)) { 
+        await sleep(3000); throw new AppExc(F_SRV, 998) }
     }
     if (!c || c.v === V99 || !await this.getV(c.rds)) { 
       if (!assert) return null; else assertKO(assert, 4, [c.id]) }
@@ -318,10 +320,12 @@ class GD {
     return c
   }
 
-  async getCA (id) {
+  async getCA (id, assert) {
     let c = this.comptas.get(id)
     if (c) return c
-    c = compile(await this.op.getRowCompta(id, 'auth-compta'))
+    c = compile(await this.op.getRowCompta(id))
+    if (!c || !await this.getV(c.rds)) { 
+      if (!assert) return null; else assertKO(assert, 3, [c.id]) }
     this.comptas.set(c, id)
     return c
   }
@@ -663,7 +667,7 @@ export class Operation {
     2 : exception si figé
   Après authentification, sont disponibles:
     - this.id this.ns this.estA this.sync (ou null) 
-    - this.compte this.compta this.espace
+    - this.compte this.compta
     - this.setR : set des restictions
       `1-RAL1  2-RAL2` : Ralentissement des opérations
         - Comptes O : compte.qv.pcc > 90% / 100%
@@ -716,7 +720,7 @@ export class Operation {
 
     if (this.authMode === 0) return
 
-    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */ 
+    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     const espace = await Cache.getEspaceOrg(this.op, this.org, true)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
     this.ns = espace.id
@@ -727,6 +731,7 @@ export class Operation {
     this.gd.setEspace(espace)
     
     /* Compte */
+    // Sort en Exception 8998 si compte non trouvé ou V99 ou Version suppr
     this.compte = await this.gd.getCO(0, authData.hXR, authData.hXC)
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
@@ -789,6 +794,14 @@ export class Operation {
 
   idsChat (idI, idE) {
     return hash(crypterSrv(this.db.appKey, Buffer.from(ID.court(idI) + '/' + ID.court(idE)))) % d14
+  }
+
+  async getCheckEspace (ns, fige) {
+    this.ns = ns
+    const espace = await this.gd.getES(true, 'getCheckEspace')
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    if (fige && espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
+    return espace
   }
 
   /*
