@@ -57,7 +57,7 @@ operations.ErreurFonc = class ErreurFonc extends Operation {
 
   async phase2(args) {
     if (args.to) await sleep(args.to * 1000)
-    throw new AppExc(F_SRV, 1, [args.texte])
+    throw new AppExc(F_SRV, 10, [args.texte])
   }
 }
 
@@ -637,7 +637,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const quotas = { qc: aco[0], qn: aco[1], qv: aco[2] }
     const {compte, compta } = this.gd.nouvCO(args, null, quotas, 0)
 
-    partition.ajoutCompte(compta, args.cleAP, true)
+    partition.ajoutCompte(compta, compta._c2m, args.cleAP, true)
 
     const cvA = { id: args.id }
     this.gd.nouvAV(compte, args, cvA)

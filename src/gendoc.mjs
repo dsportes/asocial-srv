@@ -282,7 +282,22 @@ export class Espaces extends GenDoc {
     return r
   }
 }
+/* Tickets **********************************************
+_data_:
+- `id`: id du Comptable.
+- `ids` : numéro du ticket
+- `v` : version du ticket.
 
+- `rds`:
+- `dg` : date de génération.
+- `dr`: date de réception. Si 0 le ticket est _en attente_.
+- `ma`: montant déclaré émis par le compte A.
+- `mc` : montant déclaré reçu par le Comptable.
+- `refa` : code court (32c) facultatif du compte A à l'émission.
+- `refc` : code court (32c) facultatif du Comptable à la réception.
+- `disp`: true si le compte était disparu lors de la réception.
+- `idc`: id du compte générateur. Cette donnée n'est pas transmise aux sessions.
+*/
 export class Tickets extends GenDoc { 
   constructor () { super('tickets') } 
 
@@ -298,6 +313,23 @@ export class Tickets extends GenDoc {
       dr: 0, 
       dg: AMJ.amjUtc()
     })
+  }
+
+  setZombi () {
+    this._zombi = true
+    this.maj = true
+  }
+
+  setDisp () {
+    this.disp = true
+    this._maj = true
+  }
+
+  reception (auj, mc, refc) {
+    this.dr = auj
+    this.mc = mc
+    this.refc = refc
+    this._maj = true
   }
 
   shortTk () {
@@ -327,6 +359,7 @@ _data_:
 - `mcpt` : map des comptes attachés à la partition. 
   - _clé_: id du compte.
   - _valeur_: `{ nr, cleAP, del, q }`
+    - `notif`: notification du compte cryptée par la clé P de la partition (redonde celle dans compte).
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
     - `q` : `qc qn qv c2m nn nc ng v` extraits du document `comptas` du compte.
@@ -377,13 +410,34 @@ export class Partitions extends GenDoc {
     this._maj = true
   }
 
-  ajoutCompte (compta, cleAP, del) { // compta: { id, qv }
+  setNrp (notif) {
+    this.nrp = notif ? notif.nr : 0
+    this._maj = true
+  }
+
+  ajoutCompte (compta, cleAP, del, notif) { // id de compta, q: copie de qv de compta
+    compta.compile()
     const id = ID.court(compta.id)
     const r = { cleAP, nr: 0, q: { ...compta.qv }}
     if (del) r.del = true
+    if (notif) r.notif = notif
     r.q.c2m = compta._c2m
     this.mcpt[id] = r
     this._maj = true
+  }
+
+  retraitCompte (id) {
+    const idc = ID.court(id)
+    delete this.mcpt[idc]
+    this._maj = true
+  }
+
+  setDel (id, del) {
+    const e = this.mcpt[ID.court(id)]
+    if (!e) return false
+    e.del = del
+    this._maj = true
+    return true
   }
 
   setNotifC (id, notif) {
@@ -545,6 +599,25 @@ export class Comptes extends GenDoc {
     return new Comptes().init(r)
   }
 
+  chgPS (args) {
+    this.hxr = (this.ns * d14) + args.hps1
+    this.hXC = args.hXC
+    this.cleKXC = args.cleKXC
+    this._maj = true
+  }
+
+  chgPart (idp, clePK, notif) {
+    this.clePK = clePK
+    this.idp = ID.court(idp)
+    this.notif = notif
+    this.maj = true
+  }
+
+  setNotif (notif) {
+    this.notif = notif
+    this.maj = true
+  }
+
   // Comptable seulement
   ajoutPartition (np, itemK) { // itemK: {cleP, code} crypté par la clé K du Comptable.
     if (np !== this.tpk.length) throw new AppExc(F_SRV, 228)
@@ -552,6 +625,16 @@ export class Comptes extends GenDoc {
       if (eqU8(it.cleP, itemK.cleP) || it.code === itemK.code) throw new AppExc(F_SRV, 228)
     this.tpk.push(itemK)
     this._maj = true
+  }
+
+  setCodePart (np, itemK) {
+    const e = this.tpk ? this.tpk[np] : null
+    if (e) {
+      this.tpk[np] = itemK
+      this.compte._maj = true
+      return true
+    }
+    return false
   }
 
   setDhvu (dhvu) {
@@ -705,6 +788,11 @@ export class Comptis extends GenDoc {
     })
   }
 
+  setMc (args) {
+    this.mc[ID.court(args.id)] = { ht: args.htK, tx: args.txK }
+    this._maj = true
+  }
+
   toShortRow() { return this.toRow() }
 }
 
@@ -855,35 +943,26 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
+  majSolde (m) {
+    this.solde += m
+    this.compile()
+    this._maj = true
+  }
+
   enregTk (tk, mc, refc) {
     if (!this.tickets) this.tickets = {}
     const m = mc < 0 ? 0 : mc
     tk.mc = m
     tk.refc = refc || ''
     this.tickets[tk.ids] = tk.shortTk()
-    // this.majSolde(compte, m)
-    this._maj = true
+    this.majSolde(m)
   }
-
-  /*
-  majSolde (compte, m) {
-    this.solde += m
-    const c = new Compteurs(this.compteurs)
-    this.majcpt(c)
-    const qv = compte.qv
-    const pc = c.pourcents
-    qv.nbj = this._nbj; qv.pcn = pc.pcn; qv.pcv = pc.pcv
-    compte._maj = true
-    this._maj = true
-  }
-  */
 
   don (dh, m, iddb) {
     if (m < 0 && this.solde + m < 2) throw new AppExc(F_SRV, 215, [-m, this.total])
-    // this.majSolde(compte, m)
+    this.majSolde(m)
     if (!this.dons) this.dons = []
     this.dons.push({dh, m, iddb: ID.court(iddb)})
-    this._maj = true
   }
 
   async incorpConso (op) {
@@ -977,7 +1056,7 @@ export class Avatars extends GenDoc {
   get ns () { return ID.ns(this.id)}
 
   static nouveau (args, cvA) {
-    cvA.v = 1
+    cvA.v = 0
     return new Avatars().init({ 
       _maj: true, v: 0,
       id: args.id,
@@ -986,6 +1065,12 @@ export class Avatars extends GenDoc {
       vcv: 1,
       cvA
     })
+  }
+
+  setCv (cv) {
+    cv.v = 0
+    this.cvA = cv
+    this._maj = true
   }
 
   setPC (args) {
@@ -1120,9 +1205,13 @@ export class Chats extends GenDoc {
 
   chEdisp () {
     const st1 = Math.floor(this.st / 10)
-    this.st = (st1 * 10) + 2 
-    this.vcv = 0
-    this.cvE = null
+    if (st1) { // était actif
+      this.st = (st1 * 10) + 2 
+      this.vcv = 0
+      this.cvE = null
+    } else { // était passif, disparait
+      this._zombi = true
+    }
     this._maj = true
   }
 
@@ -1225,6 +1314,7 @@ export class Groupes extends GenDoc {
   }
 
   static nouveau (args) {
+    args.cvG.v = 0
     return new Groupes().init({
       _maj: true, v: 0,
       id: args.idg, // id du groupe
@@ -1243,6 +1333,12 @@ export class Groupes extends GenDoc {
       lnc: [], 
       lng: []
     })
+  }
+
+  setCv (cv) {
+    cv.v = 0
+    this.cvG = cv
+    this._maj = true
   }
 
   nvContact (ida) {

@@ -350,6 +350,22 @@ class GD {
     return a
   }
 
+  /* Retourne { disp, av }
+  - avatar s'il existe ET que sa CV est plus récente que vcv
+  - disp: true avatar a disparu
+  */
+  async getAAVCV (id, vcv) {
+    let disp = false
+    let av = this.avatars.get(id)
+    if (av) return av.vcv > vcv ? { av, disp } : { disp }
+    av = compile(await this.op.db.getAvatarVCV(this.op, id, vcv))
+    disp = (!av || av.v === V99 || !await this.getV(av.rds))
+    if (disp) return { disp }
+    this.avatars.set(id, av)
+    disp = false
+    return av.vcv > vcv ? { av, disp } : { disp }
+  }
+
   nouvGR (args) {
     const g = Groupes.nouveau(args)
     g.rds = ID.rds(ID.RDSGROUPE)
@@ -422,6 +438,20 @@ class GD {
       if (!assert) return null; else assertKO(assert, 5, [k]) }
     this.sdocs.set(k, d)
     return d
+  }
+
+  async getAllCAV (id) {
+    const l = []
+    for (const row of await this.op.db.scoll(this.op, 'chats', id, 0)) {
+      const k = id + '/CAV/' + row.ids
+      let d = this.sdocs.get(k)
+      if (!d) {
+        d = compile(row)
+        this.sdocs.set(k, d)
+      }
+      l.push(d)
+    }
+    return l
   }
 
   async nouvTKT (args, assert) {
@@ -516,6 +546,8 @@ class GD {
     if (d._maj) {
       const ins = d.v === 0
       d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
+      if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
+      if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
       if (ins) this.op.insert(d.row()); else this.op.update(d.row())
     }
   }
@@ -900,8 +932,6 @@ export class Operation {
   async getGroupesDfh (dfh) { return this.db.getGroupesDfh(this, dfh) }
 
   async setVdlv (id, dlv) { return this.db.setVdlv(this, id, dlv) }
-
-  async getAvatarVCV (id, vcv) { return this.db.getAvatarVCV(this, id, vcv) }
 
   async getChatVCV (id, ids, vcv) { return this.db.getChatVCV(this, id, ids, vcv) }
 

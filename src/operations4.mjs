@@ -438,8 +438,11 @@ operations.StatutAvatar = class StatutAvatar extends Operation {
 /* OP_RafraichirCvsAv: 'Rafraichissement des CVs des chats de l\'avatar'
 - token : jeton d'authentification du compte de **l'administrateur**
 - id : id de l'avatar
-Retour:
-- `n`: nombre de CV mises à jour
+Retour: [nc, nv]
+- `nc`: nombre de CV mises à jour
+- `nv` : nombre de chats existants
+Exception générique:
+- 8001: avatar disparu
 */
 operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
   constructor (nom) { super(nom, 1, 2) }
@@ -451,73 +454,66 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
     if (!this.compte.mav[ID.court(args.id)])
       throw new AppExc(F_SRV, 227)
 
-    const avatar = compile(await this.getRowAvatar(args.id, 'RafCVsAv-1'))
-    const vav = await this.getV(avatar)
-    vav.v++
-    let nc = 0
-    let nv = 0
-    // liste des chats
-    for (const row of await this.db.scoll(this, 'chats', args.id, 0)) {
-      const chI = compile(row)
-      nv++
-      if (chI.vcv < avatar.vcv) {
-        chI.cvE = avatar.cvA
-        chI.vcv = avatar.cvA.vcv
-        chI.v = vav.v
-        this.update(chI.toRow())
-        nc++
+    const avatar = await this.gd.getAV(args.id) //
+    if (!avatar) throw new AppExc(F_SRV, 1)
+    let nc = 0, nv = 0
+    // liste des chats de l'avatar
+    for (const ch of await this.gd.getAllCAV(args, 0)) {
+      if (!ch._zombi) {
+        const { av, disp } = this.gd.getAAVCV(ID.long(ch.idE, this.ns), ch.vcv)
+        nv++
+        if (disp) ch.chEdisp()
+        else if (av) {
+          ch.setCvE(av.cvA)
+          nc++
+        }
       }
     }
-    if (nc) this.setV(vav)
     this.setRes('ncnv', [nc, nv])
   }
 }
 
-/* `SetQuotas` : déclaration des quotas d'un compte par un sponsor de sa tribu
+/* OP_RafraichirCvChat: 'Rafraichissement de la carte de visite d\'un chat'
+- token : jeton d'authentification du compte de **l'administrateur**
+- id, ids : id du chat
+Retour:
+Exception générique:
+- 8001: avatar disparu
+- 8002: chat disparu
+*/
+operations.RafraichirCvChat = class RafraichirCvChat extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
+    if (this.setR.has(R.MINI) && !this.estComptable) 
+      throw new AppExc(F_SRV, 802)
+    if (!this.compte.mav[ID.court(args.id)])
+      throw new AppExc(F_SRV, 227)
+
+    const avatar = await this.gd.getAV(args.id) //
+    if (!avatar) throw new AppExc(F_SRV, 1)
+    const ch = await this.gd.getCAV(args.id, args.ids)
+    if (!ch || ch._zombi) throw new AppExc(F_SRV, 2)
+    const { av, disp } = this.gd.getAAVCV(ID.long(ch.idE, this.ns), ch.vcv)
+    if (disp) ch.chEdisp()
+    else if (av) ch.setCvE(av.cvA)
+  }
+}
+
+/* OP_SetQuotas: 'Fixation des quotas d'un compte dans sa partition'
 - token: éléments d'authentification du compte.
 - idp : id de la partition
 - idc: id du compte
 - q: {qc, qn, qv}
+Retour:
 */
 operations.SetQuotas = class SetQuotas extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    let compta = this.compta
-    let compte = this.compte
-    if (args.idc !== this.id) {
-      compta = compile(await this.getRowCompta(args.idc, 'SetQuotas-1'))
-      compte = compile(await this.getRowCompte(args.idc, 'SetQuotas-2'))
-    }
-
+    const compta = (args.idc === this.id) ? this.compta : await this.gd.getCA(args.idc, 'SetQuotas-1')
     compta.quotas(args.q)
-    // report dans compte
-    compte._maj = true
-    const qvc = compte.qv // { qc, qn, qv, pcc, pcn, pcv, nbj }
-    const qv = compta.qv // {qc, qn, qv, nn, nc, ng, v}
-    qvc.qc = qv.qc; qvc.qn = qv.qn; qvc.qv = qv.qv;
-    if (!compte._estA) qvc.pcc = compta._pc.pcc; else qvc.nbj = compta._nbj
-    qvc.pcn = compta._pc.pcn; qvc.pcv = compta._pc.pcv
-
-    if (!compte._estA) {
-      if (!this.partitions) this.partitions = new Map()
-      const partition = compile(await this.getRowPartition(args.idp))
-      this.partitions.set(partition.id, partition)
-      const e = partition.mcpt[ID.court(args.idc)]
-      if (e) { e.q = qv; e.q.c2m = compta._c2m }
-      partition._maj = true
-    }
-
-    if (args.idc !== this.id) {
-      // Le compte mis à jour n'est pas le compte de la session
-      compta.v = compta.v++
-      this.update(compta.toRow())
-      const vcpt = await this.getV(compte, 'SetQuotas-3')
-      vcpt.v++
-      compte.v = vcpt.v
-      this.setV(vcpt)
-      this.update(compte.toRow())
-    }
   }
 }
 
@@ -541,7 +537,7 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   }
 }
 
-/* OP_SetQuotasPart: 'Mise à jour des quotas d\'une tpartition'
+/* OP_SetQuotasPart: 'Mise à jour des quotas d\'une partition'
 - token: éléments d'authentification du compte.
 - idp : id de la partition
 - quotas: {qc, qn, qv}
@@ -567,10 +563,7 @@ operations.SetCodePart = class SetCodePart extends Operation {
 
   async phase2 (args) {
     const np = ID.court(args.idp)
-    const e = this.compte.tpk[np]
-    if (!e) throw new AppExc(F_SRV, 229)
-    this.compte.tpk[np] = args.etpk
-    this.compte._maj = true
+    if (!this.compte.setCodePart(np, args.etpk)) throw new AppExc(F_SRV, 229)
   }
 }
 
@@ -588,47 +581,21 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
 
   async phase2 (args) {
     if (this.id === args.id) throw new AppExc(F_SRV, 234)
-    const cpt = compile(await this.getRowCompte(args.id, 'ChangerPartition-1'))
-    const partav = compile(await this.getRowPartition(ID.long(cpt.idp, this.ns), 'ChangerPartition-2'))
+    const cpt = await this.gd.getCO(args.id, null, null, 'ChangerPartition-1')
+    const compta = await this.gd.getCA(args.id)
+    const partav = await this.gd.getPA(ID.long(cpt.idp, this.ns), 'ChangerPartition-2')
     const idc = ID.court(args.id)
-    const idpc = ID.court(args.idp)
     const epav = partav.mcpt[idc]
     if (!epav) throw new AppExc(F_SRV, 232)
-    const partap = compile(await this.getRowPartition(args.idp, 'ChangerPartition-3'))
+    const partap = await this.gd.getPA(args.idp, 'ChangerPartition-3')
     const epap = partap.mcpt[idc]
     if (epap) throw new AppExc(F_SRV, 233)
 
-    // Retrait de l'ancienne partition, ajout à la nouvelle
-    this.partitions = new Map()
-    this.partitions.set(partav.id, partav)
-    this.partitions.set(partap.id, partap)
-    let qx = epav.q
-    if (!qx) { // Contournement de bug
-      const cpta = compile(await this.getRowCompta(args.id))
-      qx = cpta.qv
-    }
-    partap.mcpt[idc] = { // { nr, cleAP, del, q }
-      nr: args.notif ? args.notif.nr : 0,
-      cleAP: args.cleAP,
-      del: epav.del,
-      q: qx
-    }
-    partap._maj = true
-    delete partav.mcpt[idc]
-    partav._maj = true
+    partav.retraitCompte(args.id)
+    partap.ajoutCompte(compta, args.cleAP, false, args.notif || null)
 
     // Maj du compte
-    cpt._maj = true
-    cpt.idp = idpc
-    cpt.clePK = args.clePK
-    cpt.notif = args.notif || null
-    cpt.del = epav.del
-
-    const vcpt = await this.getV(cpt, 'ChangerPartition-4')
-    vcpt.v++
-    cpt.v = vcpt.v
-    this.setV(vcpt)
-    this.update(cpt.toRow())
+    cpt.chgPart(partap.id, args.clePK, args.notif || null)
   }
 }
 
@@ -643,26 +610,10 @@ operations.DeleguePartition = class DeleguePartition extends Operation {
 
   async phase2 (args) {
     if (this.id === args.id) throw new AppExc(F_SRV, 234)
-    const cpt = compile(await this.getRowCompte(args.id, 'DeleguePartition-1'))
-    const part = compile(await this.getRowPartition(ID.long(cpt.idp, this.ns), 'DeleguePartition-2'))
-    const idc = ID.court(args.id)
-    const epart = part.mcpt[idc]
-    if (!epart) throw new AppExc(F_SRV, 232)
-
-    // Retrait de l'ancienne partition, ajout à la nouvelle
-    this.partitions = new Map()
-    this.partitions.set(part.id, part)
-    epart.del = args.del
-    part._maj = true
-
-    // Maj du compte
-    cpt._maj = true
-    cpt.del = args.del
-    const vcpt = await this.getV(cpt, 'DeleguePartition-4')
-    vcpt.v++
-    cpt.v = vcpt.v
-    this.setV(vcpt)
-    this.update(cpt.toRow())
+    const cpt = await this.gd.getCO(args.id, null, null, 'DeleguePartition-1')
+    const part = await this.gd.getPA(ID.long(cpt.idp, this.ns), 'DeleguePartition-2')
+    
+    if (!part.setDel(args.id, args.del)) throw new AppExc(F_SRV, 232)
   }
 }
 
@@ -679,22 +630,19 @@ operations.SetNotifP = class SetNotifP extends Operation {
     const ed = !ec && this.compte.del
     if ((!ec && !ed) || (ed && this.compte.idp !== ID.court(args.idp))) throw new AppExc(F_SRV, 235)
     
-    this.espace = compile(await this.getRowEspace(this.ns, 'SetNotifP-1'))
-    const ntf = this.espace.tnotifP[ID.court(args.idp)]
+    const espace = await this.gd.getES(false, 'SetNotifP-1')
+    const ntf = espace.tnotifP[ID.court(args.idp)]
     const aut = ntf ? (ntf.idDel ? ID.long(ntf.idDel, this.ns) : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
     if (args.notif) args.notif.idDel = ID.court(this.id)
-    this.espace.setNotifP(args.notif, ID.court(args.idp))
+    espace.setNotifP(args.notif, ID.court(args.idp))
 
-    this.partitions= new Map()
-    const partition = compile(await this.getRowPartition(args.idp, 'SetNotifP-2'))
-    this.partitions.set(args.idp, partition)
-    partition._maj = true
-    partition.nrp = args.notif ? args.notif.nr : 0
+    const partition = await this.gg.getPA(args.idp, 'SetNotifP-2')
+    partition.setNrp(args.notif)
   }
 }
 
-/* `SetNotifC` : notification d'un compte d'une tribu
+/* `SetNotifC` : notification d'un compte "O"
 - `token` : éléments d'authentification du compte.
 - `idc` : id du compte
 - `notif` : notification du compte cryptée par la clé de partition
@@ -703,7 +651,7 @@ operations.SetNotifC = class SetNotifC extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compte = compile(await this.getRowCompte(args.idc, 'SetNotifC-1'))
+    const compte = await this.gd.getCO(args.idc, null, null, 'SetNotifC-1')
 
     const ec = this.estComptable
     const ed = !ec && this.compte.del
@@ -714,16 +662,9 @@ operations.SetNotifC = class SetNotifC extends Operation {
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
     if (args.notif) args.notif.idDel = ID.court(this.id)
 
-    const vcpt = await this.getV(compte, 'SetNotifC-2')
-    vcpt.v++
-    compte.v = vcpt.v
-    compte.notif = args.notif || null
-    this.setV(vcpt)
-    this.update(compte.toRow())
+    compte.setNotif(args.notif || null)
 
-    this.partitions = new Map()
-    const partition = compile(await this.getRowPartition(ID.long(compte.idp, this.ns), 'SetNotifC-3'))
-    this.partitions.set(args.idp, partition)
+    const partition = await this.gd.getPA(ID.long(compte.idp, this.ns), 'SetNotifC-3')
     partition.setNotifC(args.idc, args.notif || null)
   }
 }
@@ -766,18 +707,10 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
   async phase2(args) {
     const idc = ID.duComptable(this.ns)
 
-    const tk = compile(await this.getRowTicket(idc, args.ids))
+    const tk = await this.gd.getTKT(idc, args.ids)
     if (!tk) throw new AppExc(F_SRV, 240)
-
+    tk.setZombi()
     this.compta.moinsTk(tk)
-
-    const comptable = compile(await this.getRowAvatar(idc, 'PlusTicket-1'))
-    const version = await this.getV(comptable, 'PlusTicket-2')
-    version.v++
-    tk._zombi = true
-    tk.v = version.v
-    this.update(tk.toRow())
-    this.setV(version)
   }
 
   phase3() {
@@ -786,45 +719,30 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
 }
 
 /* OP_ReceptionTicket: 'Réception d\'un ticket par le Comptable'
-- `token` : jeton d'authentification du compte de **l'administrateur**
+- `token` : jeton d'authentification du compte
 - `ids` : du ticket
 - `mc` : montant reçu
 - `refc` : référence du Comptable
 Retour: rien
 */
 operations.ReceptionTicket = class ReceptionTicket extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { super(nom, 2, 2) }
 
   async phase2(args) {
 
-    const tk = compile(await this.getRowTicket(this.id, args.ids))
+    const tk = await this.gd.getTKT(this.id, args.ids)
     if (!tk) throw new AppExc(F_SRV, 240)
     if (tk.dr) throw new AppExc(F_SRV, 241)
 
-    const comptable = compile(await this.getRowAvatar(this.id, 'ReceptionTicket-1'))
-    const version = await this.getV(comptable, 'ReceptionTicket-2')
-    version.v++
-    tk.dr = this.auj
-    tk.v = version.v
-
-    const compte = compile(await this.getRowCompte(ID.long(tk.idc, this.ns)))
-    const compta = compile(await this.getRowCompta(ID.long(tk.idc, this.ns)))
+    const compte = await this.gd.getCO(ID.long(tk.idc, this.ns))
+    const compta = await this.gd.getCA(ID.long(tk.idc, this.ns))
     if (!compta || !compte) { // Compte disparu
-      tk.disp = true
+      tk.setDisp()
     } else {
+      tk.reception(this.auj, args.mc, args.refc)
       compta.enregTk(tk, args.mc, args.refc)
-      // this.calculDlv(compte, compta)
-      compta.v++
-      this.update(compta.toRow())
-      const vcpt = await this.getV(compte, 'ReceptionTicket-3')
-      vcpt.v++
-      compte.v = vcpt.v
-      this.setV(vcpt)
-      this.update(compte.toRow())
+      await compte.reportDeCompta(compta, this.gd)
     }
-
-    this.update(tk.toRow())
-    this.setV(version)
   }
 }
 
@@ -842,37 +760,19 @@ operations.MajCv = class MajCv extends Operation {
     const idag = ID.long(args.cv.id, this.ns)
 
     if (!ID.estGroupe(idag)) {
-      const avatar = compile(await this.getRowAvatar(idag, 'MajCv-1'))
       if (!this.compte.mav[args.cv.id]) throw new AppExc(F_SRV, 242)
-      const vav = await this.getV(avatar, 'MajCv-2')
-      vav.v++
-      args.cv.v = vav.v
-      avatar.v = vav.v
-      avatar.vcv = vav.v
-      avatar.cvA = args.cv
-      this.update(avatar.toRow())
-      this.setV(vav)
+      const avatar = await this.gd.getAV(idag, 'MajCv-1')
+      avatar.setCv(args.cv)
     } else {
       const e = this.compte.mpg[args.cv.id]
       if (!e) throw new AppExc(F_SRV, 243)
-      const groupe = compile(await this.getRowGroupe((idag, 'MajCv-3')))
+      const groupe = await this.gd.getGR((idag, 'MajCv-3'))
+      const anims = groupe.anims
       let ok = false
-      for(const ida of e.lav) {
-        const im = groupe.mmb.get(ida)
-        if (im) {
-          const f = groupe.flags[im]
-          if ((f & FLAGS.AC) && (f & FLAGS.PA)) ok = true
-        }
-      }
+      for(const ida of e.lav) 
+        if (anims.has(groupe.mmb.get(ida))) ok = true
       if (!ok) throw new AppExc(F_SRV, 243)
-      const vgr = await this.getV(groupe, 'MajCv-4')
-      vgr.v++
-      args.cv.v = vgr.v
-      groupe.v = vgr.v
-      groupe.vcv = vgr.v
-      groupe.cvA = args.cv
-      this.update(groupe.toRow())
-      this.setV(vgr)
+      groupe.setCv(args.cv)
     }
   }
 }
@@ -900,16 +800,15 @@ operations.GetCv = class GetCv extends Operation {
       } else {
         if (!this.compte.mav[ID.court(args.id)]) throw new AppExc(F_SRV, 242)
       }
-      const avatar = compile(await this.getRowAvatar(idag, 'MajCv-1'))
+      const avatar = await this.gd.getAV(idag, 'MajCv-1')
       this.setRes('cv', avatar.cvA)
     } else {
       const e = this.compte.mpg[args.cv.id]
       if (!e) throw new AppExc(F_SRV, 243)
-      const groupe = compile(await this.getRowGroupe((idag, 'MajCv-3')))
+      const groupe = await this.gd.getGR(idag, 'MajCv-3')
       let ok = false
-      for(const ida of e.lav) {
+      for(const ida of e.lav)
         if (groupe.mmb.get(ida)) ok = true
-      }
       if (!ok) throw new AppExc(F_SRV, 243)
       this.setRes('cv', groupe.cvG)
     }
@@ -933,7 +832,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     if (this.compte.mav[ID.court(args.id)]) return // création déjà faite pour le compte
-    const a = compile(await this.getRowAvatar(args.id))
+    const a = await this.gd.getAV(args.id)
     if (a) throw new AppExc(F_SRV, 245)
 
     this.gd.nouvAV(this.compte, args, args.cvA)
@@ -953,13 +852,8 @@ operations.McMemo = class McMemo extends Operation {
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
-    const vcpt = await this.getV(this.compte, 'McMemo-1')
-    vcpt.v++
-    const compti = compile(await this.getRowCompti(this.id, 'McMemo-2'))
-    compti.mc[ID.court(args.id)] = { ht: args.htK, tx: args.txK }
-    compti.v = vcpt.v
-    this.update(compti.toRow())
-    this.setV(vcpt)
+    const compti = await this.gd.getCI(this.id, 'McMemo-2')
+    compti.setMc(args)
   }
 }
 
@@ -978,10 +872,7 @@ operations.ChangementPS = class ChangementPS extends Operation {
     - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
     - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
     */
-    this.compte.hxr = (this.ns * d14) + args.hps1
-    this.compte.hXC = args.hXC
-    this.compte.cleKXC = args.cleKXC
-    this.compte._maj = true
+    this.compte.chgPS(args)
   }
 }
 
