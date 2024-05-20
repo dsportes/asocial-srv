@@ -63,7 +63,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2(args) {
-    if (await this.getComptaHps1(args.hps1))
+    if (await this.db.getComptaHps1(this, args.hps1))
       throw new AppExc(F_SRV, 12)
     const resp = await this.getRowEspace(args.rowEspace.id)
     if (resp) throw new AppExc(F_SRV, 3)

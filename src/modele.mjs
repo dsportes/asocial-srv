@@ -909,14 +909,6 @@ export class Operation {
 
   async getMembreVCV (id, ids, vcv) { return this.db.getMembreVCV(this, id, ids, vcv) }
 
-  async getAvatarHpc (hpc) { return this.db.getAvatarHpc(this, hpc) }
-
-  async getComptaHps1 (hps1) { return this.db.getComptaHps1(this, hps1) }
-
-  async getSponsoringIds (ids) {return this.db.getSponsoringIds(this, ids) }
-
-  async getAllRowsTribu () { return this.db.collNs(this, 'tribus', this.ns) }
-
   async getAllRowsNote(id, v) { return await this.scoll('notes', id, v) }
 
   async getAllRowsEspace () { return await this.coll('espaces') }

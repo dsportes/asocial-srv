@@ -77,7 +77,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
 
     const ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
-    if (await this.db.getSponsoringIds(ids)) 
+    if (await this.db.getSponsoringIds(this, ids)) 
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
@@ -177,13 +177,47 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2 (args) {
-    const av = compile(await this.getAvatarHpc(args.hZR))
+    const av = compile(await this.db.getAvatarHpc(this, ID.long(args.hZR, this.ns)))
     if (!av) return
     const avatar = await this.gd.getAV(av.id, 'GetAvatarPC')
     if (avatar && avatar.hZC === args.hZC) {
       this.setRes('cleAZC', avatar.cleAZC)
       this.setRes('cvA', avatar.cvA)
     } else this.setRes('collision', true)
+  }
+}
+
+/* OperationCh : super classe permettant d'utiliser la méthode intro() */
+class OperationCh extends Operation {
+
+  async intro1 () {
+    this.idEL = ID.long(this.args.idE, this.ns)
+    if (this.setR.has(R.MINI)) await this.checkR()
+  }
+
+  // Vérification des restrictions, initialisations de :
+  async intro2 () {
+    this.chI = this.gd.getCAV(this.args.id, this.args.ids, 'Chat-intro')
+    this.idEL = ID.long(this.chI.idE, this.ns)
+    this.chE = await this.gd.getCAV(this.idEL, this.chI.idsE)
+    if (!this.chE) return false
+    if (this.setR.has(R.MINI)) await this.checkR()
+    return true
+  }
+
+  /* Restriction MINI : ne pas l'appliquer: 
+  - Au Compatble ni en I ni en E.
+  - Quand le chat est utilisé "en cas d'urgence", 
+    c'est à dire si le compte souhaite s'adresser à un délégué de sa partition
+  - A un délégué quand il s'adresse à un compte de sa partition.
+  */
+  async checkR () { // Le chat E existe
+    if (this.compte._estA || this.estComptable || ID.estComptable(this.idEL)) return
+    const avE = await this.gd.getAV(this.idEL)
+    const cptE = await this.gd.getCO(ID.long(avE.idc, this.ns), 'Chat-intro') // cptE pas null (chE existe)
+    if (this.compte.del && cptE.idp === this.compte.idp) return
+    if (this.cptE.del && cptE.idp === this.compte.idp) return
+    throw new AppExc(F_SRV, 802)
   }
 }
 
@@ -206,7 +240,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
 Retour:
 - `rowChat` : row du chat I.
 */
-operations.NouveauChat = class NouveauChat extends Operation {
+operations.NouveauChat = class NouveauChat extends OperationCh {
   constructor (nom) { super(nom, 1) }
 
   async phase2 (args) {
@@ -233,30 +267,7 @@ operations.NouveauChat = class NouveauChat extends Operation {
       if (!(fI & FLAGS.AC)) throw new AppExc(F_SRV, 223)
     }
 
-    /* Restriction MINI NE s'applique QUE,
-    a) si l'interlocuteur n'est pas le comptable,
-    b) ET:
-      - compte 0 délégué: 
-        - si l'interlocuteur n'est pas COMPTE O de la même partition
-      - compte 0 NON délégué: 
-        - l'interlocuteur n'est pas COMPTE délégué de la même partition
-    */
-    if (this.setR.has(R.MINI)) {
-      const idE = args.idE
-      if (!ID.estComptable(idE)) {
-        if (this.compte._estA) throw new AppExc(F_SRV, 802)
-        else {
-          const cptE = await this.gd.getCO(idE)
-          if (!this.compte.del) {
-            if (!cptE || !cptE.del || cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          } else {
-            if (!cptE || cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          }
-        }
-      }
-    }
+    this.intro1()
 
     const idsI = this.idsChat(args.idI, args.idE)
     const idsE = this.idsChat(args.idE, args.idI)
@@ -292,42 +303,6 @@ operations.NouveauChat = class NouveauChat extends Operation {
   }
 }
 
-class OperationCh extends Operation {
-
-  // Vérification des restrictions, initialisations de :
-  async intro () {
-    this.avI = await this.gd.getAV(this.args.id, 'MajChat-2')
-    this.chI = this.gd.getCAV(this.args.id, this.args.ids, 'MajChat-9')
-    this.idEL = ID.long(this.chI.idE, this.ns)
-    this.avE = await this.gd.getAV(this.idEL)
-    this.chE = this.avE ? await this.gd.getCAV(this.idEL, this.chI.idsE) : null
-    this.cptE = this.avE ? await this.gd.getCO(ID.long(this.avE.idv, this.ns)) : null
-    /* Restriction MINI NE s'applique QUE,
-    a) si l'interlocuteur n'est pas le comptable,
-    b) ET:
-      - compte 0 délégué: 
-        - si l'interlocuteur n'est pas COMPTE O de la même partition
-      - compte 0 NON délégué: 
-        - l'interlocuteur n'est pas COMPTE délégué de la même partition
-    */
-    if (this.setR.has(R.MINI)) {
-      if (!ID.estComptable(this.idEL)) {
-        if (this.compte._estA) throw new AppExc(F_SRV, 802)
-        else {
-          if (!this.compte.del) {
-            if (!this.cptE || !this.cptE.del || this.cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          } else {
-            if (!this.cptE || this.cptE.idp !== this.compte.idp) 
-              throw new AppExc(F_SRV, 802)
-          }
-        }
-      }
-    }
-  }
-
-}
-
 /* Ajout ou suppression d\'un item à un chat ***************************************
 - `token` : éléments d'authentification du compte auteur
 - id, ids: id du chat
@@ -341,20 +316,20 @@ operations.MajChat = class MajChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    await this.intro(args)
-
-    if (!this.chE) {
+    if (!await this.intro(args)) { // pas de chatE
       this.chI.chEdisp()
       return
     }
 
     // cas normal : maj sur chI et chE - avE et cptE existent
+    const avI = await this.gd.getAV(this.args.id, 'MajChat-2')
+    const avE = await this.gd.getAV(this.idEL, 'MajChat-2')
 
     if (args.don) {
-      const comptaE = await this.gd.getCA(this.cptE.id, 'MajChat-7')
-      if (!comptaE) throw new AppExc(F_SRV, 213) // ne doit jamais se produire
-      if (!this.cptE._estA) throw new AppExc(F_SRV, 214)
       if (!this.compte._estA) throw new AppExc(F_SRV, 214)
+      const cptE = await this.gd.getCO(ID.long(avE.idc, this.ns)) // cptE existe puisque chE existe ici
+      if (!cptE._estA) throw new AppExc(F_SRV, 214)
+      const comptaE = await this.gd.getCA(cptE.id, 'MajChat-1')
       comptaE.don(this.dh, args.don, this.id)
       this.compta.don(this.dh, -args.don, this.cptE.id) // ici chE existe, donc cptE
     }
@@ -370,8 +345,8 @@ operations.MajChat = class MajChat extends OperationCh {
     }
 
     // Maj CVs
-    this.chI.setCvE(this.avE.cvA || {id: ID.court(this.avE.id), v: 0 })
-    this.chE.setCvE(this.avI.cvA || {id: this.avI.id, v: 0 })
+    this.chI.setCvE(avE.cvA || {id: ID.court(avE.id), v: 0 })
+    this.chE.setCvE(avI.cvA || {id: avI.id, v: 0 })
    
     if (Math.floor(this.chI.st / 10) === 0) { // I était passif, redevient actif
       this.chI.actifI()
@@ -393,10 +368,7 @@ operations.PassifChat = class PassifChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 () { 
-    await this.intro()
-
-    if (!this.chE) {
-      // E disparu. Il voulait être passif, devient détruit
+    if (!await this.intro()) { // E disparu. I voulait être passif, devient détruit
       this.chI.setZombi()
       this.setRes('suppr', true)
       return
@@ -404,16 +376,15 @@ operations.PassifChat = class PassifChat extends OperationCh {
 
     if (this.chI.estPassif) return // était passif, reste passif, rien n'a changé
 
-    // chI était actif, devient passif
-    this.chI.passifI()
+    // chI était actif, devient passif - E pas disparu, MAJ de cv et st
+    const avI = await this.gd.getAV(this.args.id, 'PassifChat-1')
+
     this.compta.ncPlus(-1)
-    if (this.chE) {
-      // l'autre n'était pas disparu, MAJ de cv et st
-      this.chE.setCvE(this.avI.cvA)
-      this.chE.setPassifE()
-      // Maj CV de I
-      this.chI.setCvE(this.avE.cvA)
-    }
+    const avE = await this.gd.getAV(this.idEL, 'PassifChat-2')
+    this.chI.passifI()
+    this.chI.setCvE(avE.cvA)
+    this.chE.setCvE(avI.cvA)
+    this.chE.setPassifE()
   }
 }
 
@@ -431,49 +402,36 @@ operations.ChangementPC = class ChangementPC extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    if (args.hZR && await this.getAvatarHpc(args.hZR)) throw new AppExc(F_SRV, 26)
+    if (args.hZR && await this.db.getAvatarHpc(this, ID.long(args.hZR, this.ns))) 
+      throw new AppExc(F_SRV, 26) // trop proche existante
 
     if (!this.compte.mav[ID.court(args.id)]) throw new AppExc(F_SRV, 224)
 
-    const avatar = compile(await this.getRowAvatar(args.id, 'ChangementPC-1'))
-    const vav = await this.getV(avatar, 'ChangementPC-2') 
-    vav.v++
-    this.setV(vav)
-    avatar.v = vav.v
-
-    if (args.pcK) {
-      avatar.hpc = ID.long(args.hZR, this.ns)
-      avatar.hZC = args.hZC
-      avatar.cleAZC = args.cleAZC
-      avatar.pcK = args.pcK
-    } else {
-      avatar.hpc = 0
-      delete avatar.hZR
-      delete avatar.pcK
-      delete avatar.cleAZC
-    }
-    this.update(avatar.toRow())
+    const avatar = this.gd.getAV(args.id, 'ChangementPC-1')
+    avatar.setPC(args)
   }
 }
 
-/* OP_EstAutonome: 'Vérification que le bénéficiaire envisagé d\'un don est bien un compte autonome'
+/* OP_StatutAvatar: 'Vérification que le bénéficiaire envisagé d\'un don est bien un compte autonome'
 indique si l'avatar donné en argument est 
-l'avatar principal d'un compte autonome
+un avatar principal ou non, d'un compte autonome ou non
 - token : jeton d'authentification du compte de **l'administrateur**
 - id : id de l'avatar
 Retour: 
-- `st`: 
-  - 0 : pas avatar principal 
-  - 1 : avatar principal d'un compte A
-  - 2 : avatar principal d'un compte O
+- `st`: [P, A]
+  - P : true si avatar principal
+  - A : true si compte A
 */
-operations.EstAutonome = class EstAutonome extends Operation {
+operations.StatutAvatar = class StatutAvatar extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2(args) {
-    const compte = compile(await this.getRowCompte(args.id))
-    if (!compte) { this.setRes('st', 0) }
-    this.setRes('st', compte.idp ? 2 : 1)
+    const avatar = await this.getAV(args.id) // 401 si non trouvé
+    const idcl = this.long(avatar.idc, this.ns)
+    const p = avatar.id !== idcl
+    const c = await this.getCO()
+    const a = c.idp ? false : true
+    this.setRes('st', [p, a])
   }
 }
 

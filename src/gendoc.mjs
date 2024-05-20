@@ -974,6 +974,8 @@ _data_:
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 
 
+  get ns () { return ID.ns(this.id)}
+
   static nouveau (args, cvA) {
     cvA.v = 1
     return new Avatars().init({ 
@@ -986,12 +988,20 @@ export class Avatars extends GenDoc {
     })
   }
 
-  /*
-  static nouveau2 (id, idc, rdsav, pub, privK, cvA) {
-    cvA.v = 1
-    return new Avatars().init({ id, idc: ID.court(idc), v: 1,vcv: 1, rds: rdsav, pub, privK, cvA })
+  setPC (args) {
+    if (args.hZR) {
+      this.hpc = ID.long(args.hZR, this.ns)
+      this.hZC = args.hZC
+      this.cleAZC = args.cleAZC
+      this.pcK = args.pcK
+    } else {
+      this.hpc = 0
+      delete this.hZR
+      delete this.pcK
+      delete this.cleAZC
+    }
+    this._maj = true
   }
-  */
 
   toShortRow () { return this.toRow() }
 }
