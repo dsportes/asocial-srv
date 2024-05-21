@@ -281,18 +281,15 @@ class GD {
     return { compte:c, compta: compta, compti: compti, invit: invit }
   }
 
-  async getCO (id, hXR, hXC, assert) {
+  async getCO (id, assert, hXR) {
     let c
     let t = false
     if (id) {
       c = this.comptes.get(id)
       if (c) t = true; else c = compile(await this.op.getRowCompte(id))
-    } else {
+    } else
       c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
-      if (!c || c.hXC !== hXC || c.v === V99 || !await this.getV(c.rds)) { 
-        await sleep(3000); throw new AppExc(F_SRV, 998) }
-    }
-    if (!c || c.v === V99 || !await this.getV(c.rds)) { 
+    if (!c || c.v === V99) { 
       if (!assert) return null; else assertKO(assert, 4, [c.id]) }
     if (!t) this.comptes.set(id, c)
     return c
@@ -324,7 +321,7 @@ class GD {
     let c = this.comptas.get(id)
     if (c) return c
     c = compile(await this.op.getRowCompta(id))
-    if (!c || !await this.getV(c.rds)) { 
+    if (!c) { 
       if (!assert) return null; else assertKO(assert, 3, [c.id]) }
     this.comptas.set(c, id)
     return c
@@ -344,7 +341,7 @@ class GD {
     let a = this.avatars.get(id)
     if (a) return a
     a = compile(await this.op.getRowAvatar(id))
-    if (!a || a.v === V99 || !await this.getV(a.rds)) { 
+    if (!a || a.v === V99) { 
       if (!assert) return null; else assertKO(assert, 8, [a.id]) }
     this.avatars.set(id, a)
     return a
@@ -359,7 +356,7 @@ class GD {
     let av = this.avatars.get(id)
     if (av) return av.vcv > vcv ? { av, disp } : { disp }
     av = compile(await this.op.db.getAvatarVCV(this.op, id, vcv))
-    disp = (!av || av.v === V99 || !await this.getV(av.rds))
+    disp = (!av || av.v === V99)
     if (disp) return { disp }
     this.avatars.set(id, av)
     disp = false
@@ -383,7 +380,7 @@ class GD {
     let g = this.groupes.get(id)
     if (g) return g
     g = compile(await this.op.getRowGroupe(id))
-    if (!g || g.v === V99 || !await this.getV(g.rds)) { 
+    if (!g || g.v === V99) { 
       if (!assert) return null; else assertKO(assert, 9, [g.id]) }
     this.groupes.set(id, g)
     return g
@@ -525,13 +522,20 @@ class GD {
   }
 
   /* Met à jour le version d'un doc ou sous-doc,
-  - le version doit avoir été chargé par un getXX précédent, sinon EXCEPTION
+  - SAUF pour CAG, le version doit avoir été chargé par un getXX précédent, sinon EXCEPTION
+  - pour CAG, récupère le version
   - s'il avait déjà été incrémenté, ne fait rien
   */
-  async majV (rds, id) {
+  async majV (rds, id, cag) { // cag: 1:compte 2:avatar, 3:groupe
     const lrds = ID.long(rds, this.op.ns)
-    const v = this.versions.get(lrds)
-    if (!v) assertKO('majV', 20, [rds, id])
+    let v = this.versions.get(lrds)
+    if (!v) {
+      if (!cag) assertKO('majV', 20, [rds, id])
+      else {
+        v = await this.getV(rds)
+        if (!v) assertKO('majV', 20, [rds, id])
+      }
+    }
     if (!v._maj) {
       v.v++
       v._maj = true
@@ -542,10 +546,10 @@ class GD {
     return v.v
   }
 
-  async majdoc (d) {
+  async majdoc (d, cag) { // cag: 1:compte 2:this.avatars, 3:groupe
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
+      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''), cag)
       if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
       if (ins) this.op.insert(d.row()); else this.op.update(d.row())
@@ -587,11 +591,11 @@ class GD {
   }
 
   async maj () {
-    for(const [,d] of this.avatars) await this.majdoc(d)
-    for(const [,d] of this.groupes) await this.majdoc(d)
+    for(const [,d] of this.avatars) await this.majdoc(d, 2)
+    for(const [,d] of this.groupes) await this.majdoc(d, 3)
     for(const [,d] of this.sdocs) await this.majdoc(d)
-    for(const [,d] of this.comptis) await this.majdoc(d)
-    for(const [,d] of this.invits) await this.majdoc(d)
+    for(const [,d] of this.comptis) await this.majdoc(d, 1)
+    for(const [,d] of this.invits) await this.majdoc(d, 1)
     if (this.espace) await this.majesp(this.espace)
     
     // comptas SAUF celle du compte courant
@@ -600,7 +604,7 @@ class GD {
 
     // comptes SAUF le compte courant
     for(const [id, d] of this.comptes) 
-      if (id !== this.op.id) await this.majdoc(d)
+      if (id !== this.op.id) await this.majdoc(d, 1)
 
     // Incorporation de la consommation dans compta courante
     if (!this.op.SYS) {
@@ -610,7 +614,7 @@ class GD {
     }
 
     // maj compte courant
-    if (this.op.compte) await this.majdoc(this.op.compte)
+    if (this.op.compte) await this.majdoc(this.op.compte, 1)
 
     // maj partitions (possiblement affectées aussi par maj des comptes O)
     for(const [,d] of this.partitions) await this.majpart(d)
@@ -763,8 +767,10 @@ export class Operation {
     this.gd.setEspace(espace)
     
     /* Compte */
-    // Sort en Exception 8998 si compte non trouvé ou V99 ou Version suppr
-    this.compte = await this.gd.getCO(0, authData.hXR, authData.hXC)
+    this.compte = await this.gd.getCO(0, null, authData.hXR)
+    if (!this.compte || this.compte.hXC !== authData.hXC) { 
+      await sleep(3000); throw new AppExc(F_SRV, 998) 
+    }
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp

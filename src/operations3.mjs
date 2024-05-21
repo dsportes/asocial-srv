@@ -689,11 +689,11 @@ operations.GetNotifC = class GetNotifC extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const c = await this.gd.getCO(args.id, null, null, true)
+    const c = await this.gd.getCO(args.id, 'GetNotifC-1')
     if (!c.idp) throw new AppExc(F_SRV, 230)
     if (c.notif) this.setRes('notif', c.notif)
     if (this.estComptable) return
-    const part = await this.gd.getPA(c.idp, 'GetNotifC')
+    const part = await this.gd.getPA(c.idp, 'GetNotifC-2')
     if (!part.estDel(this.id)) throw new AppExc(F_SRV, 231)
   }
 }

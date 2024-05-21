@@ -328,7 +328,7 @@ operations.MajChat = class MajChat extends OperationCh {
     if (args.don) {
       if (!this.compte._estA) throw new AppExc(F_SRV, 214)
       const cptE = await this.gd.getCO(ID.long(avE.idc, this.ns)) // cptE existe puisque chE existe ici
-      if (!cptE._estA) throw new AppExc(F_SRV, 214)
+      if (!cptE || !cptE._estA) throw new AppExc(F_SRV, 214)
       const comptaE = await this.gd.getCA(cptE.id, 'MajChat-1')
       comptaE.don(this.dh, args.don, this.id)
       this.compta.don(this.dh, -args.don, this.cptE.id) // ici chE existe, donc cptE
@@ -581,7 +581,7 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
 
   async phase2 (args) {
     if (this.id === args.id) throw new AppExc(F_SRV, 234)
-    const cpt = await this.gd.getCO(args.id, null, null, 'ChangerPartition-1')
+    const cpt = await this.gd.getCO(args.id, 'ChangerPartition-1')
     const compta = await this.gd.getCA(args.id)
     const partav = await this.gd.getPA(ID.long(cpt.idp, this.ns), 'ChangerPartition-2')
     const idc = ID.court(args.id)
@@ -610,7 +610,7 @@ operations.DeleguePartition = class DeleguePartition extends Operation {
 
   async phase2 (args) {
     if (this.id === args.id) throw new AppExc(F_SRV, 234)
-    const cpt = await this.gd.getCO(args.id, null, null, 'DeleguePartition-1')
+    const cpt = await this.gd.getCO(args.id, 'DeleguePartition-1')
     const part = await this.gd.getPA(ID.long(cpt.idp, this.ns), 'DeleguePartition-2')
     
     if (!part.setDel(args.id, args.del)) throw new AppExc(F_SRV, 232)
@@ -651,7 +651,7 @@ operations.SetNotifC = class SetNotifC extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const compte = await this.gd.getCO(args.idc, null, null, 'SetNotifC-1')
+    const compte = await this.gd.getCO(args.idc, 'SetNotifC-1')
 
     const ec = this.estComptable
     const ed = !ec && this.compte.del
@@ -1165,76 +1165,50 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
 - nvflags : nouveau flags. Peuvent changer DM DN DE AM AN
 - anim: true si animateur
 Retour:
+EXC: 
+- 8002: groupe disparu
+- 8001: avatar disparu
 */
 operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
-  async phase2 (args) { 
-    const gr = compile(await this.getRowGroupe(args.idg, 'MajDroitsMembre-1'))
-    const vg = await this.getV(gr)
-    vg.v++
-    gr.v = vg.v
+  async phase2 (args) {
+    const gr = this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
+    const avatar = await this.gd.getAV(args.idm)
+    if (!avatar) throw new AppExc(F_SRV, 1)
+
+    const im = gr.mmb.get(args.idm)
+    if (!im) throw new AppExc(F_SRV, 251)
+    const stm = gr.st[im] 
+    if (stm < 4) throw new AppExc(F_SRV, 262)
+    
     // Set des im des avatars du compte étant animateur */
     const anc = this.compte.imAnimsDeGr(gr)
 
-    await this.getRowAvatar(args.idm, 'MajDroitsMembre-2')
-
-    const im = gr.mmb.get(args.idm)
-    if (!im) throw new AppExc(F_SRV, 251)    
-    const stm = gr.st[im] 
-    if (stm < 4) throw new AppExc(F_SRV, 262)
-
+    let fst = 0
     if (args.anim && stm === 4) {
       // passer le membre en animateur
       if (!anc.size) throw new AppExc(F_SRV, 263)
-      gr.st[im] = 5
+      fst = 5
     }
     if (!args.anim && stm === 5) {
       // supprimer le statut d'animateur du membre - Possible pour soi-même seulement
       if (!anc.has(im)) throw new AppExc(F_SRV, 264)
-      gr.st[im] = 4
+      fst = 4
     }
 
-    /* Ajouter un ou des flags: n |= FLAGS.HA | FLAGS.AC | FLAGS.IN
-       Enlever un ou des flags: n &= ~FLAGS.AC & ~FLAGS.IN */
-    const fl = gr.flags[im]
-    let nvfl = fl
     const iam = args.nvflags & FLAGS.AM
     const ian = args.nvflags & FLAGS.AN
-    const iamav = fl & FLAGS.AM
-    const ianav = fl & FLAGS.AN
-    if (iam !== iamav || ian !== ianav) {
-      if (!this.compte.estAvc(args.idm)) throw new AppExc(F_SRV, 265)
-      if (iam) nvfl |= FLAGS.AM; else nvfl &= ~FLAGS.AM
-      if (ian) nvfl |= FLAGS.AN; else nvfl &= ~FLAGS.AN
-    }
     const idm = args.nvflags & FLAGS.DM
     const idn = args.nvflags & FLAGS.DN
     const ide = idn ? args.nvflags & FLAGS.DE : false
-    const idmav = fl & FLAGS.DM
-    const idnav = fl & FLAGS.DN
-    const ideav = fl & FLAGS.DE
-    const chgFl = idm !== idmav || idn !== idnav || ide !== ideav
-    if (chgFl) {
-      if (!anc.size) throw new AppExc(F_SRV, 266)
-      if (idm) nvfl |= FLAGS.DM; else nvfl &= ~FLAGS.DM
-      if (idn) nvfl |= FLAGS.DN; else nvfl &= ~FLAGS.DN
-      if (ide) nvfl |= FLAGS.DE; else nvfl &= ~FLAGS.DE
-    }
-    gr.flags[im] = nvfl
-    this.update(gr.toRow())
-    this.setV(vg)
+
+    const chgFl = gr.setFlags (anc, fst, im, iam, ian, idm, idn, ide)
 
     if (chgFl) {
-      const mb = compile(await this.getRowMembre(args.idg, im, 'AcceptInvitation-3'))
-      mb.v = vg.v
-      if (!mb.dam && idm && iam) mb.dam = this.auj
-      if (mb.dam && (!idm || !iam)) mb.fam = this.auj
-      if (!mb.dan && idn && ian) mb.dan = this.auj
-      if (mb.dam && (!idn || !ian)) mb.fam = this.auj
-      if (!mb.den && ide && ian) mb.den = this.auj
-      if (mb.den && (!ide || !ian)) mb.fen = this.auj
-      this.update(mb.toRow())  
+      const mb = await this.gd.getMBR(args.idg, im, 'MajDroitsMembre-3')
+      mb.setDates(this.auj, iam, ian, idm, idn, ide)
     }
   }
 }
@@ -1250,21 +1224,17 @@ operations.RadierMembre = class RadierMembre extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = compile(await this.getRowGroupe(args.idg, 'RadierMembre-1'))
-    const vg = await this.getV(gr)
-    vg.v++
-    gr.v = vg.v
-    // Set des im des avatars du compte étant animateur */
+    const gr = this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
+    const avatar = await this.gd.getAV(args.idm)
+    if (!avatar) throw new AppExc(F_SRV, 1)
+    const compte = await this.gd.getCO(avatar.idc, 'RadierMembre-2')
+    const moi = compte.estAvc(args.idm)
 
     const im = gr.mmb.get(args.idm)
-    if (!im) throw new AppExc(F_SRV, 251)    
-    const stm = gr.st[im]
-    const fl = gr.flags[im]
+    if (!im) throw new AppExc(F_SRV, 251)
+    const stm = gr.st[im] 
     const anc = this.compte.imAnimsDeGr(gr)
-
-    const avatar = compile(await this.getRowAvatar(args.idm, 'RadierMembre-2'))
-    const compte = compile(await this.getRowCompte(avatar.idc, 'RadierMembre-2'))
-    const moi = compte.estAvc(args.idm)
 
     if (moi) { // auto-radiation
       if (stm < 4) throw new AppExc(F_SRV, 270)
@@ -1278,36 +1248,18 @@ operations.RadierMembre = class RadierMembre extends Operation {
       if (!am) throw new AppExc(F_SRV, 268)
     }
 
-    const mb = compile(await this.getRowMembre(args.idg, im, 'RadierMembre-3'))
-    mb.v = vg.v
+    const mb = await this.gd.getMBR(args.idg, im, 'RadierMembre-3')
 
     if (args.rad === 1) {
-      gr.st[im] = 1
-      let nvfl = 0
-      if (fl & FLAGS.HM) nvfl |= FLAGS.HM
-      if (fl & FLAGS.HN) nvfl |= FLAGS.HN
-      if (fl & FLAGS.HE) nvfl |= FLAGS.HE
-      gr.flags[im] = nvfl
-      delete gr.invits[im]
-      if (mb.dac && !mb.fac) mb.fac = this.auj
-      if (mb.dam && !mb.fam) mb.fam = this.auj
-      if (mb.dan && !mb.fan) mb.fan = this.auj
-      if (mb.den && !mb.fen) mb.fen = this.auj
-      mb.msgG = null
+      gr.retourContact(im)
+      mb.retourContact(this.auj)
     } else {
-      gr.st[im] = 0
-      gr.tid[im] = 0
-      gr.flags[im] = 0
-      delete gr.invits[im]
-      if (args.rad === 3) {
-        const idmc = ID.court(args.idm)
-        if (moi) {
-          if (gr.lnc.indexOf(idmc) === -1) gr.lnc.push(idmc)
-        } else if (gr.lng.indexOf(idmc) === -1) gr.lng.push(idmc)
-      }
-      mb._zombi = true
+      gr.radiation(im, args.rad === 3, moi)
+      mb.setZombi()
     }
 
+    // TODO gestion de la suppression éventuelle du compte
+    /*
     if (gr.nbActifs) { // il reste desz actifs, le groupe n'est pas supprimé
       if (gr.imh === im) {
         gr.imh = 0
@@ -1318,13 +1270,9 @@ operations.RadierMembre = class RadierMembre extends Operation {
       this.update(mb.toRow())
       return
     }
-
     // suppression des invitations en cours
-
     // suppression de tous les membres
+    */
 
-    gr.v = 999999
-    gr._zombi = true
-    this.update(gr.toRow())
   }
 }

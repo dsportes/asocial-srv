@@ -1429,6 +1429,57 @@ export class Groupes extends GenDoc {
     this._maj = true
   }
 
+  setFlags (anc, st, im, iam, ian, idm, idn, ide) {
+    this.st[im] = st
+    const fl = this.flags[im]
+    let nvfl = fl
+    const iamav = fl & FLAGS.AM
+    const ianav = fl & FLAGS.AN
+    if (iam !== iamav || ian !== ianav) {
+      if (!this.compte.estAvc(idm)) throw new AppExc(F_SRV, 265)
+      if (iam) nvfl |= FLAGS.AM; else nvfl &= ~FLAGS.AM
+      if (ian) nvfl |= FLAGS.AN; else nvfl &= ~FLAGS.AN
+    }
+    const idmav = fl & FLAGS.DM
+    const idnav = fl & FLAGS.DN
+    const ideav = fl & FLAGS.DE
+    const chgFl = idm !== idmav || idn !== idnav || ide !== ideav
+    if (chgFl) {
+      if (!anc.size) throw new AppExc(F_SRV, 266)
+      if (idm) nvfl |= FLAGS.DM; else nvfl &= ~FLAGS.DM
+      if (idn) nvfl |= FLAGS.DN; else nvfl &= ~FLAGS.DN
+      if (ide) nvfl |= FLAGS.DE; else nvfl &= ~FLAGS.DE
+    }
+    this.flags[im] = nvfl
+    this._maj = true
+    return chgFl
+  }
+
+  retourContact (im) {
+    const fl = this.flags[im]
+    this.st[im] = 1
+    let nvfl = 0
+    if (fl & FLAGS.HM) nvfl |= FLAGS.HM
+    if (fl & FLAGS.HN) nvfl |= FLAGS.HN
+    if (fl & FLAGS.HE) nvfl |= FLAGS.HE
+    this.flags[im] = nvfl
+    delete this.invits[im]
+    this._maj = true
+  }
+
+  radiation (im, ln, moi) {
+    const idmc = this.tid[im]
+    this.st[im] = 0
+    this.tid[im] = 0
+    this.flags[im] = 0
+    delete this.invits[im]
+    if (ln) {
+      if (moi) {
+        if (this.lnc.indexOf(idmc) === -1) this.lnc.push(idmc)
+      } else if (this.lng.indexOf(idmc) === -1) this.lng.push(idmc)
+    }
+  }
+
   /* Sérialisation en row après avoir enlevé 
   les champs non pertinents selon l'accès aux membres?
   Pas accès membre: tid ne contient que les entrées des avatars du compte */
@@ -1532,6 +1583,30 @@ export class Membres extends GenDoc {
     if (!this.den && en) this.den = auj
     if (!this.dam && am) this.dam = auj
     this.msgG = null
+    this._maj = true
+  }
+
+  setDates (auj, iam, ian, idm, idn, ide) {
+    if (!this.dam && idm && iam) this.dam = auj
+    if (this.dam && (!idm || !iam)) this.fam = auj
+    if (!this.dan && idn && ian) this.dan = auj
+    if (this.dam && (!idn || !ian)) this.fam = auj
+    if (!this.den && ide && ian) this.den = auj
+    if (this.den && (!ide || !ian)) this.fen = auj
+    this._maj = true
+  }
+
+  retourContact (auj) {
+    if (this.dac && !this.fac) this.fac = auj
+    if (this.dam && !this.fam) this.fam = auj
+    if (this.dan && !this.fan) this.fan = auj
+    if (this.den && !this.fen) this.fen = auj
+    this.msgG = null
+    this._maj = true
+  }
+
+  setZombi () {
+    this._zombi = true
     this._maj = true
   }
 
