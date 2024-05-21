@@ -886,25 +886,22 @@ operations.ChangementPS = class ChangementPS extends Operation {
 - msu: true si mode simple
 - quotas: { qn, qv } maximum de nombre de notes et de volume fichiers
 Retour:
+Exception:
+- 8001: avatar disparu
 */
 operations.NouveauGroupe = class NouveauGroupe extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const rg = await this.getRowGroupe(args.idg)
+    const rg = await this.dg.getGR(args.idg)
     if (rg) throw new AppExc(F_SRV, 246)
 
-    const avatar = await this.gd.getAV(args.ida, 502)
+    const avatar = await this.gd.getAV(args.ida)
+    if (!avatar) throw new AppExc(F_SRV, 1)
 
-    // const groupe = Groupes.nouveau (args.idg, args.ida, this.id, rds, args.quotas, args.msu, args.cvG)
     this.gd.nouvGR(args)
-    // const membre = Membres.nouveau(args.idg, groupe.rds, 1, avatar.cvA, args.cleAG)
-    const membre = this.gd.nouvMBR(args.idg, 1, avatar.cvA, args.cleAG)
-    membre.dpc = this.auj
-    membre.dac = this.auj
-    membre.dln = this.auj
-    membre.den = this.auj
-    membre.dam = this.auj
+    const dx = { dpc: this.auj, dac: this.auj, dln: this.auj, den: this.auj, dam: this.auj }
+    this.gd.nouvMBR(args.idg, 1, avatar.cvA, args.cleAG, dx)
 
     this.compta.ngPlus(1)
   }
@@ -917,15 +914,17 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 - cleAG : clé A du contact cryptée par la clé G du groupe
 Retour:
 EXC: 
-- 503: groupe disparu
-- 502: avatar disparu
+- 8002: groupe disparu
+- 8001: avatar disparu
 */
 operations.NouveauContact = class NouveauContact extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const groupe = this.gd.getGR(args.idg, 503)
-    const avatar = await this.gd.getAV(args.ida, 502)
+    const groupe = this.gd.getGR(args.idg)
+    if (!groupe) throw new AppExc(F_SRV, 2)
+    const avatar = await this.gd.getAV(args.ida)
+    if (!avatar) throw new AppExc(F_SRV, 1)
 
     // const groupe = compile(await this.getRowGroupe(args.idg, 'NouveauContact-1'))
     let ok = false
@@ -941,9 +940,9 @@ operations.NouveauContact = class NouveauContact extends Operation {
     if (groupe.lnc.indexOf(idac) !== -1) throw new AppExc(F_SRV, 260)
     if (groupe.lng.indexOf(idac) !== -1) throw new AppExc(F_SRV, 261)
     
-    const im = groupe.nvContact(args.ida)  
-    const membre = this.gd.nouvMBR(args.idg, im, avatar.cvA, args.cleAG)
-    membre.dpc = this.auj
+    const im = groupe.nvContact(args.ida)
+    const dx = { dpc: this.auj}
+    this.gd.nouvMBR(args.idg, im, avatar.cvA, args.cleAG, dx)
   }
 }
 
@@ -955,41 +954,21 @@ operations.NouveauContact = class NouveauContact extends Operation {
   - true 'Je vote pour passer au mode "SIMPLE"'
   - false: 'Annuler les votes et rester en mode UNANIME'
 Retour:
+EXC: 
+- 8002: groupe disparu
 */
 operations.ModeSimple = class ModeSimple extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = compile(await this.getRowGroupe(args.idg, 'ModeSimple-1'))
-    const vg = await this.getV(gr)
-    vg.v++
-    gr.v = vg.v
+    const gr = this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
 
     if (!this.compte.mav[ID.court(args.ida)]) throw new AppExc(F_SRV, 249)
     const im = gr.mmb.get(args.ida)
     if (!im || gr.st[im] !== 5) throw new AppExc(F_SRV, 250)
-
-    /* - `msu` : mode _simple_ ou _unanime_.
-        - `null` : mode simple.
-        - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
-    */
-    if (!args.simple) gr.msu = []
-    else {
-      // demande de retour au mode simple
-      if (!gr.msu) gr.msu = []
-      const s = new Set(gr.msu)
-      s.add(im)
-      let ok = true
-      gr.anims.forEach(imx => { if (!s.has(imx)) ok = false })
-      if (ok) {
-        // tous les animateurs ont voté pour
-        gr.msu = null
-      } else {
-        gr.msu = Array.from(s)
-      }
-    }
-    this.setV(vg)
-    this.update(gr.toRow())
+    
+    gr.setMsu(args.simple, im)
   }
 }
 
@@ -1005,54 +984,36 @@ operations.ModeSimple = class ModeSimple extends Operation {
 - suppr: 1-contact, 2:radié, 3-radié + LN
 - cleGA: clé G du groupe cryptée par la clé A de l'invité
 Retour:
+EXC: 
+- 8002: groupe disparu
+- 8001: avatar disparu
 */
 operations.InvitationGroupe = class InvitationGroupe extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = compile(await this.getRowGroupe(args.idg, 'InvitationGroupe-1'))
-    const vg = await this.getV(gr)
-    const idgc = ID.court(args.idg)
-    vg.v++
-    gr.v = vg.v
+    const gr = this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
+    const avatar = await this.gd.getAV(args.ida)
+    if (!avatar) throw new AppExc(F_SRV, 1)
 
     const idac = ID.court(args.idm)
     if (gr.lnc.indexOf(idac) !== -1) throw new AppExc(F_SRV, 260)
     if (gr.lng.indexOf(idac) !== -1) throw new AppExc(F_SRV, 261)
 
-    const avatar = compile(await this.getRowAvatar(args.idm, 'InvitationGroupe-2'))
-    const idc = ID.long(avatar.idc, this.ns)
-    const cptinv = compile(await this.getRowCompte(idc, 'InvitationGroupe-2c'))
-    const cinvit = compile(await this.getRowInvit(idc, 'InvitationGroupe-2b'))
-    const vcpt = await this.getV(cptinv)
-    vcpt.v++
-    cinvit.v = vcpt.v
+    const cinvit = await this.gd.getIN(ID.long(avatar.idc, this.ns), 'InvitationGroupe-2b')
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
-    const membre = compile(await this.getRowMembre(args.idg, im, 'InvitationGroupe-3'))
-    membre.v = vg.v
+    const membre = await this.gd.getMBR(args.idg, im, 'InvitationGroupe-3')
 
     const s = gr.st[im]
     
     if (args.suppr) { // suppression de l'invitation
-
       if (s < 2 || s > 3) throw new AppExc(F_SRV, 252)
-      delete gr.invits[im]
-      gr.st[im] = args.suppr > 1 ? 0 : 1
-      if (args.suppr > 1) gr.tid[im] = 0
-      gr.flags[im] = 0
-      if (args.suppr === 3 && gr.lmg.indexOf(idgc) === -1) gr.lmg.push(idgc)
-      this.update(gr.toRow())
-      this.setV(vg)
-
-      cinvit.supprInv(args.idg, args.idm)
-      this.update(cinvit.toRow())
-      this.setV(vcpt)
-
-      if (args.suppr === 1) membre.msgG = null
-      else membre._zombi = true
-      this.update(membre.toRow()) // version est vg set ci-dessus
+      gr.supprInvit(im, args.suppr)
+      cinvit.supprInvit(args.idg, args.idm)
+      membre.supprRad(args.suppr)
       return
     } 
     
@@ -1084,10 +1045,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       s1.forEach(i => { if (s2.has(i)) invit.li.push(i)})
       aInviter = s2.size === invit.li.length
     }
-    gr.invits[im] = invit
-    gr.st[im] = aInviter ? 3 : 2
-    this.update(gr.toRow())
-    this.setV(vg)
+    gr.setInvit(im, invit, aInviter)
 
     // Construction de l'invitation à transmettre à l'avatar invité
     /* - `invits`: liste des invitations en cours (dans le document invits)
@@ -1117,27 +1075,21 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
         if (mb) invpar.push({ cleAG: mb.cleAG, cvA: mb.cvA })
       }
       cinvit.addInv(invx)
-      this.update(cinvit.toRow())
-      this.setV(vcpt)
     }
 
     // écriture du chat
     if (aInviter) {
-      const ch = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-4'))
+      const ch = await this.gr.getCGR(args.idg, 'InvitationGroupe-4')
       /*- `im` : im du membre auteur,
         - `dh` : date-heure d'écriture.
         - `dhx` : date-heure de suppression.
         - `t` : texte crypté par la clé G du groupe (vide s'il a été supprimé).
       */
-      ch.v = vg.v
       ch.addItem(invit.li[0], this.dh, args.msgG)
-      this.update(ch.toRow())
     }
     
     // maj du membre invité
-    if (aInviter) membre.ddi = this.auj
-    membre.msgG = args.msgG
-    this.update(membre.toRow())
+    membre.setInvit(this.auj, aInviter, args.msgG)
   }
 }
 
@@ -1151,68 +1103,39 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
 - cas: 1:accepte 2:contact 3:radié 4:radié + LN
 - msgG: message de remerciement crypté par la cle G du groupe
 Retour:
+EXC: 
+- 8002: groupe disparu
+- 8001: avatar disparu
 */
 operations.AcceptInvitation = class AcceptInvitation extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = compile(await this.getRowGroupe(args.idg, 'AcceptInvitation-1'))
-    const vg = await this.getV(gr)
-    vg.v++
-    gr.v = vg.v
+    const gr = this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
+    const avatar = await this.gd.getAV(args.ida)
+    if (!avatar) throw new AppExc(F_SRV, 1)
 
-    const avatar = compile(await this.getRowAvatar(args.idm, 'AcceptInvitation-2'))
-    const invit = compile(await this.getRowInvit(ID.long(avatar.idc, this.ns), 'AcceptInvitation-2b'))
-    const vinvit = await this.getV(invit)
-    vinvit.v++
-    invit.v = vinvit.v
+    const invit = await this.gd.getIN(ID.long(avatar.idc, this.ns), 'AcceptInvitation-2b')
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
     if (gr.st[im] !== 3) throw new AppExc(F_SRV, 259)
-    const membre = compile(await this.getRowMembre(args.idg, im, 'AcceptInvitation-3'))
-    membre.v = vg.v
+    
+    const membre = await this.gd.getMBR(args.idg, im, 'AcceptInvitation-3')
 
     if (args.cas === 1) { // acceptation
-      const fl = gr.invits[im].fl // flags d'invit
-      const f = gr.flags[im] // flags actuels
-      let nf = 0
-      if ((f & FLAGS.HM) || ((fl & FLAGS.DM) && args.iam)) nf |= FLAGS.HM
-      if ((f & FLAGS.HN) || (((fl & FLAGS.DN) || (fl & FLAGS.DE)) && args.ian)) nf |= FLAGS.HN
-      if ((f & FLAGS.HE) || ((fl & FLAGS.DE) && args.iam)) nf |= FLAGS.HE
-      if (fl & FLAGS.DM) nf |= FLAGS.DM
-      if (fl & FLAGS.DN) nf |= FLAGS.DN
-      if (fl & FLAGS.DE) nf |= FLAGS.DE
-      if (args.iam) nf |= FLAGS.AM
-      if (args.ian) nf |= FLAGS.AN
-      gr.flags[im] = nf
-      gr.st[im] = (fl & FLAGS.AN) ? 5 : 4
-      delete gr.invits[im]
-      this.update(gr.toRow())
-      this.setV(vg)
-      const ln = (nf & FLAGS.DN) && (nf & FLAGS.AN)
-      const en = ln && (nf & FLAGS.DE)
-      const am = (nf && FLAGS.DM) && (nf & FLAGS.AM)
-      
+      const nf = gr.acceptInvit(im, args.iam, args.ian)
+
       // invit
       invit.supprInv(args.idg, args.idm)
-      this.update(invit.toRow())
-      this.setV(vinvit)
 
       // maj du membre invité: dac dln den dam
-      if (!membre.dac) membre.dac = this.auj
-      if (!membre.dln && ln) membre.dln = this.auj
-      if (!membre.den && en) membre.den = this.auj
-      if (!membre.dam && am) membre.dam = this.auj
-      membre.msgG = null
-      membre.v = vg.v
-      this.update(membre.toRow())
+      membre.acceptInvit(this.auj, nf)
 
       // écriture du chat
-      const ch = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-4'))
-      ch.v = vg.v
+      const ch = await this.gd.getCGR(args.idg, 'InvitationGroupe-4')
       ch.addItem(im, this.dh, args.msgG)
-      this.update(ch.toRow())
 
       // enreg compte et compta
       this.compte.ajoutGroupe(args.idg, args.idm, args.cleGK, gr.rds)
@@ -1221,33 +1144,17 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     }
 
     // refus - cas: 2:contact 3:radié 4:radié + LN
-    gr.st[im] = args.cas === 2 ? 1 : 0
-    delete gr.invits[im]
-    if (args.cas > 2) {
-      gr.tid[im] = 0
-      gr.flags[im] = 0
-      const idmc = ID.court(args.idm)
-      if (args.cas === 4 && gr.lnc.indexOf(idmc) === -1) gr.lnc.push(idmc)
-    }
-    this.update(gr.toRow())
-    this.setV(vg)
+    gr.refusInvit(im, args.cas)
 
     // invit
     invit.supprInv(args.idg, args.idm)
-    this.update(invit.toRow())
-    this.setV(vinvit)
 
-    // maj du membre invité: dac dln den dam
-    if (args.cas === 2) membre.msgG = null
-    else membre._zombi = true
-    membre.v = vg.v
-    this.update(membre.toRow())
+    // maj du membre invité
+    membre.supprRad(args.cas === 2 ? 1 : 0)
 
     // écriture du chat
-    const ch = compile(await this.getRowChatgr(args.idg, 'InvitationGroupe-4'))
-    ch.v = vg.v
+    const ch = await this.gd.getCGR(args.idg, 'InvitationGroupe-4')
     ch.addItem(im, this.dh, args.msgG)
-    this.update(ch.toRow())
   }
 }
 

@@ -835,7 +835,7 @@ export class Invits extends GenDoc {
     this._maj = true
   }
 
-  supprInv (idgl, idal) {
+  supprInvit (idgl, idal) {
     const idg = ID.court(idgl)
     const ida = ID.court(idal)
     const l = []
@@ -1034,7 +1034,7 @@ export class Versions extends GenDoc {
   }
 }
 
-/**************************************************************
+/* Avatar *************************************************************
 _data_:
 - `id` : id de l'avatar.
 - `v` : 1..N. Par convention, une version à 999999 désigne un **avatar logiquement détruit** mais dont les données sont encore présentes. L'avatar est _en cours de suppression_.
@@ -1304,6 +1304,8 @@ Calculée : mmb: Map des membres. Clé: id long du membre, Valeur: son im
 export class Groupes extends GenDoc { 
   constructor() { super('groupes') }
 
+  get idgc () { return ID.court(this.id) }
+
   compile () {
     this.ns = ID.ns(this.id)
     this.mmb = new Map()
@@ -1354,6 +1356,77 @@ export class Groupes extends GenDoc {
     this.st = y
     this._maj = true
     return im
+  }
+
+  /* - `msu` : mode _simple_ ou _unanime_.
+    - `null` : mode simple.
+    - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
+  */
+  setMsu (simple, im) {
+    if (!simple) this.msu = []
+    else {
+      // demande de retour au mode simple
+      if (!this.msu) this.msu = []
+      const s = new Set(this.msu)
+      s.add(im)
+      let ok = true
+      this.anims.forEach(imx => { if (!s.has(imx)) ok = false })
+      if (ok) {
+        // tous les animateurs ont voté pour
+        this.msu = null
+      } else {
+        this.msu = Array.from(s)
+      }
+    }
+    this._maj = true
+  }
+
+  supprInvit (im, suppr) { // suppr: 1-contact, 2:radié, 3-radié + LN
+    delete this.invits[im]
+    this.st[im] = suppr > 1 ? 0 : 1
+    if (suppr > 1) this.tid[im] = 0
+    this.flags[im] = 0
+    if (suppr === 3 && this.lmg.indexOf(this.idgc) === -1) 
+      this.lmg.push(this.idgc)
+    this._maj = true
+  }
+
+  setInvit (im, invit, aInviter) {
+    this.invits[im] = invit
+    this.st[im] = aInviter ? 3 : 2
+    this._maj = true
+  }
+
+  acceptInvit (im, iam, ian) {
+    const fl = this.invits[im].fl // flags d'invit
+    const f = this.flags[im] // flags actuels
+    let nf = 0
+    if ((f & FLAGS.HM) || ((fl & FLAGS.DM) && iam)) nf |= FLAGS.HM
+    if ((f & FLAGS.HN) || (((fl & FLAGS.DN) || (fl & FLAGS.DE)) && ian)) nf |= FLAGS.HN
+    if ((f & FLAGS.HE) || ((fl & FLAGS.DE) && iam)) nf |= FLAGS.HE
+    if (fl & FLAGS.DM) nf |= FLAGS.DM
+    if (fl & FLAGS.DN) nf |= FLAGS.DN
+    if (fl & FLAGS.DE) nf |= FLAGS.DE
+    if (iam) nf |= FLAGS.AM
+    if (ian) nf |= FLAGS.AN
+    this.flags[im] = nf
+    this.st[im] = (fl & FLAGS.AN) ? 5 : 4
+    delete this.invits[im]
+    this._maj = true
+    return nf
+  }
+
+  refusInvit (im, cas) { // cas: 2:contact 3:radié 4:radié + LN
+    const idmc = this.tid[im]
+    this.st[im] = cas === 2 ? 1 : 0
+    delete this.invits[im]
+    if (cas > 2) {
+      this.tid[im] = 0
+      this.flags[im] = 0
+      if (cas === 4 && this.lnc.indexOf(idmc) === -1) 
+        this.lnc.push(idmc)
+    }
+    this._maj = true
   }
 
   /* Sérialisation en row après avoir enlevé 
@@ -1424,8 +1497,8 @@ export class Groupes extends GenDoc {
 export class Membres extends GenDoc { 
   constructor() { super('membres') } 
 
-  static nouveau(idg, im, cvA, cleAG) {
-    return new Membres().init({
+  static nouveau(idg, im, cvA, cleAG, dx) {
+    const m = new Membres().init({
       _maj: true, v: 0,
       id: idg, 
       im, 
@@ -1434,6 +1507,32 @@ export class Membres extends GenDoc {
       cleAG: cleAG,
       dpc: 0, ddi: 0, dac: 0, fac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
     })
+    if (dx) for (const f in dx) m[f] = dx[f]
+    return m
+  }
+
+  supprRad (suppr) { // suppr: 1-retour contact, 2:radié, 3-radié + LN
+    if (suppr === 1) this.msgG = null
+    else this._zombi = true
+    this._maj = true
+  }
+
+  setInvit (auj, aInviter, msgG) {
+    if (aInviter) this.ddi = auj
+    this.msgG = msgG
+    this._maj = true
+  }
+
+  acceptInvit (auj, nf) {
+    const ln = (nf & FLAGS.DN) && (nf & FLAGS.AN)
+    const en = ln && (nf & FLAGS.DE)
+    const am = (nf && FLAGS.DM) && (nf & FLAGS.AM)
+    if (!this.dac) this.dac = auj
+    if (!this.dln && ln) this.dln = auj
+    if (!this.den && en) this.den = auj
+    if (!this.dam && am) this.dam = auj
+    this.msgG = null
+    this._maj = true
   }
 
   toShortRow () { return this.toRow() }
@@ -1472,5 +1571,6 @@ export class Chatgrs extends GenDoc {
       l.push(x)
     }
     this.items = l
+    this._maj = true
   } 
 }
