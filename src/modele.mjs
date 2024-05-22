@@ -72,20 +72,49 @@ export class R { // Restrictions
 /* Cache ************************************************************************
 Cache des objets majeurs "tribus comptas avatars groupes" 
 */
+export class Esp {
+  static map = new Map()
+
+  static orgs = new Map()
+
+  static v = 0
+
+  static dh = 0
+
+  static async load (op) {
+    const l = await op.db.getEspaces(op, Esp.v)
+    l.forEach(e => { 
+      Esp.map.set(e.id, e)
+      Esp.orgs.set(e.org, e)
+      if (e.v > Esp.v) Esp.v = e.v
+    })
+    Esp.dh = Date.now()
+  }
+
+  static async getEsp (op, ns, lazy) {
+    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
+    return this.map.get(ns)
+  }
+
+  static async getOrg (op, org, lazy) {
+    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
+    return this.orgs.get(org)
+  }
+
+  static updEsp(e) {
+    const x = Esp.map.get(e.id)
+    if (!x || x.v < e.v) {
+      Esp.map.set(e.id, e)
+      Esp.orgs.set(e.org, e)
+    }
+  }
+
+}
 
 export class Cache {
   static MAX_CACHE_SIZE = 1000
 
   static map = new Map()
-
-  static orgs = new Map() // clé: ns, value: org
-
-  static orgs2 = new Map() // clé: org, value: ns
-
-  static setNsOrg (ns, org) {
-    Cache.orgs.set(ns, org)
-    Cache.orgs2.set(org, ns)
-  }
 
   /* Obtient le row de la cache ou va le chercher.
   Si le row actuellement en cache est le plus récent on a évité une lecture effective
@@ -94,23 +123,16 @@ export class Cache {
   certes la transaction peut échouer, mais au pire on a lu une version,
   pas forcément la dernière, mais plus récente.
   */
-  static async getRow (op, nom, id, lazy) {
+  static async getRow (op, nom, id) {
     if (this.map.size > Cache.MAX_CACHE_SIZE) Cache._purge()
     const now = Date.now()
     const k = nom + '/' + id
     const x = Cache.map.get(k)
     if (x) {
-      /* En mode "lazy" si le row (espaces / partitions) est récent (moins de 5 minutes)
-      on ne revérifie pas que c'est la dernière version.
-      Les notifications peuvent donc mettre 5 minutes à être effectives
-      */
-      if (lazy && ((now - x.lru) > PINGTO * 60000)) return x.row
       // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
       const n = await op.db.getV(op, nom, id, x.row.v)
       x.lru = now
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
-      if (x.row._nom === 'espaces' && !Cache.orgs.has(x.row.id))
-        Cache.setNsOrg(x.row.id, x.row.org)
       return x.row
     }
     const n = await op.db.getV(op, nom, id, 0)
@@ -118,8 +140,6 @@ export class Cache {
       const y = { lru: now, row: n }
       this.map.set(k, y)
     }
-    if (n && n._nom === 'espaces' && !Cache.orgs.has(n.id))
-      Cache.setNsOrg(n.id, n.org)
     return n
   }
 
@@ -131,27 +151,6 @@ export class Cache {
   }
 
   static opFake = { fake: true, nl: 0, ne: 0 }
-
-  /* Retourne l'objet `espaces` depuis son code org */
-  static async getEspaceOrg (op, org, lazy) {
-    let ns = Cache.orgs2.get(org)
-    if (ns) return compile(await Cache.getRow(op, 'espaces', ns, lazy))
-    const row = await op.db.getEspaceOrg(op, org)
-    if (!row) return null
-    ns = row.id
-    Cache.map.set('espaces/' + ns, { lru: Date.now(), row: row })
-    Cache.setNsOrg(row.id, row.org)
-    return compile(row)
-  }
-
-  /* Retourne le code de l'organisation pour un id/ns donné.*/
-  static async org (op, idns) { 
-    const ns = ID.ns(idns)
-    const org = Cache.orgs.get(ns)
-    if (org) return org
-    const row = await Cache.getRow(op, 'espaces', ns, true)
-    return row ? row.org : null
-  }
   
   /*
   Enrichissement de la cache APRES le commit de la transaction avec
@@ -167,8 +166,6 @@ export class Cache {
       } else {
         this.map.set(k, { lru: Date.now(), row: row })
       }
-      if (row._nom === 'espaces' && !Cache.orgs.has(row.id))
-        Cache.setNsOrg(row.id, row.org)
     }
     if (delRowPaths && delRowPaths.size) {
       delRowPaths.forEach(p => { Cache.map.delete(p) })
@@ -220,6 +217,9 @@ class GD {
     this.espace = e
     this.lazy = false
     this.synthese = Syntheses.nouveau(ns)
+    const v = Versions.nouveau(ns)
+    v.v = 0
+    this.versions.set(ns, v)
     return e
   }
 
@@ -231,9 +231,9 @@ class GD {
 
   /* Gère l'espace courant unique d'une opération */
   async getES (lazy, assert) {
-    if (this.espace && lazy && this.lazy) return this.espace
+    if (this.espace && !lazy && !this.lazy) return this.espace
     if (this.espace && lazy) return this.espace
-    this.espace = await Cache.getRow(this.op, 'espaces', this.op.ns, lazy)
+    this.espace = await Esp.getEsp(this.op, this.op.ns, lazy)
     if (!this.espace) {
       if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
     this.lazy = lazy
@@ -291,7 +291,7 @@ class GD {
       c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
     if (!c || c.v === V99) { 
       if (!assert) return null; else assertKO(assert, 4, [c.id]) }
-    if (!t) this.comptes.set(id, c)
+    if (!t) this.comptes.set(c.id, c)
     return c
   }
 
@@ -323,7 +323,7 @@ class GD {
     c = compile(await this.op.getRowCompta(id))
     if (!c) { 
       if (!assert) return null; else assertKO(assert, 3, [c.id]) }
-    this.comptas.set(c, id)
+    this.comptas.set(id, c)
     return c
   }
 
@@ -504,8 +504,8 @@ class GD {
   }
   */
 
-  async getV (rds) {
-    const lrds = ID.long(rds, this.op.ns)
+  async getV (rds, cage) { // cage: 1:compte 2:avatar, 3:groupe, 4:espace
+    const lrds = cage === 4 ? this.op.ns : ID.long(rds, this.op.ns)
     let v = this.versions.get(lrds)
     if (!v) {
       v = compile(await this.op.getRowVersion(lrds))
@@ -518,21 +518,21 @@ class GD {
     const lrds = ID.long(rds, this.op.ns)
     const v = Versions.nouveau(lrds)
     v.v = 0
-    this.versions.set(rds, v)
+    this.versions.set(lrds, v)
   }
 
   /* Met à jour le version d'un doc ou sous-doc,
-  - SAUF pour CAG, le version doit avoir été chargé par un getXX précédent, sinon EXCEPTION
-  - pour CAG, récupère le version
+  - SAUF pour cage, le version doit avoir été chargé par un getXX précédent, sinon EXCEPTION
+  - pour cage, récupère le version
   - s'il avait déjà été incrémenté, ne fait rien
   */
-  async majV (rds, id, cag) { // cag: 1:compte 2:avatar, 3:groupe
-    const lrds = ID.long(rds, this.op.ns)
+  async majV (rds, id, cage) { // cage: 1:compte 2:avatar, 3:groupe, 4:espace
+    const lrds = cage === 4 ? this.op.ns :ID.long(rds, this.op.ns)
     let v = this.versions.get(lrds)
     if (!v) {
-      if (!cag) assertKO('majV', 20, [rds, id])
+      if (!cage) assertKO('majV', 20, [rds, id])
       else {
-        v = await this.getV(rds)
+        v = await this.getV(rds, cage)
         if (!v) assertKO('majV', 20, [rds, id])
       }
     }
@@ -546,21 +546,21 @@ class GD {
     return v.v
   }
 
-  async majdoc (d, cag) { // cag: 1:compte 2:this.avatars, 3:groupe
+  async majdoc (d, cage) { // cage: 1:compte 2:this.avatars, 3:groupe, 4:espace
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''), cag)
+      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''), cage)
       if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
-      if (ins) this.op.insert(d.row()); else this.op.update(d.row())
+      if (ins) this.op.insert(d.toRow()); else this.op.update(d.toRow())
     }
   }
 
   async majesp (d) {
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.id, d.id)
-      if (ins) this.op.insert(d.row()); else this.op.update(d.row())
+      d.v = await this.majV(d.id, d.id, 4)
+      if (ins) this.op.insert(d.toRow()); else this.op.update(d.toRow())
     }
   }
 
@@ -582,9 +582,9 @@ class GD {
     }
   }
 
-  async majsynth (ns) {
-    const s = await this.getSY(ns)
-    if (s._maj) {
+  async majsynth () {
+    const s = this.synthese
+    if (s && s._maj) {
       s.v++
       if (s.v === 1) this.op.insert(s.toRow()); else this.op.update(s.toRow())
     }
@@ -607,8 +607,8 @@ class GD {
       if (id !== this.op.id) await this.majdoc(d, 1)
 
     // Incorporation de la consommation dans compta courante
-    if (!this.op.SYS) {
-      const compta = await this.getCO(this.op.id)
+    if (!this.op.SYS && !this.op.estAdmin) {
+      const compta = await this.getCA(this.op.id)
       await compta.incorpConso(this.op)
       await this.majCompta(compta)
     }
@@ -620,7 +620,7 @@ class GD {
     for(const [,d] of this.partitions) await this.majpart(d)
     
     // maj syntheses possiblement affectées par maj des partitions
-    await this.majsynth(this.op.ns)
+    if (this.synthese) await this.majsynth()
   }
 
 }
@@ -658,6 +658,7 @@ export class Operation {
     this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
     this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
     Cache.update(updated, deleted)
+    if (this.gd.espace) Esp.updEsp(this.gd.espace)
 
     await this.phase3(this.args) // peut ajouter des résultas
 
@@ -757,7 +758,7 @@ export class Operation {
     if (this.authMode === 0) return
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    const espace = await Cache.getEspaceOrg(this.op, this.org, true)
+    const espace = await Esp.getOrg(this, this.org, true)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
     this.ns = espace.id
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)

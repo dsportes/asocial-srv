@@ -571,7 +571,7 @@ export class Comptes extends GenDoc {
       hxr: (ns * d14) + (args.hXR % d14),
       hXC: args.hXC,
       dlv: AMJ.max, 
-      cleKXC: args.cleKX, 
+      cleKXC: args.cleKXC, 
       privK: args.privK,
       clePK: args.clePK,
       mav: {},
@@ -873,14 +873,14 @@ export class Comptas extends GenDoc {
   static nouveau (id, quotas, don) {
     const qv = { qc: quotas.qc, qn: quotas.qn, qv: quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
     const c = new Compteurs(null, qv)
-    new Comptas().init({
+    const x = new Comptas().init({
       _maj: true, v: 0, 
       id: id, 
       qv, 
       solde: don || 0,
       compteurs: c.serial
     })
-    return this.compile()
+    return x.compile()
   }
 
   toShortRow () { return this.toRow() }

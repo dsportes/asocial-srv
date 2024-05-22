@@ -157,6 +157,19 @@ export class SqliteProvider {
     }
   }
 
+  async getEspaces(op, v) {
+    const code = 'SELESP'
+    const st = this._stmt(code, 'SELECT * FROM espaces WHERE v > @v')
+    const rows = st.all({ v })
+    const r = []
+    for (const row of rows) {
+      const x = await decryptRow(op, row)
+      x._nom = 'espaces'
+      r.push(compile(row))
+    }
+    return r
+  }
+
   /* Retourne le row d'une collection de nom / id si sa version est postérieure à v
   */
   async getV(op, nom, id, v) {
@@ -198,9 +211,10 @@ export class SqliteProvider {
     return null
   }
   
+  /*
   async getEspaceOrg(op, org) {
     const code = 'SELORG'
-    const st = this._stmt(code, 'SELECT * FROM espaces  WHERE org = @org')
+    const st = this._stmt(code, 'SELECT * FROM espaces WHERE org = @org')
     const row = st.get({ org })
     if (row) {
       row._nom = 'espaces'
@@ -209,6 +223,7 @@ export class SqliteProvider {
     }
     return null
   }
+  */
 
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   */

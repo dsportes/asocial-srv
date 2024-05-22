@@ -3,7 +3,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
 
-import { Operation, Cache } from './modele.mjs'
+import { Operation, Cache, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
 
@@ -83,7 +83,10 @@ operations.GetEspaces = class GetEspaces extends Operation {
   constructor (nom) { super(nom, 3, 0) }
 
   async phase2() {
-    this.setRes('espaces', await this.db.coll(this, 'espaces'))
+    await Esp.load(this)
+    const espaces = []
+    for(const [,e] of Esp.map) espaces.push(e.toRow())
+    this.setRes('espaces', espaces)
   }
 }
 
@@ -117,7 +120,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const espace = await Cache.getEspaceOrg(this, args.org, true)
+    const espace = await Esp.getEsp(this, args.org, true)
     if (!espace) { sleep(3000); throw new AppExc(F_SRV, 102, [args.org]) }
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
 
@@ -184,7 +187,7 @@ operations.SyncSp = class SyncSp extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(ID.ns(args.idsp), true)
+    const espace = await this.getCheckEspace(ID.ns(args.idsp), false)
     this.setRes('rowEspace', espace.toShortRow())
 
     const avsponsor = await this.gd.getAV(args.idsp)
@@ -324,8 +327,6 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
   constructor (nom) { super(nom, 1, 1)  }
 
   async phase2 (args) {
-    await this.getCheckEspace(ID.ns(args.hps1))
-
     if (args.t === 2) {
       if (await this.db.getSponsoringIds(this, args.hps1)) {
         this.setRes('existe', true)
@@ -618,7 +619,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
 
     if (await this.gd.getES()) 
       throw new AppExc(F_SRV, 203, [args.ns, args.org])
-    if (await Cache.getEspaceOrg(args.org)) 
+    if (await Esp.getOrg(this, args.org)) 
       throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
     args.id = ID.duComptable(args.ns)
@@ -630,7 +631,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
 
     const apr = config.allocPrimitive
     const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
-    const partition = this.gd.nouvPA(1, qc)
+    const partition = await this.gd.nouvPA(1, qc)
 
     /* Compte Comptable */
     const aco = config.allocComptable
@@ -655,7 +656,7 @@ operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
   constructor (nom) { super(nom, 3)}
 
   async phase2 (args) {
-    const espace = this.getCheckEspace(args.ns, true)
+    const espace = await this.getCheckEspace(args.ns)
     espace.setNprof(args.nprof)
   }
 }
@@ -672,7 +673,7 @@ operations.SetNotifE = class SetNotifE extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2 (args) {
-    const espace = this.getCheckEspace(args.ns, true)
+    const espace = await this.getCheckEspace(args.ns)
     if (args.ntf) args.ntf.dh = this.dh
     espace.setNotifE(args.ntf || null)
   }

@@ -39,7 +39,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    const espace = this.getCheckEspace(args.ns, true)
+    const espace = await this.getCheckEspace(args.ns, true)
     espace.setOptions(args)
   }
 }
