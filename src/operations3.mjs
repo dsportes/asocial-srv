@@ -39,7 +39,7 @@ Retour:
 - echo : texte d'entrée retourné
 */
 operations.EchoTexte = class EchoTexte extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { super(nom, 0); this.SYS = true }
 
   async phase2(args) {
     if (args.to) await sleep(args.to * 1000)
@@ -53,7 +53,7 @@ args.texte : détail de l'erreur fonctionnelle testée
 Exception
 */
 operations.ErreurFonc = class ErreurFonc extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { super(nom, 0); this.SYS = true }
 
   async phase2(args) {
     if (args.to) await sleep(args.to * 1000)
@@ -66,7 +66,7 @@ GET
 Retourne les date-heures de derniers ping (le précédent et celui posé)
 */
 operations.PingDB = class PingDB extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { super(nom, 0); this.SYS = true }
 
   async phase2() {
     this.result.type = 'text/plain'

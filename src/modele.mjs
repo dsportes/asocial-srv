@@ -242,7 +242,7 @@ class GD {
 
   async getSY (ns) {
     if (!this.synthese)
-      this.synthese = compile(await this.getRowSynthese(ns, 'getSY'))
+      this.synthese = compile(await this.op.getRowSynthese(ns, 'getSY'))
     return this.synthese
   }
 
@@ -537,6 +537,8 @@ class GD {
       }
     }
     if (!v._maj) {
+      if (cage === 4)
+        console.log('zarbi')
       v.v++
       v._maj = true
       const rv = v.toRow()
@@ -837,8 +839,8 @@ export class Operation {
 
   async getCheckEspace (ns, fige) {
     this.ns = ns
-    const espace = await this.gd.getES(true, 'getCheckEspace')
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    const espace = await Esp.getEsp(this, ns, true)
+    if (!espace || espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     if (fige && espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
     return espace
   }
@@ -850,8 +852,6 @@ export class Operation {
   */
 
   /* Helper d'accès depuis Cache */
-
-  async org (ns) { return Cache.org(this, ns)}
 
   async getRowPartition (id, assert) {
     const tr = await Cache.getRow(this, 'partitions', id)
