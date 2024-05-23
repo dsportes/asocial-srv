@@ -98,7 +98,7 @@ export class SyncSession {
     const msg = { sessionId: this.sessionId, rows: [] }
     syncList.rows.forEach(row => {
       if (this.aboRds.has(row.id)) {
-        console.log('send -> ' + this.sessionId + ' - ' + row._nom + '/' + row.id)
+        console.log('send -> ' + this.sessionId + ' - ' + row._nom + '/' + row.id + ' v=' + row.v)
         msg.rows.push(row)
       }
     })

@@ -85,7 +85,7 @@ operations.GetEspaces = class GetEspaces extends Operation {
   async phase2() {
     await Esp.load(this)
     const espaces = []
-    for(const [,e] of Esp.map) espaces.push(e.toRow())
+    for(const [,e] of Esp.map) espaces.push(e)
     this.setRes('espaces', espaces)
   }
 }
@@ -387,7 +387,7 @@ operations.GetEspace = class GetEspace extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(args.ns)
+    const espace = await this.getCheckEspace(args.ns || this.ns)
     this.setRes('rowEspace', this.estAdmin || this.estComptable ? espace.toRow() : espace.toShortRow())
   }
 }

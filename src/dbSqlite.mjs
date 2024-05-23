@@ -157,7 +157,7 @@ export class SqliteProvider {
     }
   }
 
-  async getEspaces(op, v) {
+  async getRowEspaces(op, v) {
     const code = 'SELESP'
     const st = this._stmt(code, 'SELECT * FROM espaces WHERE v > @v')
     const rows = st.all({ v })
@@ -165,7 +165,7 @@ export class SqliteProvider {
     for (const row of rows) {
       const x = await decryptRow(op, row)
       x._nom = 'espaces'
-      r.push(compile(row))
+      r.push(row)
     }
     return r
   }

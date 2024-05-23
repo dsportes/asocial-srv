@@ -82,30 +82,34 @@ export class Esp {
   static dh = 0
 
   static async load (op) {
-    const l = await op.db.getEspaces(op, Esp.v)
-    l.forEach(e => { 
-      Esp.map.set(e.id, e)
-      Esp.orgs.set(e.org, e)
-      if (e.v > Esp.v) Esp.v = e.v
+    const l = await op.db.getRowEspaces(op, Esp.v)
+    let n = 0
+    l.forEach(r => { 
+      n++
+      Esp.map.set(r.id, r)
+      Esp.orgs.set(r.org, r)
+      if (r.v > Esp.v) Esp.v = r.v
     })
     Esp.dh = Date.now()
+    console.log('Load esp: ', n)
   }
 
   static async getEsp (op, ns, lazy) {
     if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
-    return this.map.get(ns)
+    return compile(this.map.get(ns))
   }
 
   static async getOrg (op, org, lazy) {
     if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
-    return this.orgs.get(org)
+    return compile(this.orgs.get(org))
   }
 
   static updEsp(e) {
     const x = Esp.map.get(e.id)
     if (!x || x.v < e.v) {
-      Esp.map.set(e.id, e)
-      Esp.orgs.set(e.org, e)
+      const r = e.toRow()
+      Esp.map.set(e.id, r)
+      Esp.orgs.set(e.org, r)
     }
   }
 
@@ -570,7 +574,7 @@ class GD {
     if (compta._maj) {
       compta.v++
       const compte = await this.getCO(compta.id)
-      compte.reportDeCompta(compta, this)
+      await compte.reportDeCompta(compta, this)
       if (compta.v === 1) this.op.insert(compta.toRow()); else this.op.update(compta.toRow())
     }
   }
@@ -648,6 +652,7 @@ export class Operation {
 
   /* Exécution de l'opération */
   async run () {
+    console.log('Opération: ', this.nomop)
     this.gd = new GD(this)
     await this.phase1(this.args)
 
@@ -692,7 +697,6 @@ export class Operation {
     if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
     if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
     if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
-
   }
 
   /* Authentification *************************************************************
@@ -761,13 +765,14 @@ export class Operation {
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     const espace = await Esp.getOrg(this, this.org, true)
+    console.log('espace op:', espace.id, espace.v, espace._maj)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
     this.ns = espace.id
+    this.gd.setEspace(espace)
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     if (espace.fige)
       if (this.excFige === 2) throw new AppExc(F_SRV, 101, espace.fige)
       else this.setR.add(R.FIGE)
-    this.gd.setEspace(espace)
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, authData.hXR)
@@ -839,9 +844,10 @@ export class Operation {
 
   async getCheckEspace (ns, fige) {
     this.ns = ns
-    const espace = await Esp.getEsp(this, ns, true)
+    const espace = await this.gd.getES(true)
     if (!espace || espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     if (fige && espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
+    console.log('espace getCheckEspace:', espace.id, espace.v, espace._maj)
     return espace
   }
 
