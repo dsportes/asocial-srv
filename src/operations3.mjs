@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, A_SRV, ID, d14, V99 } from './api.mjs'
+import { AppExc, F_SRV, ID, d14, V99 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
@@ -120,13 +120,9 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const espace = await Esp.getEsp(this, args.org, true)
-    if (!espace) { sleep(3000); throw new AppExc(F_SRV, 102, [args.org]) }
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    await this.gd.getESOrg(args.org)
 
-    this.ns = espace.id
-
-    const ids = (espace.id * d14) + (args.hps1 % d14)
+    const ids = (this.ns * d14) + (args.hps1 % d14)
     const row = await this.db.getSponsoringIds(this, ids)
     if (!row) { sleep(3000); throw new AppExc(F_SRV, 11) }
     this.setRes('rowSponsoring', row)
@@ -194,7 +190,7 @@ operations.SyncSp = class SyncSp extends Operation {
     if (!avsponsor) throw new AppExc(F_SRV, 401)
 
     // Recherche du sponsorings
-    const sp = compile(await this.db.get(this, 'sponsorings', args.idsp, args.idssp))
+    const sp = await this.gd.getSPO(args.idsp, args.idssp)
     if (!sp) throw new AppExc(F_SRV, 11)
     if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 12, [args.idsp, args.idsp])
     if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)
@@ -232,7 +228,7 @@ operations.SyncSp = class SyncSp extends Operation {
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
     const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
     if (pid) {
-      const partition = await this.gr.getPA(pid) // assert si n'existe pas
+      const partition = await this.gd.getPA(pid) // assert si n'existe pas
       const s = partition.getSynthese()
       // restants à attribuer suffisant pour satisfaire les quotas ?
       const q = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv }
@@ -250,7 +246,7 @@ operations.SyncSp = class SyncSp extends Operation {
       */
       const idsI = this.idsChat(args.id, sp.id)
       const idsE = this.idsChat(sp.id, args.id)
-      const chI = this.gd.nouvCAV({ // du sponsorisé
+      const chI = await this.gd.nouvCAV({ // du sponsorisé
         id: args.id,
         ids: idsI,
         st: 10,
@@ -264,7 +260,7 @@ operations.SyncSp = class SyncSp extends Operation {
       this.setRes('rowChat', chI.toRow())
       this.compta.ncPlus(1)
 
-      this.gd.nouvCAV({
+      await this.gd.nouvCAV({
         id: sp.id,
         ids: idsE,
         st: 1,
@@ -302,7 +298,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
     if (!avsponsor) throw new AppExc(F_SRV, 401)
   
     // Recherche du sponsorings
-    const sp = compile(await this.db.get(this, 'sponsorings', args.id, args.ids))
+    const sp = await this.gd.getSPO(args.id, args.ids)
     if (!sp) throw new AppExc(F_SRV, 11)
     if (sp.st !== 0 || sp.dlv < this.auj) throw new AppExc(F_SRV, 12, [args.id, args.ids])
     if (sp.hYC !== args.hYC) throw new AppExc(F_SRV, 217)

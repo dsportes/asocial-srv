@@ -5,7 +5,7 @@ import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8, crypterSrv } from './util.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
-  Chatgrs, Chats, Tickets, /*Notes,*/
+  Chatgrs, Chats, Tickets, Sponsorings, /*Notes,*/
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
@@ -240,6 +240,7 @@ class GD {
     if (espace.fige)
       if (fige) throw new AppExc(F_SRV, 101, espace.fige)
       else this.op.setR.add(R.FIGE)
+    return espace
   }
 
   /* Gère l'espace courant unique d'une opération */
@@ -415,6 +416,8 @@ class GD {
     const g = await this.getGR(id, assert)
     const m = Membres.nouveau(id, im, cvA, cleAG)
     m.rds = g.rds
+    if (!await this.getV(m.rds)) { 
+      if (!assert) return null; else assertKO(assert, 10, [k]) }
     this.sdocs.set(k, m)
     return m
   }
@@ -432,9 +435,11 @@ class GD {
 
   async nouvCAV (args, assert) {
     const k = args.id + '/CAV/' + args.ids
-    const a = await this.gd.getAV(args.id, assert)
+    const a = await this.getAV(args.id, assert)
     const d = Chats.nouveau(args)
     d.rds = a.rds
+    if (!await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 5, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -467,9 +472,11 @@ class GD {
   async nouvTKT (args, assert) {
     const idc = ID.duComptable(this.op.ns)
     const k = idc + '/TKT/' + args.ids
-    const a = await this.gd.getAV(idc, assert)
+    const a = await this.getAV(idc, assert)
     const d = Tickets.nouveau(idc, args)
     d.rds = a.rds
+    if (!await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 15, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -486,12 +493,14 @@ class GD {
     return d
   }
 
-  async nouvSPO (args, assert) {
-    const k = args.id + '/SPO/' + args.ids
-    const a = await this.gd.getAV(args.id, assert)
-    const d = Tickets.nouveau(args)
+  async nouvSPO (args, ids, assert) {
+    const k = args.id + '/SPO/' + ids
+    const a = await this.getAV(args.id, assert)
+    const d = Sponsorings.nouveau(args, ids)
     d.rds = a.rds
     d.dh = this.op.dh
+    if (!await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -620,8 +629,8 @@ class GD {
       if (id !== this.op.id) await this.majdoc(d, 1)
 
     // Incorporation de la consommation dans compta courante
-    if (!this.op.SYS && !this.op.estAdmin) {
-      const compta = await this.getCA(this.op.id)
+    if (!this.op.SYS && this.op.compte) {
+      const compta = await this.getCA(this.op.compte.id)
       await compta.incorpConso(this.op)
       await this.majCompta(compta)
     }
@@ -771,7 +780,7 @@ export class Operation {
     if (this.authMode === 0) return
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    await this.gd.getESOrg(this.org, this.excFige === 2)
+    const espace = await this.gd.getESOrg(this.org, this.excFige === 2)
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, authData.hXR)
@@ -797,7 +806,7 @@ export class Operation {
           else if (this.compte.qv.pcc < 100) this.setR.add(R.RAL2)
           else this.setR.add(R.MINI)
         }
-        const np = this.espace.tnotifP[this.compte.idp]
+        const np = espace.tnotifP[this.compte.idp]
         let x = np ? np.nr : 0
         const nc = this.compte.notif
         if (nc && nc.nr > x) x = nc.nr

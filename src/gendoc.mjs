@@ -1111,7 +1111,7 @@ export class Transferts extends GenDoc { constructor() { super('transferts') } }
 export class Sponsorings extends GenDoc { 
   constructor() { super('sponsorings') } 
 
-  static nouveau (args) {
+  static nouveau (args, ids) {
     /* 
     - id : id du sponsor
     - hYR : hash du PBKFD de la phrase de sponsoring réduite
@@ -1137,7 +1137,7 @@ export class Sponsorings extends GenDoc {
     sp._maj = true
     sp.v = 0
     sp.id = args.id
-    sp.ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
+    sp.ids = ids
     sp.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
     sp.st = 0
     sp.psK = args.psK
@@ -1241,7 +1241,7 @@ export class Chats extends GenDoc {
 
   setCvE (cv) {
     this.vcv = cv.v
-    this.cv = cv
+    this.cvE = cv
     this._maj = true
   }
 

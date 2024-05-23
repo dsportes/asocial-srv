@@ -102,7 +102,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       }
     }
 
-    await this.gd.nouvSPO(args, 'AjoutSponsoring')
+    await this.gd.nouvSPO(args, ids, 'AjoutSponsoring')
   }
 }
 
@@ -197,7 +197,7 @@ class OperationCh extends Operation {
 
   // Vérification des restrictions, initialisations de :
   async intro2 () {
-    this.chI = this.gd.getCAV(this.args.id, this.args.ids, 'Chat-intro')
+    this.chI = await this.gd.getCAV(this.args.id, this.args.ids, 'Chat-intro')
     this.idEL = ID.long(this.chI.idE, this.ns)
     this.chE = await this.gd.getCAV(this.idEL, this.chI.idsE)
     if (!this.chE) return false
@@ -267,7 +267,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       if (!(fI & FLAGS.AC)) throw new AppExc(F_SRV, 223)
     }
 
-    this.intro1()
+    await this.intro1()
 
     const idsI = this.idsChat(args.idI, args.idE)
     const idsE = this.idsChat(args.idE, args.idI)
@@ -316,7 +316,7 @@ operations.MajChat = class MajChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    if (!await this.intro(args)) { // pas de chatE
+    if (!await this.intro2(args)) { // pas de chatE
       this.chI.chEdisp()
       return
     }
