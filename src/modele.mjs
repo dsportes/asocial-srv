@@ -1,6 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, Compteurs, 
-  UNITEN, UNITEV, d14, edvol, V99, hash } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, V99, hash } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -83,15 +82,12 @@ export class Esp {
 
   static async load (op) {
     const l = await op.db.getRowEspaces(op, Esp.v)
-    let n = 0
     l.forEach(r => { 
-      n++
       Esp.map.set(r.id, r)
       Esp.orgs.set(r.org, r)
       if (r.v > Esp.v) Esp.v = r.v
     })
     Esp.dh = Date.now()
-    console.log('Load esp: ', n)
   }
 
   static async getEsp (op, ns, lazy) {
@@ -231,6 +227,19 @@ class GD {
   setEspace (espace) {
     this.espace = espace
     this.lazy = true
+  }
+
+  async getESOrg (org, fige) {
+    const espace = await Esp.getOrg(this.op, org, true)
+    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
+    this.op.org = org
+    this.op.ns = espace.id
+    this.espace = espace
+    this.lazy = true
+    if (espace.fige)
+      if (fige) throw new AppExc(F_SRV, 101, espace.fige)
+      else this.op.setR.add(R.FIGE)
   }
 
   /* Gère l'espace courant unique d'une opération */
@@ -541,8 +550,6 @@ class GD {
       }
     }
     if (!v._maj) {
-      if (cage === 4)
-        console.log('zarbi')
       v.v++
       v._maj = true
       const rv = v.toRow()
@@ -764,15 +771,7 @@ export class Operation {
     if (this.authMode === 0) return
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    const espace = await Esp.getOrg(this, this.org, true)
-    console.log('espace op:', espace.id, espace.v, espace._maj)
-    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
-    this.ns = espace.id
-    this.gd.setEspace(espace)
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
-    if (espace.fige)
-      if (this.excFige === 2) throw new AppExc(F_SRV, 101, espace.fige)
-      else this.setR.add(R.FIGE)
+    await this.gd.getESOrg(this.org, this.excFige === 2)
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, authData.hXR)
@@ -847,7 +846,6 @@ export class Operation {
     const espace = await this.gd.getES(true)
     if (!espace || espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     if (fige && espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
-    console.log('espace getCheckEspace:', espace.id, espace.v, espace._maj)
     return espace
   }
 
@@ -1037,107 +1035,5 @@ export class Operation {
   async purgeDlv (nom, dlv) { // nom: sponsorings, versions
     return this.db.purgeDlv (this, nom, dlv)
   }
-
-  addChatgrItem (items, item) {
-    const nl = [item]
-    let lg = item.l
-    for (const it of items) {
-      lg += it.l
-      if (lg > 5000) return nl
-      nl.push(it)
-    }
-    return nl
-  }
-
-  razChatgrItem (items, im, dh) { 
-    const nl = []
-    let lg = 0
-    for (const it of items) {
-      if (it.dh === dh && it.im === im) {
-        nl.push({im: it.im, l: 0, dh, dhx: Date.now()})
-      } else {
-        lg += it.l
-        if (lg > 5000) return nl
-        nl.push(it)
-      }
-    }
-    return nl
-  }
-
-  async propagerDlv (args) {
-    for(const id of args.lavLmb[0]) {
-      const version = compile(await this.getRowVersion(id, 'MajCredits-2'))
-      version.dlv = args.dlv
-      this.update(version.toRow())
-    }
-    for(const [idg, im] of args.lavLmb[1]) {
-      const membre = compile(await this.getRowMembre(idg, im, 'MajCredits-3'))
-      membre.dlv = args.dlv
-      this.update(membre.toRow())
-    }
-  }
   
-  /* Met à jour les volumes du groupe
-  Refuse si le volume est ex expansion et qu'il dépasse le quota
-  L'objet version du groupe est mis à jour et retourné
-  */
-  async majVolumeGr (idg, dv1, dv2, maj, assert) {
-    const vg = compile(await this.getRowVersion(idg, assert))
-    if (dv1 > 0 && vg.vols.v1 + dv1 > vg.vols.q1 * UNITEN) 
-      throw new AppExc(F_SRV, 65, [edvol(vg.vols.v1 + dv1), edvol(vg.vols.q1 * UNITEN)])
-    if (dv2 > 0 && vg.vols.v2 + dv2 > vg.vols.q2 * UNITEV) 
-      throw new AppExc(F_SRV, 65, [edvol(vg.vols.v2 + dv2), edvol(vg.vols.q2 * UNITEV)])
-    if (dv1 !== 0) vg.vols.v1 += dv1
-    if (dv2 !== 0) vg.vols.v2 += dv2
-    if (maj) {
-      vg.v++
-      this.update(vg.toRow())
-    }
-    return vg
-  }
-
-  /* Maj des compteurs de comptas
-    Objet quotas et volumes `qv` : `{ qc, q1, q2, nn, nc, ng, v2 }`
-    - `qc`: quota de consommation
-    - `q1`: quota du nombre total de notes / chats / groupes.
-    - `q2`: quota du volume des fichiers.
-    - `nn`: nombre de notes existantes.
-    - `nc`: nombre de chats existants.
-    - `ng` : nombre de participations aux groupes existantes.
-    - `v2`: volume effectif total des fichiers.
-  */
-  async diminutionVolumeCompta (idc, dnn, dnc, dng, dv2, assert) {
-    const compta = compile(await this.getRowCompta(idc, assert))
-    const qv = compta.qv
-    qv.nn -= dnn
-    qv.nc -= dnc
-    qv.ng -= dng
-    qv.v2 -= dv2
-    const ser = new Compteurs(compta.compteurs, qv).serial
-    compta.v++
-    compta.compteurs = ser
-    this.update(compta.toRow())
-  }
-
-  async augmentationVolumeCompta (idc, dnn, dnc, dng, dv2, assert) {
-    const compta = compile(await this.getRowCompta(idc, assert))
-    const qv = compta.qv
-    qv.nn += dnn
-    qv.nc += dnc
-    qv.ng += dng
-    const v1 = qv.nn + qv.nc + qv.ng
-    if (v1 > qv.q1 * UNITEN) throw new AppExc(F_SRV, 55, [v1, qv.q1])
-    qv.v2 += dv2
-    if (qv.v2 > qv.q2 * UNITEV) throw new AppExc(F_SRV, 56, [qv.v2, qv.q2])
-    const ser = new Compteurs(compta.compteurs, qv).serial
-    compta.v++
-    compta.compteurs = ser
-    this.update(compta.toRow())
-  }
-
-  /* Mise à jour de Synthese suite à une mise à jour d'une tribu */
-  // A SUPPRIMER
-  async MajSynthese () {
-  
-  }
 }

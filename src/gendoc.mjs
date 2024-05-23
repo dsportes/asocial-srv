@@ -3,7 +3,7 @@ import { FLAGS, F_SRV, AppExc, d14, AMJ,
   Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { config } from './config.mjs'
-import { decrypterSrv, crypterSrv, eqU8 } from './util.mjs'
+import { decrypterSrv, crypterSrv } from './util.mjs'
 
 /* GenDoc **************************************************
 Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
@@ -621,8 +621,6 @@ export class Comptes extends GenDoc {
   // Comptable seulement
   ajoutPartition (np, itemK) { // itemK: {cleP, code} crypté par la clé K du Comptable.
     if (np !== this.tpk.length) throw new AppExc(F_SRV, 228)
-    for (const it of this.tpk)
-      if (eqU8(it.cleP, itemK.cleP) || it.code === itemK.code) throw new AppExc(F_SRV, 228)
     this.tpk.push(itemK)
     this._maj = true
   }
@@ -631,7 +629,7 @@ export class Comptes extends GenDoc {
     const e = this.tpk ? this.tpk[np] : null
     if (e) {
       this.tpk[np] = itemK
-      this.compte._maj = true
+      this._maj = true
       return true
     }
     return false

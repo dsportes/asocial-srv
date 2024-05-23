@@ -533,7 +533,8 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
-    this.gd.nouvPA(args.n, args.qc, args.itemK)
+    this.gd.nouvPA(args.n, args.qc)
+    this.compte.ajoutPartition(args.n, args.itemK)
   }
 }
 
