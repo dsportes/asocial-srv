@@ -368,7 +368,7 @@ operations.PassifChat = class PassifChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 () { 
-    if (!await this.intro()) { // E disparu. I voulait être passif, devient détruit
+    if (!await this.intro2()) { // E disparu. I voulait être passif, devient détruit
       this.chI.setZombi()
       this.setRes('suppr', true)
       return
@@ -384,7 +384,7 @@ operations.PassifChat = class PassifChat extends OperationCh {
     this.chI.passifI()
     this.chI.setCvE(avE.cvA)
     this.chE.setCvE(avI.cvA)
-    this.chE.setPassifE()
+    this.chE.passifE()
   }
 }
 
