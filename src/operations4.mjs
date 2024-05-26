@@ -642,7 +642,7 @@ operations.DeleguePartition = class DeleguePartition extends Operation {
     if (this.id === args.id) throw new AppExc(F_SRV, 234)
     const cpt = await this.gd.getCO(args.id, 'DeleguePartition-1')
     const part = await this.gd.getPA(ID.long(cpt.idp, this.ns), 'DeleguePartition-2')
-    
+    cpt.setDel(args.del)
     if (!part.setDel(args.id, args.del)) throw new AppExc(F_SRV, 232)
   }
 }
@@ -667,7 +667,7 @@ operations.SetNotifP = class SetNotifP extends Operation {
     if (args.notif) args.notif.idDel = ID.court(this.id)
     espace.setNotifP(args.notif, ID.court(args.idp))
 
-    const partition = await this.gg.getPA(args.idp, 'SetNotifP-2')
+    const partition = await this.gd.getPA(args.idp, 'SetNotifP-2')
     partition.setNrp(args.notif)
   }
 }

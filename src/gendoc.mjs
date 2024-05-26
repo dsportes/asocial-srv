@@ -626,6 +626,13 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
+  setDel (del) {
+    if (this.idp) {
+      this.del = del
+      this._maj = true
+    }
+  }
+
   setNotif (notif) {
     this.notif = notif
     this._maj = true
