@@ -533,8 +533,37 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
-    this.gd.nouvPA(args.n, args.qc)
+    this.gd.nouvPA(args.n, args.quotas)
     this.compte.ajoutPartition(args.n, args.itemK)
+    const espace = await this.gd.getES(false, 'NouvellePartition-2')
+    espace.setPartition(args.n)
+  }
+}
+
+/* OP_SupprPartition: 'Création d\'une nouvelle partition' *******
+Dans Comptes : **Comptable seulement:**
+- `tpK` : table des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
+  - `cleP` : clé P de la partition.
+  - `code` : code / commentaire court de convenance attribué par le Comptable
+
+- token: éléments d'authentification du compte.
+- n : numéro de partition
+Retour:
+*/
+operations.SupprPartition = class SupprPartition extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    const p = await this.gd.getPA(ID.long(args.n, this.ns), 'SupprPartition-1')
+    let vide = true
+    // eslint-disable-next-line no-unused-vars
+    for(const id in p.mcpt) vide = false
+    if (!vide) throw new AppExc(F_SRV, 271)
+    this.compte.supprPartition(args.n)
+    const espace = await this.gd.getES(false, 'SupprPartition-2')
+    espace.supprPartition(args.n)
+    const s = await this.gd.getSY(this.ns)
+    s.supprPartition(args.n)
   }
 }
 

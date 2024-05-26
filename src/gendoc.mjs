@@ -244,6 +244,13 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
+  supprPartition (n) {
+    if (n < this.tnotifP.length) {
+      this.tnotifP[n] = null
+      this._maj = true
+    }
+  }
+
   setNotifP (ntf, n) {
     if (n > this.tnotifP.length) throw new AppExc(F_SRV, 236)
     this.tnotifP[n] = ntf
@@ -317,7 +324,7 @@ export class Tickets extends GenDoc {
 
   setZombi () {
     this._zombi = true
-    this.maj = true
+    this._maj = true
   }
 
   setDisp () {
@@ -372,7 +379,7 @@ export class Partitions extends GenDoc {
 
   static qz = {qc: 0, qn: 0, qv: 0, c2m: 0, nn: 0, nc: 0, ng: 0, v: 0 }
 
-  static nouveau (ns, id, q) { // // qc: apr[0], qn: apr[1], qv: apr[2],
+  static nouveau (ns, id, q) { // q: { qc, qn, qv } qc: apr[0], qn: apr[1], qv: apr[2],
     return new Partitions().init( {
       _maj: true, v: 0,
       id: ID.long(id, ns), 
@@ -490,6 +497,12 @@ export class Syntheses extends GenDoc {
     this.tsp[n] = synthesesPartition(p)
     this._maj = true
   }
+
+  supprPartition(n) {
+    if (n < this.tsp.length) this.tsp[n] = null
+    this._maj = true
+  }
+
 }
 
 /* Comptes ************************************************************
@@ -610,19 +623,26 @@ export class Comptes extends GenDoc {
     this.clePK = clePK
     this.idp = ID.court(idp)
     this.notif = notif
-    this.maj = true
+    this._maj = true
   }
 
   setNotif (notif) {
     this.notif = notif
-    this.maj = true
+    this._maj = true
   }
 
   // Comptable seulement
   ajoutPartition (np, itemK) { // itemK: {cleP, code} crypté par la clé K du Comptable.
-    if (np !== this.tpk.length) throw new AppExc(F_SRV, 228)
+    if (this.tpk.length !== np) throw new AppExc(F_SRV, 228)
     this.tpk.push(itemK)
     this._maj = true
+  }
+
+  supprPartition (np) {
+    if (np < this.tpk.length) {
+      this.tpk[np] = null
+      this._maj = true
+    }
   }
 
   setCodePart (np, itemK) {
