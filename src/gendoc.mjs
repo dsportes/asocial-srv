@@ -1576,7 +1576,7 @@ export class Membres extends GenDoc {
     const m = new Membres().init({
       _maj: true, v: 0,
       id: idg, 
-      im, 
+      ids: im, 
       vcv: cvA.v, 
       cvA: cvA, 
       cleAG: cleAG,

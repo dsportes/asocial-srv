@@ -923,7 +923,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const rg = await this.dg.getGR(args.idg)
+    const rg = await this.gd.getGR(args.idg)
     if (rg) throw new AppExc(F_SRV, 246)
 
     const avatar = await this.gd.getAV(args.ida)
@@ -942,6 +942,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 - idg : du groupe
 - ida : de l'avatar contact
 - cleAG : clé A du contact cryptée par la clé G du groupe
+- cleGA : clé G du groupe cryptée par la clé A du contact
 Retour:
 EXC: 
 - 8002: groupe disparu
@@ -973,6 +974,17 @@ operations.NouveauContact = class NouveauContact extends Operation {
     const im = groupe.nvContact(args.ida)
     const dx = { dpc: this.auj}
     await this.gd.nouvMBR(args.idg, im, avatar.cvA, args.cleAG, dx)
+
+    const cinvit = await this.gd.getIN(ID.long(avatar.idc, this.ns), 'InvitationGroupe-2b')
+    const invx = { 
+      idg: ID.court(args.idg),
+      ida: ID.court(args.ida),
+      cleGA: args.cleGA, 
+      cvG: groupe.cvG, 
+      flags: 0,  
+      msgG: null 
+    }
+    cinvit.addInv(invx)
   }
 }
 
