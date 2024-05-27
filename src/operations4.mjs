@@ -275,10 +275,10 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     let chI = await this.gd.getCAV(args.idI, idsI)
     if (chI) { this.setRes('rowChat', chI.toShortRow()); return}
 
-    chI = this.gd.nouvCAV({ 
+    chI = await this.gd.nouvCAV({ 
       id: args.idI,
       ids: idsI,
-      st: 10,
+      st: 11,
       idE: ID.court(args.idE),
       idsE: idsE,
       cvE: avE.cvA,
@@ -289,10 +289,10 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     this.setRes('rowChat', chI.toShortRow())
     this.compta.ncPlus(1)
 
-    this.gd.nouvCAV({
+    await this.gd.nouvCAV({
       id: args.idE,
       ids: idsE,
-      st: 1,
+      st: 11,
       idE: ID.court(args.idI),
       idsE: idsI,
       cvE: avI.cvA,
@@ -300,6 +300,8 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       cleEC: args.ch.cleE1C,
       items: [{a: 0, dh: this.dh, t: args.ch.txt}]
     })
+    const comptaE = await this.gd.getCA(args.idE, 'NouveauChat-3')
+    comptaE.ncPlus(1)
   }
 }
 
@@ -407,7 +409,7 @@ operations.ChangementPC = class ChangementPC extends Operation {
 
     if (!this.compte.mav[ID.court(args.id)]) throw new AppExc(F_SRV, 224)
 
-    const avatar = this.gd.getAV(args.id, 'ChangementPC-1')
+    const avatar = await this.gd.getAV(args.id, 'ChangementPC-1')
     avatar.setPC(args)
   }
 }
@@ -458,9 +460,9 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
     if (!avatar) throw new AppExc(F_SRV, 1)
     let nc = 0, nv = 0
     // liste des chats de l'avatar
-    for (const ch of await this.gd.getAllCAV(args, 0)) {
+    for (const ch of await this.gd.getAllCAV(args.id, 0)) {
       if (!ch._zombi) {
-        const { av, disp } = this.gd.getAAVCV(ID.long(ch.idE, this.ns), ch.vcv)
+        const { av, disp } = await this.gd.getAAVCV(ID.long(ch.idE, this.ns), ch.vcv)
         nv++
         if (disp) ch.chEdisp()
         else if (av) {
@@ -495,7 +497,7 @@ operations.RafraichirCvChat = class RafraichirCvChat extends Operation {
     if (!avatar) throw new AppExc(F_SRV, 1)
     const ch = await this.gd.getCAV(args.id, args.ids)
     if (!ch || ch._zombi) throw new AppExc(F_SRV, 2)
-    const { av, disp } = this.gd.getAAVCV(ID.long(ch.idE, this.ns), ch.vcv)
+    const { av, disp } = await this.gd.getAAVCV(ID.long(ch.idE, this.ns), ch.vcv)
     if (disp) ch.chEdisp()
     else if (av) ch.setCvE(av.cvA)
   }
@@ -533,7 +535,7 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
-    this.gd.nouvPA(args.n, args.quotas)
+    await this.gd.nouvPA(args.n, args.quotas)
     this.compte.ajoutPartition(args.n, args.itemK)
     const espace = await this.gd.getES(false, 'NouvellePartition-2')
     espace.setPartition(args.n)
@@ -715,7 +717,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
     const rtk = await this.gd.getTKT(args.ids)
     if (rtk) throw new AppExc(F_SRV, 239)
 
-    const tk = this.gd.nouvTKT(args)
+    const tk = await this.gd.nouvTKT(this.id, args)
     this.compta.plusTk(tk)
   }
 
@@ -735,9 +737,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2(args) {
-    const idc = ID.duComptable(this.ns)
-
-    const tk = await this.gd.getTKT(idc, args.ids)
+    const tk = await this.gd.getTKT(args.ids)
     if (!tk) throw new AppExc(F_SRV, 240)
     tk.setZombi()
     this.compta.moinsTk(tk)
@@ -760,7 +760,7 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
 
   async phase2(args) {
 
-    const tk = await this.gd.getTKT(this.id, args.ids)
+    const tk = await this.gd.getTKT(args.ids)
     if (!tk) throw new AppExc(F_SRV, 240)
     if (tk.dr) throw new AppExc(F_SRV, 241)
 
@@ -931,7 +931,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 
     this.gd.nouvGR(args)
     const dx = { dpc: this.auj, dac: this.auj, dln: this.auj, den: this.auj, dam: this.auj }
-    this.gd.nouvMBR(args.idg, 1, avatar.cvA, args.cleAG, dx)
+    await this.gd.nouvMBR(args.idg, 1, avatar.cvA, args.cleAG, dx)
 
     this.compta.ngPlus(1)
   }
@@ -951,7 +951,7 @@ operations.NouveauContact = class NouveauContact extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const groupe = this.gd.getGR(args.idg)
+    const groupe = await this.gd.getGR(args.idg)
     if (!groupe) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.ida)
     if (!avatar) throw new AppExc(F_SRV, 1)
@@ -972,7 +972,7 @@ operations.NouveauContact = class NouveauContact extends Operation {
     
     const im = groupe.nvContact(args.ida)
     const dx = { dpc: this.auj}
-    this.gd.nouvMBR(args.idg, im, avatar.cvA, args.cleAG, dx)
+    await this.gd.nouvMBR(args.idg, im, avatar.cvA, args.cleAG, dx)
   }
 }
 
@@ -991,7 +991,7 @@ operations.ModeSimple = class ModeSimple extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = this.gd.getGR(args.idg)
+    const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
 
     if (!this.compte.mav[ID.court(args.ida)]) throw new AppExc(F_SRV, 249)
@@ -1022,7 +1022,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = this.gd.getGR(args.idg)
+    const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.ida)
     if (!avatar) throw new AppExc(F_SRV, 1)
@@ -1141,7 +1141,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = this.gd.getGR(args.idg)
+    const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.ida)
     if (!avatar) throw new AppExc(F_SRV, 1)
@@ -1203,7 +1203,7 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const gr = this.gd.getGR(args.idg)
+    const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.idm)
     if (!avatar) throw new AppExc(F_SRV, 1)
@@ -1254,7 +1254,7 @@ operations.RadierMembre = class RadierMembre extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    const gr = this.gd.getGR(args.idg)
+    const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.idm)
     if (!avatar) throw new AppExc(F_SRV, 1)

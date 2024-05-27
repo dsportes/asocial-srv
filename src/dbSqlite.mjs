@@ -233,7 +233,9 @@ export class SqliteProvider {
     if (row) {
       row._nom = 'avatars'
       op.nl++
-      return compile(await decryptRow(op, row))
+      const b = await decryptRow(op, row)
+      const a = compile(b)
+      return a
     }
     return null
   }

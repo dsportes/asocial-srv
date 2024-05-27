@@ -249,7 +249,7 @@ operations.SyncSp = class SyncSp extends Operation {
       const chI = await this.gd.nouvCAV({ // du sponsorisé
         id: args.id,
         ids: idsI,
-        st: 10,
+        st: 11,
         idE: ID.court(sp.id),
         idsE: idsE,
         cvE: avsponsor.cvA,
@@ -263,7 +263,7 @@ operations.SyncSp = class SyncSp extends Operation {
       await this.gd.nouvCAV({
         id: sp.id,
         ids: idsE,
-        st: 1,
+        st: 11,
         idE: ID.court(chI.id),
         idsE: idsI,
         cvE: avatar.cvA,
@@ -271,6 +271,8 @@ operations.SyncSp = class SyncSp extends Operation {
         cleEC: args.ch.cleE2C,
         items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
       })
+      const comptaE = await this.gd.getCA(sp.id, 'SyncSp')
+      comptaE.ncPlus(1)
     }
 
     // Mise à jour des abonnements aux versions
@@ -669,7 +671,8 @@ operations.SetNotifE = class SetNotifE extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(args.ns)
+    this.ns = args.ns
+    const espace = await this.gd.getES(true)
     if (args.ntf) args.ntf.dh = this.dh
     espace.setNotifE(args.ntf || null)
   }

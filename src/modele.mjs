@@ -369,9 +369,11 @@ class GD {
     let disp = false
     let av = this.avatars.get(id)
     if (av) return av.vcv > vcv ? { av, disp } : { disp }
-    av = compile(await this.op.db.getAvatarVCV(this.op, id, vcv))
+    av = await this.op.db.getAvatarVCV(this.op, id, vcv)
     disp = (!av || av.v === V99)
     if (disp) return { disp }
+    // eslint-disable-next-line no-unused-vars
+    // const xx = await this.getV(av.rds)
     this.avatars.set(id, av)
     disp = false
     return av.vcv > vcv ? { av, disp } : { disp }
@@ -462,6 +464,7 @@ class GD {
       let d = this.sdocs.get(k)
       if (!d) {
         d = compile(row)
+        await this.getV(d.rds)
         this.sdocs.set(k, d)
       }
       l.push(d)
@@ -469,11 +472,13 @@ class GD {
     return l
   }
 
-  async nouvTKT (args, assert) {
+  async nouvTKT (id, args, assert) {
     const idc = ID.duComptable(this.op.ns)
     const k = idc + '/TKT/' + args.ids
     const a = await this.getAV(idc, assert)
-    const d = Tickets.nouveau(idc, args)
+    const d = Tickets.nouveau(id, args)
+    d.id = idc
+    d.dg = this.op.auj
     d.rds = a.rds
     if (!await this.getV(d.rds)) { 
       if (!assert) return null; else assertKO(assert, 15, [k]) }

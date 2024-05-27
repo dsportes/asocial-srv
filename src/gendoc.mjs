@@ -317,8 +317,7 @@ export class Tickets extends GenDoc {
       refa: args.refa || '', 
       refc: '',
       mc: 0, 
-      dr: 0, 
-      dg: AMJ.amjUtc()
+      dr: 0
     })
   }
 
