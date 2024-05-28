@@ -426,7 +426,7 @@ class GD {
 
   async getMBR (id, im, assert) {
     const k = id + '/MBR/' + im
-    let d = this.sg.get(k)
+    let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowMembre(id, im))
     if (!d || !await this.getV(d.rds)) { 

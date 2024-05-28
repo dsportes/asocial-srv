@@ -1004,44 +1004,6 @@ export class Comptas extends GenDoc {
     op.setRes('conso', conso)
   }
 
-  /* Les compteurs de consommation d'un compte extraits de `comptas` sont recopiés à l'occasion de la fin d'une opération:
-  - dans les compteurs `{ qc, qn, qv, pcc, pcn, pcv, nbj }` du document `comptes`,
-  - dans les compteurs `q: { qc qn qv c2m nn nc ng v }` de l'entrée du compte dans son document `partitions`.
-    - par conséquence la ligne de synthèse de sa partition est reportée dans l'élément correspondant de son document `syntheses`.
-  - afin d'éviter des mises à jour trop fréquentes, la procédure de report n'est engagée qui si les compteurs `pcc pcn pcv` passe un cap de 5% ou que `nbj` passe un cap de 5 jours.
-  
-  async finaliser (op) {
-    const conso = { 
-      nl: op.nl, 
-      ne: op.ne + 1 + op.toInsert.length + op.toUpdate.length + op.toDelete.length,
-      vd: op.vd, 
-      vm: op.vm 
-    }
-    const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
-    const c = new Compteurs(this.compteurs, null, x)
-    const pc = c.pourcents
-    this.compteurs = c.serial
-    const nbj = op.compte._estA ? c.nbj(this.solde) : 0
-    const qvc = op.compte.qv // `qv` : `{ qc, qn, qv, pcc, pcn, pcv, nbj }`
-    const rep = op.compte._ins || this.reporter(pc, nbj, qvc)
-    if (rep) {
-      if (!op.compte._estA) qvc.pcc = pc.pcc; else qvc.nbj = nbj
-      qvc.pcn = pc.pcn; qvc.pcv = pc.pcv
-      op.compte._maj = true
-      if (!op.compte._estA) {
-        // qv de partition
-        const p = await op.getPartition(ID.long(op.compte.idp, this.ns), 'partition-finaliser')
-        const e = p.mcpt[ID.court(op.compte.id)]
-        e.q = c.qv; e.q.c2m = c.conso2M
-        p._maj = true
-      }
-    }
-    this.v++
-    const row = this.toRow()
-    if (this._ins) op.insert(row); else op.update(row)
-    return conso
-  }
-  */
 }
 
 /* Versions ************************************************************
@@ -1382,6 +1344,15 @@ export class Groupes extends GenDoc {
     return im
   }
 
+  anContact (im, ln) {
+    this.flags[im] = 0
+    this.st[im] = 0
+    const ida = this.tid[im]
+    this.tid[im] = null
+    if (ln && this.lnc.indexOf(ida) === -1) this.lnc.push(ida)
+    this._maj = true
+  }
+
   /* - `msu` : mode _simple_ ou _unanime_.
     - `null` : mode simple.
     - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
@@ -1654,7 +1625,7 @@ export class Chatgrs extends GenDoc {
   static nouveau (idg) {
     return new Chatgrs().init({
       _maj: true, v: 0,
-      id: idg, items: []
+      id: idg, ids: 1, items: []
     })
   }
 

@@ -1014,6 +1014,33 @@ operations.ModeSimple = class ModeSimple extends Operation {
   }
 }
 
+/* OP_AnnulerContact: 'Annulation du statut de contact d\'un groupe par un avatar' **********
+- token donne les éléments d'authentification du compte.
+- idg : id du groupe
+- ida : id de l'avatar demandant l'annulation.
+- ln : true Inscription en liste noire
+Retour:
+EXC: 
+- 8002: groupe disparu
+*/
+operations.AnnulerContact = class AnnulerContact extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = await this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
+
+    if (!this.compte.mav[ID.court(args.ida)]) throw new AppExc(F_SRV, 249)
+    const im = gr.mmb.get(args.ida)
+    if (!im || gr.st[im] !== 1) throw new AppExc(F_SRV, 272)
+    gr.anContact(im, args.ln)
+    const mb = await this.gd.getMBR(args.idg, im, 'AnnulerContact-1')
+    mb.setZombi()
+    const invit = await this.gd.getIN(this.compte.id)
+    invit.supprInvit(args.idg, args.ida)
+  }
+}
+
 /* OP_InvitationGroupe: 'Invitation à un groupe' **********
 - token donne les éléments d'authentification du compte.
 - idg: id du groupe
@@ -1036,7 +1063,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
-    const avatar = await this.gd.getAV(args.ida)
+    const avatar = await this.gd.getAV(args.idm)
     if (!avatar) throw new AppExc(F_SRV, 1)
 
     const idac = ID.court(args.idm)
@@ -1113,7 +1140,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
         msgG: args.msgG 
       }
       for (const im of invit.li) {
-        const mb = compile(await this.getRowMembre(gr.id, im))
+        const mb = await this.gd.getMBR(gr.id, im, 'InvitationGroupe-5')
         if (mb) invpar.push({ cleAG: mb.cleAG, cvA: mb.cvA })
       }
       cinvit.addInv(invx)
@@ -1121,7 +1148,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
 
     // écriture du chat
     if (aInviter) {
-      const ch = await this.gr.getCGR(args.idg, 'InvitationGroupe-4')
+      const ch = await this.gd.getCGR(args.idg, 'InvitationGroupe-6')
       /*- `im` : im du membre auteur,
         - `dh` : date-heure d'écriture.
         - `dhx` : date-heure de suppression.
@@ -1155,7 +1182,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
-    const avatar = await this.gd.getAV(args.ida)
+    const avatar = await this.gd.getAV(args.idm)
     if (!avatar) throw new AppExc(F_SRV, 1)
 
     const invit = await this.gd.getIN(ID.long(avatar.idc, this.ns), 'AcceptInvitation-2b')
@@ -1170,7 +1197,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       const nf = gr.acceptInvit(im, args.iam, args.ian)
 
       // invit
-      invit.supprInv(args.idg, args.idm)
+      invit.supprInvit(args.idg, args.idm)
 
       // maj du membre invité: dac dln den dam
       membre.acceptInvit(this.auj, nf)
@@ -1189,7 +1216,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     gr.refusInvit(im, args.cas)
 
     // invit
-    invit.supprInv(args.idg, args.idm)
+    invit.it(args.idg, args.idm)
 
     // maj du membre invité
     membre.supprRad(args.cas === 2 ? 1 : 0)
