@@ -124,6 +124,20 @@ export class SqliteProvider {
     return x.join('')
   }
 
+  /*********************************************************************/
+  async setTache (op, id, dh) {
+    const st = this._stmt('SETTACHE',
+      'INSERT INTO taches (op, id, ns, dh) VALUES (@op, @id, @ns, @dh) ON CONFLICT (PRIMARY KEY) DO UPDATE SET ns = excluded.ns, dh = excluded.dh')
+    const ns = id ? ID.ns(id) : 0
+    st.run({ op, id, ns, dh })
+  }
+
+  async delTache (op, id) {
+    const st = this._stmt('DELTACHE',
+      'DELETE FROM taches WHERE op = @op AND id = @id')
+    st.run({ op, id })
+  }
+
   /** Ecritures groupées ***********************************************/
   deleteRows (op, rows) {
     for (const row of rows) {
