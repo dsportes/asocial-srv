@@ -17,10 +17,6 @@ import{ loadTaches } from './taches.mjs'
 import{ load3 } from './operations3.mjs'
 import{ load4 } from './operations4.mjs'
 
-loadTaches()
-load3()
-load4()
-
 let db = null, storage = null
 const keys = ['favicon.ico', 'fullchain.pem', 'privkey.pem']
 try {
@@ -45,6 +41,10 @@ try {
   
   storage = await getStorageProvider(config.run.storage_provider)
   if (!storage) exit(1)
+
+  loadTaches(db, storage)
+  load3()
+  load4()
 
   for (const nf of keys) {
     const p = path.resolve(config.pathkeys + '/' + nf)

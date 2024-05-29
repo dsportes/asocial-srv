@@ -140,7 +140,8 @@ export class SqliteProvider {
   async prochTache (dh, lns) {
     const st = this._stmt('PROCHTACHE', 
       'SELECT * FROM taches WHERE dh < @dh AND ns IN @l ORDER BY dh ASC LIMIT 1')
-    return st.all({ dh, l: '(0,' + lns.join(',') + ')' })
+    const rows = st.all({ dh, l: '(0,' + lns.join(',') + ')' })
+    return rows.length ? null : rows[0]
   }
 
   async nsTaches (ns) {

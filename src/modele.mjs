@@ -90,6 +90,12 @@ export class Esp {
     Esp.dh = Date.now()
   }
 
+  static actifs () {
+    const l = []
+    this.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.id) })
+    return l
+  }
+
   static async getEsp (op, ns, lazy) {
     if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
     return compile(this.map.get(ns))
