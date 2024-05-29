@@ -1,11 +1,14 @@
 CREATE TABLE IF NOT EXISTS "taches" (
   "op" INTEGER,
   "id"	INTEGER,
+  "ids"	INTEGER,
   "ns" INTEGER,
   "dh" INTEGER,
-  PRIMARY KEY("op", "id")
+  "_data_"	BLOB,
+  PRIMARY KEY("op", "id", "ids")
 );
 CREATE INDEX "taches_dh" ON "taches" ( "dh" );
+CREATE INDEX "taches_ns" ON "taches" ( "ns" );
 
 CREATE TABLE IF NOT EXISTS "singletons" (
   "id"	INTEGER,
@@ -161,10 +164,3 @@ CREATE TABLE IF NOT EXISTS "chatgrs" (
   PRIMARY KEY("id", "ids")
 );
 CREATE INDEX "chatgrs_id_v" ON "chatgrs" ( "id", "v" );
-
-INSERT INTO taches (op, id, ns, dh)
-VALUES (5, 1515, 32, 12)
-ON CONFLICT (PRIMARY KEY) DO UPDATE SET
-ns = excluded.ns, dh = excluded.dh;
-
-SELECT * FROM taches WHERE dh < 40 AND ns IN (0,31,32) ORDER BY dh ASC LIMIT 1

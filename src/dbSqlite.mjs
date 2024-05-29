@@ -125,17 +125,27 @@ export class SqliteProvider {
   }
 
   /*********************************************************************/
-  async setTache (op, id, dh) {
+  async setTache (op, id, ids, dh, _data_) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, id, ns, dh) VALUES (@op, @id, @ns, @dh) ON CONFLICT (PRIMARY KEY) DO UPDATE SET ns = excluded.ns, dh = excluded.dh')
+      'INSERT INTO taches (op, id, ids, ns, dh, _data_) VALUES (@op, @id, @ids, @ns, @dh, @_data_) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, _data_ = excluded._data_')
     const ns = id ? ID.ns(id) : 0
-    st.run({ op, id, ns, dh })
+    st.run({ op, id, ids, ns, dh, _data_ })
   }
 
-  async delTache (op, id) {
-    const st = this._stmt('DELTACHE',
-      'DELETE FROM taches WHERE op = @op AND id = @id')
-    st.run({ op, id })
+  async delTache (op, id, ids) {
+    const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND id = @id AND ids = @ids')
+    st.run({ op, id, ids })
+  }
+
+  async prochTache (dh, lns) {
+    const st = this._stmt('PROCHTACHE', 
+      'SELECT * FROM taches WHERE dh < @dh AND ns IN @l ORDER BY dh ASC LIMIT 1')
+    return st.all({ dh, l: '(0,' + lns.join(',') + ')' })
+  }
+
+  async nsTaches (ns) {
+    const st = this._stmt('NSTACHES', 'SELECT * FROM taches WHERE ns = @ns')
+    return st.all({ ns })
   }
 
   /** Ecritures groupées ***********************************************/

@@ -13,13 +13,11 @@ import { SyncSession } from './ws.mjs'
 import { getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress, operations } from './cfgexpress.mjs'
 
-// import{ load } from './operations.mjs'
-// import{ load2 } from './operations2.mjs'
+import{ loadTaches } from './taches.mjs'
 import{ load3 } from './operations3.mjs'
 import{ load4 } from './operations4.mjs'
 
-// load()
-// load2()
+loadTaches()
 load3()
 load4()
 

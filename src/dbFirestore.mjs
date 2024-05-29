@@ -103,11 +103,18 @@ export class FirestoreProvider {
     for (const row of rows) {
       const r = await prepRow(op, row)
       if (GenDoc.majeurs.has(row._nom)) {
+        /*
         const v = ('' + row.v).padStart(9, '0')
         r.id_v = row.id + v
+        */
+        r.id = row.id
+        r.v = row.v
         if (row.vcv !== undefined) {
+          /*
           const vcv = ('' + row.vcv).padStart(9, '0')
-          r.id_vcv = row.id + vcv  
+          r.id_vcv = row.id + vcv 
+          */
+          r.vcv = row.vcv
         }
       }
       const p = FirestoreProvider._path(row._nom, r.id, r.ids)
@@ -123,9 +130,12 @@ export class FirestoreProvider {
   async getV (op, nom, id, v) {
     let row = null
     if (v && GenDoc.majeurs.has(nom)) {
+      /*
       const min = id + (''+v).padStart(9, '0')
       const max = id + '999999999'
       const q = this.fs.collection(nom).where('id_v', '>', min).where('id_v', '<', max)
+      */
+      const q = this.fs.collection(nom).where('id', '==', id).where('v', '<', v)
       let qs
       if (!op.fake && op.transaction) {
         qs = await op.transaction.get(q) // qs: QuerySnapshot
@@ -217,9 +227,12 @@ export class FirestoreProvider {
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   */
   async getAvatarVCV (op, id, vcv) {
+    /*
     const min = id + (''+vcv).padStart(9, '0')
     const max = id + '999999999'
     const q = this.fs.collection('avatars').where('id_vcv', '>', min).where('id_vcv', '<', max)
+    */
+    const q = this.fs.collection('avatars').where('id', '==', id).where('vcv', '<', vcv)
     const qs = await op.transaction.get(q)
     if (qs.empty) return null
     const row = qs.docs[0].data()

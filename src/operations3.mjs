@@ -6,6 +6,7 @@ import { sleep, crypterSrv } from './util.mjs'
 import { Operation, Cache, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
 import { DataSync } from './api.mjs'
+// import { Taches } from './taches.mjs'
 
 // Pour forcer l'importation des opérations
 export function load3 () {
