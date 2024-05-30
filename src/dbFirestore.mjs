@@ -69,12 +69,12 @@ export class FirestoreProvider {
   }
 
   /*********************************************************************/
-  async setTache (t, op) {
+  async setTache (opr, t) {
     const ns = t.id ? ID.ns(t.id) : 0
     const r = { op: t.op, id: t.id, ids: t.ids, ns, dh: t.dh, exc: t.exc }
     const p = 'taches/' + r.id + '/' + t.op + '/' + r.ids
-    if (!op.fake && op.transaction)
-      await op.transaction.set(this.fs.doc(p), r)
+    if (!opr.fake && opr.transaction)
+      await opr.transaction.set(this.fs.doc(p), r)
     else
       await this.fs.doc(p).set(r)
   }
@@ -173,12 +173,7 @@ export class FirestoreProvider {
       const q = this.fs.collection(nom).where('id_v', '>', min).where('id_v', '<', max)
       */
       const q = this.fs.collection(nom).where('id', '==', id).where('v', '<', v)
-      let qs
-      if (!op.fake && op.transaction) {
-        qs = await op.transaction.get(q) // qs: QuerySnapshot
-      } else {
-        qs = await q.get()
-      }
+      let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
       if (!qs.empty) row = qs.docs[0].data()
       if (row) {
         row._nom = nom
@@ -249,11 +244,7 @@ export class FirestoreProvider {
 
   async getEspaceOrg(op, org) {
     const q = this.fs.collection('espaces').where('org', '==', org)
-    let qs
-    if (op.transaction) 
-      qs = await op.transaction.get(q)
-    else
-      qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()
     row._nom = 'espaces'
@@ -270,7 +261,7 @@ export class FirestoreProvider {
     const q = this.fs.collection('avatars').where('id_vcv', '>', min).where('id_vcv', '<', max)
     */
     const q = this.fs.collection('avatars').where('id', '==', id).where('vcv', '<', vcv)
-    const qs = await op.transaction.get(q)
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()
     op.nl++
@@ -283,7 +274,7 @@ export class FirestoreProvider {
     const p = 'versions/' + id + '/chats'
     // INDEX simple sur chats vcv
     const q = this.fs.collection(p).where('ids', '==', ids).where('vcv', '>', vcv)
-    const qs = await op.transaction.get(q)
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
     if (!qs.empty) {
       for (const qds of qs.docs) { row = qds.data(); break }
@@ -300,7 +291,7 @@ export class FirestoreProvider {
     const p = 'versions/' + id + '/tickets'
     // INDEX simple sur tickets v
     const q = this.fs.collection(p).where('ids', '==', ids).where('v', '>', v)
-    const qs = await op.transaction.get(q)
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
     if (!qs.empty) {
       for (const qds of qs.docs) { row = qds.data(); break }
@@ -319,7 +310,7 @@ export class FirestoreProvider {
     const p = 'versions/' + id + '/membres'
     // INDEX simple sur membres vcv
     const q = this.fs.collection(p).where('ids', '==', ids).where('vcv', '>', vcv)
-    const qs = await op.transaction.get(q)
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
     if (!qs.empty) {
       for (const qds of qs.docs) { row = qds.data(); break }
@@ -334,12 +325,7 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath('comptes')
     // INDEX simple sur comptas hps1
     const q = this.fs.collection(p).where('hxr', '==', hxr)
-    let qs
-    if (!op.fake && op.transaction) {
-      qs = await op.transaction.get(q)
-    } else {
-      qs = await q.get()
-    }
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
     if (!qs.empty) {
       for (const qds of qs.docs) { row = qds.data(); break }
@@ -354,16 +340,9 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath('avatars')
     // INDEX simple sur avatars hpc
     const q = this.fs.collection(p).where('hpc', '==', hpc)
-    let qs
-    if (!op.fake && op.transaction) {
-      qs = await op.transaction.get(q)
-    } else {
-      qs = await q.get()
-    }
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
-    if (!qs.empty) {
-      for (const qds of qs.docs) { row = qds.data(); break }
-    }
+    if (!qs.empty) for (const qds of qs.docs) { row = qds.data(); break }
     if (!row) return null
     row._nom = 'avatars'
     op.nl++
@@ -373,16 +352,9 @@ export class FirestoreProvider {
   async getSponsoringIds(op, ids) {
     // INDEX COLLECTION_GROUP sur sponsorings ids
     const q = this.fs.collectionGroup('sponsorings').where('ids', '==', ids)
-    let qs
-    if (!op.fake && op.transaction) {
-      qs = await op.transaction.get(q)
-    } else {
-      qs = await q.get()
-    }
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
-    if (!qs.empty) {
-      for (const qds of qs.docs) { row = qds.data(); break }
-    }
+    if (!qs.empty) for (const qds of qs.docs) { row = qds.data(); break }
     if (!row) return null
     row._nom = 'sponsorings'
     op.nl++
@@ -394,7 +366,7 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath('versions')
     // INDEX simple sur versions dlv
     const q = this.fs.collection(p).where('suppr', '>=', supprmin).where('suppr', '<', supprmax) 
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id'))})
     op.nl += r.length    
@@ -405,7 +377,7 @@ export class FirestoreProvider {
   async getMembresDlv (op, dlvmax) { 
     // INDEX COLECTION_GROUP sur membres dlv
     const q = this.fs.collectionGroup('membres').where('dlv', '<', dlvmax) 
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push([qds.get('id'), qds.get('ids')])})
     op.nl += r.length
@@ -421,7 +393,7 @@ export class FirestoreProvider {
     const q = this.fs.collectionGroup('membres')
       .where('dlv', '==', dlvat)
       .where('id', '>=', ns1).where('id', '<', ns2)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push([qds.get('id'), qds.get('ids')])})
     op.nl += r.length
@@ -437,7 +409,7 @@ export class FirestoreProvider {
     const q = this.fs.collectionGroup('membres')
       .where('dlv', '==', dlvat)
       .where('id', '>=', ns1).where('id', '<', ns2)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id'))})
     op.nl += r.length
@@ -450,7 +422,7 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath('groupes')
     // INDEX simple sur groupes dfh
     const q = this.fs.collection(p).where('dfh', '>', 0).where('dfh', '<', dfh) 
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id')) })
     op.nl += r.length
@@ -461,7 +433,7 @@ export class FirestoreProvider {
   async coll (op, nom) {
     const p = FirestoreProvider._collPath(nom)
     const q = this.fs.collection(p)
-    const qs = await op.transaction.get(q)
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
@@ -484,12 +456,7 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath(nom)
     // INDEX simple sur les collections id (avatars, groupes, versions ...) ! PAS les sous-collections
     const q = this.fs.collection(p).where('id', '>=', ns1).where('id', '<', ns2) 
-    let qs
-    if (op.transaction) {
-      qs = await op.transaction.get(q)
-    } else {
-      qs = await q.get()
-    }
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
@@ -511,11 +478,7 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath(nom, id)
     // INDEX simple sur (chats sponsorings notes membres chatgrs) v
     const q = this.fs.collection(p).where('v', '>', v)
-    let qs
-    if (!op.fake && op.transaction)
-      qs = await op.transaction.get(q)
-    else
-      qs = await q.get(q)
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
@@ -534,7 +497,7 @@ export class FirestoreProvider {
     const p = FirestoreProvider._collPath('tickets', id)
     // INDEX simple sur (chats sponsorings notes membres chatgrs) v
     const q = this.fs.collection(p).where('ids', '<=', mx)
-    const qs = await op.transaction.get(q)
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
@@ -551,10 +514,19 @@ export class FirestoreProvider {
     let n = 0
     const p = FirestoreProvider._collPath(nom, id)
     const q = this.fs.collection(p)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
     }
+    /*
+    if (!op.fake && op.transaction)
+      await op.transaction.delete(this.fs.doc(p))
+    else
+      await this.fs.doc(p).delete()
+
+    const docs = await transaction.getAll(allRefs);
+    docs.forEach(doc => transaction.delete(doc.ref));
+    */
     op.ne += n
     return n
   }
@@ -564,7 +536,7 @@ export class FirestoreProvider {
     const mx = ((aamm % 10000) * d10) + 9999999999
     const p = FirestoreProvider._collPath('tickets', id)
     const q = this.fs.collection(p).where('ids', '<=', mx)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
     }
@@ -574,14 +546,17 @@ export class FirestoreProvider {
 
   async delAvGr (op, id) {
     const p = (ID.estGroupe(id) ? 'groupes/' : 'avatars/') + id
-    await this.fs.doc(p).delete()
+    if (!op.fake && op.transaction)
+      await op.transaction.delete(this.fs.doc(p))
+    else
+      await this.fs.doc(p).delete()
     op.ne++
   }
 
   async getSingletons (op) { 
     const p = FirestoreProvider._collPath('singletons')
     const q = this.fs.collection(p)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     const r = []
     for (const doc of qs.docs) { 
       r.push(doc.get('_data_'))
@@ -611,13 +586,20 @@ export class FirestoreProvider {
 
   async setFpurge (op, id, _data_) {
     const p = FirestoreProvider._path('fpurges', id)
-    await op.op.transaction.set(this.fs.doc(p), { id, _data_})
+    const r =  { id, _data_}
+    if (!op.fake && op.transaction)
+      await op.transaction.set(this.fs.doc(p), r)
+    else
+      await this.fs.doc(p).set(r)
     op.ne++
   }
 
   async unsetFpurge (op, id) {
     const p = FirestoreProvider._path('fpurges', id)
-    await this.fs.doc(p).delete()
+    if (!op.fake && op.transaction)
+      await op.transaction.delete(this.fs.doc(p))
+    else
+      await this.fs.doc(p).delete()
     op.ne++
   }
 
@@ -626,7 +608,7 @@ export class FirestoreProvider {
     const r = []
     const p = FirestoreProvider._collPath('fpurges')
     const q = this.fs.collection(p)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const qds of qs.docs) { 
         const row = qds.data()
@@ -642,7 +624,7 @@ export class FirestoreProvider {
     const r = []
     const p = FirestoreProvider._collPath('transferts')
     const q = this.fs.collection(p).where('dlv', '<=', dlv)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const qds of qs.docs) { 
         const row = qds.data()
@@ -655,7 +637,10 @@ export class FirestoreProvider {
 
   async purgeTransferts (op, id, ids) {
     const p = FirestoreProvider._path('transferts', id, ids)
-    await this.fs.doc(p).delete()
+    if (!op.fake && op.transaction)
+      await op.transaction.delete(this.fs.doc(p))
+    else
+      await this.fs.doc(p).delete()
     op.ne++
   }
 
@@ -663,7 +648,7 @@ export class FirestoreProvider {
     let n = 0
     const p = FirestoreProvider._collPath('sponsorings')
     const q = this.fs.collection(p).where('dlv', '<', dlv)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
     }
@@ -674,7 +659,7 @@ export class FirestoreProvider {
   async purgeVER (op, suppr) { // nom: sponsorings, versions
     let n = 0
     const q = this.fs.collection('versions').where('suppr', '>', 0).where('suppr', '<', suppr)
-    const qs = await q.get()
+    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
     }
