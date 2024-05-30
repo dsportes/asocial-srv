@@ -137,7 +137,7 @@ export class SqliteProvider {
     st.run({ op, id, ids })
   }
 
-  async prochTache (dh, lns) {
+  async prochTache (op, dh, lns) {
     const st = this._stmt('PROCHTACHE', 
       'SELECT * FROM taches WHERE dh < @dh AND ns IN @l ORDER BY dh ASC LIMIT 1')
     const rows = st.all({ dh, l: '(0,' + lns.join(',') + ')' })

@@ -3,6 +3,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
 import { Operation, Esp } from './modele.mjs'
+import { compile } from './gendoc.mjs'
 import { AMJ, ID } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -78,14 +79,14 @@ export class Taches {
   Invoqué à la création d'un espace pour initilaiser ces taches dans une base vide.
   S'il manquait des taches par rapport à la liste, les ajoute.
   */
-  static async initTachesGC () {
+  static async initTachesGC (op) {
     const rows = await Taches.db.nsTaches(0)
     const s = new Set()
     Taches.OPSGC.forEach(t => { s.add(t)})
     rows.forEach(r => { s.remove(r.op) })
     for (const t of s) {
       const dh = Taches.dhRetry(t)
-      await Taches.db.setTache(t, 0, 0, dh, '')
+      await Taches.db.setTache(op, t, 0, 0, dh, '')
     }
     return [Taches.OPSGC.size - s.size, s.size]
   }
@@ -166,7 +167,7 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2() {
-    const x = await Taches.initTachesGC()
+    const x = await Taches.initTachesGC(this)
     this.setRes('nxnc', x)
   }
 }
@@ -268,7 +269,7 @@ operations.STC = class STC extends Operation {
   }
 }
 
-operations.STT = class DFH extends Operation {
+operations.STT = class STT extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2() {
@@ -299,9 +300,17 @@ operations.AGN = class AGN extends Operation {
   }
 }
 
+// gestion et purges des chats de l'avatar
 operations.AVC = class AVC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
-  async phase2() {
+  async phase2(args) {
+    const ida = args.tache.id
+    for (const row of await this.db.scoll(this, 'chats', ida, 0)) {
+      const ch = compile(row)
+
+    }
+    await this.db.delScoll(this, 'chats', ida)
+    args.fini = true
   }
 }
