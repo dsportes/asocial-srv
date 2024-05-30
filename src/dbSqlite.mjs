@@ -125,11 +125,11 @@ export class SqliteProvider {
   }
 
   /*********************************************************************/
-  async setTache (op, id, ids, dh, _data_) {
+  async setTache (t) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, id, ids, ns, dh, _data_) VALUES (@op, @id, @ids, @ns, @dh, @_data_) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, _data_ = excluded._data_')
-    const ns = id ? ID.ns(id) : 0
-    st.run({ op, id, ids, ns, dh, _data_ })
+      'INSERT INTO taches (op, id, ids, ns, dh, exc) VALUES (@op, @id, @ids, @ns, @dh, @exc) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
+    const ns = t.id ? ID.ns(t.id) : 0
+    st.run({ op: t.op, id: t.id, ids: t.ids, ns, dh: t.dh, exc: t.exc })
   }
 
   async delTache (op, id, ids) {
@@ -390,7 +390,15 @@ export class SqliteProvider {
     const rows = st.all({ dfh })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})
-    op.nl += r.length
+    return r
+  }
+  
+  /* Retourne l'array des id des comptes ayant passé leur dlv */
+  async getComptesDlv(op, dlvmax) {
+    const st = this._stmt('SELCDLV', 'SELECT id FROM comptes WHERE dlv < @dlvmax')
+    const rows = st.all({ dlvmax })
+    const r = []
+    if (rows) rows.forEach(row => { r.push(row.id)})
     return r
   }
   
@@ -564,8 +572,16 @@ export class SqliteProvider {
     op.ne++
   }
 
-  async purgeDlv (op, nom, dlv) { // nom: sponsorings, versions
-    const st = this._stmt('DELDLV' + nom, 'DELETE FROM ' + nom + ' WHERE dlv < @dlv')
+  async purgeVER (op, suppr) {
+    const st = this._stmt('DELVER', 'DELETE FROM versions WHERE suppr > 0 AND suppr < @suppr')
+    const info = st.run({ suppr })
+    const n = info.changes
+    op.ne += n
+    return n
+  }
+
+  async purgeSPO (op, dlv) { // nom: sponsorings
+    const st = this._stmt('DELSPO', 'DELETE FROM sponsorings WHERE dlv < @dlv')
     const info = st.run({ dlv })
     const n = info.changes
     op.ne += n

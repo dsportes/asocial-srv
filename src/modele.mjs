@@ -1038,22 +1038,17 @@ export class Operation {
     await this.db.unsetFpurge(this, id) 
   }
 
-  async listeFpurges () {
-    const r = this.db.listeFpurges(this)
-    return r
+  /* Méthode de suppression d'un groupe */
+  // eslint-disable-next-line no-unused-vars
+  async supprGroupe (idg) {
+    // TODO
   }
 
-  async listeTransfertsDlv (dlv) {
-    const r = this.db.listeTransfertsDlv(this, dlv)
-    return r
+  /* Méthode de suppression d'un compte */
+  // eslint-disable-next-line no-unused-vars
+  async supprCompte (id) {
+    // TODO
   }
 
-  async purgeTransferts (id, ids) {
-    await this.db.purgeTransferts (this, id, ids)
-  }
-
-  async purgeDlv (nom, dlv) { // nom: sponsorings, versions
-    return this.db.purgeDlv (this, nom, dlv)
-  }
-  
 }
+

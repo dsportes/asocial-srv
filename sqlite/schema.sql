@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS "taches" (
   "ids"	INTEGER,
   "ns" INTEGER,
   "dh" INTEGER,
-  "_data_"	BLOB,
+  "exc"	TEXT,
   PRIMARY KEY("op", "id", "ids")
 );
 CREATE INDEX "taches_dh" ON "taches" ( "dh" );

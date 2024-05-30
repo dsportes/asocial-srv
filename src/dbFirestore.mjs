@@ -1,5 +1,4 @@
 import { Firestore } from '@google-cloud/firestore'
-
 import { decode, encode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { firebase_config, app_keys, service_account } from './keys.mjs'
@@ -69,6 +68,44 @@ export class FirestoreProvider {
     return 'versions/' + id + '/' + nom + '/'
   }
 
+  /*********************************************************************/
+  async setTache (t, op) {
+    const ns = t.id ? ID.ns(t.id) : 0
+    const r = { op: t.op, id: t.id, ids: t.ids, ns, dh: t.dh, exc: t.exc }
+    const p = 'taches/' + r.id + '/' + t.op + '/' + r.ids
+    if (!op.fake && op.transaction)
+      await op.transaction.set(this.fs.doc(p), r)
+    else
+      await this.fs.doc(p).set(r)
+  }
+
+  async delTache (t, op) { // t: {op, id, ids}
+    const p = 'taches/' + t.id + '/' + t.op + '/' + t.ids
+    if (!op.fake && op.transaction)
+      await op.transaction.delete(this.fs.doc(p))
+    else
+      await this.fs.doc(p).delete()
+  }
+
+  async prochTache (dh, lns) {
+    const l = [ 0, ...lns ]
+    const q = this.fs.collection('taches')
+      .where('ds', '<', dh)
+      .where('ns', 'in', l)
+      .orderBy('dh')
+      .limit(1)
+    const qs = await q.get()
+    return !qs.empty ? qs.docs[0].data() : null
+  }
+
+  async nsTaches (ns) {
+    const q = this.fs.collection('taches').where('ns', '==', ns)
+    const qs = await q.get()
+    const rows = []
+    if (!qs.empty) for (const qds of qs.docs) { rows.push(qds.data()) }
+    return rows
+  }
+  
   /** Ecritures groupées ***********************************************/
 
   /* deleteRows : les rows n'ont que { _nom, id, ids } */
@@ -622,10 +659,21 @@ export class FirestoreProvider {
     op.ne++
   }
 
-  async purgeDlv (op, nom, dlv) { // nom: sponsorings, versions
+  async purgeSPO (op, dlv) { // nom: sponsorings, versions
     let n = 0
-    const p = FirestoreProvider._collPath(nom)
+    const p = FirestoreProvider._collPath('sponsorings')
     const q = this.fs.collection(p).where('dlv', '<', dlv)
+    const qs = await q.get()
+    if (!qs.empty) {
+      for (const doc of qs.docs) { n++; doc.ref.delete() }
+    }
+    op.ne += n
+    return n
+  }
+
+  async purgeVER (op, suppr) { // nom: sponsorings, versions
+    let n = 0
+    const q = this.fs.collection('versions').where('suppr', '>', 0).where('suppr', '<', suppr)
     const qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
