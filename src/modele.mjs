@@ -548,7 +548,7 @@ class GD {
   */
 
   async getV (rds, cage) { // cage: 1:compte 2:avatar, 3:groupe, 4:espace
-    const lrds = cage === 4 ? this.op.ns : ID.long(rds, this.op.ns)
+    const lrds = cage === 4 ? this.op.ns : rds
     let v = this.versions.get(lrds)
     if (!v) {
       v = compile(await this.op.getRowVersion(lrds))
@@ -558,10 +558,9 @@ class GD {
   }
 
   nouvV (rds) {
-    const lrds = ID.long(rds, this.op.ns)
-    const v = Versions.nouveau(lrds)
+    const v = Versions.nouveau(rds)
     v.v = 0
-    this.versions.set(lrds, v)
+    this.versions.set(rds, v)
   }
 
   /* Met à jour le version d'un doc ou sous-doc,

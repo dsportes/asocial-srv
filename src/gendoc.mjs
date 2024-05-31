@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS, F_SRV, AppExc, d14, AMJ, 
+import { FLAGS, F_SRV, AppExc, AMJ, 
   Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { config } from './config.mjs'
@@ -65,35 +65,16 @@ export class NsOrg {
   constructor (cin, cout) {
     this.ns = cout.ns
     this.org = cout.org
-    this.chn = cin.ns !== this.ns
-    this.ch = this.chn || cin.org !== this.org
+    this.ch = cin.ns !== this.ns || cin.org !== this.org
   }
 
-  static noms = { comptes: 'hk', sponsorings: 'ids', avatars: 'hk' }
-
   chRow (row) {
-    if (!this.ch) return row
-    const n = row._nom
-    if (n === 'espaces' || n === 'syntheses') {
-      const d = decode(row._data_)
-      d.id = this.ns
-      if (n === 'espaces') d.org = this.org
-      row._data_ = encode(d)
-      row.id = this.ns
-      if (n === 'espaces') row.org = this.org
-      return row
+    if (this.ch) {
+      row.id = ID.long(ID.court(row.id), this.ns)
+      if (row.ids !== undefined) row.ids = ID.long(ID.court(row.ids), this.ns)
+      if (row.hk !== undefined) row.hk = ID.long(ID.court(row.hk), this.ns)
+      if (row.org !== undefined) row.org = this.org
     }
-    if (!this.chn) return row
-    row.id = (row.id % d14) + (this.ns * d14)
-    const d = decode(row._data_)
-    d.id = row.id
-    const c = NsOrg.noms[n]
-    if (c && row[c]) {
-      const v = (row[c] % d14) + (this.ns * d14)
-      row[c] = v
-      d[c] = v
-    }
-    row._data_ = encode(d)
     return row
   }
 
@@ -323,7 +304,7 @@ export class Tickets extends GenDoc {
   static nouveau (idc, args) {
     return new Tickets().init( {
       _maj: true, v: 0,
-      idc: ID.court(idc), 
+      idc: idc, 
       ids: args.ids, 
       ma: args.ma, 
       refa: args.refa || '', 
@@ -393,10 +374,7 @@ export class Partitions extends GenDoc {
   static nouveau (ns, id, q) { // q: { qc, qn, qv } qc: apr[0], qn: apr[1], qv: apr[2],
     return new Partitions().init( {
       _maj: true, v: 0,
-      id: ID.long(id, ns), 
-      q: q, 
-      nrp: 0, 
-      mcpt: {}
+      id, q, nrp: 0, mcpt: {}
     })
   }
 
@@ -415,7 +393,7 @@ export class Partitions extends GenDoc {
   }
 
   majQC(idc, qv, c2m) {
-    const e = this.mcpt[ID.court(idc)]
+    const e = this.mcpt[idc]
     if (e) {
       e.q = { ...qv }
       e.q.c2m = c2m
@@ -435,23 +413,21 @@ export class Partitions extends GenDoc {
 
   ajoutCompte (compta, cleAP, del, notif) { // id de compta, q: copie de qv de compta
     compta.compile()
-    const id = ID.court(compta.id)
     const r = { cleAP, nr: 0, q: { ...compta.qv }}
     if (del) r.del = true
     if (notif) r.notif = notif
     r.q.c2m = compta._c2m
-    this.mcpt[id] = r
+    this.mcpt[compta.id] = r
     this._maj = true
   }
 
   retraitCompte (id) {
-    const idc = ID.court(id)
-    delete this.mcpt[idc]
+    delete this.mcpt[id]
     this._maj = true
   }
 
   setDel (id, del) {
-    const e = this.mcpt[ID.court(id)]
+    const e = this.mcpt[id]
     if (!e) return false
     e.del = del
     this._maj = true
@@ -459,13 +435,13 @@ export class Partitions extends GenDoc {
   }
 
   setNotifC (id, notif) {
-    const e = this.mcpt[ID.court(id)]
+    const e = this.mcpt[id]
     if (e) e.notif = notif
     this._maj = true
   }
 
   estDel (id) {
-    const e = this.mcpt[ID.court(id)]
+    const e = this.mcpt[id]
     return e && e.del
   }
 
@@ -503,9 +479,8 @@ export class Syntheses extends GenDoc {
   }
 
   setPartition(p) {
-    const n = ID.court(p.id)
-    for(let i = this.tsp.length; i <= n; i++) this.tsp.push(null)
-    this.tsp[n] = synthesesPartition(p)
+    for(let i = this.tsp.length; i <= p.id; i++) this.tsp.push(null)
+    this.tsp[p.id] = synthesesPartition(p)
     this._maj = true
   }
 
@@ -570,8 +545,6 @@ _Comptes "O" seulement:_
 export class Comptes extends GenDoc { 
   constructor() { super('comptes') }
 
-  get ns () { return ID.ns(this.id) }
-
   get _estA () { return this.idp === 0 }
 
   toShortRow (op) {
@@ -589,11 +562,10 @@ export class Comptes extends GenDoc {
   }
 
   static nouveau (args, sp) {
-    const ns = ID.ns(args.id)
     const r = {
       _maj: true, v: 0,
       id: args.id,
-      hxr: (ns * d14) + (args.hXR % d14),
+      hk: args.hXR,
       hXC: args.hXC,
       dlv: AMJ.max, 
       cleKXC: args.cleKXC, 
@@ -625,7 +597,7 @@ export class Comptes extends GenDoc {
   }
 
   chgPS (args) {
-    this.hxr = (this.ns * d14) + args.hps1
+    this.hk = args.hps1
     this.hXC = args.hXC
     this.cleKXC = args.cleKXC
     this._maj = true
@@ -633,7 +605,7 @@ export class Comptes extends GenDoc {
 
   chgPart (idp, clePK, notif) {
     this.clePK = clePK
-    this.idp = ID.court(idp)
+    this.idp = idp
     this.notif = notif
     this._maj = true
   }
@@ -719,27 +691,25 @@ export class Comptes extends GenDoc {
       this.qv.pcv = compta._pc.pcv
       this._maj = true
       if (!this._estA) { // maj partition
-        const p = await gd.getPA(ID.long(this.idp, this.ns))
+        const p = await gd.getPA(this.idp)
         p.majQC(this.id, compta.qv, compta._c2m)
       }
     }
   }
 
   ajoutAvatar (avatar, cleAK) {
-    this.mav[ID.court(avatar.id)] = { rds: avatar.rds, cleAK: cleAK }
+    this.mav[avatar.id] = { rds: avatar.rds, cleAK: cleAK }
     this._maj = true
   }
 
   ajoutGroupe (idg, ida, cleGK, rds) {
-    const idgc = ID.court(idg)
-    let e = this.mpg[idgc]
-    if (!e) { e = { cleGK, rds, lav: []}; this.mpg[idgc] = e }
-    const idac = ID.court(ida)
-    if (e.lav.indexOf(idac) === -1) e.lav.push(idac)
+    let e = this.mpg[idg]
+    if (!e) { e = { cleGK, rds, lav: []}; this.mpg[idg] = e }
+    if (e.lav.indexOf(ida) === -1) e.lav.push(ida)
     this._maj = true
   }
 
-  estAvc (id) { return this.mav[ID.court(id)] }
+  estAvc (id) { return this.mav[id] }
 
   /* Mise à niveau des listes avatars / groupes du dataSync
   en fonction des avatars et groupes listés dans mav/mpg du compte 
@@ -749,34 +719,34 @@ export class Comptes extends GenDoc {
 
     // Ajout dans ds des avatars existants dans le compte et inconnus de ds
     for(const idx in this.mav) {
-      const ida = ID.long(parseInt(idx), this.ns)
+      const ida = parseInt(idx)
       const rds = this.mav[idx].rds
-      srds.add(ID.long(rds, this.ns))
+      srds.add(rds)
       if (!ds.avatars.has(ida)) { ds.avatars.set(ida, { id: ida, rds, vs: 0, vb: 0 }) }
     }
     /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte
     Suppression de leurs entrées dans idRds / rdsId */
     const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
-    for(const ida of sa) if (!this.mav[ID.court(ida)]) {
+    for(const ida of sa) if (!this.mav[ida]) {
       const dsav = ds.avatars.get(ida)
-      srds.delete(ID.long(dsav.rds, this.ns))
+      srds.delete(dsav.rds)
       ds.avatars.delete(ida)
     }
 
     // Ajout dans ds des groupes existants dans le compte et inconnus de ds
     for(const idx in this.mpg) {
-      const idg = ID.long(parseInt(idx), this.ns)
+      const idg = parseInt(idx)
       const rds = this.mpg[idx].rds
-      srds.add(ID.long(rds, this.ns))
+      srds.add(rds)
       const x = { id: idg, rds, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false }
       if (!ds.groupes.has(idg)) ds.groupes.set(idg, x)
     }
     /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte
     Suppression de leurs entrées dans idRds / rdsId */
     const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
-    for(const idg of sg) if (!this.mpg[ID.court(idg)]) {
+    for(const idg of sg) if (!this.mpg[idg]) {
       const dsgr = ds.groupes.get(idg)
-      srds.delete(ID.long(dsgr.rds, this.ns))
+      srds.delete(dsgr.rds)
       ds.groupes.delete(idg)
     }
   }
@@ -784,19 +754,19 @@ export class Comptes extends GenDoc {
   // Set des id (long) des membres des participations au groupe idg (court)
   idMbGr (idg) {
     const s = new Set()
-    const x = this.mpg[ID.court(idg)]
+    const x = this.mpg[idg]
     if (!x) return s
-    for(const ida of x.lav) s.add(ID.long(parseInt(ida), this.ns))
+    for(const ida of x.lav) s.add(ida)
     return s
   }
 
   // Set des im des avatars du compte étant animateur */
   imAnimsDeGr (gr) {
     const s = new Set()
-    const e = this.mpg[ID.court(gr.id)]
+    const e = this.mpg[gr.id]
     if (!e || !e.lav || !e.lav.length) return s
     e.lav.forEach(idc => { 
-      const im = gr.mmb.get(ID.long(idc, this.ns))
+      const im = gr.mmb.get(idc)
       if (im && gr.st[im] === 5) s.add(im)
     })
     return s
@@ -826,7 +796,7 @@ export class Comptis extends GenDoc {
   }
 
   setMc (args) {
-    this.mc[ID.court(args.id)] = { ht: args.htK, tx: args.txK }
+    this.mc[args.id] = { ht: args.htK, tx: args.txK }
     this._maj = true
   }
 
@@ -872,9 +842,7 @@ export class Invits extends GenDoc {
     this._maj = true
   }
 
-  supprInvit (idgl, idal) {
-    const idg = ID.court(idgl)
-    const ida = ID.court(idal)
+  supprInvit (idg, ida) {
     const l = []
     this.invits.forEach(i => { if (i.idg !== idg || i.ida !== ida) l.pudh(i)})
     this.invits = l
@@ -904,8 +872,6 @@ _data_:
 */
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
-
-  get ns () { return ID.ns(this.id) }
 
   static nouveau (id, quotas, don) {
     const qv = { qc: quotas.qc, qn: quotas.qn, qv: quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
@@ -999,7 +965,7 @@ export class Comptas extends GenDoc {
     if (m < 0 && this.solde + m < 2) throw new AppExc(F_SRV, 215, [-m, this.total])
     this.majSolde(m)
     if (!this.dons) this.dons = []
-    this.dons.push({dh, m, iddb: ID.court(iddb)})
+    this.dons.push({dh, m, iddb})
   }
 
   async incorpConso (op) {
@@ -1028,7 +994,7 @@ export class Versions extends GenDoc {
     return new Versions().init({
       v: 0,
       id: id,
-      suppr: 0
+      dlv: 0
     })
   }
 }
@@ -1052,8 +1018,6 @@ _data_:
 export class Avatars extends GenDoc { 
   constructor() { super('avatars') } 
 
-  get ns () { return ID.ns(this.id)}
-
   static nouveau (args, cvA) {
     cvA.v = 0
     return new Avatars().init({ 
@@ -1074,12 +1038,12 @@ export class Avatars extends GenDoc {
 
   setPC (args) {
     if (args.hZR) {
-      this.hpc = ID.long(args.hZR, this.ns)
+      this.hk = args.hZR
       this.hZC = args.hZC
       this.cleAZC = args.cleAZC
       this.pcK = args.pcK
     } else {
-      this.hpc = 0
+      this.hk = 0
       delete this.hZR
       delete this.pcK
       delete this.cleAZC
@@ -1097,7 +1061,7 @@ export class Notes extends GenDoc {
   toShortRow (op, idc) { //idc : id du compte demandeur
     const htmx = this.htm
     if (idc && this.htm) {
-      const ht = this.htm[ID.court(idc)]
+      const ht = this.htm[idc]
       if (ht) this.ht = ht
       delete this.htm
     }
@@ -1154,7 +1118,7 @@ export class Sponsorings extends GenDoc {
       sp.quotas = { qc: 0, qn: 1, qv: 1 }
     } else {
       sp.clePYC = args.clePYC
-      sp.partitionId = ID.court(args.partitionId)
+      sp.partitionId = args.partitionId
       sp.quotas = args.quotas
       sp.del = args.del
     }
@@ -1303,13 +1267,11 @@ Calculée : mmb: Map des membres. Clé: id long du membre, Valeur: son im
 export class Groupes extends GenDoc { 
   constructor() { super('groupes') }
 
-  get idgc () { return ID.court(this.id) }
-
   compile () {
     this.ns = ID.ns(this.id)
     this.mmb = new Map()
     this.tid.forEach((id, im) => { 
-      if (im) this.mmb.set(ID.long(id, this.ns), im)
+      if (im) this.mmb.set(id, im)
     })
     return this
   }
@@ -1319,7 +1281,7 @@ export class Groupes extends GenDoc {
     return new Groupes().init({
       _maj: true, v: 0,
       id: args.idg, // id du groupe
-      tid: [0, ID.court(args.ida)], // id de l'avatar fondateur
+      tid: [0, args.ida], // id de l'avatar fondateur
       msu: args.msu, // mode simple (true) / unanime
       qn: args.quotas.qn,  // quotas.qn
       qv: args.quotas.qv, // quotas.qv
@@ -1344,7 +1306,7 @@ export class Groupes extends GenDoc {
 
   nvContact (ida) {
     const im = this.st.length
-    this.tid.push(ID.court(ida))
+    this.tid.push(ida)
     const x = new Uint8Array(this.flags.length + 1)
     this.flags.forEach((v, i) => {x[i] = v})
     x[this.flags.length] = 0
@@ -1392,10 +1354,11 @@ export class Groupes extends GenDoc {
   supprInvit (im, suppr) { // suppr: 1-contact, 2:radié, 3-radié + LN
     delete this.invits[im]
     this.st[im] = suppr > 1 ? 0 : 1
+    const idm = this.tid[im]
     if (suppr > 1) this.tid[im] = 0
     this.flags[im] = 0
-    if (suppr === 3 && this.lmg.indexOf(this.idgc) === -1) 
-      this.lmg.push(this.idgc)
+    if (suppr === 3 && this.lmg.indexOf(idm) === -1) 
+      this.lmg.push(idm)
     this._maj = true
   }
 
