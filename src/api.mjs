@@ -16,8 +16,6 @@ ne soit considérée comme obsolète */
 export const IDBOBS = 18 * 30
 export const IDBOBSGC = 19 * 30
 
-export const V99 = 99999999
-
 // Liste des statistiques mensuelles et délai / mois courant
 export const statistiques = { moisStat: 1, moisStatT: 3 }
 
@@ -1076,26 +1074,28 @@ export class DataSync {
     if (x.avatars) x.avatars.forEach(t => ds.avatars.set(t.id, t))
     ds.groupes = new Map()
     if (x.groupes) x.groupes.forEach(t => ds.groupes.set(t.id, t))
+    if (x.setRds) this.setRds = x.setRds
     return ds
   }
 
-  serial () {
+  serial (ns) { // ns: donné côté serveur
     const x = {
       compte: this.compte || { ...DataSync.vide },
       avatars: [],
       groupes: []
     }
+    if (ns) x.setRds = this.setLongsRds(ns)
+    else if (this.setRds) x.setRds = this.setRds
     if (this.avatars) this.avatars.forEach(t => x.avatars.push(t))
     if (this.groupes) this.groupes.forEach(t => x.groupes.push(t))
     return new Uint8Array(encode(x))
   }
 
   idDeRds (rds) {
-    const rdsc = ID.court(rds)
     if (ID.rdsType(rds) === ID.RDSAVATAR) {
-      for(const [id, e] of this.avatars) if (rdsc === e.rds) return id
+      for(const [id, e] of this.avatars) if (rds === e.rds) return id
     } else {
-      for(const [id, e] of this.groupes) if (rdsc === e.rds) return id
+      for(const [id, e] of this.groupes) if (rds === e.rds) return id
     }
     return 0
   }

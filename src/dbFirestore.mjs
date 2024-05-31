@@ -286,7 +286,7 @@ export class FirestoreProvider {
   }
 
   /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
-  */
+
   async getRowTicketV (op, id, ids, v) {
     const p = 'versions/' + id + '/tickets'
     // INDEX simple sur tickets v
@@ -303,6 +303,7 @@ export class FirestoreProvider {
     }
     return null
   }
+  */
 
   /* Retourne LE membre si sa CV est MOINS récente que celle détenue en session (de version vcv)
   */

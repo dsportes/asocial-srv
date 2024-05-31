@@ -29,7 +29,6 @@ export function load4 () {
 
 /*`SetEspaceOptionA` : changement de l'option A, nbmi, dlvat par le Comptable
 - `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié.
 - `optionA` : 0 1 2.
 - dlvat: aaaammjj,
 - nbmi:
@@ -39,7 +38,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(args.ns, true)
+    const espace = await this.getCheckEspace(true)
     espace.setOptions(args)
   }
 }
@@ -145,7 +144,7 @@ operations.GetCompta = class GetCompta extends Operation {
       if (!e) throw new AppExc(F_SRV, 219)
     }
     const compta = await this.gd.getCA(id, 'GetCompta-1')
-    this.setRes('rowCompta', compta.toShortRow())
+    this.setRes('rowCompta', compta.toShortRow(this))
   }
 }
 
@@ -273,7 +272,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     const idsE = this.idsChat(args.idE, args.idI)
 
     let chI = await this.gd.getCAV(args.idI, idsI)
-    if (chI) { this.setRes('rowChat', chI.toShortRow()); return}
+    if (chI) { this.setRes('rowChat', chI.toShortRow(this)); return}
 
     chI = await this.gd.nouvCAV({ 
       id: args.idI,
@@ -286,7 +285,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       cleEC: args.ch.cleE2C,
       items: [{a: 1, dh: this.dh, t: args.ch.txt}]
     })
-    this.setRes('rowChat', chI.toShortRow())
+    this.setRes('rowChat', chI.toShortRow(this))
     this.compta.ncPlus(1)
 
     await this.gd.nouvCAV({
@@ -722,7 +721,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
   }
 
   phase3() {
-    this.setRes('rowCompta', this.compta.toRow())
+    this.setRes('rowCompta', this.compta.toShortRow(this))
   }
 }
 
@@ -744,7 +743,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
   }
 
   phase3() {
-    this.setRes('rowCompta', this.compta.toRow())
+    this.setRes('rowCompta', this.compta.toShortRow(this))
   }
 }
 

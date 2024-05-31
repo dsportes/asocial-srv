@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, ID, d14, V99 } from './api.mjs'
+import { AppExc, F_SRV, ID } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypterSrv } from './util.mjs'
@@ -100,10 +100,26 @@ operations.GetEspaces = class GetEspaces extends Operation {
 - id : id de l'avatar
 */
 operations.GetPub = class GetPub extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    await this.getCheckEspace()
+    
+    const avatar = await this.gd.getAV(args.id, 'getPub')
+    this.setRes('pub', avatar.pub)
+  }
+}
+
+/* GetPub: retourne la clé RSA publique d'un avatar
+- org : code de l'organisation
+- id : id de l'avatar
+*/
+operations.GetPubOrg = class GetPubOrg extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.getCheckEspace(ID.ns(args.id))
+    await this.gd.getESOrg(args.org) // set this.ns
+    await this.getCheckEspace()
     
     const avatar = await this.gd.getAV(args.id, 'getPub')
     this.setRes('pub', avatar.pub)
@@ -121,18 +137,19 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.gd.getESOrg(args.org)
+    await this.gd.getESOrg(args.org) // set this.ns
 
-    const ids = (this.ns * d14) + (args.hps1 % d14)
-    const row = await this.db.getSponsoringIds(this, ids)
+    const row = await this.db.getSponsoringIds(this, ID.long(args.hps1, this.ns))
     if (!row) { sleep(3000); throw new AppExc(F_SRV, 11) }
     this.setRes('rowSponsoring', row)
+    this.setRes('ns', this.ns)
   }
 }
 
 /* Recherche hash de phrase de connexion ***************************************
 Pour Acceptation Sponsoring
-args.hps1 : ns + hps1 de la phrase de contact / de connexion
+args.org : code de l'organisation
+args.hps1 : hps1 de la phrase de contact / de connexion
 Retour:
 - existe : true si le hash de la phrase existe
 */
@@ -140,9 +157,35 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.getCheckEspace(ID.ns(args.hps1))
+    await this.gd.getESOrg(args.org) // set this.ns
+    await this.getCheckEspace()
+    if (await this.db.getCompteHXR(this, ID.long(args.hps1, this.ns))) this.setRes('existe', true)
+  }
+}
 
-    if (await this.db.getCompteHXR(this, args.hps1)) this.setRes('existe', true)
+/* Recherche hash de phrase **********************************
+args.hps1 : hps1 de la phrase de contact / de connexion
+args.t :
+  - 2 : phrase de sponsoring (ids)
+  - 3 : phrase de contact (hpc d'avatar)
+Retour:
+- existe : true si le hash de la phrase existe
+*/
+operations.ExistePhrase = class ExistePhrase extends Operation {
+  constructor (nom) { super(nom, 1, 1)  }
+
+  async phase2 (args) {
+    if (args.t === 2) {
+      if (await this.db.getSponsoringIds(this, ID.long(args.hps1, this.ns))) {
+        this.setRes('existe', true)
+        return
+      }
+    } if (args.t === 3) {
+      if (await this.db.getAvatarHpc(this, ID.long(args.hps1, this.ns))) {
+        this.setRes('existe', true)
+        return
+      }
+    }
   }
 }
 
@@ -184,8 +227,9 @@ operations.SyncSp = class SyncSp extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(ID.ns(args.idsp), false)
-    this.setRes('rowEspace', espace.toShortRow())
+    await this.gd.getESOrg(args.org) // set this.ns
+    const espace = await this.getCheckEspace(false)
+    this.setRes('rowEspace', espace.toShortRow(this))
 
     const avsponsor = await this.gd.getAV(args.idsp)
     if (!avsponsor) throw new AppExc(F_SRV, 401)
@@ -210,11 +254,11 @@ operations.SyncSp = class SyncSp extends Operation {
     // pas de setRes pour le row compte qui VA ETRE MIS A JOUR après la phase 2 - Sera fait en phase 3
     this.compte = compte
     this.compta = compta
-    this.setRes('rowCompti', compti.toShortRow())
-    this.setRes('rowInvit', invit.toShortRow())
+    this.setRes('rowCompti', compti.toShortRow(this))
+    this.setRes('rowInvit', invit.toShortRow(this))
 
     const avatar = this.gd.nouvAV(compte, args, args.cvA)
-    this.setRes('rowAvatar', avatar.toShortRow())
+    this.setRes('rowAvatar', avatar.toShortRow(this))
 
     // création du dataSync
     const ds = DataSync.deserial()
@@ -224,7 +268,7 @@ operations.SyncSp = class SyncSp extends Operation {
     ds.avatars.set(a.id, a)
 
     // Sérialisation et retour de dataSync
-    this.setRes('dataSync', ds.serial())
+    this.setRes('dataSync', ds.serial(this.ns))
 
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
     const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
@@ -258,7 +302,7 @@ operations.SyncSp = class SyncSp extends Operation {
         cleEC: args.ch.cleE1C,
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
       })
-      this.setRes('rowChat', chI.toRow())
+      this.setRes('rowChat', chI.toShortRow(this))
       this.compta.ncPlus(1)
 
       await this.gd.nouvCAV({
@@ -282,20 +326,22 @@ operations.SyncSp = class SyncSp extends Operation {
 
   async phase3 () {
     /* Le row compte A ETE MIS A JOUR après la phase 2 */
-    this.setRes('rowCompte', this.compte.toRow())
+    this.setRes('rowCompte', this.compte.toShortRow(this))
   }
 }
 
-/* `RefusSponsoring` : refus d'un sponsoring
-args.id ids : identifiant du sponsoring
-args.ardYC : réponse du filleul
-args.hYC: hash du PBKFD de la phrase de sponsoring
+/* OP_RefusSponsoring: 'Rejet d\'une proposition de sponsoring'
+- `token` : éléments d'authentification du compte.
+- id ids : identifiant du sponsoring
+- ardYC : réponse du filleul
+- hYC: hash du PBKFD de la phrase de sponsoring
 */
 operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2(args) {
-    await this.getCheckEspace(ID.ns(args.id), true)
+    await this.gd.getESOrg(args.org) // set this.ns
+    await this.getCheckEspace(true)
 
     const avsponsor = await this.gd.getAV(args.ids)
     if (!avsponsor) throw new AppExc(F_SRV, 401)
@@ -314,33 +360,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
 * Lectures SANS restriction, pouvant être utilisées pour les actions d'URGENCE
 *******************************************************************************/
 
-/* Recherche hash de phrase ******
-args.hps1 : ns + hps1 de la phrase de contact / de connexion
-args.t :
-  - 2 : phrase de sponsoring (ids)
-  - 3 : phrase de contact (hpc d'avatar)
-Retour:
-- existe : true si le hash de la phrase existe
-*/
-operations.ExistePhrase = class ExistePhrase extends Operation {
-  constructor (nom) { super(nom, 1, 1)  }
-
-  async phase2 (args) {
-    if (args.t === 2) {
-      if (await this.db.getSponsoringIds(this, args.hps1)) {
-        this.setRes('existe', true)
-        return
-      }
-    } if (args.t === 3) {
-      if (await this.db.getAvatarHpc(this, args.hps1)) {
-        this.setRes('existe', true)
-        return
-      }
-    }
-  }
-}
-
-/* `GetSynthese` : retourne la synthèse de l'espace ns ou corant.
+/* `GetSynthese` : retourne la synthèse de l'espace ns ou courant.
 - `token` : éléments d'authentification du compte.
 - `ns` : id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
 Retour:
@@ -350,9 +370,9 @@ operations.GetSynthese = class GetSynthese extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const ns = this.estAdmin ? args.ns : this.ns
-    const rowSynthese = compile(await this.getRowSynthese(ns, 'getSynthese'))
-    this.setRes('rowSynthese', rowSynthese.toRow())
+    if (this.estAdmin) this.ns = args.ns
+    const synthese = await this.gd.getSY() 
+    this.setRes('rowSynthese', synthese.toShortRow(this))
   }
 }
 
@@ -368,13 +388,13 @@ operations.GetPartition = class GetPartition extends Operation {
     let id = args.id
     if (!this.estComptable) id = ID.long(this.compte.idp, this.ns)
     const partition = compile(await this.getRowPartition(id, 'GetPartition'))
-    this.setRes('rowPartition', partition.toShortRow(this.compte.del))
+    this.setRes('rowPartition', partition.toShortRow(this, this.compte.del))
   }
 }
 
 /* Get Espace **************************************************
-args.token: éléments d'authentification du compte.
-args.ns : ns pour l'administrateur
+- token: éléments d'authentification du compte.
+- ns : ns pour l'administrateur
 **Propriétés accessibles :**
 - administrateur technique : toutes de tous les espaces.
 - Comptable : toutes de _son_ espace.
@@ -386,8 +406,9 @@ operations.GetEspace = class GetEspace extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(args.ns || this.ns)
-    this.setRes('rowEspace', this.estAdmin || this.estComptable ? espace.toRow() : espace.toShortRow())
+    if (this.isAdmin) this.ns = args.ns
+    const espace = await this.getCheckEspace()
+    this.setRes('rowEspace', espace.toShortRow(this))
   }
 }
 
@@ -419,44 +440,44 @@ operations.Sync = class Sync extends Operation {
   async getGrRows (ida, x) { 
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
-    if (!gr) gr = compile(await this.db.getV(this, 'groupes', ida, x.vs))
-    if (gr) this.addRes('rowGroupes', gr.toShortRow(this.compte, x.m))
+    if (!gr) gr = compile(await this.db.getV(this, 'groupes', ID.long(ida, this.ns), x.vs))
+    if (gr) this.addRes('rowGroupes', gr.toShortRow(this, this.compte, x.m))
 
     if (x.m) {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
       SINON chargement initial de puis 0 */
-      for (const row of await this.db.scoll(this, 'membres', ida, x.ms ? x.vs : 0))
-        this.addRes('rowMembres', compile(row).toShortRow())
-      for (const row of await this.db.scoll(this, 'chatgrs', ida, x.ms ? x.vs : 0))
-        this.addRes('rowChatgrs', compile(row).toShortRow())
+      for (const row of await this.db.scoll(this, 'membres', ID.long(ida, this.ns), x.ms ? x.vs : 0))
+        this.addRes('rowMembres', compile(row).toShortRow(this))
+      for (const row of await this.db.scoll(this, 'chatgrs', ID.long(ida, this.ns), x.ms ? x.vs : 0))
+        this.addRes('rowChatgrs', compile(row).toShortRow(this))
     }
 
     /* SI la session avait des notes chargées, chargement incrémental depuis vs
     SINON chargement initial de puis 0 */
-    if (x.n) for (const row of await this.db.scoll(this, 'notes', ida, x.ns ? x.vs : 0))
+    if (x.n) for (const row of await this.db.scoll(this, 'notes', ID.long(ida, this.ns), x.ns ? x.vs : 0))
       this.addRes('rowNotes', compile(row).toShortRow(this.id))
   }
   
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
-    const rav = await this.db.getV(this, 'avatars', ida, x.vs)
+    const rav = await this.db.getV(this, 'avatars', ID.long(ida, this.ns), x.vs)
     if (rav) this.addRes('rowAvatars', rav)
 
-    for (const row of await this.db.scoll(this, 'notes', ida, x.vs))
-      this.addRes('rowNotes', compile(row).toShortRow())
-    for (const row of await this.db.scoll(this, 'chats', ida, x.vs))
-      this.addRes('rowChats', compile(row).toShortRow())
-    for (const row of await this.db.scoll(this, 'sponsorings', ida, x.vs))
-      this.addRes('rowSponsorings', compile(row).toShortRow())
+    for (const row of await this.db.scoll(this, 'notes', ID.long(ida, this.ns), x.vs))
+      this.addRes('rowNotes', compile(row).toShortRow(this))
+    for (const row of await this.db.scoll(this, 'chats', ID.long(ida, this.ns), x.vs))
+      this.addRes('rowChats', compile(row).toShortRow(this))
+    for (const row of await this.db.scoll(this, 'sponsorings', ID.long(ida, this.ns), x.vs))
+      this.addRes('rowSponsorings', compile(row).toShortRow(this))
     if (ID.estComptable(this.id)) 
-      for (const row of await this.db.scoll(this, 'tickets', ida, x.vs))
-        this.addRes('rowTickets', compile(row).toShortRow())
+      for (const row of await this.db.scoll(this, 'tickets', ID.long(ida, this.ns), x.vs))
+        this.addRes('rowTickets', compile(row).toShortRow(this))
   }
 
   async setAv (ida, rds) {
     const x = this.ds.avatars.get(ida)
     if (x) {
       const version = rds ? await this.getV({ rds }) : null
-      if (!version || version.suppr) this.ds.avatars.delete(ida) // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
+      if (!version || version.dlv) this.ds.avatars.delete(ida) // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
       else x.vb = version.v
     }
   }
@@ -466,7 +487,7 @@ operations.Sync = class Sync extends Operation {
     const g = await this.getGr(idg)
     if (x) {
       const version = rds ? await this.getV({rds}) : null
-      if (!g || g.v === V99 || !version || version.suppr) 
+      if (!g || !version || version.dlv) 
         this.ds.groupes.delete(idg) // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
       else {
         x.vb = version.v
@@ -482,8 +503,7 @@ operations.Sync = class Sync extends Operation {
   }
 
   async getV (doc, src) {
-    const id = ID.long(doc.rds, this.ns)
-    return compile(await this.getRowVersion(id, src))
+    return compile(await this.getRowVersion(doc.rds, src))
   }
 
   async phase2(args) {
@@ -500,15 +520,15 @@ operations.Sync = class Sync extends Operation {
     this.ds.compte.vb = vcpt.v
 
     if (this.cnx || (this.ds.compte.vs < this.ds.compte.vb))
-      this.setRes('rowCompte', this.compte.toShortRow())
-    let rowCompti = Cache.aVersion('comptis', this.compte.id, vcpt.v) // déjà en cache ?
+      this.setRes('rowCompte', this.compte.toShortRow(this))
+    let rowCompti = Cache.aVersion(this, 'comptis', this.compte.id, vcpt.v) // déjà en cache ?
     if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
     if (this.cnx || (rowCompti.v > this.ds.compte.vs)) 
-      this.setRes('rowCompti', compile(rowCompti).toShortRow())
-    let rowInvit = Cache.aVersion('invits', this.compte.id, vcpt.v) // déjà en cache ?
+      this.setRes('rowCompti', compile(rowCompti).toShortRow(this))
+    let rowInvit = Cache.aVersion(this, 'invits', this.compte.id, vcpt.v) // déjà en cache ?
     if (!rowInvit) rowInvit = await this.getRowInvit(this.compte.id)
     if (this.cnx || (rowInvit.v > this.ds.compte.vs)) 
-      this.setRes('rowInvit', compile(rowInvit).toShortRow())
+      this.setRes('rowInvit', compile(rowInvit).toShortRow(this))
   
     /* Mise à niveau des listes avatars / groupes du dataSync
     en fonction des avatars et groupes listés dans mav/mpg du compte 
@@ -568,7 +588,7 @@ operations.Sync = class Sync extends Operation {
     }
 
     // Sérialisation et retour de dataSync
-    this.setRes('dataSync', this.ds.serial())
+    this.setRes('dataSync', this.ds.serial(this.ns))
 
     // Mise à jour des abonnements aux versions
     if (this.sync) this.sync.setAboRds(this.ds.setLongsRds(this.ns), this.dh)
@@ -618,7 +638,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
 
     if (await this.gd.getES()) 
       throw new AppExc(F_SRV, 203, [args.ns, args.org])
-    if (await Esp.getOrg(this, args.org)) 
+    if (await Esp.getEspOrg(this, args.org)) 
       throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
     args.id = ID.duComptable(args.ns)
@@ -655,7 +675,8 @@ operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
   constructor (nom) { super(nom, 3)}
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(args.ns)
+    this.ns = args.ns
+    const espace = await this.getCheckEspace()
     espace.setNprof(args.nprof)
   }
 }

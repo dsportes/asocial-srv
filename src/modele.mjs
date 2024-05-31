@@ -83,8 +83,9 @@ export class Esp {
   static async load (op) {
     const l = await op.db.getRowEspaces(op, Esp.v)
     l.forEach(r => { 
-      Esp.map.set(r.id, r)
-      Esp.orgs.set(r.org, r)
+      const ns = ID.ns(r.id)
+      Esp.map.set(ns, r)
+      Esp.orgs.set(r.org, r.ns)
       if (r.v > Esp.v) Esp.v = r.v
     })
     Esp.dh = Date.now()
@@ -101,15 +102,20 @@ export class Esp {
     return compile(this.map.get(ns))
   }
 
-  static async getOrg (op, org, lazy) {
+  static async getNsOrg (op, org, lazy) {
     if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
-    return compile(this.orgs.get(org))
+    return this.orgs.get(org)
   }
 
-  static updEsp(e) {
+  static async getEspOrg (op, org, lazy) {
+    const ns = await Esp.getNsOrg(op, org, lazy)
+    return compile(this.map.get(ns))
+  }
+
+  static updEsp(op, e) {
     const x = Esp.map.get(e.id)
     if (!x || x.v < e.v) {
-      const r = e.toRow()
+      const r = e.toRow(op)
       Esp.map.set(e.id, r)
       Esp.orgs.set(e.org, r)
     }
@@ -129,9 +135,10 @@ export class Cache {
   certes la transaction peut échouer, mais au pire on a lu une version,
   pas forcément la dernière, mais plus récente.
   */
-  static async getRow (op, nom, id) {
+  static async getRow (op, nom, idc) {
     if (this.map.size > Cache.MAX_CACHE_SIZE) Cache._purge()
     const now = Date.now()
+    const id = ID.long(idc, op.ns)
     const k = nom + '/' + id
     const x = Cache.map.get(k)
     if (x) {
@@ -150,7 +157,8 @@ export class Cache {
   }
 
   /* La cache a-t-elle une version supérieure ou égale à v pour le document nom/id */
-  static aVersion (nom, id, v) {
+  static aVersion (op, nom, idc, v) {
+    const id = ID.long(idc, op.ns)
     const k = nom + '/' + id
     const x = Cache.map.get(k)
     return x && x.v >= v ? x : null
@@ -236,7 +244,7 @@ class GD {
   }
 
   async getESOrg (org, fige) {
-    const espace = await Esp.getOrg(this.op, org, true)
+    const espace = await Esp.getEspOrg(this.op, org, true)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     this.op.org = org
@@ -261,8 +269,10 @@ class GD {
   }
 
   async getSY (ns) {
-    if (!this.synthese)
-      this.synthese = compile(await this.op.getRowSynthese(ns, 'getSY'))
+    if (!this.synthese) {
+      this.synthese = compile(await Cache.getRow(this, 'syntheses',  0))
+      if (!this.synthese) throw assertKO('getSy', 16, [ns])
+    }
     return this.synthese
   }
 
@@ -544,7 +554,7 @@ class GD {
       v = compile(await this.op.getRowVersion(lrds))
       if (v) this.versions.set(lrds, v)
     }
-    return !v || v.suppr ? null : v
+    return !v || v.dlv ? null : v
   }
 
   nouvV (rds) {
@@ -572,7 +582,7 @@ class GD {
     if (!v._maj) {
       v.v++
       v._maj = true
-      const rv = v.toRow()
+      const rv = v.toRow(this.op)
       if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
       this.op.versions.push(rv)  
     }
@@ -585,7 +595,7 @@ class GD {
       d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''), cage)
       if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
-      if (ins) this.op.insert(d.toRow()); else this.op.update(d.toRow())
+      if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
 
@@ -593,7 +603,7 @@ class GD {
     if (d._maj) {
       const ins = d.v === 0
       d.v = await this.majV(d.id, d.id, 4)
-      if (ins) this.op.insert(d.toRow()); else this.op.update(d.toRow())
+      if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
 
@@ -602,14 +612,14 @@ class GD {
       compta.v++
       const compte = await this.getCO(compta.id)
       await compte.reportDeCompta(compta, this)
-      if (compta.v === 1) this.op.insert(compta.toRow()); else this.op.update(compta.toRow())
+      if (compta.v === 1) this.op.insert(compta.toRow(this.op)); else this.op.update(compta.toRow(this.op))
     }
   }
 
   async majpart (p) {
     if (p._maj) {
       p.v++
-      if (p.v === 1) this.op.insert(p.toRow()); else this.op.update(p.toRow())
+      if (p.v === 1) this.op.insert(p.toRow(this.op)); else this.op.update(p.toRow(this.op))
       const s = await this.getSY(p.ns)
       s.setPartition(p)
     }
@@ -619,7 +629,7 @@ class GD {
     const s = this.synthese
     if (s && s._maj) {
       s.v++
-      if (s.v === 1) this.op.insert(s.toRow()); else this.op.update(s.toRow())
+      if (s.v === 1) this.op.insert(s.toRow(this.op)); else this.op.update(s.toRow(this.op))
     }
   }
 
@@ -692,7 +702,7 @@ export class Operation {
     this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
     this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
     Cache.update(updated, deleted)
-    if (this.gd.espace) Esp.updEsp(this.gd.espace)
+    if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
 
     await this.phase3(this.args) // peut ajouter des résultas
 
@@ -861,8 +871,7 @@ export class Operation {
     return hash(crypterSrv(this.db.appKey, Buffer.from(ID.court(idI) + '/' + ID.court(idE)))) % d14
   }
 
-  async getCheckEspace (ns, fige) {
-    this.ns = ns
+  async getCheckEspace (fige) {
     const espace = await this.gd.getES(true)
     if (!espace || espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     if (fige && espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
@@ -891,12 +900,6 @@ export class Operation {
       this.partitions.set(id, p)
     }
     return p
-  }
-
-  async getRowSynthese (id, assert) {
-    const tr = await Cache.getRow(this, 'syntheses', id)
-    if (assert && !tr) throw assertKO('getRowSynthese/' + assert, 16, [id])
-    return tr
   }
 
   async getRowCompte (id, assert) {
@@ -952,77 +955,77 @@ export class Operation {
 
   async delScoll (nom, id) { return this.db.delScollSql(this, nom, id) }
 
-  async getVersionsDlv (dlvmin, dlvmax) { return this.db.getVersionsDlv(this, dlvmin, dlvmax) }
+  // async getVersionsDlv (dlvmin, dlvmax) { return this.db.getVersionsDlv(this, dlvmin, dlvmax) }
 
-  async getMembresDlv (dlvmax) {return this.db.getMembresDlv(this, dlvmax) }
+  // async getMembresDlv (dlvmax) {return this.db.getMembresDlv(this, dlvmax) }
 
-  async getMembresDlvat (ns, dlvat) {return this.db.getMembresDlvat(this, ns, dlvat) }
+  // async getMembresDlvat (ns, dlvat) {return this.db.getMembresDlvat(this, ns, dlvat) }
 
-  async getVersionsDlvat (ns, dlvat) {return this.db.getVersionsDlvat(this, ns, dlvat) }
+  // async getVersionsDlvat (ns, dlvat) {return this.db.getVersionsDlvat(this, ns, dlvat) }
 
-  async getGroupesDfh (dfh) { return this.db.getGroupesDfh(this, dfh) }
+  // async getGroupesDfh (dfh) { return this.db.getGroupesDfh(this, dfh) }
 
-  async setVdlv (id, dlv) { return this.db.setVdlv(this, id, dlv) }
+  // async setVdlv (id, dlv) { return this.db.setVdlv(this, id, dlv) }
 
-  async getChatVCV (id, ids, vcv) { return this.db.getChatVCV(this, id, ids, vcv) }
+  // async getChatVCV (id, ids, vcv) { return this.db.getChatVCV(this, id, ids, vcv) }
 
-  async getRowTicketV (id, ids, v) { return this.db.getRowTicketV(this, id, ids, v) }
+  // async getRowTicketV (id, ids, v) { return this.db.getRowTicketV(this, id, ids, v) }
 
   async getMembreVCV (id, ids, vcv) { return this.db.getMembreVCV(this, id, ids, vcv) }
 
-  async getAllRowsNote(id, v) { return await this.scoll('notes', id, v) }
+  // async getAllRowsNote(id, v) { return await this.scoll('notes', id, v) }
 
-  async getAllRowsEspace () { return await this.coll('espaces') }
+  // async getAllRowsEspace () { return await this.coll('espaces') }
 
-  async getAllRowsChat(id, v) { return await this.scoll('chats', id, v)}
+  // async getAllRowsChat(id, v) { return await this.scoll('chats', id, v)}
 
-  async getAllRowsTicket(id, v) { return await this.scoll('tickets', id, v) }
+  // async getAllRowsTicket(id, v) { return await this.scoll('tickets', id, v) }
 
-  async getAllRowsSponsoring(id, v) { return await this.scoll('sponsorings', id, v) }
+  // async getAllRowsSponsoring(id, v) { return await this.scoll('sponsorings', id, v) }
 
-  async getAllRowsMembre(id, v) { return await this.scoll('membres', id, v) }
+  // async getAllRowsMembre(id, v) { return await this.scoll('membres', id, v) }
 
-  async getAllRowsChatgr(id, v) { return await this.scoll('chatgrs', id, v) }
+  // async getAllRowsChatgr(id, v) { return await this.scoll('chatgrs', id, v) }
 
   async getRowNote (id, ids, assert) {
-    const rs = await this.db.get(this, 'notes', id, ids)
-    if (assert && !rs) throw assertKO('getRowNote/' + assert, 7, [id, ids])
+    const rs = await this.db.get(this, 'notes', ID.long(id, this.ns), ID.long(ids, this.ns))
+    if (assert && !rs) throw assertKO('getRowNote/' + assert, 7, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rs
   }
 
   async getRowChat (id, ids, assert) {
-    const rc = await this.db.get(this, 'chats', id, ids)
-    if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [id, ids])
+    const rc = await this.db.get(this, 'chats', ID.long(id, this.ns), ID.long(ids, this.ns))
+    if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rc
   }
  
   async getRowTicket (id, ids, assert) {
-    const rc = await this.db.get(this, 'tickets', id, ids)
-    if (assert && !rc) throw assertKO('getRowTicket/' + assert, 17, [id, ids])
+    const rc = await this.db.get(this, 'tickets', ID.long(id, this.ns), ID.long(ids, this.ns))
+    if (assert && !rc) throw assertKO('getRowTicket/' + assert, 17, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rc
   }
 
   async getRowSponsoring (id, ids, assert) {
-    const rs = await this.db.get(this, 'sponsorings', id, ids)
-    if (assert && !rs) throw assertKO('getRowSponsoring/' + assert, 13, [id, ids])
+    const rs = await this.db.get(this, 'sponsorings', ID.long(id, this.ns), ID.long(ids, this.ns))
+    if (assert && !rs) throw assertKO('getRowSponsoring/' + assert, 13, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rs
   }
 
   async getRowMembre (id, ids, assert) {
-    const rm = await this.db.get(this, 'membres', id, ids)
-    if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [id, ids])
+    const rm = await this.db.get(this, 'membres', ID.long(id, this.ns), ID.long(ids, this.ns))
+    if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rm
   }
 
   async getRowChatgr (id, assert) {
-    const rc = await this.db.get(this, 'chatgrs', id, 1)
-    if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [id, 1])
+    const rc = await this.db.get(this, 'chatgrs', ID.long(id, this.ns), 1)
+    if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [ID.long(id, this.ns), 1])
     return rc
   }
 
-  async getSingletons () { return this.db.getSingletons(this) }
+  // async getSingletons () { return this.db.getSingletons(this) }
 
-  async setSingleton (data) { this.db.setSingleton(this, data) }
+  // async setSingleton (data) { this.db.setSingleton(this, data) }
 
   /* fpurge, transferts */
   async setFpurge (idag, lidf) {

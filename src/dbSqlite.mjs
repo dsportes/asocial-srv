@@ -279,7 +279,6 @@ export class SqliteProvider {
   }
 
   /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
-  */
   async getRowTicketV(op, id, ids, v) {
     const st = this._stmt('SELTKV', 'SELECT * FROM tickets WHERE id = @id AND ids = @ids AND v > @v')
     const row = st.get({ id : id, ids: ids, v: v })
@@ -290,6 +289,7 @@ export class SqliteProvider {
     }
     return null
   }
+  */
 
   /* Retourne LE membre si sa CV est MOINS récente que celle détenue en session (de version vcv)
   */

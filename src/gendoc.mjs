@@ -40,6 +40,7 @@ export async function decryptRow (op, row) {
   return row
 }
 
+/* 
 export async function prepRow (op, row) {
   const b = !ROWSENCLAIR.has(row._nom)
   const la = GenDoc._attrs[row._nom]
@@ -49,6 +50,14 @@ export async function prepRow (op, row) {
     if (b && a === '_data_') r[a] = x === undefined ? null : crypterSrv(op.db.appKey, x)
     else r[a] = x === undefined ?  null : x
   })
+  return r
+} 
+*/
+
+export async function prepRow (op, row) {
+  const r = { ...row }
+  if (!ROWSENCLAIR.has(row._nom)) r._data_ = crypterSrv(op.db.appKey, row._data_)
+  delete r._nom
   return r
 }
 
@@ -60,7 +69,7 @@ export class NsOrg {
     this.ch = this.chn || cin.org !== this.org
   }
 
-  static noms = { comptas: 'hps1', sponsorings: 'ids', avatars: 'hpc' }
+  static noms = { comptes: 'hk', sponsorings: 'ids', avatars: 'hk' }
 
   chRow (row) {
     if (!this.ch) return row
@@ -111,12 +120,12 @@ export class GenDoc {
     fpurges: ['id', '_data_'],
     partitions: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
-    comptes: ['id', 'v', 'hxr', '_data_'],
+    comptes: ['id', 'v', 'hk', '_data_'],
     comptis: ['id', 'v', '_data_'],
     invits: ['id', 'v', '_data_'],
     comptas: ['id', 'v', '_data_'],
-    versions: ['id', 'v', 'suppr', '_data_'],
-    avatars: ['id', 'v', 'vcv', 'hpc', '_data_'],
+    versions: ['id', 'v', 'dlv', '_data_'],
+    avatars: ['id', 'v', 'vcv', 'hk', '_data_'],
     notes: ['id', 'ids', 'v', '_data_'],
     transferts: ['id', 'ids', 'dlv', '_data_'],
     sponsorings: ['id', 'ids', 'v', 'dlv', '_data_'],
@@ -158,7 +167,7 @@ export class GenDoc {
   constructor (nom) { 
     const la = GenDoc._attrs[nom]
     this._nom = nom
-    la.forEach(a => { this[a] = a !== '_data_' ? 0 : null })
+    la.forEach(a => { this[a] = a === '_data_' ? null : (a === 'org' ? '' : 0) })
   }
 
   init (d) {
@@ -171,16 +180,18 @@ export class GenDoc {
     - en calculant les attributs calculés : iv ivb dhb icv
     - en produisant un _data_ null si l'objet n'a pas d'attributs NON META ou est _zombi
   */
-  toRow () {
+  toRow (op) {
     const row = { _nom: this._nom }
-    const la = this._attrs
-    la.forEach(a => { if (a !== '_data_') row[a] = this[a] })
+    row.id = ID.long(this.id, op.ns)
+    if (this.ids !== undefined) row.ids = ID.long(this.ids, op.ns)
+    if (this.hk !== undefined) row.hk = ID.long(this.hk, op.ns)
+    if (this.v !== undefined) row.v = this.v
+    if (this.vcv !== undefined) row.vcv = this.vcv
+    if (this.dlv !== undefined) row.dlv = this.dlv
+    if (this.dfh !== undefined) row.dfh = this.dfh
     /* le row est "zombi", c'est à dire sans _data_ quand,
-    a) sa dlv est dépassée - mais il pouvait déjà l'être,
-    b) son flag _zombi est à true
-    Ca concerne :
-    - les "versions" qui indiquent que leur groupe / avatar a disparu
-    - les "notes" détruites (le row est conservé pour synchronisation)
+      a) sa dlv non 0 est dépassée : sponsorings versions
+      b) son flag _zombi est à true : notes
     */
     const z = this.dlv && this.dlv <= operations.auj
     if (!z && !this._zombi) {
@@ -281,10 +292,11 @@ export class Espaces extends GenDoc {
     - Délégués : pas stats dlvat ...
     - tous comptes: la notification de _leur_ partition sera seule lisible.
   */
-  toShortRow () {
+  toShortRow (op) {
+    if (op.estAdmin || op.estComptable) return this.toRow(op)
     const x1 = this.moisStat, x2 = this.moisStatT, x3 = this.dlvat, x4 = this.nbmi
     delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
-    const r = this.toRow()
+    const r = this.toRow(op)
     this.moisStat = x1; this.moisStatT = x2; this.dlvat = x3; this.nbmi = x4
     return r
   }
@@ -345,9 +357,9 @@ export class Tickets extends GenDoc {
     }
   }
 
-  toShortRow () {
+  toShortRow (op) {
     const idc = this.idc; delete this.idc
-    const row = this.toRow()
+    const row = this.toRow(op)
     this.idc = idc
     return row
   }
@@ -388,8 +400,8 @@ export class Partitions extends GenDoc {
     })
   }
 
-  toShortRow (del) {
-    if (del) return this.toRow()
+  toShortRow (op, del) {
+    if (del) return this.toRow(op)
     const sv = this.mcpt
     const m = {}
     for(const idx in this.mcpt) {
@@ -397,7 +409,7 @@ export class Partitions extends GenDoc {
       if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAP }
     }
     this.mcpt = m
-    const r = this.toRow()
+    const r = this.toRow(op)
     this.mcpt = sv
     return r
   }
@@ -502,6 +514,7 @@ export class Syntheses extends GenDoc {
     this._maj = true
   }
 
+  toShortRow (op) { return this.toRow(op)}
 }
 
 /* Comptes ************************************************************
@@ -561,14 +574,14 @@ export class Comptes extends GenDoc {
 
   get _estA () { return this.idp === 0 }
 
-  toShortRow() {
+  toShortRow (op) {
     const x1 = this.rds
     const x2 = encode(this.mav)
     const x3 = encode(this.mpg)
     delete this.rds
     for(const idx in this.mav) delete this.mav[idx].rds
     for(const idx in this.mpg) delete this.mpg[idx].rds
-    const row = this.toRow()
+    const row = this.toRow(op)
     this.rds = x1
     this.mav = decode(x2)
     this.mpg = decode(x3)
@@ -817,7 +830,7 @@ export class Comptis extends GenDoc {
     this._maj = true
   }
 
-  toShortRow() { return this.toRow() }
+  toShortRow (op) { return this.toRow(op) }
 }
 
 /* Invits *************************************************
@@ -849,7 +862,7 @@ export class Invits extends GenDoc {
     })
   }
 
-  toShortRow () { return this.toRow() }
+  toShortRow (op) { return this.toRow(op) }
 
   addInv (inv) {
     const l = []
@@ -907,7 +920,7 @@ export class Comptas extends GenDoc {
     return x.compile()
   }
 
-  toShortRow () { return this.toRow() }
+  toShortRow (op) { return this.toRow(op) }
 
   majcpt (c) {
     this._estA = c.estA 
@@ -1074,21 +1087,21 @@ export class Avatars extends GenDoc {
     this._maj = true
   }
 
-  toShortRow () { return this.toRow() }
+  toShortRow (op) { return this.toRow(op) }
 }
 
 /* Classe Notes ******************************************************/
 export class Notes extends GenDoc { 
   constructor() { super('notes') } 
 
-  toShortRow (idc) { //idc : id du compte demandeur
+  toShortRow (op, idc) { //idc : id du compte demandeur
     const htmx = this.htm
     if (idc && this.htm) {
       const ht = this.htm[ID.court(idc)]
       if (ht) this.ht = ht
       delete this.htm
     }
-    const r = this.toRow()
+    const r = this.toRow(op)
     this.htm = htmx
     return r
   }
@@ -1175,7 +1188,7 @@ export class Sponsorings extends GenDoc {
     this._maj = true
   }
 
-  toShortRow () { return this.toRow() }
+  toShortRow (op) { return this.toRow(op) }
 }
 
 /* Chats *************************************************/
@@ -1261,7 +1274,7 @@ export class Chats extends GenDoc {
 
   get estPassif () { return Math.floor(this.st / 10) === 0 }
 
-  toShortRow () { return this.toRow()}
+  toShortRow (op) { return this.toRow(op)}
 }
 
 /* Classe Groupe ****************************************************
@@ -1478,7 +1491,7 @@ export class Groupes extends GenDoc {
   /* Sérialisation en row après avoir enlevé 
   les champs non pertinents selon l'accès aux membres?
   Pas accès membre: tid ne contient que les entrées des avatars du compte */
-  toShortRow (c, m) { // c : compte, m: le compte à accès aux membres
+  toShortRow (op, c, m) { // c : compte, m: le compte à accès aux membres
     let row
     const idh = this.idh; delete this.idh
     if (!m) {
@@ -1488,10 +1501,10 @@ export class Groupes extends GenDoc {
       for (const im of c.mmb(this.id)) s.add(im)
       for (let im = 0; im < tid.length; im++) tidn[im] = s.has(im) ? tid[im] : 0
       this.tid = tidn; delete this.lng; delete this.lnc
-      row = this.toRow()
+      row = this.toRow(op)
       this.tid = tid; this.lnc = lnc; this.lng = lng
     } else {
-      row = this.toRow()
+      row = this.toRow(op)
     }
     this.idh = idh
     return row
@@ -1605,7 +1618,7 @@ export class Membres extends GenDoc {
     this._maj = true
   }
 
-  toShortRow () { return this.toRow() }
+  toShortRow (op) { return this.toRow(op) }
 }
 
 /* Chatgrs ******************************************************
@@ -1629,7 +1642,7 @@ export class Chatgrs extends GenDoc {
     })
   }
 
-  toShortRow () { return this.toRow() }
+  toShortRow (op) { return this.toRow(op) }
 
   addItem (im, dh, t) {
     const it = { im, dh, dhx: 0, t }
