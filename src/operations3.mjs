@@ -159,7 +159,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   async phase2 (args) {
     await this.gd.getESOrg(args.org) // set this.ns
     await this.getCheckEspace()
-    if (await this.db.getCompteHXR(this, ID.long(args.hps1, this.ns))) this.setRes('existe', true)
+    if (await this.db.getCompteHk(this, ID.long(args.hps1, this.ns))) this.setRes('existe', true)
   }
 }
 
@@ -181,7 +181,7 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
         return
       }
     } if (args.t === 3) {
-      if (await this.db.getAvatarHpc(this, ID.long(args.hps1, this.ns))) {
+      if (await this.db.getAvatarHk(this, ID.long(args.hps1, this.ns))) {
         this.setRes('existe', true)
         return
       }
@@ -271,7 +271,7 @@ operations.SyncSp = class SyncSp extends Operation {
     this.setRes('dataSync', ds.serial(this.ns))
 
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
-    const pid = sp.partitionId ? ID.long(sp.partitionId, this.ns) : 0
+    const pid = sp.partitionId || 0
     if (pid) {
       const partition = await this.gd.getPA(pid) // assert si n'existe pas
       const s = partition.getSynthese()
@@ -385,8 +385,7 @@ operations.GetPartition = class GetPartition extends Operation {
 
   async phase2 (args) {
     if (this.compte._estA) throw new AppExc(F_SRV, 220)
-    let id = args.id
-    if (!this.estComptable) id = ID.long(this.compte.idp, this.ns)
+    const id = !this.estComptable ? this.compte.idp : args.id
     const partition = compile(await this.getRowPartition(id, 'GetPartition'))
     this.setRes('rowPartition', partition.toShortRow(this, this.compte.del))
   }

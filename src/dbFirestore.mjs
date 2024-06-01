@@ -322,10 +322,10 @@ export class FirestoreProvider {
     return compile(await decryptRow(op, row))
   }
 
-  async getCompteHXR(op, hxr) { // OK1
+  async getCompteHk(op, hk) { // OK1
     const p = FirestoreProvider._collPath('comptes')
     // INDEX simple sur comptas hps1
-    const q = this.fs.collection(p).where('hxr', '==', hxr)
+    const q = this.fs.collection(p).where('hk', '==', hk)
     let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
     if (!qs.empty) {
@@ -337,10 +337,10 @@ export class FirestoreProvider {
     return await decryptRow(op, row)
   }
 
-  async getAvatarHpc(op, hpc) {
+  async getAvatarHk(op, hk) {
     const p = FirestoreProvider._collPath('avatars')
     // INDEX simple sur avatars hpc
-    const q = this.fs.collection(p).where('hpc', '==', hpc)
+    const q = this.fs.collection(p).where('hk', '==', hk)
     let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
     let row = null
     if (!qs.empty) for (const qds of qs.docs) { row = qds.data(); break }

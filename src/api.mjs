@@ -195,6 +195,7 @@ export class Cles {
 
 /** ID **********************************************************************/
 export class ID {
+  static RDSESPACE = 0
   static RDSCOMPTE = 7
   static RDSAVATAR = 8
   static RDSGROUPE = 9
@@ -210,7 +211,12 @@ export class ID {
 
   static rdsType(id) { return Math.floor(id / d13) % 10 }
 
-  static duComptable (ns) { return ((ns * 10) + 1) * d13 }
+  static idEsp (rds) { 
+    const ns = ID.ns(rds)
+    return ID.rdsType(rds) === ID.RDSESPACE && ns === (rds % 100) ? ns : 0 
+  }
+
+  static duComptable (ns) { return (((ns || 0) * 10) + 1) * d13 }
 
   static estComptable (id) { return id % d13 === 0 }
 

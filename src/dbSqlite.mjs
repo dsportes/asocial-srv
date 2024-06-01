@@ -304,9 +304,9 @@ export class SqliteProvider {
     return null
   }
   
-  async getCompteHXR(op, hxr) {
-    const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hxr = @hxr')
-    const row = st.get({ hxr })
+  async getCompteHk(op, hk) {
+    const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hk = @hk')
+    const row = st.get({ hk })
     if (row) {
       row._nom = 'comptes'
       op.nl++
@@ -315,9 +315,9 @@ export class SqliteProvider {
     return null
   }
   
-  async getAvatarHpc(op, hpc) {
-    const st = this._stmt('SELHPC', 'SELECT * FROM avatars WHERE hpc = @hpc')
-    const row = st.get({ hpc })
+  async getAvatarHk(op, hk) {
+    const st = this._stmt('SELHPC', 'SELECT * FROM avatars WHERE hk = @hk')
+    const row = st.get({ hk })
     if (row) {
       row._nom = 'avatars'
       op.nl++

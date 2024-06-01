@@ -140,7 +140,6 @@ operations.SetEspaceT = class SetEspaceT extends Operation {
 /*`SetEspaceOptionA` : changement de l'option A, nbmi, dlvat par le Comptable
 POST:
 - `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié.
 - `optionA` : 0 1 2.
 - dlvat: aaaammjj,
 - nbmi:
@@ -156,7 +155,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    let rowEspace = await this.getRowEspace(args.ns, 'SetEspaceOptionA')
+    let rowEspace = await this.getRowEspace(this.ns, 'SetEspaceOptionA')
     const espace = compile(rowEspace)
     espace.v++
     if (args.optionA) espace.opt = args.optionA

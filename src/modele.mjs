@@ -318,7 +318,7 @@ class GD {
       c = this.comptes.get(id)
       if (c) t = true; else c = compile(await this.op.getRowCompte(id))
     } else
-      c = compile(await this.op.db.getCompteHXR(this.op, (this.espace.id * d14) + hXR))
+      c = compile(await this.op.db.getCompteHk(this.op, ID.long(hXR, this.op.ns)))
     if (!c || c.v === V99) { 
       if (!assert) return null; else assertKO(assert, 4, [c.id]) }
     if (!t) this.comptes.set(c.id, c)
@@ -385,11 +385,9 @@ class GD {
     let disp = false
     let av = this.avatars.get(id)
     if (av) return av.vcv > vcv ? { av, disp } : { disp }
-    av = await this.op.db.getAvatarVCV(this.op, id, vcv)
+    av = await this.op.db.getAvatarVCV(this.op, ID.long(id, this.op.ns) , vcv)
     disp = (!av || av.v === V99)
     if (disp) return { disp }
-    // eslint-disable-next-line no-unused-vars
-    // const xx = await this.getV(av.rds)
     this.avatars.set(id, av)
     disp = false
     return av.vcv > vcv ? { av, disp } : { disp }
@@ -547,12 +545,11 @@ class GD {
   }
   */
 
-  async getV (rds, cage) { // cage: 1:compte 2:avatar, 3:groupe, 4:espace
-    const lrds = cage === 4 ? this.op.ns : rds
-    let v = this.versions.get(lrds)
+  async getV (rds) { // cage: 1:compte 2:avatar, 3:groupe, 4:espace
+    let v = this.versions.get(rds)
     if (!v) {
-      v = compile(await this.op.getRowVersion(lrds))
-      if (v) this.versions.set(lrds, v)
+      v = compile(await this.op.getRowVersion(rds))
+      if (v) this.versions.set(rds, v)
     }
     return !v || v.dlv ? null : v
   }
@@ -568,15 +565,11 @@ class GD {
   - pour cage, récupère le version
   - s'il avait déjà été incrémenté, ne fait rien
   */
-  async majV (rds, id, cage) { // cage: 1:compte 2:avatar, 3:groupe, 4:espace
-    const lrds = cage === 4 ? this.op.ns :ID.long(rds, this.op.ns)
-    let v = this.versions.get(lrds)
+  async majV (rds, id) { // id: seulement pour trace sur assert
+    let v = this.versions.get(rds)
     if (!v) {
-      if (!cage) assertKO('majV', 20, [rds, id])
-      else {
-        v = await this.getV(rds, cage)
-        if (!v) assertKO('majV', 20, [rds, id])
-      }
+      v = await this.getV(rds)
+      if (!v) assertKO('majV', 20, [rds, id])
     }
     if (!v._maj) {
       v.v++
@@ -588,10 +581,10 @@ class GD {
     return v.v
   }
 
-  async majdoc (d, cage) { // cage: 1:compte 2:this.avatars, 3:groupe, 4:espace
+  async majdoc (d) {
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''), cage)
+      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
       if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
@@ -601,7 +594,7 @@ class GD {
   async majesp (d) {
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.id, d.id, 4)
+      d.v = await this.majV(d.id, d.id)
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
@@ -633,11 +626,11 @@ class GD {
   }
 
   async maj () {
-    for(const [,d] of this.avatars) await this.majdoc(d, 2)
-    for(const [,d] of this.groupes) await this.majdoc(d, 3)
+    for(const [,d] of this.avatars) await this.majdoc(d)
+    for(const [,d] of this.groupes) await this.majdoc(d)
     for(const [,d] of this.sdocs) await this.majdoc(d)
-    for(const [,d] of this.comptis) await this.majdoc(d, 1)
-    for(const [,d] of this.invits) await this.majdoc(d, 1)
+    for(const [,d] of this.comptis) await this.majdoc(d)
+    for(const [,d] of this.invits) await this.majdoc(d)
     if (this.espace) await this.majesp(this.espace)
     
     // comptas SAUF celle du compte courant
