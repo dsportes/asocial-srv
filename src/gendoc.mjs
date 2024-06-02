@@ -260,10 +260,14 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
-  setOptions (args) {
-    if (args.optionA) this.opt = args.optionA
-    if (args.dlvat) this.dlvat = args.dlvat
-    if (args.nbmi) this.nbmi = args.nbmi
+  setOptions (optionA, nbmi) {
+    if (optionA !== undefined) this.opt = optionA
+    if (nbmi !== undefined) this.nbmi = nbmi
+    this._maj = true
+  }
+
+  setDlvat (dlvat) {
+    this.dlvat = dlvat
     this._maj = true
   }
 

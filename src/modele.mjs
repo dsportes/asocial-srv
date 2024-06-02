@@ -85,7 +85,7 @@ export class Esp {
     l.forEach(r => { 
       const ns = ID.ns(r.id)
       Esp.map.set(ns, r)
-      Esp.orgs.set(r.org, r.ns)
+      Esp.orgs.set(r.org, ns)
       if (r.v > Esp.v) Esp.v = r.v
     })
     Esp.dh = Date.now()
@@ -93,23 +93,23 @@ export class Esp {
 
   static actifs () {
     const l = []
-    this.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.id) })
+    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.id) })
     return l
   }
 
   static async getEsp (op, ns, lazy) {
     if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
-    return compile(this.map.get(ns))
+    return compile(Esp.map.get(ns))
   }
 
   static async getNsOrg (op, org, lazy) {
     if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
-    return this.orgs.get(org)
+    return Esp.orgs.get(org)
   }
 
   static async getEspOrg (op, org, lazy) {
     const ns = await Esp.getNsOrg(op, org, lazy)
-    return compile(this.map.get(ns))
+    return compile(Esp.map.get(ns))
   }
 
   static updEsp(op, e) {
@@ -117,7 +117,7 @@ export class Esp {
     if (!x || x.v < e.v) {
       const r = e.toRow(op)
       Esp.map.set(e.id, r)
-      Esp.orgs.set(e.org, r)
+      Esp.orgs.set(e.org, e.id)
     }
   }
 
@@ -268,10 +268,10 @@ class GD {
     return this.espace
   }
 
-  async getSY (ns) {
+  async getSY () {
     if (!this.synthese) {
-      this.synthese = compile(await Cache.getRow(this, 'syntheses',  0))
-      if (!this.synthese) throw assertKO('getSy', 16, [ns])
+      this.synthese = compile(await Cache.getRow(this.op, 'syntheses',  this.op.ns))
+      if (!this.synthese) throw assertKO('getSy', 16, [this.op.ns])
     }
     return this.synthese
   }

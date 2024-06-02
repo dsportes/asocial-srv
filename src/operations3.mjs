@@ -227,7 +227,7 @@ operations.SyncSp = class SyncSp extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.gd.getESOrg(args.org) // set this.ns
+    await this.gd.getESOrg(this.org) // set this.ns
     const espace = await this.getCheckEspace(false)
     this.setRes('rowEspace', espace.toShortRow(this))
 

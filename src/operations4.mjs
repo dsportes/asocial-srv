@@ -30,7 +30,6 @@ export function load4 () {
 /*`SetEspaceOptionA` : changement de l'option A, nbmi, dlvat par le Comptable
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `optionA` : 0 1 2.
-- dlvat: aaaammjj,
 - nbmi:
 Retour: rien
 */
@@ -39,7 +38,24 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
 
   async phase2 (args) {
     const espace = await this.getCheckEspace(true)
-    espace.setOptions(args)
+    espace.setOptions(args.optionA, args.nbmi)
+  }
+}
+
+/*`SetEspaceDlvat` : changement de dlvat par l'administrateur
+- `token` : jeton d'authentification du compte de **l'administrateur**
+- ns: 
+- dlvat: aaaammjj
+Retour: rien
+*/
+operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
+  constructor (nom) { super(nom, 1, 0)}
+
+  async phase2 (args) {
+    this.ns = args.ns
+    const espace = await this.gd.getES(true)
+    espace.setDlvat(args.dlvat)
+    // TODO : créer et réveiller la tache de nettoyage
   }
 }
 

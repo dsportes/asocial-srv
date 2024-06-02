@@ -1080,7 +1080,7 @@ export class DataSync {
     if (x.avatars) x.avatars.forEach(t => ds.avatars.set(t.id, t))
     ds.groupes = new Map()
     if (x.groupes) x.groupes.forEach(t => ds.groupes.set(t.id, t))
-    if (x.setRds) this.setRds = x.setRds
+    if (x.setRds) ds.setRds = x.setRds
     return ds
   }
 
@@ -1090,7 +1090,7 @@ export class DataSync {
       avatars: [],
       groupes: []
     }
-    if (ns) x.setRds = this.setLongsRds(ns)
+    if (ns) x.setRds = Array.from(this.setLongsRds(ns))
     else if (this.setRds) x.setRds = this.setRds
     if (this.avatars) this.avatars.forEach(t => x.avatars.push(t))
     if (this.groupes) this.groupes.forEach(t => x.groupes.push(t))
@@ -1108,7 +1108,7 @@ export class DataSync {
 
   setLongsRds (ns) {
     const s = new Set()
-    s.add(ns) // espaces
+    s.add(ID.long(ns, ns)) // espaces
     s.add(ID.long(this.compte.rds, ns)) // compte
     if (this.avatars) this.avatars.forEach(t => s.add(ID.long(t.rds, ns))) // avatars
     if (this.groupes) this.groupes.forEach(t => s.add(ID.long(t.rds, ns))) // groupes
