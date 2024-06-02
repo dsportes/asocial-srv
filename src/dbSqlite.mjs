@@ -125,16 +125,16 @@ export class SqliteProvider {
   }
 
   /*********************************************************************/
-  async setTache (t) {
+  async setTache (op, t) {
     const st = this._stmt('SETTACHE',
       'INSERT INTO taches (op, id, ids, ns, dh, exc) VALUES (@op, @id, @ids, @ns, @dh, @exc) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
     const ns = t.id ? ID.ns(t.id) : 0
     st.run({ op: t.op, id: t.id, ids: t.ids, ns, dh: t.dh, exc: t.exc })
   }
 
-  async delTache (op, id, ids) {
+  async delTache (op, top, id, ids) {
     const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND id = @id AND ids = @ids')
-    st.run({ op, id, ids })
+    st.run({ top, id, ids })
   }
 
   async prochTache (op, dh, lns) {

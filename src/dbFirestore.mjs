@@ -79,15 +79,15 @@ export class FirestoreProvider {
       await this.fs.doc(p).set(r)
   }
 
-  async delTache (t, op) { // t: {op, id, ids}
-    const p = 'taches/' + t.id + '/' + t.op + '/' + t.ids
-    if (!op.fake && op.transaction)
-      await op.transaction.delete(this.fs.doc(p))
+  async delTache (opr, op, id, ids) { // t: {op, id, ids}
+    const p = 'taches/' + id + '/' + op + '/' + ids
+    if (!opr.fake && opr.transaction)
+      await opr.transaction.delete(this.fs.doc(p))
     else
       await this.fs.doc(p).delete()
   }
 
-  async prochTache (dh, lns) {
+  async prochTache (op, dh, lns) {
     const l = [ 0, ...lns ]
     const q = this.fs.collection('taches')
       .where('ds', '<', dh)

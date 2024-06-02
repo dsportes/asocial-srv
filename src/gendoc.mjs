@@ -170,6 +170,7 @@ export class GenDoc {
     if (this.vcv !== undefined) row.vcv = this.vcv
     if (this.dlv !== undefined) row.dlv = this.dlv
     if (this.dfh !== undefined) row.dfh = this.dfh
+    if (this.org !== undefined) row.org = this.org
     /* le row est "zombi", c'est à dire sans _data_ quand,
       a) sa dlv non 0 est dépassée : sponsorings versions
       b) son flag _zombi est à true : notes

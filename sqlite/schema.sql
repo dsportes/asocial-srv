@@ -10,12 +10,6 @@ CREATE TABLE IF NOT EXISTS "taches" (
 CREATE INDEX "taches_dh" ON "taches" ( "dh" );
 CREATE INDEX "taches_ns" ON "taches" ( "ns" );
 
-CREATE TABLE IF NOT EXISTS "singletons" (
-  "id"	INTEGER,
-  "v" INTEGER,
-  "_data_"	BLOB,
-  PRIMARY KEY("id")
-);
 CREATE TABLE IF NOT EXISTS "espaces" (
   "id"	INTEGER,
   "org" TEXT,
@@ -45,12 +39,12 @@ CREATE INDEX "tribus_id_v" ON "partitions" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "comptes" (
   "id"	INTEGER,
   "v" INTEGER,
-  "hxr" INTEGER,
+  "hk" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "comptes_id_v" ON "comptes" ( "id", "v" );
-CREATE INDEX "comptes_hxr" ON "comptes" ( "hxr" );
+CREATE INDEX "comptes_hk" ON "comptes" ( "hk" );
 CREATE TABLE IF NOT EXISTS "comptas" (
   "id"	INTEGER,
   "v" INTEGER,
@@ -75,23 +69,23 @@ CREATE INDEX "invits_id_v" ON "invits" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "versions" (
   "id"	INTEGER,
   "v" INTEGER,
-  "suppr" INTEGER,
+  "dlv" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "versions_id_v" ON "versions" ( "id", "v" );
-CREATE INDEX "versions_suppr" ON "versions" ( "suppr" ) WHERE "suppr" > 0;
+CREATE INDEX "versions_dlv" ON "versions" ( "dlv" ) WHERE "suppr" > 0;
 CREATE TABLE IF NOT EXISTS "avatars" (
   "id"	INTEGER,
   "v" INTEGER,
   "vcv" INTEGER,
-  "hpc" INTEGER,
+  "hk" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "avatars_id_v" ON "avatars" ( "id", "v" );
 CREATE INDEX "avatars_id_vcv" ON "avatars" ( "id", "vcv" );
-CREATE INDEX "avatars_hpc" ON "avatars" ( "hpc" ) WHERE "hpc" > 0;
+CREATE INDEX "avatars_hk" ON "avatars" ( "hk" ) WHERE "hk" > 0;
 CREATE TABLE IF NOT EXISTS "chats" (
   "id"	INTEGER,
   "ids"  INTEGER,

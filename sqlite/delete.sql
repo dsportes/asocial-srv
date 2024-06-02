@@ -1,4 +1,4 @@
-DELETE FROM singletons;
+DELETE FROM taches;
 DELETE FROM espaces;
 DELETE FROM syntheses;
 DELETE FROM tickets;

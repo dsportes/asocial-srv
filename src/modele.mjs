@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, V99, hash } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -319,7 +319,7 @@ class GD {
       if (c) t = true; else c = compile(await this.op.getRowCompte(id))
     } else
       c = compile(await this.op.db.getCompteHk(this.op, ID.long(hXR, this.op.ns)))
-    if (!c || c.v === V99) { 
+    if (!c) { 
       if (!assert) return null; else assertKO(assert, 4, [c.id]) }
     if (!t) this.comptes.set(c.id, c)
     return c
@@ -371,7 +371,7 @@ class GD {
     let a = this.avatars.get(id)
     if (a) return a
     a = compile(await this.op.getRowAvatar(id))
-    if (!a || a.v === V99) { 
+    if (!a) { 
       if (!assert) return null; else assertKO(assert, 8, [a.id]) }
     this.avatars.set(id, a)
     return a
@@ -386,7 +386,7 @@ class GD {
     let av = this.avatars.get(id)
     if (av) return av.vcv > vcv ? { av, disp } : { disp }
     av = await this.op.db.getAvatarVCV(this.op, ID.long(id, this.op.ns) , vcv)
-    disp = (!av || av.v === V99)
+    disp = (!av)
     if (disp) return { disp }
     this.avatars.set(id, av)
     disp = false
@@ -410,7 +410,7 @@ class GD {
     let g = this.groupes.get(id)
     if (g) return g
     g = compile(await this.op.getRowGroupe(id))
-    if (!g || g.v === V99) { 
+    if (!g) { 
       if (!assert) return null; else assertKO(assert, 9, [g.id]) }
     this.groupes.set(id, g)
     return g

@@ -72,7 +72,7 @@ export class Taches {
     if (!tache || !Taches.OPSGC.has(tache.op)) return Date.now() + config.retrytache
     const nj = Math.floor(Date.now() / 86400000) + 1
     const h = (((config.heuregc[0] * 60) + config.heuregc[1]) * 60000)
-    return (nj * 86400000) + h + tache
+    return (nj * 86400000) + h + tache.op
   }
 
   /* Création des tâches GC n'existant pas dans taches
@@ -85,8 +85,9 @@ export class Taches {
     Taches.OPSGC.forEach(t => { s.add(t)})
     rows.forEach(r => { s.remove(r.op) })
     for (const t of s) {
-      const dh = Taches.dhRetry(t)
-      await Taches.db.setTache(op, t, 0, 0, dh, '')
+      const tache = new Taches({op: t, id: 0, ids: 0, ns: 0, dh: 0, exc: ''})
+      tache.dh = Taches.dhRetry(tache)
+      await Taches.db.setTache(op, tache)
     }
     return [Taches.OPSGC.size - s.size, s.size]
   }
