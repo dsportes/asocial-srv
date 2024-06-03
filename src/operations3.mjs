@@ -640,7 +640,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     if (await Esp.getEspOrg(this, args.org)) 
       throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
-    args.id = ID.duComptable(args.ns)
+    args.id = ID.duComptable()
 
     /* Espace */
     const cleES = crypterSrv(this.db.appKey, args.cleE)

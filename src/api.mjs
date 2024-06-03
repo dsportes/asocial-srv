@@ -174,9 +174,9 @@ export class Cles {
     rnd[0] = 4
     return rnd
   }
-
+  
   /* Retourne l'id courte ou longue depuis une clé */
-  static id (cle, ns) {
+  static id (cle) {
     if (!cle) return 0
     let id = 0
     if (cle[0] === 0) id = (cle[1] * 256) + cle[2]
@@ -185,9 +185,8 @@ export class Cles {
       const n = z ? 0 : (hash(cle) % d13)
       id = (cle[0] * d13) + n
     }
-    return !ns ? id : ((ns * d14) + id)
+    return id
   }
-
   static lnoms = ['partitions', 'avatars', 'avatars', 'groupes', 'espaces']
 
   static nom (cle) { return Cles.lnoms[cle[0]] }

@@ -650,7 +650,7 @@ class GD {
     }
 
     // maj compte courant
-    if (this.op.compte) await this.majdoc(this.op.compte, 1)
+    if (this.op.compte) await this.majdoc(this.op.compte)
 
     // maj partitions (possiblement affectées aussi par maj des comptes O)
     for(const [,d] of this.partitions) await this.majpart(d)
