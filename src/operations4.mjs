@@ -211,7 +211,7 @@ class OperationCh extends Operation {
   // Vérification des restrictions, initialisations de :
   async intro2 () {
     this.chI = await this.gd.getCAV(this.args.id, this.args.ids, 'Chat-intro')
-    this.chE = await this.gd.getCAV(this.args.idE, this.chI.idsE)
+    this.chE = await this.gd.getCAV(this.chI.idE, this.chI.idsE)
     if (!this.chE) return false
     if (this.setR.has(R.MINI)) await this.checkR()
     return true
@@ -336,8 +336,8 @@ operations.MajChat = class MajChat extends OperationCh {
     }
 
     // cas normal : maj sur chI et chE - avE et cptE existent
-    const avI = await this.gd.getAV(this.args.id, 'MajChat-2')
-    const avE = await this.gd.getAV(this.args.idE, 'MajChat-2')
+    const avI = await this.gd.getAV(args.id, 'MajChat-2')
+    const avE = await this.gd.getAV(this.chI.idE, 'MajChat-2')
 
     if (args.don) {
       if (!this.compte._estA) throw new AppExc(F_SRV, 214)
@@ -381,7 +381,7 @@ Retour
 operations.PassifChat = class PassifChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
-  async phase2 () { 
+  async phase2 (args) { 
     if (!await this.intro2()) { // E disparu. I voulait être passif, devient détruit
       this.chI.setZombi()
       this.setRes('suppr', true)
@@ -391,10 +391,10 @@ operations.PassifChat = class PassifChat extends OperationCh {
     if (this.chI.estPassif) return // était passif, reste passif, rien n'a changé
 
     // chI était actif, devient passif - E pas disparu, MAJ de cv et st
-    const avI = await this.gd.getAV(this.args.id, 'PassifChat-1')
+    const avI = await this.gd.getAV(args.id, 'PassifChat-1')
 
     this.compta.ncPlus(-1)
-    const avE = await this.gd.getAV(this.idEL, 'PassifChat-2')
+    const avE = await this.gd.getAV(this.chI.idE, 'PassifChat-2')
     this.chI.passifI()
     this.chI.setCvE(avE.cvA)
     this.chE.setCvE(avI.cvA)

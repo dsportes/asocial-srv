@@ -587,6 +587,7 @@ class GD {
       d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
       if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
+      if (d.cvE && !d.cvE.v) { d.vcv = d.v; d.cvE.v = d.v }
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
