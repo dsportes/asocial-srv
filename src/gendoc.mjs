@@ -761,7 +761,7 @@ export class Comptes extends GenDoc {
     }
   }
 
-  // Set des id (long) des membres des participations au groupe idg (court)
+  // Set des id des membres des participations au groupe idg
   idMbGr (idg) {
     const s = new Set()
     const x = this.mpg[idg]
@@ -1483,6 +1483,11 @@ export class Groupes extends GenDoc {
     return row
   }
 
+  am (im) {
+    const f = this.flags[im]
+    return ((f & FLAGS.AM) && (f & FLAGS.DM))
+  }
+
   /* Accès [membres, notes] d'un set d'id (compte ou avatar en fait) */
   amAn (s) {
     let n = false, m = false
@@ -1499,6 +1504,14 @@ export class Groupes extends GenDoc {
     const s = new Set()
     for (let im = 1; im < this.st.length; im++) if (this.st[im] === 5) s.add(im) 
     return s
+  }
+
+  estAnim (s) { // s: set des id de membres (avatars d'un compte)
+    for(const ida of s) {
+      const im = this.mmb.get(ida)
+      if (im && this.st[im] === 5) return true
+    }
+    return false
   }
 
   get nbActifs () {
@@ -1634,5 +1647,16 @@ export class Chatgrs extends GenDoc {
     }
     this.items = l
     this._maj = true
-  } 
+  }
+
+  supprItem (dh, dhx) {
+    const l = []
+    for(const x of this.items) {
+      if (x.dh === dh) {
+        l.push({ im: x.im, dh: x.dh, dhx: dhx, t: ''})
+      } else l.push(x)
+    }
+    this.items = l
+    this._maj = true
+  }
 }

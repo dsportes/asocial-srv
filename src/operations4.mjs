@@ -1233,6 +1233,39 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
   }
 }
 
+/* OP_ItemChatgr: 'Ajout ou effacement d\'un item au chat du groupe' *************
+- token donne les éléments d'authentification du compte.
+- idg : id du groupe
+- idaut: id du membre auteur du texte
+- dh: date-heure de l'item effacé
+- msgG: texte de l'item
+Retour:
+EXC: 
+- 8002: groupe disparu
+*/
+operations.ItemChatgr = class ItemChatgr extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = await this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
+    
+    if (args.idaut) {
+      if (!this.compte.mav[args.idaut]) throw new AppExc(F_SRV, 249)
+      const im = gr.mmb.get(args.idaut)
+      if (!im || gr.st[im] < 4 || !gr.am(im)) throw new AppExc(F_SRV, 273)
+      // écriture du chat
+      const ch = await this.gd.getCGR(args.idg, 'ItemChatgr')
+      ch.addItem(im, this.dh, args.msgG)
+    } else {
+      const s = this.compte.idMbGr(args.idg)
+      if (!gr.estAnim(s)) throw new AppExc(F_SRV, 274)
+      const ch = await this.gd.getCGR(args.idg, 'ItemChatgr')
+      ch.supprItem(args.dh, this.dh)
+    }
+  }
+}
+
 /* OP_MajDroitsMembre: 'Mise à jour des droits d\'un membre sur un groupe' *******
 - token donne les éléments d'authentification du compte.
 - idg : id du groupe
