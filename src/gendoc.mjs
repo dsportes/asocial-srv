@@ -656,7 +656,9 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
-  reporter (pc, nbj) { // pc de compta, nbj de compta
+  reporter (compta) { // pc de compta, nbj de compta
+    const pc = compta._pc, nbj = compta._nbj, qv = compta.qv
+    if (this.qv.qc !== qv.qc || this.qv.qn !== qv.qn || this.qv.qv !== qv.qv) return true
     if (Math.floor(this.qv.pcn / 20) !== Math.floor(pc.pcn / 20)) return true
     if (Math.floor(this.qv.pcv / 20) !== Math.floor(pc.pcv / 20)) return true
     if (this.qv.qc && (Math.floor(this.qv.pcc / 20) !== Math.floor(pc.pcc / 20))) return true
@@ -682,18 +684,21 @@ export class Comptes extends GenDoc {
     if (this.idp) // Compte O
       dlv = dlvmaxO
     else { // Compte A
-      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(this.auj, compta._nbj))
+      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, compta._nbj))
       dlv = dlvmax > d ? d : dlvmax
     }
     let diff1 = AMJ.diff(dlv, this.dlv); if (diff1 < 0) diff1 = -diff1
 
-    const rep = this._maj || diff1 || this.reporter(compta._pc, compta._nbj)
+    const rep = this._maj || diff1 || this.reporter(compta)
     if (rep) {
       this.dlv = dlv
       if (!this._estA) this.qv.pcc = compta._pc.pcc 
       else this.qv.nbj = compta._nbj
       this.qv.pcn = compta._pc.pcn
       this.qv.pcv = compta._pc.pcv
+      this.qv.qc = compta.qv.qc
+      this.qv.qn = compta.qv.qn
+      this.qv.qv = compta.qv.qv
       this._maj = true
       if (!this._estA) { // maj partition
         const p = await gd.getPA(this.idp)
@@ -1536,6 +1541,12 @@ export class Membres extends GenDoc {
     })
     if (dx) for (const f in dx) m[f] = dx[f]
     return m
+  }
+
+  setCvA (cv) {
+    this.vcv = cv.v
+    this.cvA = cv
+    this._maj = true
   }
 
   supprRad (suppr) { // suppr: 1-retour contact, 2:radié, 3-radié + LN

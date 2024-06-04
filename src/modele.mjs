@@ -342,7 +342,7 @@ class GD {
     if (c) return c
     c = compile(await this.op.getRowInvit(id))
     if (!c || !await this.getV(c.rds)) { 
-      if (!assert) return null; else assertKO(assert, 11, [c.id]) }
+      if (!assert) return null; else assertKO(assert, 11, [id]) }
     this.invits.set(id, c)
     return c
   }
@@ -487,7 +487,7 @@ class GD {
   }
 
   async nouvTKT (id, args, assert) {
-    const idc = ID.duComptable(this.op.ns)
+    const idc = ID.duComptable()
     const k = idc + '/TKT/' + args.ids
     const a = await this.getAV(idc, assert)
     const d = Tickets.nouveau(id, args)
@@ -501,7 +501,7 @@ class GD {
   }
 
   async getTKT (ids, assert) {
-    const idc = ID.duComptable(this.op.ns)
+    const idc = ID.duComptable()
     const k = idc + '/TKT/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
@@ -585,9 +585,11 @@ class GD {
     if (d._maj) {
       const ins = d.v === 0
       d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
-      if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
-      if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
-      if (d.cvE && !d.cvE.v) { d.vcv = d.v; d.cvE.v = d.v }
+      if (d._nom === 'avatars') {
+        if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
+      } else if (d._nom === 'groupes') {
+        if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
+      }
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
@@ -701,8 +703,8 @@ export class Operation {
 
     if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
 
-    if (this.setR.has(R.RAL1)) await sleep(3000)
-    if (this.setR.has(R.RAL2)) await sleep(6000)
+    if (this.setR.has(R.RAL1)) await sleep(500)
+    if (this.setR.has(R.RAL2)) await sleep(500)
 
     return this.result
   }
@@ -1011,7 +1013,7 @@ export class Operation {
   }
 
   async getRowChatgr (id, assert) {
-    const rc = await this.db.get(this, 'chatgrs', ID.long(id, this.ns), 1)
+    const rc = await this.db.get(this, 'chatgrs', ID.long(id, this.ns), ID.long(1, this.ns))
     if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [ID.long(id, this.ns), 1])
     return rc
   }

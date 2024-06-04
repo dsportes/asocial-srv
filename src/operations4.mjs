@@ -1076,7 +1076,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (gr.lnc.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 260)
     if (gr.lng.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 261)
 
-    const cinvit = await this.gd.getIN(avatar.idsChat, 'InvitationGroupe-2b')
+    const cinvit = await this.gd.getIN(avatar.id, 'InvitationGroupe-2b')
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
