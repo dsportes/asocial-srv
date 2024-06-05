@@ -1352,6 +1352,9 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
       const mb = await this.gd.getMBR(args.idg, im, 'MajDroitsMembre-3')
       mb.setDates(this.auj, iam, ian, idm, idn, ide)
     }
+
+    // Peut-être un animateur invitant ne l'est plus
+    if (fst === 4) await this.checkAnimInvitants(gr)
   }
 }
 

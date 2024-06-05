@@ -867,6 +867,20 @@ export class Invits extends GenDoc {
     this.invits = l
     this._maj = true
   }
+
+  majInvpar (idg, ida, setInv) {
+    for (const inv of this.invits) {
+      if (inv.idg === idg && inv.ida === ida) {
+        const invpar = []
+        for (const ip of inv.invpar) {
+          const idcv = ip.cvA.id
+          if (setInv.has(idcv)) invpar.push(ip)
+        }
+        inv.invpar = invpar
+      }
+    }
+    this._maj = true
+  }
 }
 
 /** Comptas ************************************************
@@ -1379,6 +1393,36 @@ export class Groupes extends GenDoc {
     if (suppr === 3 && this.lmg.indexOf(idm) === -1) 
       this.lmg.push(idm)
     this._maj = true
+  }
+
+  /* Vérifie que les invitants sont bien animateurs, sinon:
+  - met à jour ou supprime invits
+  - liste les ida des avatars dont les invitations sont à supprimer
+  - Map des ida des avatars dont les invitations sont à mettre à jour:
+    - value: set des ids des invitants
+  */
+  majInvits () {
+    const idasuppr = new Set()
+    const idamaj = new Map() // cle: ida, value: set des ids des invitants
+    for (const imx in this.invits) {
+      const im = parseInt(imx)
+      const invit = this.invits[imx]
+      const li = []
+      for (const imi of invit.li) if (this.st[imi] === 5) li.push(imi)
+      if (li.length === invit.li.length) continue
+      if (!li.length) {
+        idasuppr.add(this.tid[im])
+        delete this.invits[imx]
+        this.st[im] = 1
+      } else {
+        const setInv = new Set()
+        for (const ix of li) setInv.add(this.tid[ix])
+        idamaj.set(this.tid[im], setInv)
+        invit.li = li
+      }
+      this._maj = true
+    }
+    return { idasuppr, idamaj }
   }
 
   setInvit (im, invit, aInviter) {

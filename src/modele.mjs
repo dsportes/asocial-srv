@@ -1070,5 +1070,34 @@ export class Operation {
     }
     return [nc, nv]
   }
+
+  /* Métode de contrôle des invitations d'un groupe
+  vis à vis du statut d'anaimateur des invitants
+  */
+  async checkAnimInvitants (gr) {
+    /* Vérifie que les invitants sont bien animateurs, sinon:
+    - met à jour ou supprime invits
+    - liste les ida des avatars dont les invitations sont à supprimer
+    - Map des ida des avatars dont les invitations sont à mettre à jour:
+      - value: set des ids des invitants
+    */
+    const {idasuppr, idamaj} = gr.majInvits()
+    if (idasuppr.size || idamaj.size) {
+      for (const ida of idasuppr) {
+        const av = await this.gd.getAV(ida)
+        if (av) {
+          const invits = await this.gd.getIN(ida.idc)
+          if (invits) invits.supprInvit(gr.id, ida)
+        }
+      }
+      for (const [ida, setInv] of idamaj) {
+        const av = await this.gd.getAV(ida)
+        if (av) {
+          const invits = await this.gd.getIN(ida.idc)
+          if (invits) invits.majInvpar(gr.id, ida, setInv)
+        }
+      }
+    }
+  }
 }
 
