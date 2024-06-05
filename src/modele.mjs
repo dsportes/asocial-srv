@@ -1048,5 +1048,27 @@ export class Operation {
     // TODO
   }
 
+  /* Méthode de mise à jour des CV des membres d'un groupe */
+  async majCvMbr (idg) {
+    let nc = 0, nv = 0
+    const gr = await this.gd.getGR(idg)
+    if (!gr) return [nc, nv]
+    for (let im = 1; im < gr.tid.length; im++) {
+      const idm = gr.tid[im]
+      if (idm) {
+        const mbr = await this.gd.getMBR(idg, im)
+        if (mbr) {
+          nv++
+          /* Retourne { disp, av }
+          - avatar s'il existe ET que sa CV est plus récente que vcv
+          - disp: true avatar a disparu
+          */
+          const {disp, av} = await this.gd.getAAVCV(idm, mbr.vcv)
+          if (!disp && av) { mbr.setCvA(av.cvA); nc++ }
+        }
+      }
+    }
+    return [nc, nv]
+  }
 }
 

@@ -449,9 +449,10 @@ operations.StatutAvatar = class StatutAvatar extends Operation {
   }
 }
 
-/* OP_RafraichirCvsAv: 'Rafraichissement des CVs des chats de l\'avatar'
+/* OP_RafraichirCvsAv: 'Rafraichissement des CVs des membres / chats de l\'avatar'
 - token : jeton d'authentification du compte de **l'administrateur**
 - id : id de l'avatar
+- membres: true si rafraichir les CV des membres des groupes auxquels le compte de l'avatar participe
 Retour: [nc, nv]
 - `nc`: nombre de CV mises à jour
 - `nv` : nombre de chats existants
@@ -483,6 +484,39 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
         }
       }
     }
+    if (args.membres) for (const idg of this.compte.lgr(args.id)) {
+      const [ncg, nvg] = await this.majCvMbr(idg)
+      nc += ncg
+      nv += nvg
+    }
+    this.setRes('ncnv', [nc, nv])
+  }
+}
+
+/* OP_RafraichirCvsGr: 'Rafraichissement des CVs des membres d\'un grouper'
+- token : jeton d'authentification du compte de **l'administrateur**
+- idg : id du groupe
+Retour: [nc, nv]
+- `nc`: nombre de CV mises à jour
+- `nv` : nombre de chats existants
+Exception générique:
+- 8002: groupe disparu
+*/
+operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2(args) {
+    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
+    if (this.setR.has(R.MINI) && !this.estComptable) 
+      throw new AppExc(F_SRV, 802)
+    if (!this.compte.mpg[args.idg]) throw new AppExc(F_SRV, 275)
+
+    const groupe = await this.gd.getGR(args.idg)
+    if (!groupe) throw new AppExc(F_SRV, 2)
+    let nc = 0, nv = 0
+    const [ncg, nvg] = await this.majCvMbr(args.idg)
+    nc += ncg
+    nv += nvg
     this.setRes('ncnv', [nc, nv])
   }
 }
@@ -1327,6 +1361,9 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
 - idm : id du membre
 - rad: 1-redevient contact, 2-radiation, 3-radiation + ln
 Retour:
+EXC: 
+- 8002: groupe disparu
+- 8001: avatar disparu
 */
 operations.RadierMembre = class RadierMembre extends Operation {
   constructor (nom) { super(nom, 1, 2) }

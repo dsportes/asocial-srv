@@ -601,6 +601,15 @@ export class Comptes extends GenDoc {
     return new Comptes().init(r)
   }
 
+  lgr (ida) { // liste des ids des groupes auxquels participe l'avatar ida
+    const l = []
+    for(const idg in this.mpg) {
+      const e = this.mpg[idg]
+      if (e.lav.indexOf(ida) !== -1) l.push(parseInt(idg))
+    }
+    return l
+  }
+
   chgPS (args) {
     this.hk = args.hps1
     this.hXC = args.hXC
