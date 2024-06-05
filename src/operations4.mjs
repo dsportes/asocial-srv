@@ -1025,7 +1025,7 @@ operations.NouveauContact = class NouveauContact extends Operation {
       flags: 0,  
       msgG: null 
     }
-    cinvit.addInv(invx)
+    cinvit.setContact(invx)
   }
 }
 
@@ -1078,7 +1078,7 @@ operations.AnnulerContact = class AnnulerContact extends Operation {
     const mb = await this.gd.getMBR(args.idg, im, 'AnnulerContact-1')
     mb.setZombi()
     const invit = await this.gd.getIN(this.compte.id)
-    invit.supprInvit(args.idg, args.ida)
+    invit.supprContact(args.idg, args.ida)
   }
 }
 
@@ -1121,7 +1121,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (args.suppr) { // suppression de l'invitation
       if (s < 2 || s > 3) throw new AppExc(F_SRV, 252)
       gr.supprInvit(im, args.suppr)
-      cinvit.supprInvit(args.idg, args.idm)
+      cinvit.retourContact(args.idg, args.idm)
       membre.supprRad(args.suppr)
       return
     } 
@@ -1256,7 +1256,8 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     gr.refusInvit(im, args.cas)
 
     // invit
-    invit.it(args.idg, args.idm)
+    if (args.cas === 2) invit.retourContact(args.idg, args.idm)
+    else invit.supprInvit(args.idg, args.idm)
 
     // maj du membre invité
     membre.supprRad(args.cas === 2 ? 1 : 0)
@@ -1353,7 +1354,7 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
       mb.setDates(this.auj, iam, ian, idm, idn, ide)
     }
 
-    // Peut-être un animateur invitant ne l'est plus
+    // Peut-être un animateur invitant ne l'est plus: maj des invits
     if (fst === 4) await this.checkAnimInvitants(gr)
   }
 }

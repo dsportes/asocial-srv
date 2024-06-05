@@ -1081,20 +1081,14 @@ export class Operation {
     - Map des ida des avatars dont les invitations sont à mettre à jour:
       - value: set des ids des invitants
     */
-    const {idasuppr, idamaj} = gr.majInvits()
-    if (idasuppr.size || idamaj.size) {
-      for (const ida of idasuppr) {
-        const av = await this.gd.getAV(ida)
-        if (av) {
-          const invits = await this.gd.getIN(ida.idc)
-          if (invits) invits.supprInvit(gr.id, ida)
-        }
-      }
-      for (const [ida, setInv] of idamaj) {
-        const av = await this.gd.getAV(ida)
-        if (av) {
-          const invits = await this.gd.getIN(ida.idc)
-          if (invits) invits.majInvpar(gr.id, ida, setInv)
+    const idas= gr.majInvits()
+    for (const [ida, {rc, setInv}] of idas) {
+      const av = await this.gd.getAV(ida)
+      if (av) {
+        const invit = await this.gd.getIN(ida.idc)
+        if (invit) {
+          if (rc) invit.retourContact(gr.id, ida)
+          else invit.majInvpar(gr.id, ida, setInv)
         }
       }
     }

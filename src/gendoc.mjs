@@ -853,7 +853,8 @@ export class Invits extends GenDoc {
 
   toShortRow (op) { return this.toRow(op) }
 
-  addInv (inv) {
+  /* Ajoute / remplace l'entrée idg / ida par inv (contact) */
+  setContact (inv) {
     const l = []
     this.invits.forEach(i => { if (i.idg !== inv.idg || i.ida !== inv.ida) l.pudh(i)})
     l.push(inv)
@@ -861,14 +862,44 @@ export class Invits extends GenDoc {
     this._maj = true
   }
 
-  supprInvit (idg, ida) {
+  /* Supprime l'entrée idg / ida, n'est plus ni invité, ni contact */
+  supprContact (idg, ida) {
     const l = []
     this.invits.forEach(i => { if (i.idg !== idg || i.ida !== ida) l.pudh(i)})
     this.invits = l
     this._maj = true
   }
 
+  /* Ajoute / remplace l'entrée idg / ida par celle inv (invitation) */
+  addInv (inv) {
+    this.setContact(inv)
+  }
+
+  /* L'entrée idg / ida, si elle existe, redevient un contact */
+  retourContact (idg, ida) {
+    const l = []
+    this.invits.forEach(i => { 
+      if (i.idg === idg && i.ida === ida)
+        l.push({ idg: i.idg, ida: i.ida, cleGA: i.cleGA, cvG: i.cvG, flags: 0 })
+      else l.pudh(i)
+    })
+    this.invits = l
+    this._maj = true
+  }
+
+  /* L'entrée idg / ida, si elle existe, est supprimée */
+  supprInvit (idg, ida) {
+    const l = []
+    this.invits.forEach(i => { 
+      if (i.idg !== idg || i.ida !== ida) l.pudh(i)
+    })
+    this.invits = l
+    this._maj = true
+  }
+
   majInvpar (idg, ida, setInv) {
+    const l = []
+    let m = false
     for (const inv of this.invits) {
       if (inv.idg === idg && inv.ida === ida) {
         const invpar = []
@@ -876,10 +907,13 @@ export class Invits extends GenDoc {
           const idcv = ip.cvA.id
           if (setInv.has(idcv)) invpar.push(ip)
         }
-        inv.invpar = invpar
-      }
+        if (invpar.length !== inv.invpar.length) {
+          inv.invpar = invpar
+          m = true
+        }
+      } else l.push(inv)
     }
-    this._maj = true
+    if (m) { this.invits = l; this._maj = true }
   }
 }
 
@@ -1397,32 +1431,33 @@ export class Groupes extends GenDoc {
 
   /* Vérifie que les invitants sont bien animateurs, sinon:
   - met à jour ou supprime invits
-  - liste les ida des avatars dont les invitations sont à supprimer
   - Map des ida des avatars dont les invitations sont à mettre à jour:
-    - value: set des ids des invitants
+    - clé: ida
+    - value: 
+      - rc: true: retour contact, sinon maj de setInv
+      - setInv: set des ids des invitants
   */
   majInvits () {
-    const idasuppr = new Set()
-    const idamaj = new Map() // cle: ida, value: set des ids des invitants
+    const idas = new Map() // cle: ida, value: {rc, setInv}
     for (const imx in this.invits) {
       const im = parseInt(imx)
       const invit = this.invits[imx]
       const li = []
       for (const imi of invit.li) if (this.st[imi] === 5) li.push(imi)
-      if (li.length === invit.li.length) continue
-      if (!li.length) {
-        idasuppr.add(this.tid[im])
+      if (li.length === invit.li.length) continue // rien n'a changé pour cet avatar
+      if (!li.length) { // redevient contact
+        idas.set(this.tid[im], { rc: true, setInv: null })
         delete this.invits[imx]
         this.st[im] = 1
       } else {
         const setInv = new Set()
         for (const ix of li) setInv.add(this.tid[ix])
-        idamaj.set(this.tid[im], setInv)
+        idas.set(this.tid[im], { rc: false, setInv })
         invit.li = li
       }
       this._maj = true
     }
-    return { idasuppr, idamaj }
+    return idas
   }
 
   setInvit (im, invit, aInviter) {
