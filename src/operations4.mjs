@@ -1110,7 +1110,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (gr.lnc.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 260)
     if (gr.lng.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 261)
 
-    const cinvit = await this.gd.getIN(avatar.id, 'InvitationGroupe-2b')
+    const cinvit = await this.gd.getIN(avatar.idc, 'InvitationGroupe-2b')
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
@@ -1130,7 +1130,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     if (args.rmsv === 0 && s !== 1) throw new AppExc(F_SRV, 256) // création mais pas contact
     if ((args.rmsv === 2 || args.rmsv === 4) && (s < 2 || s > 3)) 
       throw new AppExc(F_SRV, 257) // modification ou vote mais pas déjà (pré) invité
-    if (gr.msu && args.rmsv === 4) throw new AppExc(F_SRV, 258) // vote mais pas en mode unanime
+    if (!gr.msu && args.rmsv === 4) throw new AppExc(F_SRV, 258) // vote mais pas en mode unanime
     if (!gr.msu && !args.idi) throw new AppExc(F_SRV, 255) // mode simple et absence d'avatar invitant
 
     // construction de l'item invit dans groupe
