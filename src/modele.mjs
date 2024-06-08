@@ -4,6 +4,7 @@ import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8, crypterSrv } from './util.mjs'
+import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, Sponsorings, /*Notes,*/
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
@@ -220,7 +221,6 @@ class GD {
 
     this.comptas = new Map()
     this.partitions = new Map()
-    
   }
 
   /* Création conjointe de espace et synthese */
@@ -545,7 +545,7 @@ class GD {
   }
   */
 
-  async getV (rds) { // cage: 1:compte 2:avatar, 3:groupe, 4:espace
+  async getV (rds) {
     let v = this.versions.get(rds)
     if (!v) {
       v = compile(await this.op.getRowVersion(rds))
@@ -565,7 +565,7 @@ class GD {
   - pour cage, récupère le version
   - s'il avait déjà été incrémenté, ne fait rien
   */
-  async majV (rds, id) { // id: seulement pour trace sur assert
+  async majV (rds, id, suppr) { // id: seulement pour trace sur assert
     let v = this.versions.get(rds)
     if (!v) {
       v = await this.getV(rds)
@@ -574,6 +574,7 @@ class GD {
     if (!v._maj) {
       v.v++
       v._maj = true
+      if (suppr) v.suppr = this.op.auj
       const rv = v.toRow(this.op)
       if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
       this.op.versions.push(rv)  
@@ -582,7 +583,10 @@ class GD {
   }
 
   async majdoc (d) {
-    if (d._maj) {
+    if (d._suppr) { // pour groupes, avatars
+      await this.majV(d.rds, d.id, true)
+      this.op.delete({ _nom: d._nom, id: d.id })
+    } else if (d._maj) {
       const ins = d.v === 0
       d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
       if (d._nom === 'avatars') {
@@ -702,6 +706,8 @@ export class Operation {
     await this.phase3(this.args) // peut ajouter des résultas
 
     if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
+    
+    if (this.aTaches) Taches.startDemon()
 
     if (this.setR.has(R.RAL1)) await sleep(500)
     if (this.setR.has(R.RAL2)) await sleep(500)
@@ -1037,9 +1043,23 @@ export class Operation {
   }
 
   /* Méthode de suppression d'un groupe */
-  // eslint-disable-next-line no-unused-vars
-  async supprGroupe (idg) {
-    // TODO
+  async supprGroupe (gr) {
+    // suppression des invitations en cours
+    // gr.invits` : map :clé: im, value: `{ fl, li[] }` des invitations en attente de vote ou de réponse.
+    for (const imx in gr.invits) {
+      const im = parseInt(imx)
+      const ida = gr.tid[im]
+      const av = await this.gd.getAV(ida)
+      if (av) {
+        const invits = await this.gd.getIN(av.idc) 
+        if (invits) invits.supprGrInvit(gr.id)
+      }
+    }
+    gr._suppr = true // suppression du groupe et de son chatgrs
+    this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
+    // tâches de suppression de tous les membres et des notes
+    Taches.nouvelle(this, Taches.operations.GRM, gr.id, 0)
+    Taches.nouvelle(this, Taches.operations.AGN, gr.id, 0)
   }
 
   /* Méthode de suppression d'un compte */

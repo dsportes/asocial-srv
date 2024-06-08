@@ -1383,14 +1383,14 @@ operations.RadierMembre = class RadierMembre extends Operation {
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
     const stm = gr.st[im] 
-    const anc = this.compte.imAnimsDeGr(gr)
+    const anc = this.compte.imAnimsDeGr(gr) // avatars du compte étant animateur
 
     if (moi) { // auto-radiation
       if (stm < 4) throw new AppExc(F_SRV, 270)
     } else {
-      // radiation d'un autre
+      // radiation d'un autre : exige qu'un de ses avatars soit animateur
       if (!anc.size) throw new AppExc(F_SRV, 267)
-      // mais pas un animateur
+      // mais pas un animateur : ne peut pas radier un animateur
       if (stm === 5) throw new AppExc(F_SRV, 269)
       // et à condition d'avoir accès aux membres
       const [am, ] = gr.amAn(anc)
@@ -1404,24 +1404,13 @@ operations.RadierMembre = class RadierMembre extends Operation {
       mb.retourContact(this.auj)
     } else {
       gr.radiation(im, args.rad === 3, moi)
-      mb.setZombi()
+      this.delete({_nom: 'membres', id: args.id, ids: im})
     }
 
-    // TODO gestion de la suppression éventuelle du compte
-    /*
-    if (gr.nbActifs) { // il reste desz actifs, le groupe n'est pas supprimé
-      if (gr.imh === im) {
-        gr.imh = 0
-        gr.dfh = this.auj
-        // répercussion dans compas de idc
-      }
-      this.update(gr.toRow())
-      this.update(mb.toRow())
-      return
-    }
-    // suppression des invitations en cours
-    // suppression de tous les membres
-    */
+    if (gr.imh === im) gr.finHeb(this.auj) // c'était l'hébergeur
+
+    // suppression éventuelle du groupe
+    if (gr.nbActifs === 0) await this.supprGroupe(gr)
   }
 }
 

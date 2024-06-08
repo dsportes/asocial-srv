@@ -897,6 +897,14 @@ export class Invits extends GenDoc {
     this._maj = true
   }
 
+  /* L'entrée idg / ida, si elle existe, est supprimée */
+  supprGrInvit (idg) {
+    const l = []
+    this.invits.forEach(i => { if (i.idg !== idg) l.pudh(i) })
+    this.invits = l
+    this._maj = true
+  }
+  
   majInvpar (idg, ida, setInv) {
     const l = []
     let m = false
@@ -1746,10 +1754,7 @@ export class Membres extends GenDoc {
     this._maj = true
   }
 
-  setZombi () {
-    this._zombi = true
-    this._maj = true
-  }
+  // setZombi () { this._zombi = true; this._maj = true }
 
   toShortRow (op) { return this.toRow(op) }
 }

@@ -101,6 +101,12 @@ export class Taches {
     }, 1)
   }
 
+  static nouvelle (oper, top, id, ids) {
+    const t = new Taches(top, id, ids, oper.ns, oper.dh, '')
+    oper.db.setTache(oper, t)
+    oper.aTaches = true
+  }
+
   constructor ({op, id, ids, ns, dh, exc}) {
     this.op = op; this.id = id; this.ids = ids; this.ns = ns; this.dh = dh; this.exc = exc
   }
