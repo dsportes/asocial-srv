@@ -1422,6 +1422,65 @@ operations.RadierMembre = class RadierMembre extends Operation {
     // suppression des invitations en cours
     // suppression de tous les membres
     */
+  }
+}
+
+/* OP_HebGroupe: 'Gestion de l\'hébergement et des quotas d\'un grouper'
+- token : jeton d'authentification du compte de **l'administrateur**
+- idg : id du groupe
+- nvHeb: id de l'avatar nouvel hébergeur
+- action
+  AGac1: 'Je prends l\'hébergement à mon compte',
+  AGac2: 'Je cesse d\'héberger ce groupe',
+  AGac3: 'Je reprends l\'hébergement de ce groupe par un autre de mes avatars',
+  AGac4: 'Je met à jour les nombres de notes et volumes de fichiers maximum attribués au groupe',
+- qn : nombre maximum de notes
+- qv : volume maximum des fichiers
+Retour:
+Exception générique:
+- 8001: avatar disparu
+- 8002: groupe disparu
+*/
+operations.HebGroupe = class HebGroupe extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const gr = await this.gd.getGR(args.idg)
+    if (!gr) throw new AppExc(F_SRV, 2)
+    if (args.action === 1 || args.action === 3){
+      const avatar = await this.gd.getAV(args.nvHeb)
+      if (!avatar) throw new AppExc(F_SRV, 1)
+    }
+
+    if (args.action === 2) { // fin d'hébergement
+      if (gr.idh !== this.id) throw new AppExc(F_SRV, 276)
+      gr.finHeb(this.auj)
+      this.compta.finHeb(gr.nn, gr.vf)
+      return
+    }
+
+    if (args.action === 1) { // Je reprends l\'hébergement à mon compte
+      // if (!gr.idh) throw new AppExc(F_SRV, 277)
+      if (gr.idh === this.id) throw new AppExc(F_SRV, 278)
+      const im = gr.mmb.get(args.nvHeb)
+      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(F_SRV, 279)
+      if (gr.st[gr.imh] === 5 && gr.st[im] !== 5) throw new AppExc(F_SRV, 280)
+      this.compta.debHeb(gr.nn, gr.vf)
+      gr.majHeb(args.qn, args.qv, this.id, im)
+      return
+    }
+
+    if (args.action === 3) { // Je reprends l\'hébergement de ce groupe par un autre de mes avatars
+      if (gr.idh !== this.id) throw new AppExc(F_SRV, 283)
+      const im = gr.mmb.get(args.nvHeb)
+      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(F_SRV, 284)
+      gr.majHeb(args.qn, args.qv, this.id, im)
+    }
+
+    if (args.action === 4) { // Je met à jour les nombres de notes et volumes de fichiers maximum attribués au groupe
+      if (gr.idh !== this.id) throw new AppExc(F_SRV, 285)
+      gr.majHeb(args.qn, args.qv, gr.idh, gr.imh)
+    }
 
   }
 }

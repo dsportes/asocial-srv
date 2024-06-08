@@ -1002,6 +1002,26 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
+  finHeb (nn, vf) {
+    this.qv.nn -= nn
+    this.qv.v -= vf
+    const c = new Compteurs(this.compteurs, this.qv)
+    this.compteurs = c.serial
+    this.majcpt(c)
+    this._maj = true
+  }
+
+  debHeb (nn, vf) {
+    if ((this.qv.nn + this.qv.ng + 1 + this.qv.nc) > this.qv.qn) throw new AppExc(F_SRV, 281)
+    if ((this.qv.v + vf) > this.qv.qv) throw new AppExc(F_SRV, 282)
+    this.qv.nn += nn
+    this.qv.v += vf
+    const c = new Compteurs(this.compteurs, this.qv)
+    this.compteurs = c.serial
+    this.majcpt(c)
+    this._maj = true
+  }
+
   plusTk (tk) {
     if (!this.tickets) this.tickets = {}
     this.tickets[tk.ids] = tk.shortTk()
@@ -1363,6 +1383,39 @@ export class Groupes extends GenDoc {
       lnc: [], 
       lng: []
     })
+  }
+
+  estActif (im) { return this.st[im] >= 4 }
+
+  accesNote2 (im) {
+    const f = im ? this.flags[im] : 0
+    const x = im && this.estActif(im) && (f & FLAGS.AN) && (f & FLAGS.DN) 
+    if (!x) return 0
+    return (f & FLAGS.DE) ? 2 : 1
+  }
+
+  finHeb (auj) {
+    this.imh = 0
+    this.idh = 0
+    this.dfh = auj
+    this.qn = 0
+    this.qv = 0
+    this._maj = true
+  }
+
+  majHeb (qn, qv, idh, imh) {
+    this.dfh = 0
+    this.idh = idh
+    this.imh = imh
+    this.qn = qn
+    this.qv = qv
+    this._maj = true
+  }
+
+  setNV (dn, dv) {
+    this.nn += dn
+    this.vf += dv
+    this._maj = true
   }
 
   setCv (cv) {
