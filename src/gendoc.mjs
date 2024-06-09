@@ -728,6 +728,16 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
+  radier (idg, ida) {
+    const e = this.mpg[idg]
+    if (!e) return
+    const i = e.lav.indexOf(ida)
+    if (i === -1) return
+    e.lav.splice(i, 1)
+    if (e.lav.length === 0) delete this.mpg[idg]
+    this._maj =true
+  }
+
   estAvc (id) { return this.mav[id] }
 
   /* Mise à niveau des listes avatars / groupes du dataSync
@@ -856,7 +866,7 @@ export class Invits extends GenDoc {
   /* Ajoute / remplace l'entrée idg / ida par inv (contact) */
   setContact (inv) {
     const l = []
-    this.invits.forEach(i => { if (i.idg !== inv.idg || i.ida !== inv.ida) l.pudh(i)})
+    this.invits.forEach(i => { if (i.idg !== inv.idg || i.ida !== inv.ida) l.push(i)})
     l.push(inv)
     this.invits = l
     this._maj = true
@@ -1608,10 +1618,11 @@ export class Groupes extends GenDoc {
         if (this.lnc.indexOf(idmc) === -1) this.lnc.push(idmc)
       } else if (this.lng.indexOf(idmc) === -1) this.lng.push(idmc)
     }
+    this._maj = true
   }
 
   /* Sérialisation en row après avoir enlevé 
-  les champs non pertinents selon l'accès aux membres?
+  les champs non pertinents selon l'accès aux membres.
   Pas accès membre: tid ne contient que les entrées des avatars du compte */
   toShortRow (op, c, m) { // c : compte, m: le compte à accès aux membres
     let row
@@ -1620,7 +1631,11 @@ export class Groupes extends GenDoc {
       const tid = this.tid, lng = this.lng, lnc = this.lnc
       const tidn = new Array(tid.length)
       const s = new Set()
-      for (const im of c.mmb(this.id)) s.add(im)
+      const e = c.mpg[this.id]
+      if (e) for (const ida of e.lav) {
+        const im = this.mmb.get(ida)
+        if (im) s.add(im)
+      }
       for (let im = 0; im < tid.length; im++) tidn[im] = s.has(im) ? tid[im] : 0
       this.tid = tidn; delete this.lng; delete this.lnc
       row = this.toRow(op)

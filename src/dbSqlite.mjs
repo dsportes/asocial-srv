@@ -137,11 +137,12 @@ export class SqliteProvider {
     st.run({ top, id, ids })
   }
 
-  async prochTache (op, dh, lns) {
-    const st = this._stmt('PROCHTACHE', 
-      'SELECT * FROM taches WHERE dh < @dh AND ns IN @l ORDER BY dh ASC LIMIT 1')
-    const rows = st.all({ dh, l: '(0,' + lns.join(',') + ')' })
-    return rows.length ? null : rows[0]
+  async prochTache (op, dh, lst) {
+    const lns = '0,' + lst.join(',')
+    const st = this._stmt('PROCHTACHE' + lns, 
+      'SELECT * FROM taches WHERE dh < @dh AND ns IN (' + lns + ') ORDER BY dh ASC LIMIT 1')
+    const rows = st.all({ dh })
+    return !rows.length ? null : rows[0]
   }
 
   async nsTaches (ns) {
@@ -573,7 +574,7 @@ export class SqliteProvider {
   }
 
   async purgeVER (op, suppr) {
-    const st = this._stmt('DELVER', 'DELETE FROM versions WHERE suppr > 0 AND suppr < @suppr')
+    const st = this._stmt('DELVER', 'DELETE FROM versions WHERE dlv > 0 AND dlv < @suppr')
     const info = st.run({ suppr })
     const n = info.changes
     op.ne += n

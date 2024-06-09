@@ -1363,6 +1363,7 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
 - token donne les éléments d'authentification du compte.
 - idg : id du groupe
 - idm : id du membre
+- cleGA: cle G du groupe cryptée par la clé du membre 
 - rad: 1-redevient contact, 2-radiation, 3-radiation + ln
 Retour:
 EXC: 
@@ -1377,17 +1378,15 @@ operations.RadierMembre = class RadierMembre extends Operation {
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.idm)
     if (!avatar) throw new AppExc(F_SRV, 1)
-    const compte = await this.gd.getCO(avatar.idc, 'RadierMembre-2')
+    const compte = avatar.idc === this.id ? this.compte : await this.gd.getCO(avatar.idc, 'RadierMembre-2')
     const moi = compte.estAvc(args.idm)
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(F_SRV, 251)
-    const stm = gr.st[im] 
+    const stm = gr.st[im] // statut AVANT radiation
     const anc = this.compte.imAnimsDeGr(gr) // avatars du compte étant animateur
 
-    if (moi) { // auto-radiation
-      if (stm < 4) throw new AppExc(F_SRV, 270)
-    } else {
+    if (!moi) {
       // radiation d'un autre : exige qu'un de ses avatars soit animateur
       if (!anc.size) throw new AppExc(F_SRV, 267)
       // mais pas un animateur : ne peut pas radier un animateur
@@ -1406,8 +1405,28 @@ operations.RadierMembre = class RadierMembre extends Operation {
       gr.radiation(im, args.rad === 3, moi)
       this.delete({_nom: 'membres', id: args.id, ids: im})
     }
+    const stmap = gr.st[im] // statut APRES radiation
+    if (stm < 4) { // est actuellement dans invits
+      if (stmap === 0) { // ne doit plus l'être
+        const invits = await this.gd.getIN(compte.id)
+        if (invits) invits.supprContact(args.idg, args.idm)
+      }
+    } else {
+      if (stmap === 1) { // il doit désormais y être
+        const invits = await this.gd.getIN(compte.id)
+        const inv = {
+          idg: args.idg, 
+          ida: args.idm, 
+          cleGA: args.cleGA, 
+          cvG: gr.cvG
+        }
+        if (invits) invits.setContact(inv)
+      }
+    }
 
     if (gr.imh === im) gr.finHeb(this.auj) // c'était l'hébergeur
+
+    compte.radier(args.idg, args.idm)
 
     // suppression éventuelle du groupe
     if (gr.nbActifs === 0) await this.supprGroupe(gr)

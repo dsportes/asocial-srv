@@ -94,7 +94,7 @@ export class Esp {
 
   static actifs () {
     const l = []
-    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.id) })
+    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(ID.ns(e.id)) })
     return l
   }
 
@@ -574,7 +574,7 @@ class GD {
     if (!v._maj) {
       v.v++
       v._maj = true
-      if (suppr) v.suppr = this.op.auj
+      if (suppr) v.dlv = this.op.auj
       const rv = v.toRow(this.op)
       if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
       this.op.versions.push(rv)  
@@ -722,7 +722,7 @@ export class Operation {
   async phase3 () { return }
 
   async transac () { // Appelé par this.db.doTransaction
-    await this.auth() // this.compta est accessible (si authentifié)
+    if (!this.SYS) await this.auth() // this.compta est accessible (si authentifié)
 
     if (this.phase2) await this.phase2(this.args)
 
@@ -1058,8 +1058,8 @@ export class Operation {
     gr._suppr = true // suppression du groupe et de son chatgrs
     this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
     // tâches de suppression de tous les membres et des notes
-    Taches.nouvelle(this, Taches.operations.GRM, gr.id, 0)
-    Taches.nouvelle(this, Taches.operations.AGN, gr.id, 0)
+    Taches.nouvelle(this, Taches.GRM, gr.id, 0)
+    Taches.nouvelle(this, Taches.AGN, gr.id, 0)
   }
 
   /* Méthode de suppression d'un compte */

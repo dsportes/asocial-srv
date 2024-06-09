@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 
 import { Operation, Esp } from './modele.mjs'
 // import { compile } from './gendoc.mjs'
-import { AMJ, ID } from './api.mjs'
+import { AMJ, ID, IDBOBSGC } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches (db, storage) {
@@ -38,19 +38,6 @@ export class Taches {
 
   get estGC () { return Taches.OPSGC.has(this.op) }
 
-  static OPCLZ = {
-    1: operations.DFH,
-    2: operations.DLV,
-    3: operations.TRA,
-    4: operations.VER,
-    5: operations.STC,
-    6: operations.STT,
-    7: operations.FPU,
-    21: operations.GRM,
-    22: operations.AGN,
-    24: operations.AVC
-  }
-
   static OPNOMS = {
     1: 'DFH',
     2: 'DLV',
@@ -83,10 +70,10 @@ export class Taches {
     const rows = await Taches.db.nsTaches(0)
     const s = new Set()
     Taches.OPSGC.forEach(t => { s.add(t)})
-    rows.forEach(r => { s.remove(r.op) })
+    rows.forEach(r => { s.delete(r.op) })
     for (const t of s) {
       const tache = new Taches({op: t, id: 0, ids: 0, ns: 0, dh: 0, exc: ''})
-      tache.dh = Taches.dhRetry(tache)
+      tache.dh = tache.op // Taches.dhRetry(tache) + tache.op
       await Taches.db.setTache(op, tache)
     }
     return [Taches.OPSGC.size - s.size, s.size]
@@ -113,13 +100,13 @@ export class Taches {
 
   async doit () {
     const cl = Taches.OPCLZ[this.op]
-    const args = { tache: this, ctx: {} }
+    const args = { tache: this }
 
     /* La tâche est inscrite pour plus tard : en cas de non terminaison
     elle est déjà configurée pour être relancée. */
     this.dh = Taches.dhRetry(this)
     this.exc = ''
-    await Taches.db.setTache(this)
+    await Taches.db.setTache(null, this)
 
     /* L'opération va être lancée N fois, jusqu'à ce qu'elle indique
     qu'elle a épuisé son travail.
@@ -135,6 +122,7 @@ export class Taches {
       op.dh = Date.now()
       op.auj = AMJ.amjUtcDeT(op.dh)
       op.args = args
+      op.nomop = Taches.OPNOMS[this.op]
       try {
         await op.run(args)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
@@ -146,7 +134,7 @@ export class Taches {
       } catch (e) { // Opération sortie en exception
         // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
         this.exc = e.toString()
-        await Taches.db.setTache(this)
+        await Taches.db.setTache(null, this)
         break
       }
     }
@@ -162,7 +150,7 @@ class Demon {
     const dh = Date.now()
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const proch = await Taches.db.prochTache(dh, lns)
+      const proch = await Taches.db.prochTache(null, dh, lns)
       if (!proch) break
       await new Taches(proch).doit()
     }
@@ -170,6 +158,12 @@ class Demon {
 
 }
 
+/* OP_InitTachesGC: 'Initialisation des tâches du GC',
+- token : jeton d'authentification de l'administrateur
+Retour: [nx nc]
+- nx : nombre de tâches existantes
+- nc : nombre de tâches créées
+*/
 operations.InitTachesGC = class InitTachesGC extends Operation {
   constructor (nom) { super(nom, 3) }
 
@@ -179,29 +173,43 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
   }
 }
 
+/* OP_StartDemon: 'Lancement immédiat du démon',
+- token : jeton d'authentification de l'administrateur
+Retour:
+*/
+operations.StartDemon = class StartDemon extends Operation {
+  constructor (nom) { super(nom, 3) }
+
+  async phase2() {
+    Taches.startDemon()
+  }
+}
+
+// détection d'une fin d'hébergement
 operations.DFH = class DFH extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
-    if (args.ctx.lst) args.ctx.lst = await this.db.getGroupesDfh(this, this.auj)
-    if (!args.ctx.lst.length) { args.ctx.fini = true; return }
+    if (args.lst) args.lst = await this.db.getGroupesDfh(this, this.auj)
+    if (!args.lst.length) { args.fini = true; return }
 
-    const idg = args.ctx.lst.pop()
+    const idg = args.lst.pop()
     this.ns = ID.ns(idg)
     await this.supprGroupe(idg) // bouclera sur le suivant de hb jusqu'à épuisement de hb
   }
 }
 
+// détection d'une résiliation de compte
 operations.DLV = class DLV extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer
-    if (args.ctx.lst) args.ctx.lst = await this.db.getComptesDlv(this, this.auj)
-    if (!args.ctx.lst.length) { args.ctx.fini = true; return }
+    if (args.lst) args.lst = await this.db.getComptesDlv(this, this.auj)
+    if (!args.lst.length) { args.fini = true; return }
 
-    const id = args.ctx.lst.pop()
+    const id = args.lst.pop()
     this.ns = ID.ns(id)
     await this.supprGroupe(id) // bouclera sur le suivant de hb jusqu'à épuisement de hb
   }
@@ -261,25 +269,30 @@ operations.VER = class VER extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    await this.db.purgeSPO(this, this.auj)
+    const suppr = AMJ.amjUtcPlusNbj(this.auj, IDBOBSGC)
+    await this.db.purgeSPO(this, suppr)
 
-    await this.db.purgeVER(this, this.auj)
+    await this.db.purgeVER(this, suppr)
 
     args.fini = true
   }
 }
 
+// statistique "mensuelle" des comptas (avec purges)
 operations.STC = class STC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
-  async phase2() {
+  async phase2(args) {
+    args.fini = true
   }
 }
 
+// statistique "mensuelle" des tickets (avec purges)
 operations.STT = class STT extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
-  async phase2() {
+  async phase2(args) {
+    args.fini = true
   }
 }
 
@@ -322,4 +335,18 @@ operations.AVC = class AVC extends Operation {
     */
     args.fini = true
   }
+}
+
+/*************************************************/
+Taches.OPCLZ = {
+  1: operations.DFH,
+  2: operations.DLV,
+  3: operations.TRA,
+  4: operations.VER,
+  5: operations.STC,
+  6: operations.STT,
+  7: operations.FPU,
+  21: operations.GRM,
+  22: operations.AGN,
+  24: operations.AVC
 }
