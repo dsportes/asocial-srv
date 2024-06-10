@@ -134,7 +134,7 @@ export class SqliteProvider {
 
   async delTache (op, top, id, ids) {
     const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND id = @id AND ids = @ids')
-    st.run({ top, id, ids })
+    st.run({ op: top, id, ids })
   }
 
   async prochTache (op, dh, lst) {
@@ -340,7 +340,7 @@ export class SqliteProvider {
   
   /* Retourne l'array des ids des "versions" dont la dlv est entre min et max exclue */
   async getVersionsSuppr(op, supprmin, supprmax) {
-    const st = this._stmt('SELVSUPPR', 'SELECT id FROM versions WHERE suppr >= @supprmin AND dlv < @supprmax')
+    const st = this._stmt('SELVSUPPR', 'SELECT id FROM versions WHERE dlv >= @supprmin AND dlv < @supprmax')
     const rows = st.all({ supprmin, supprmax })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})

@@ -88,8 +88,14 @@ export class Taches {
     }, 1)
   }
 
-  static nouvelle (oper, top, id, ids) {
-    const t = new Taches(top, id, ids, oper.ns, oper.dh, '')
+  static async nouvelle (oper, top, id, ids) {
+    const t = new Taches({
+      op: top, 
+      id: ID.long(id, oper.ns), 
+      ids: ids ? ID.long(ids, oper.ns) : 0, 
+      ns: oper.ns, 
+      dh: oper.dh, 
+      exc: ''})
     oper.db.setTache(oper, t)
     oper.aTaches = true
   }
@@ -127,7 +133,7 @@ export class Taches {
         await op.run(args)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!this.estGC) // La tache est supprimée
-            await Taches.db.delTache(this.op, this.id, this.ids)
+            await Taches.db.delTache(null, this.op, this.id, this.ids)
           // else : La tache est déjà inscrite pour sa prochaine exécution
           break
         }
@@ -191,7 +197,7 @@ operations.DFH = class DFH extends Operation {
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
-    if (args.lst) args.lst = await this.db.getGroupesDfh(this, this.auj)
+    if (!args.lst) args.lst = await this.db.getGroupesDfh(this, this.auj)
     if (!args.lst.length) { args.fini = true; return }
 
     const idg = args.lst.pop()
@@ -206,7 +212,7 @@ operations.DLV = class DLV extends Operation {
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer
-    if (args.lst) args.lst = await this.db.getComptesDlv(this, this.auj)
+    if (!args.lst) args.lst = await this.db.getComptesDlv(this, this.auj)
     if (!args.lst.length) { args.fini = true; return }
 
     const id = args.lst.pop()
@@ -312,9 +318,9 @@ operations.AGN = class AGN extends Operation {
 
   async phase2(args) {
     const idag = args.tache.id
-    const ns = ID.ns(idag)
+    this.ns = ID.ns(idag)
     await this.db.delScoll(this, 'notes', args.tache.id)
-    const esp = await this.gd.getES(ns)
+    const esp = await this.gd.getES(true)
     if (esp) await this.storage.delId(esp.org, ID.court(idag))
     args.fini = true
   }

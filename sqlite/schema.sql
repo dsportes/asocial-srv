@@ -40,10 +40,12 @@ CREATE TABLE IF NOT EXISTS "comptes" (
   "id"	INTEGER,
   "v" INTEGER,
   "hk" INTEGER,
+  "dlv"  INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "comptes_id_v" ON "comptes" ( "id", "v" );
+CREATE INDEX "comptes_dlv" ON "comptes" ( "dlv" );
 CREATE INDEX "comptes_hk" ON "comptes" ( "hk" );
 CREATE TABLE IF NOT EXISTS "comptas" (
   "id"	INTEGER,
@@ -74,7 +76,7 @@ CREATE TABLE IF NOT EXISTS "versions" (
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
 CREATE INDEX "versions_id_v" ON "versions" ( "id", "v" );
-CREATE INDEX "versions_dlv" ON "versions" ( "dlv" ) WHERE "suppr" > 0;
+CREATE INDEX "versions_dlv" ON "versions" ( "dlv" ) WHERE "dlv" > 0;
 CREATE TABLE IF NOT EXISTS "avatars" (
   "id"	INTEGER,
   "v" INTEGER,

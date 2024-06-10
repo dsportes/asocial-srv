@@ -1058,8 +1058,8 @@ export class Operation {
     gr._suppr = true // suppression du groupe et de son chatgrs
     this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
     // tâches de suppression de tous les membres et des notes
-    Taches.nouvelle(this, Taches.GRM, gr.id, 0)
-    Taches.nouvelle(this, Taches.AGN, gr.id, 0)
+    await Taches.nouvelle(this, Taches.GRM, gr.id, 0)
+    await Taches.nouvelle(this, Taches.AGN, gr.id, 0)
   }
 
   /* Méthode de suppression d'un compte */
