@@ -91,8 +91,7 @@ export class GenDoc {
     comptis: ['id', 'v', '_data_'],
     invits: ['id', 'v', '_data_'],
     comptas: ['id', 'v', '_data_'],
-    // versions: ['id', 'v', 'dlv', '_data_'],
-    versions: ['id', 'v', 'dlv'],
+    versions: ['id', 'v', 'dlv', '_data_'],
     avatars: ['id', 'v', 'vcv', 'hk', '_data_'],
     notes: ['id', 'ids', 'v', '_data_'],
     transferts: ['id', 'ids', 'dlv', '_data_'],
@@ -167,7 +166,7 @@ export class GenDoc {
       const d = {}
       for (const [key, value] of Object.entries(this)) if (!key.startsWith('_')) d[key] = value
       row._data_ = Buffer.from(encode(d))
-    }
+    } else row._data_ = null
     return row
   }
 
@@ -588,8 +587,17 @@ export class Comptes extends GenDoc {
     return new Comptes().init(r)
   }
 
+  setZombi () {
+    this._zombi = true
+    this._maj = true
+  }
+
   setDesGroupes(ida, s) {
-    this.lgr(ida).forEach(idg => {  s.push(idg)})
+    this.lgr(ida).forEach(idg => { s.add(idg)})
+  }
+
+  setTousGroupes(s) {
+    for(const idg in this.mpg) { s.add(parseInt(idg))}
   }
 
   lgr (ida) { // liste des ids des groupes auxquels participe l'avatar ida
@@ -712,6 +720,11 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
+  supprAvatar (ida) {
+    delete this.mav[ida]
+    this._maj = true
+  }
+
   ajoutGroupe (idg, ida, cleGK, rds) {
     let e = this.mpg[idg]
     if (!e) { e = { cleGK, rds, lav: []}; this.mpg[idg] = e }
@@ -815,6 +828,11 @@ export class Comptis extends GenDoc {
     })
   }
 
+  setZombi () {
+    this._zombi = true
+    this._maj = true
+  }
+
   setMc (args) {
     this.mc[args.id] = { ht: args.htK, tx: args.txK }
     this._maj = true
@@ -856,6 +874,10 @@ export class Invits extends GenDoc {
 
   setDesGroupes(ida, s) {
     this.invits.forEach(i => { if (i.ida !== ida) s.push(i.idg)})
+  }
+
+  setTousGroupes(s) {
+    this.invits.forEach(i => { s.push(i.idg)})
   }
 
   /* Ajoute / remplace l'entrée idg / ida par inv (contact) */
@@ -964,6 +986,11 @@ export class Comptas extends GenDoc {
       compteurs: c.serial
     })
     return x.compile()
+  }
+
+  setZombi () {
+    this._zombi = true
+    this._maj = true
   }
 
   toShortRow (op) { return this.toRow(op) }
@@ -1403,6 +1430,11 @@ export class Groupes extends GenDoc {
     })
   }
 
+  setZombi () {
+    this._zombi = true
+    this._maj = true
+  }
+
   estActif (im) { return this.st[im] >= 4 }
 
   accesNote2 (im) {
@@ -1697,6 +1729,7 @@ export class Groupes extends GenDoc {
       this.tid[im] = 0
       this.mmb.delete(im)
     }
+    this._maj = true
     return { im, estHeb, nbActifs: this.nbActifs }
   }
 }
@@ -1789,8 +1822,6 @@ export class Membres extends GenDoc {
     this.msgG = null
     this._maj = true
   }
-
-  // setZombi () { this._zombi = true; this._maj = true }
 
   toShortRow (op) { return this.toRow(op) }
 }

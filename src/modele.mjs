@@ -587,7 +587,7 @@ class GD {
       if (d.ids) { // pour membres
         await this.majV(d.rds, d.id)
         this.op.delete({ _nom: d._nom, id: d.id, ids: d.ids })
-      } else { // pour groupes, avatars
+      } else { // pour groupes, avatars, comptes, comptas, invits, comptis
         await this.majV(d.rds, d.id, true)
         this.op.delete({ _nom: d._nom, id: d.id })
       }
@@ -1062,7 +1062,7 @@ export class Operation {
         }
       }
     }
-    gr._suppr = true // suppression du groupe et de son chatgrs
+    gr.setZombi() // suppression du groupe et de son chatgrs
     this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
     // tâches de suppression de tous les membres et des notes
     await Taches.nouvelle(this, Taches.GRM, gr.id, 0)
@@ -1127,13 +1127,18 @@ export class Operation {
       if (!gr) continue
       const { im, estHeb, nbActifs } = gr.supprAvatar(av.id)
       if (im) { // suppression du membre
-        const mb = await this.getMBR(gr.id, im)
+        const mb = await this.gd.getMBR(gr.id, im)
         if (mb) mb.setZombi()
       }
-      if (estHeb) this.compta.finHeb(gr.nn, gr.vf) // fin d'hébergement éventuel
+      if (estHeb) { // fin d'hébergement éventuel
+        this.compta.finHeb(gr.nn, gr.vf)
+        gr.finHeb(this.auj)
+      }
       this.compta.ngPlus(-1) // diminution du nombre de participations aux groupes
       if (!nbActifs) await this.supprGroupe(gr) // suppression éventuelle du groupe
     }
+
+    this.compte.supprAvatar(av.id)
     
     /* Purges
     'notes': tache de purge, 
@@ -1152,7 +1157,48 @@ export class Operation {
 
   // eslint-disable-next-line no-unused-vars
   async resilCompte (c) {
+    /* Gestion de ses groupes et invits */
+    const sg = new Set()
+    const invits = await this.gd.getIN(c.id)
+    if (invits) invits.setTousGroupes(sg)
+    this.compte.setTousGroupes(sg)
     
+    for(const idg of sg) {
+      const gr = await this.gd.getGR(idg)
+      if (!gr) continue
+      let nbac = 0
+      let esth = false
+      for (const avidx in c.mav) {
+        const avid = parseInt(avidx)
+        const { im, estHeb, nbActifs } = gr.supprAvatar(avid)
+        if (im) { // suppression du membre
+          const mb = await this.gd.getMBR(gr.id, im)
+          if (mb) mb.setZombi()
+        }
+        nbac = nbActifs
+        esth = estHeb
+      }
+      if (esth) { // fin d'hébergement éventuel
+        gr.finHeb(this.auj)
+      }
+      if (!nbac) await this.supprGroupe(gr) // suppression éventuelle du groupe
+    }
+
+    if (c.idp) {
+      const p = await this.gd.getPA(c.idp)
+      if (p) p.retraitCompte(c.id)
+    }
+    for (const avidx in c.mav) {
+      const avid = parseInt(avidx)
+      const av = await this.gd.getAV(avid)
+      if (av) av.setZombi()
+    }
+    invits.setZombi()
+    const compta = await this.gd.getCA(c.id)
+    if (compta) compta.setZombi()
+    const compti = await this.gd.getCI(c.id)
+    if (compti) compti.setZombi()
+    c.setZombi()
   }
 }
 

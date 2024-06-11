@@ -54,8 +54,8 @@ export class Taches {
   static dh (t) {
     const d = new Date(t)
     const x = ((d.getUTCFullYear() % 100) * 10000) + ((d.getUTCMonth() + 1) * 100) + d.getUTCDate()
-    const h = (d.getUTCHours * 10000) + (d.getUTCMinutes * 100) + d.getUTCSeconds
-    const c = Math.floor(d.getUTCMilliseconds) / 10
+    const h = (d.getUTCHours() * 10000) + (d.getUTCMinutes() * 100) + d.getUTCSeconds()
+    const c = Math.floor(d.getUTCMilliseconds() / 10)
     return c + (h * 100) + (x * 100000000)
   }
 
@@ -65,7 +65,7 @@ export class Taches {
   */
   static dhRetry (tache) {
     const now = Date.now()
-    if (!tache || !Taches.OPSGC.has(tache.op)) return now + config.retrytache
+    if (!tache || !Taches.OPSGC.has(tache.op)) return Taches.dh(now + config.retrytache)
     const nj = Math.floor(now / 86400000) + 1
     const h = (((config.heuregc[0] * 60) + config.heuregc[1]) * 60000)
     return Taches.dh((nj * 86400000) + h + tache.op)
@@ -162,7 +162,7 @@ class Demon {
 
   async run() {
     const lns = Esp.actifs()
-    const dh = Date.now()
+    const dh = Taches.dh(Date.now())
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const proch = await Taches.db.prochTache(null, dh, lns)
@@ -226,7 +226,8 @@ operations.DLV = class DLV extends Operation {
 
     const id = args.lst.pop()
     this.ns = ID.ns(id)
-    await this.supprGroupe(id) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    const g = await this.gd.getCO(ID.court(id))
+    if (g) await this.supprGroupe(g) // bouclera sur le suivant de hb jusqu'à épuisement de hb
   }
 }
 
@@ -341,9 +342,10 @@ operations.AVC = class AVC extends Operation {
 
   async phase2(args) {
     const ida = args.tache.id
+    this.ns = ID.ns(ida)
     for (const row of await this.db.scoll(this, 'chats', ida, 0)) {
       const chI = compile(row)
-      const chE = this.gd.getCAV(chI.imAnimsDeGr, chE.idsE)
+      const chE = await this.gd.getCAV(chI.idE, chI.idsE)
       if (chE) chE.chEdisp()
     }
     await this.db.delScoll(this, 'chats', ida)
