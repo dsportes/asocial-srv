@@ -3,7 +3,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
 import { Operation, Esp } from './modele.mjs'
-// import { compile } from './gendoc.mjs'
+import { compile } from './gendoc.mjs'
 import { AMJ, ID, IDBOBSGC } from './api.mjs'
 
 // Pour forcer l'importation des opérations
@@ -340,14 +340,13 @@ operations.AVC = class AVC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    /*
     const ida = args.tache.id
     for (const row of await this.db.scoll(this, 'chats', ida, 0)) {
-      const ch = compile(row)
-
+      const chI = compile(row)
+      const chE = this.gd.getCAV(chI.imAnimsDeGr, chE.idsE)
+      if (chE) chE.chEdisp()
     }
     await this.db.delScoll(this, 'chats', ida)
-    */
     args.fini = true
   }
 }

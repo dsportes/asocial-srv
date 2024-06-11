@@ -1069,12 +1069,6 @@ export class Operation {
     await Taches.nouvelle(this, Taches.AGN, gr.id, 0)
   }
 
-  /* Méthode de suppression d'un compte */
-  // eslint-disable-next-line no-unused-vars
-  async supprCompte (id) {
-    // TODO
-  }
-
   /* Méthode de mise à jour des CV des membres d'un groupe */
   async majCvMbr (idg) {
     let nc = 0, nv = 0
@@ -1121,9 +1115,39 @@ export class Operation {
     }
   }
 
-  // eslint-disable-next-line no-unused-vars
-  async resilAvatar (avant) {
+  async resilAvatar (av) {
+    /* Gestion de ses groupes et invits */
+    const sg = new Set()
+    const invits = await this.gd.getIN(av.idc)
+    if (invits) invits.setDesGroupes(av.id, sg)
+    this.compte.setDesGroupes(av.id, sg)
 
+    for(const idg of sg) {
+      const gr = await this.gd.getGR(idg)
+      if (!gr) continue
+      const { im, estHeb, nbActifs } = gr.supprAvatar(av.id)
+      if (im) { // suppression du membre
+        const mb = await this.getMBR(gr.id, im)
+        if (mb) mb.setZombi()
+      }
+      if (estHeb) this.compta.finHeb(gr.nn, gr.vf) // fin d'hébergement éventuel
+      this.compta.ngPlus(-1) // diminution du nombre de participations aux groupes
+      if (!nbActifs) await this.supprGroupe(gr) // suppression éventuelle du groupe
+    }
+    
+    /* Purges
+    'notes': tache de purge, 
+    'transferts': purge par le GC sur dlv,
+    'sponsorings': suppressions ici,
+    'chats': tache de purge ET de gestion de disparition sur idE,
+    'tickets': le Comptable ne meurt jamais
+    enfin l'avatar lui même ici (et dlv de son versions).
+    */
+    av.setZombi()
+    await this.db.delScoll(this, 'sponsorings', av.id)
+
+    await Taches.nouvelle(this, Taches.AVC, av.id, 0)
+    await Taches.nouvelle(this, Taches.AGN, av.id, 0)
   }
 
   // eslint-disable-next-line no-unused-vars

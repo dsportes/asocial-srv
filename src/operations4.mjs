@@ -1507,6 +1507,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 1)
     const avatar = await this.gd.getAV(args.id)
     if (!avatar) throw new AppExc(F_SRV, 1)
+    if (args.id === this.id ) throw new AppExc(F_SRV, 286)
     await this.resilAvatar(avatar)
   }
 }

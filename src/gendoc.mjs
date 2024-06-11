@@ -40,20 +40,6 @@ export async function decryptRow (op, row) {
   return row
 }
 
-/* 
-export async function prepRow (op, row) {
-  const b = !ROWSENCLAIR.has(row._nom)
-  const la = GenDoc._attrs[row._nom]
-  const r = {}
-  la.forEach(a => {
-    const x = row[a]
-    if (b && a === '_data_') r[a] = x === undefined ? null : crypterSrv(op.db.appKey, x)
-    else r[a] = x === undefined ?  null : x
-  })
-  return r
-} 
-*/
-
 export async function prepRow (op, row) {
   const r = { ...row }
   if (!ROWSENCLAIR.has(row._nom)) r._data_ = crypterSrv(op.db.appKey, row._data_)
@@ -602,6 +588,10 @@ export class Comptes extends GenDoc {
     return new Comptes().init(r)
   }
 
+  setDesGroupes(ida, s) {
+    this.lgr(ida).forEach(idg => {  s.push(idg)})
+  }
+
   lgr (ida) { // liste des ids des groupes auxquels participe l'avatar ida
     const l = []
     for(const idg in this.mpg) {
@@ -863,6 +853,10 @@ export class Invits extends GenDoc {
   }
 
   toShortRow (op) { return this.toRow(op) }
+
+  setDesGroupes(ida, s) {
+    this.invits.forEach(i => { if (i.ida !== ida) s.push(i.idg)})
+  }
 
   /* Ajoute / remplace l'entrée idg / ida par inv (contact) */
   setContact (inv) {
@@ -1134,6 +1128,11 @@ export class Avatars extends GenDoc {
       vcv: 1,
       cvA
     })
+  }
+
+  setZombi () {
+    this._suppr = true
+    this._maj = true
   }
 
   setCv (cv) {
@@ -1683,6 +1682,22 @@ export class Groupes extends GenDoc {
     let n = 0
     for (let im = 1; im < this.st.length; im++) if (this.st[im] >= 4) n++
     return n
+  }
+
+  /* suppression du role de l'avatar dans le groupe
+  Retour: { im, estHeb, nbActifs }
+  */
+  supprAvatar (ida) {
+    const im = this.mmb.get(ida)
+    const estHeb = im && im === this.imh
+    if (im) {
+      delete this.invits[im]
+      this.st[im] = 0
+      this.flags[im] = 0
+      this.tid[im] = 0
+      this.mmb.delete(im)
+    }
+    return { im, estHeb, nbActifs: this.nbActifs }
   }
 }
 
