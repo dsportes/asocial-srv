@@ -1721,6 +1721,11 @@ export class Membres extends GenDoc {
     return m
   }
 
+  setZombi () {
+    this._suppr = true
+    this._maj = true
+  }
+
   setCvA (cv) {
     this.vcv = cv.v
     this.cvA = cv

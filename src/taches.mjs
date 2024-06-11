@@ -51,15 +51,24 @@ export class Taches {
     24: 'AVC'
   }
 
+  static dh (t) {
+    const d = new Date(t)
+    const x = ((d.getUTCFullYear() % 100) * 10000) + ((d.getUTCMonth() + 1) * 100) + d.getUTCDate()
+    const h = (d.getUTCHours * 10000) + (d.getUTCMinutes * 100) + d.getUTCSeconds
+    const c = Math.floor(d.getUTCMilliseconds) / 10
+    return c + (h * 100) + (x * 100000000)
+  }
+
   /* Pour une tâche non GC, c'est dans config.retrytache minutes
   Pour une tâche GC c'est le lendemain à config.heuregc heure 
   le numéro de tâche figurant en ms afin de forcer l'ordre d'exécution
   */
   static dhRetry (tache) {
-    if (!tache || !Taches.OPSGC.has(tache.op)) return Date.now() + config.retrytache
-    const nj = Math.floor(Date.now() / 86400000) + 1
+    const now = Date.now()
+    if (!tache || !Taches.OPSGC.has(tache.op)) return now + config.retrytache
+    const nj = Math.floor(now / 86400000) + 1
     const h = (((config.heuregc[0] * 60) + config.heuregc[1]) * 60000)
-    return (nj * 86400000) + h + tache.op
+    return Taches.dh((nj * 86400000) + h + tache.op)
   }
 
   /* Création des tâches GC n'existant pas dans taches
@@ -94,7 +103,7 @@ export class Taches {
       id: ID.long(id, oper.ns), 
       ids: ids ? ID.long(ids, oper.ns) : 0, 
       ns: oper.ns, 
-      dh: oper.dh, 
+      dh: Taches.dh(oper.dh), 
       exc: ''})
     oper.db.setTache(oper, t)
     oper.aTaches = true

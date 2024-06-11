@@ -583,9 +583,14 @@ class GD {
   }
 
   async majdoc (d) {
-    if (d._suppr) { // pour groupes, avatars
-      await this.majV(d.rds, d.id, true)
-      this.op.delete({ _nom: d._nom, id: d.id })
+    if (d._suppr) { 
+      if (d.ids) { // pour membres
+        await this.majV(d.rds, d.id)
+        this.op.delete({ _nom: d._nom, id: d.id, ids: d.ids })
+      } else { // pour groupes, avatars
+        await this.majV(d.rds, d.id, true)
+        this.op.delete({ _nom: d._nom, id: d.id })
+      }
     } else if (d._maj) {
       const ins = d.v === 0
       d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
@@ -594,7 +599,8 @@ class GD {
       } else if (d._nom === 'groupes') {
         if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
       }
-      if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
+      if (ins) this.op.insert(d.toRow(this.op))
+      else this.op.update(d.toRow(this.op))
     }
   }
 
@@ -1044,15 +1050,16 @@ export class Operation {
 
   /* Méthode de suppression d'un groupe */
   async supprGroupe (gr) {
-    // suppression des invitations en cours
-    // gr.invits` : map :clé: im, value: `{ fl, li[] }` des invitations en attente de vote ou de réponse.
-    for (const imx in gr.invits) {
-      const im = parseInt(imx)
-      const ida = gr.tid[im]
-      const av = await this.gd.getAV(ida)
-      if (av) {
-        const invits = await this.gd.getIN(av.idc) 
-        if (invits) invits.supprGrInvit(gr.id)
+    // suppression des invitations / contacts
+    for (let im = 1; im < gr.st.length; im++) {
+      const s = gr.st[im]
+      if (s > 0 && s < 4) {
+        const ida = gr.tid[im]
+        const av = await this.gd.getAV(ida)
+        if (av) {
+          const invits = await this.gd.getIN(av.idc) 
+          if (invits) invits.supprGrInvit(gr.id)
+        }
       }
     }
     gr._suppr = true // suppression du groupe et de son chatgrs
@@ -1112,6 +1119,16 @@ export class Operation {
         }
       }
     }
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  async resilAvatar (avant) {
+
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  async resilCompte (c) {
+    
   }
 }
 

@@ -1492,3 +1492,37 @@ operations.HebGroupe = class HebGroupe extends Operation {
 
   }
 }
+
+/* OP_SupprAvatar: 'Suppression d\'un avatar'
+- token : jeton d'authentification du compte de **l'administrateur**
+- id : id de l'avatar
+Retour:
+Exception générique:
+- 8001: avatar disparu
+*/
+operations.SupprAvatar = class SupprAvatar extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 1)
+    const avatar = await this.gd.getAV(args.id)
+    if (!avatar) throw new AppExc(F_SRV, 1)
+    await this.resilAvatar(avatar)
+  }
+}
+
+/* OP_SupprCompte: 'Suppression d\'un compte'
+- token : jeton d'authentification du compte de **l'administrateur**
+Retour:
+Exception générique:
+- 8001: avatar disparu
+*/
+operations.SupprCompte = class SupprCompte extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 () { 
+    const compte = await this.gd.getCO(this.id)
+    if (!compte) throw new AppExc(F_SRV, 1)
+    await this.resilCompte(compte)
+  }
+}

@@ -502,7 +502,8 @@ operations.Sync = class Sync extends Operation {
   }
 
   async getV (doc, src) {
-    return compile(await this.getRowVersion(doc.rds, src))
+    const r = await this.getRowVersion(doc.rds, src)
+    return compile(r)
   }
 
   async phase2(args) {
