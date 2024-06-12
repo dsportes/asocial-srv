@@ -111,9 +111,10 @@ export function b64ToU8 (s) {
 const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
 
 export function crypterSrv (k, buffer) {
+  const b = buffer || new Uint16Array([])
   const cipher = crypto.createCipheriv('aes-256-cbc', k, IV)
   const x0 = Buffer.from([k[0], k[1], k[2], k[3]])
-  const x1 = cipher.update(buffer)
+  const x1 = cipher.update(b)
   const x2 = cipher.final()
   return Buffer.concat([x0, x1, x2])
 }

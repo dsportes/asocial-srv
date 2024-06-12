@@ -22,7 +22,7 @@ export function compile (row) {
   if (!row) return null
   const d = GenDoc._new(row._nom)
   const z = row.dlv && row.dlv <= operations.auj
-  if (z || !row._data_) {
+  if (z || !row._data_ || !row._data_.length) {
     d._zombi = true
   } else {
     const obj = decode(Buffer.from(row._data_))
@@ -42,7 +42,8 @@ export async function decryptRow (op, row) {
 
 export async function prepRow (op, row) {
   const r = { ...row }
-  if (!ROWSENCLAIR.has(row._nom)) r._data_ = crypterSrv(op.db.appKey, row._data_)
+  if (!ROWSENCLAIR.has(row._nom)) 
+    r._data_ = crypterSrv(op.db.appKey, row._data_)
   delete r._nom
   return r
 }
@@ -306,7 +307,7 @@ export class Tickets extends GenDoc {
   }
 
   setZombi () {
-    this._zombi = true
+    this._suppr = true
     this._maj = true
   }
 
@@ -588,7 +589,7 @@ export class Comptes extends GenDoc {
   }
 
   setZombi () {
-    this._zombi = true
+    this._suppr = true
     this._maj = true
   }
 
@@ -829,7 +830,7 @@ export class Comptis extends GenDoc {
   }
 
   setZombi () {
-    this._zombi = true
+    this._suppr = true
     this._maj = true
   }
 
@@ -868,6 +869,11 @@ export class Invits extends GenDoc {
       id, 
       invits: [] 
     })
+  }
+
+  setZombi () {
+    this._suppr = true
+    this._maj = true
   }
 
   toShortRow (op) { return this.toRow(op) }
@@ -989,7 +995,7 @@ export class Comptas extends GenDoc {
   }
 
   setZombi () {
-    this._zombi = true
+    this._suppr = true
     this._maj = true
   }
 
@@ -1352,7 +1358,7 @@ export class Chats extends GenDoc {
     this._maj = true
   }
 
-  setZomi () {
+  setZombi () {
     this._zombi = true
     this._maj = true
   }
@@ -1431,7 +1437,7 @@ export class Groupes extends GenDoc {
   }
 
   setZombi () {
-    this._zombi = true
+    this._suppr = true
     this._maj = true
   }
 

@@ -586,10 +586,10 @@ class GD {
     if (d._suppr) { 
       if (d.ids) { // pour membres
         await this.majV(d.rds, d.id)
-        this.op.delete({ _nom: d._nom, id: d.id, ids: d.ids })
+        this.op.delete({ _nom: d._nom, id: ID.long(d.id, this.op.ns), ids: ID.long(d.ids, this.op.ns) })
       } else { // pour groupes, avatars, comptes, comptas, invits, comptis
         await this.majV(d.rds, d.id, true)
-        this.op.delete({ _nom: d._nom, id: d.id })
+        this.op.delete({ _nom: d._nom, id: ID.long(d.id, this.op.ns) })
       }
     } else if (d._maj) {
       const ins = d.v === 0
@@ -613,7 +613,9 @@ class GD {
   }
 
   async majCompta (compta) { // ET report dans compte -> partition
-    if (compta._maj) {
+    if (compta._suppr) {
+      this.op.delete({ _nom: 'comptas', id: ID.long(compta.id, this.op.ns) })
+    } else if (compta._maj) {
       compta.v++
       const compte = await this.getCO(compta.id)
       await compte.reportDeCompta(compta, this)
@@ -1176,11 +1178,9 @@ export class Operation {
           if (mb) mb.setZombi()
         }
         nbac = nbActifs
-        esth = estHeb
+        if (estHeb) esth = true
       }
-      if (esth) { // fin d'hébergement éventuel
-        gr.finHeb(this.auj)
-      }
+      if (esth) gr.finHeb(this.auj) // fin d'hébergement éventuel
       if (!nbac) await this.supprGroupe(gr) // suppression éventuelle du groupe
     }
 
@@ -1192,6 +1192,7 @@ export class Operation {
       const avid = parseInt(avidx)
       const av = await this.gd.getAV(avid)
       if (av) av.setZombi()
+      await Taches.nouvelle(this, Taches.AVC, avid, 0)
     }
     invits.setZombi()
     const compta = await this.gd.getCA(c.id)
