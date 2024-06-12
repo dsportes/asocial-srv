@@ -1172,7 +1172,7 @@ export class Operation {
     const sg = new Set()
     const invits = await this.gd.getIN(c.id)
     if (invits) invits.setTousGroupes(sg)
-    this.compte.setTousGroupes(sg)
+    c.setTousGroupes(sg)
     
     for(const idg of sg) {
       const gr = await this.gd.getGR(idg)

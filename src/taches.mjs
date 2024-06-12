@@ -5,6 +5,7 @@ import { operations } from './cfgexpress.mjs'
 import { Operation, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
 import { AMJ, ID, IDBOBSGC } from './api.mjs'
+import { sleep } from './util.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches (db, storage) {
@@ -127,11 +128,10 @@ export class Taches {
     qu'elle a épuisé son travail.
     L'argument args indique
     - tache: l'objet tache (son op, id, ids ...)
-    - ctx: un objet de contexte qui est passé d'une itération à la suivante.
     - fini: true quand l'opération a épuisé ce qu'elle avait à faire
     */
     while(!args.fini) {
-      const op = new cl(Taches.OPNOMS)
+      const op = new cl(Taches.OPNOMS[this.op])
       op.db = Taches.db
       op.storage = Taches.storage
       op.dh = Date.now()
@@ -165,8 +165,12 @@ class Demon {
     const dh = Taches.dh(Date.now())
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const proch = await Taches.db.prochTache(null, dh, lns)
-      if (!proch) break
+      let proch = await Taches.db.prochTache(null, dh, lns)
+      if (!proch) {
+        await sleep(500)
+        proch = await Taches.db.prochTache(null, dh, lns)
+        if (!proch) break
+      }
       await new Taches(proch).doit()
     }
   }
@@ -226,8 +230,8 @@ operations.DLV = class DLV extends Operation {
 
     const id = args.lst.pop()
     this.ns = ID.ns(id)
-    const g = await this.gd.getCO(ID.court(id))
-    if (g) await this.supprGroupe(g) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    const c = await this.gd.getCO(ID.court(id))
+    if (c) await this.resilCompte(c) // bouclera sur le suivant de hb jusqu'à épuisement de hb
   }
 }
 

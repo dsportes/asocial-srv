@@ -21,7 +21,7 @@ const ROWSENCLAIR = new Set(['versions'])
 export function compile (row) {
   if (!row) return null
   const d = GenDoc._new(row._nom)
-  const z = row.dlv && row.dlv <= operations.auj
+  const z = row._nom !== 'comptes' && row.dlv && row.dlv <= operations.auj
   if (z || !row._data_ || !row._data_.length) {
     d._zombi = true
     d.id = ID.court(row.id)
@@ -704,11 +704,12 @@ export class Comptes extends GenDoc {
       const d = AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, compta._nbj))
       dlv = dlvmax > d ? d : dlvmax
     }
-    let diff1 = AMJ.diff(dlv, this.dlv); if (diff1 < 0) diff1 = -diff1
+    let diff1 = ID.estComptable(this.id) ? 0 : AMJ.diff(dlv, this.dlv)
+    if (diff1 < 0) diff1 = -diff1
 
     const rep = this._maj || diff1 || this.reporter(compta)
     if (rep) {
-      this.dlv = dlv
+      this.dlv = !ID.estComptable(this.id) ? dlv : AMJ.max
       if (!this._estA) this.qv.pcc = compta._pc.pcc 
       else this.qv.nbj = compta._nbj
       this.qv.pcn = compta._pc.pcn
