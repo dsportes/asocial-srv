@@ -24,6 +24,14 @@ export function compile (row) {
   const z = row.dlv && row.dlv <= operations.auj
   if (z || !row._data_ || !row._data_.length) {
     d._zombi = true
+    d.id = ID.court(row.id)
+    if (row.ids !== undefined) d.ids = ID.court(row.ids)
+    if (row.hk !== undefined) d.hk = ID.court(row.hk)
+    if (row.v !== undefined) d.v = row.v
+    if (row.vcv !== undefined) d.vcv = row.vcv
+    if (row.dlv !== undefined) d.dlv = row.dlv
+    if (row.dfh !== undefined) d.dfh = row.dfh
+    if (row.org !== undefined) d.org = row.org
   } else {
     const obj = decode(Buffer.from(row._data_))
     for (const [key, value] of Object.entries(obj)) d[key] = value
@@ -730,6 +738,11 @@ export class Comptes extends GenDoc {
     let e = this.mpg[idg]
     if (!e) { e = { cleGK, rds, lav: []}; this.mpg[idg] = e }
     if (e.lav.indexOf(ida) === -1) e.lav.push(ida)
+    this._maj = true
+  }
+
+  supprGroupe (idg) {
+    delete this.mpg[idg]
     this._maj = true
   }
 

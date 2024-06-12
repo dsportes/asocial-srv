@@ -330,8 +330,8 @@ operations.MajChat = class MajChat extends OperationCh {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    if (!await this.intro2(args)) { // pas de chatE
-      this.chI.chEdisp()
+    if (!await this.intro2(args)) { 
+      this.chI.chEdisp() // pas de chatE
       return
     }
 

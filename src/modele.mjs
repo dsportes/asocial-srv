@@ -1061,6 +1061,15 @@ export class Operation {
         if (av) {
           const invits = await this.gd.getIN(av.idc) 
           if (invits) invits.supprGrInvit(gr.id)
+          const compte = await this.gd.getCO(av.idc)
+          if (compte) {
+            compte.supprGroupe(gr.id)
+            const compta = await this.gd.getCA(av.idc)
+            if (compta) {
+              compta.ngPlus(-1)
+              if (im === gr.imh) compta.finHeb(gr.nn, gr.vf)
+            }
+          }
         }
       }
     }
