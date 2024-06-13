@@ -86,7 +86,10 @@ operations.GetEspaces = class GetEspaces extends Operation {
   async phase2() {
     await Esp.load(this)
     const espaces = []
-    for(const [,e] of Esp.map) espaces.push(e)
+    for(const [,row] of Esp.map) {
+      const esp = compile(row)
+      espaces.push(esp.toShortRow(this))
+    }
     this.setRes('espaces', espaces)
   }
 }

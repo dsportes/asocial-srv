@@ -279,7 +279,15 @@ export class Espaces extends GenDoc {
     - tous comptes: la notification de _leur_ partition sera seule lisible.
   */
   toShortRow (op) {
-    if (op.estAdmin || op.estComptable) return this.toRow(op)
+    if (op.estAdmin) {
+      const cleES = this.cleES
+      const cleE = decrypterSrv(op.db.appKey, cleES)
+      this.cleES = cleE
+      const r = this.toRow(op)
+      this.cleES = cleES
+      return r
+    }
+    if (op.estComptable) return this.toRow(op)
     const x1 = this.moisStat, x2 = this.moisStatT, x3 = this.dlvat, x4 = this.nbmi
     delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
     const r = this.toRow(op)
