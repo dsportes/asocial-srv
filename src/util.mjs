@@ -1,15 +1,27 @@
 import crypto from 'crypto'
 import { encode, decode } from '@msgpack/msgpack'
-import { deflateSync, inflateSync } from 'zlib'
+// import { deflateSync, inflateSync } from 'zlib'
 
 import { toByteArray, fromByteArray } from './base64.mjs'
-import { AppExc, E_SRV } from './api.mjs'
+import { AppExc, A_SRV } from './api.mjs'
 import { appKeyBin, config } from './config.mjs'
 import { FsProvider } from './storageFS.mjs'
 import { GcProvider } from './storageGC.mjs'
 import { S3Provider } from './storageS3.mjs'
 import { SqliteProvider } from './dbSqlite.mjs'
 import { FirestoreProvider } from './dbFirestore.mjs'
+
+const SALTS = new Array(256)
+
+{
+  const s = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
+  SALTS[0] = s
+  for (let i = 1; i < 256; i++) {
+    const x = new Uint8Array(16)
+    for (let j = 0; j < 16; j++) x[j] = (s[j] + i) % 256
+    SALTS[i] = x
+  }
+}
 
 export async function getStorageProvider (codeProvider) {
   config.logger.info('Storage= [' + config.run.storage_provider + ']')
@@ -127,12 +139,42 @@ export function decrypterSrv (k, b) {
   return Buffer.concat([x1, x2])
 }
 
+export function crypter (cle, u8, idxIV) { // u8: Buffer
+  try {
+    const hdr = !idxIV ? random(1) : new Uint8Array([idxIV])
+    const nx = hdr[0]
+    const iv = SALTS[nx]
+    const cipher = crypto.createCipheriv('aes-256-cbc', cle, Buffer.from(iv))
+    const x1 = cipher.update(u8)
+    const x2 = cipher.final()
+    const r = Buffer.concat([hdr, x1, x2])
+    return r
+  } catch (e) {
+    throw new AppExc(A_SRV, 100, [e.toString()], e.stack)
+  }
+}
+
+export function decrypter (cle, u8) { // u8: Buffer
+  try {
+    const n = u8[0]
+    const iv = SALTS[n]
+    const decipher = crypto.createDecipheriv('aes-256-cbc', cle, Buffer.from(iv))
+    const x1 = decipher.update(u8.subarray(1) )
+    const x2 = decipher.final()
+    const r = Buffer.concat([x1, x2])
+    return r
+  } catch (e) {
+    throw new AppExc(A_SRV, 100, [e.toString()], e.stack)
+  }
+}
+
 /*
 export function sha256 (buffer) {
   return crypto.createHash('sha256').update(buffer).digest()
 }
 */
 
+/*
 export function abToPem (ab, pubpriv) { // ArrayBuffer
   const s = fromByteArray(new Uint8Array(ab))
   let i = 0
@@ -167,9 +209,10 @@ export function crypterRSA (pub, u8) {
     )
     return r
   } catch (e) {
-    throw new AppExc(E_SRV, 8, [e.toString()])
+    throw new AppExc(A_SRV, 101, [e.toString()])
   }
 }
+*/
 
 /* Cryptage générique d'un binaire lisible par connaissance,
 - soit de la clé privée RSA de l'avatar
@@ -190,7 +233,7 @@ Le binaire retourné a plusieurs parties:
 - tranche p2: 1 byte - longueur de p3
 - tranche p3:
 - tranche p4: texte de data, gzippé ou non, crypté par la clé AES générée.
-*/
+
 export function crypterRaw (k, pub, data, gz) {
   const aes = new Uint8Array(crypto.randomBytes(32))
   const g = new Uint8Array([gz ? 1 : 0])
@@ -244,3 +287,4 @@ export function decrypterRaw (k, data) {
   if (!gz) return r
   return inflateSync(r)
 }
+*/

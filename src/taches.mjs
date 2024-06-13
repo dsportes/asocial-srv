@@ -5,7 +5,7 @@ import { operations } from './cfgexpress.mjs'
 import { Operation, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
 import { AMJ, ID, IDBOBSGC, Compteurs } from './api.mjs'
-import { sleep } from './util.mjs'
+import { sleep, crypter, decrypterSrv } from './util.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches (db, storage) {
@@ -298,7 +298,11 @@ operations.VER = class VER extends Operation {
   }
 }
 
-// statistique "mensuelle" des comptas (avec purges)
+/* statistique "mensuelle" des comptas (avec purges)
+Pour chaque espace:
+- obtention de moisStat: si c'est le mois courant, rien
+- sinon calcul pour M-3, M-2, M-1 (selon moisTat) de CompMoisStat
+*/
 operations.STC = class STC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
@@ -380,15 +384,20 @@ operations.ComptaStat = class ComptaStat extends Operation {
       'comptas', 
       this.ns, 
       (op, data) => { Compteurs.CSV(op.lignes, this.mr, this.sep, data) }
+      // (op, data) => { Compteurs.CSV(op.lignes, 0, this.sep, data) }
     )
     const calc = this.lignes.join('\n')
     this.lignes = null
     const buf = Buffer.from(calc)
-    await this.storage.putFile(this.args.org, this.id, 'C_' + this.mois, buf)
+    const buf2 = crypter(this.cleES, buf)
+    // const buf3 = decrypter(this.cleES, buf2)
+    // console.log('' + buf3)
+    await this.storage.putFile(this.args.org, this.id, 'C_' + this.mois, buf2)
   }
 
   async phase2 (args) {
     const espace = await this.gd.getESOrg (args.org, true, true)
+    this.cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (args.mr < 0 || args.mr > 2) args.mr = 1
     const m = AMJ.djMoisN(this.auj, - args.mr)
     this.mr = args.mr
@@ -402,7 +411,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
       this.setRes('creation', false)
     } else {
       this.setRes('creation', true)
-      // espace.setMoisStat(this.mois)
+      if (args.mr !== 0) espace.setMoisStat(this.mois)
       await this.creation()
     }
   }
