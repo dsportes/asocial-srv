@@ -243,14 +243,14 @@ class GD {
     this.lazy = true
   }
 
-  async getESOrg (org, fige) {
-    const espace = await Esp.getEspOrg(this.op, org, true)
-    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 102) }
+  async getESOrg (org, fige, fort) {
+    const espace = await Esp.getEspOrg(this.op, org, !fort)
+    if (!espace) { if (!fort) await sleep(3000); throw new AppExc(F_SRV, 102) }
     if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
     this.op.org = org
     this.op.ns = espace.id
     this.espace = espace
-    this.lazy = true
+    this.lazy = !fort
     if (espace.fige)
       if (fige) throw new AppExc(F_SRV, 101, espace.fige)
       else this.op.setR.add(R.FIGE)

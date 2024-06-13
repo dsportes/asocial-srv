@@ -688,6 +688,40 @@ export class Compteurs {
     return new Uint8Array(encode(x))
   }
 
+  static CSVHDR (sep) {
+    return ['QC', 'QN', 'QV', 'NL', 'NE', 'VM', 'VD', 
+      'NN', 'NC', 'NG', 'V', 'NJ', 'CA', 'CC'].join(sep)
+  }
+
+  /* Cette méthode est invoquée par collNs en tant que 
+  "processeur" de chaque row récupéré pour éviter son stockage en mémoire
+  puis son traitement
+  */
+  static CSV (lignes, mr, sep, data) {
+    const dcomp = decode(data)
+    const c = new Compteurs(dcomp.compteurs)
+    const vx = c.vd[mr]
+    const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
+    if (!nj) return
+    
+    const x1 = Compteurs.X1
+    const x2 = Compteurs.X1 + Compteurs.X2
+    const qc = Math.round(vx[Compteurs.QC])
+    const qn = Math.round(vx[Compteurs.QN])
+    const qv = Math.round(vx[Compteurs.QV])
+    const nl = Math.round(vx[Compteurs.NL + x1])
+    const ne = Math.round(vx[Compteurs.NE + x1])
+    const vm = Math.round(vx[Compteurs.VM + x1])
+    const vd = Math.round(vx[Compteurs.VD + x1])
+    const nn = Math.round(vx[Compteurs.NN + x2])
+    const nc = Math.round(vx[Compteurs.NC + x2])
+    const ng = Math.round(vx[Compteurs.NG + x2])
+    const v = Math.round(vx[Compteurs.V + x2])
+    const ca = Math.round(vx[Compteurs.CA] * 100)
+    const cc = Math.round(vx[Compteurs.CC] * 100)
+    lignes.push([qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, nj, ca, cc].join(sep))
+  }
+
   /* début de la période de référence [x, dh] : (compte O seulment)
   x: 0 -> création du compte
   x: 1 -> début du mois précédent

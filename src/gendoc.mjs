@@ -239,6 +239,11 @@ export class Espaces extends GenDoc {
     }
   }
 
+  setMoisStat (m) {
+    this.moisStat = m
+    this._maj = true
+  }
+
   setNotifP (ntf, n) {
     if (n > this.tnotifP.length) throw new AppExc(F_SRV, 236)
     this.tnotifP[n] = ntf

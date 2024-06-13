@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 
 import { Operation, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, IDBOBSGC } from './api.mjs'
+import { AMJ, ID, IDBOBSGC, Compteurs } from './api.mjs'
 import { sleep } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -354,6 +354,57 @@ operations.AVC = class AVC extends Operation {
     }
     await this.db.delScoll(this, 'chats', ida)
     args.fini = true
+  }
+}
+
+/* OP_ComptaStat : 'Enregistre en storage la statistique de comptabilité'
+du mois M-1 ou M-2 ou M-3 pour l'organisation org.
+args.org: code de l'organisation
+args.mr: de 1 à 3, mois relatif à la date du jour.
+Retour:
+- URL d'accès au fichier dans le storage
+
+Le dernier mois de disponibilté de la statistique comptable est enregistrée dans
+l'espace s'il est supérieur à celui existant.
+*/
+operations.ComptaStat = class ComptaStat extends Operation {
+  constructor (nom) { super(nom, 0); this.SYS = true }
+
+  get sep () { return ','}
+
+  async creation () {
+    this.lignes = []
+    this.lignes.push(Compteurs.CSVHDR(this.sep))
+    await this.db.collNs(
+      this, 
+      'comptas', 
+      this.ns, 
+      (op, data) => { Compteurs.CSV(op.lignes, this.mr, this.sep, data) }
+    )
+    const calc = this.lignes.join('\n')
+    this.lignes = null
+    const buf = Buffer.from(calc)
+    await this.storage.putFile(this.args.org, this.id, 'C_' + this.mois, buf)
+  }
+
+  async phase2 (args) {
+    const espace = await this.gd.getESOrg (args.org, true, true)
+    if (args.mr < 0 || args.mr > 2) args.mr = 1
+    const m = AMJ.djMoisN(this.auj, - args.mr)
+    this.mr = args.mr
+    this.mois = Math.floor(m / 100)
+    this.setRes('mois', this.mois)
+
+    this.id = ID.duComptable() // 100000...
+    this.setRes('getUrl', await this.storage.getUrl(args.org, this.id, 'C_' + this.mois))
+
+    if (espace.moisStat && espace.moisStat >= this.mois) {
+      this.setRes('creation', false)
+    } else {
+      this.setRes('creation', true)
+      // espace.setMoisStat(this.mois)
+      await this.creation()
+    }
   }
 }
 
