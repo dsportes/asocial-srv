@@ -1,9 +1,9 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash, Compteurs, idTkToL6 } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6, sleep, b64ToU8, crypterSrv } from './util.mjs'
+import { rnd6, sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, Sponsorings, /*Notes,*/
@@ -1103,7 +1103,7 @@ export class Operation {
     return [nc, nv]
   }
 
-  /* Métode de contrôle des invitations d'un groupe
+  /* Méthode de contrôle des invitations d'un groupe
   vis à vis du statut d'anaimateur des invitants
   */
   async checkAnimInvitants (gr) {
@@ -1210,5 +1210,63 @@ export class Operation {
     if (compti) compti.setZombi()
     c.setZombi()
   }
-}
 
+  // Création d'un fichier CSV d'une compta
+  async creationC (org, ns, cleES, mois, mr) {
+    const sep = ','
+    const lignes = []
+    lignes.push(Compteurs.CSVHDR(sep))
+    await this.db.collNs(
+      this, 
+      'comptas', 
+      ns, 
+      (data) => { Compteurs.CSV(lignes, mr, sep, data) }
+    )
+    const buf = Buffer.from(lignes.join('\n'))
+    const buf2 = crypter(cleES, buf)
+    // const buf3 = decrypter(cleES, buf2)
+    // console.log('' + buf3)
+    await this.storage.putFile(org, ID.duComptable(), 'C_' + mois, buf2)
+  }
+
+  // Création d'un fichier CSV des tickets d'un mois
+  async creationT (org, ns, cleES, mois) {
+    const cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
+    const sep = ','
+    const lignes = []
+    lignes.push(cptM.join(sep))
+    // async selTickets (op, id, aamm, fnprocess)
+    /* Ticket
+    - `ids` : numéro du ticket - ns + aamm + 10 chiffres rnd
+    - `dg` : date de génération.
+    - `dr`: date de réception. Si 0 le ticket est _en attente_.
+    - `ma`: montant déclaré émis par le compte A.
+    - `mc` : montant déclaré reçu par le Comptable.
+    - `refa` : texte court (32c) facultatif du compte A à l'émission.
+    - `refc` : texte court (32c) facultatif du Comptable à la réception.
+    */
+    await this.db.selTickets(
+      this, 
+      ID.duComptable(ns), 
+      ns,
+      mois,
+      (data) => { 
+        const d = decode(data)
+        const ids = d.ids
+        const tkt = quotes(idTkToL6(d.ids))
+        const dg = d.dg
+        const dr = d.dr
+        const ma = d.ma
+        const mc = d.mc
+        const refa = quotes(d.refa)
+        const refc = quotes(d.refc)
+        lignes.push([ids, tkt, dg, dr, ma, mc, refa, refc].join(sep))
+      }
+    )
+    const buf = Buffer.from(lignes.join('\n'))
+    const buf2 = crypter(cleES, buf)
+    // const buf3 = decrypter(this.cleES, buf2)
+    // console.log('' + buf3)
+    await this.storage.putFile(org, ID.duComptable(), 'T_' + mois, buf2)
+  }
+}

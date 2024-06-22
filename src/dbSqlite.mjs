@@ -435,7 +435,7 @@ export class SqliteProvider {
       row._nom = nom
       const rx = await decryptRow(op, row)
       op.nl++
-      if (!fnprocess) r.push(rx); else fnprocess(op, rx._data_)
+      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
     }
     return !fnprocess ? r : null
   }
@@ -469,7 +469,7 @@ export class SqliteProvider {
       row._nom = 'tickets'
       const rx = await decryptRow(op, row)
       op.nl++
-      if (!fnprocess) r.push(rx); else fnprocess(op, rx._data_)
+      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
     }
     return !fnprocess ? r : null
   }

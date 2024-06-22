@@ -1,11 +1,10 @@
 // import { AppExc, F_SRV, ID, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { decode } from '@msgpack/msgpack'
 import { Operation, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, IDBOBSGC, Compteurs, idTkToL6 } from './api.mjs'
-import { sleep, crypter, decrypterSrv } from './util.mjs'
+import { AMJ, ID, IDBOBSGC } from './api.mjs'
+import { sleep, decrypterSrv } from './util.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches (db, storage) {
@@ -23,9 +22,7 @@ export class Taches {
 
   static VER = 4 // purge des versions supprimées depuis longtemps
 
-  static STC = 5 // statistique "mensuelle" des comptas (avec purges)
-
-  static STT = 6 // statistique "mensuelle" des tickets (avec purges)
+  static STA = 5 // statistique "mensuelle" des comptas et des tickets
 
   static FPU = 7 // purge des fichiers à purger
 
@@ -35,7 +32,7 @@ export class Taches {
 
   static AVC = 24 // gestion et purges des chats de l'avatar
 
-  static OPSGC = new Set([Taches.DFH, Taches.DLV, Taches.TRA, Taches.FPU, Taches.VER, Taches.STC, Taches.STT])
+  static OPSGC = new Set([Taches.DFH, Taches.DLV, Taches.TRA, Taches.FPU, Taches.VER, Taches.STA])
 
   get estGC () { return Taches.OPSGC.has(this.op) }
 
@@ -44,8 +41,7 @@ export class Taches {
     2: 'DLV',
     3: 'TRA',
     4: 'VER',
-    5: 'STC',
-    6: 'STT',
+    5: 'STA',
     7: 'FPU',
     21: 'GRM',
     22: 'AGN',
@@ -298,25 +294,47 @@ operations.VER = class VER extends Operation {
   }
 }
 
-/* statistique "mensuelle" des comptas (avec purges)
-Pour chaque espace:
-- obtention de moisStat: si c'est le mois courant, rien
-- sinon calcul pour M-3, M-2, M-1 (selon moisTat) de CompMoisStat
+/* statistique "mensuelle" des comptas (avec purges) et des tickets
+- todo : liste des stats à calculer. { org, ns, t: 'C' ou 'T', mr, mois }
 */
-operations.STC = class STC extends Operation {
+operations.STA = class STA extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    args.fini = true
-  }
-}
+    if (!args.todo) {
+      const mc = Math.floor(AMJ.amjUtc() / 100) // Mois courant
 
-// statistique "mensuelle" des tickets (avec purges)
-operations.STT = class STT extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+      args.todo = []
+      await Esp.load(this)
+      for (const [ns, row] of Esp.map) {
+        const esp = compile(row)
+        /* 
+        - `creation` : date de création.
+        - `moisStat` : dernier mois de calcul de la statistique des comptas.
+        - `moisStatT` : dernier mois de calcul de la statistique des tickets.
+        */
+        const mcre = Math.floor(esp.creation / 100) // Mois de création
+        const msC = esp.moisStat || AMJ.moisMoins(mcre, 1)
+        const msT = esp.moisStatT || AMJ.moisMoins(mcre, 1)
 
-  async phase2(args) {
-    args.fini = true
+      }
+    }
+
+    if (!args.todo.length) { args.fini = true; return }
+    const s = args.todo.pop()
+    const espace = await this.gd.getESOrg(s.org, true, true)
+    const cleES = decrypterSrv(this.db.appKey, espace.cleES)
+
+    if (s.t === 'C') {
+      espace.setMoisStat(s.mois)
+      await this.creationC(s.org, s.ns, cleES, s.mois, s.mr)
+    } else if (s.t === 'T') {
+      await this.creationT(s.org, s.ns, cleES, s.mois)
+      espace.setMoisStatT(s.mois)
+      await this.db.delTickets(this, ID.duComptable(s.ns), s.ns, s.mois)
+    }
+
+    args.fini = !args.todo.length
   }
 }
 
@@ -374,45 +392,23 @@ l'espace s'il est supérieur à celui existant.
 operations.ComptaStat = class ComptaStat extends Operation {
   constructor (nom) { super(nom, 0); this.SYS = true }
 
-  get sep () { return ','}
-
-  async creation () {
-    this.lignes = []
-    this.lignes.push(Compteurs.CSVHDR(this.sep))
-    await this.db.collNs(
-      this, 
-      'comptas', 
-      this.ns, 
-      (op, data) => { Compteurs.CSV(op.lignes, this.mr, this.sep, data) }
-      // (op, data) => { Compteurs.CSV(op.lignes, 0, this.sep, data) }
-    )
-    const calc = this.lignes.join('\n')
-    this.lignes = null
-    const buf = Buffer.from(calc)
-    const buf2 = crypter(this.cleES, buf)
-    // const buf3 = decrypter(this.cleES, buf2)
-    // console.log('' + buf3)
-    await this.storage.putFile(this.args.org, this.id, 'C_' + this.mois, buf2)
-  }
-
   async phase2 (args) {
     const espace = await this.gd.getESOrg(args.org, true, true)
-    this.cleES = decrypterSrv(this.db.appKey, espace.cleES)
+    const cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (args.mr < 0 || args.mr > 2) args.mr = 1
     const m = AMJ.djMoisN(this.auj, - args.mr)
-    this.mr = args.mr
-    this.mois = Math.floor(m / 100)
-    this.setRes('mois', this.mois)
+    const mois = Math.floor(m / 100)
+    this.setRes('mois', mois)
 
-    this.id = ID.duComptable() // 100000...
-    this.setRes('getUrl', await this.storage.getUrl(args.org, this.id, 'C_' + this.mois))
+    const idC = ID.duComptable() // 100000...
+    this.setRes('getUrl', await this.storage.getUrl(args.org, idC, 'C_' + mois))
 
-    if (espace.moisStat && espace.moisStat >= this.mois) {
+    if (espace.moisStat && espace.moisStat >= mois) {
       this.setRes('creation', false)
     } else {
       this.setRes('creation', true)
-      if (args.mr !== 0) espace.setMoisStat(this.mois)
-      await this.creation()
+      if (args.mr !== 0) espace.setMoisStat(mois)
+      await this.creationC(args.org, this.ns, cleES, mois, args.mr)
     }
   }
 }
@@ -429,77 +425,24 @@ Purge des tickets archivés
 operations.TicketsStat = class TicketsStat extends Operation {
   constructor () { super('TicketsStat'); this.SYS = true }
 
-  static cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
-
-  get sep () { return ','}
-
-  /* Ticket
-  - `ids` : numéro du ticket - ns + aamm + 10 chiffres rnd
-  - `dg` : date de génération.
-  - `dr`: date de réception. Si 0 le ticket est _en attente_.
-  - `ma`: montant déclaré émis par le compte A.
-  - `mc` : montant déclaré reçu par le Comptable.
-  - `refa` : texte court (32c) facultatif du compte A à l'émission.
-  - `refc` : texte court (32c) facultatif du Comptable à la réception.
-  */
-
-  quotes (v) {
-    if (!v) return '""'
-    const x = v.replaceAll('"', '_')
-    return '"' + x + '"'
-  }
-
-  async creation () {
-    this.lignes = []
-    this.lignes.push(operations.TicketsStat.cptM.join(this.sep))
-    // async selTickets (op, id, aamm, fnprocess)
-    await this.db.selTickets(
-      this, 
-      ID.duComptable(this.ns), 
-      this.ns,
-      this.mois,
-      (op, data) => { 
-        const d = decode(data)
-        const ids = d.ids
-        const tkt = op.quotes(idTkToL6(d.ids))
-        const dg = d.dg
-        const dr = d.dr
-        const ma = d.ma
-        const mc = d.mc
-        const refa = op.quotes(d.refa)
-        const refc = op.quotes(d.refc)
-        op.lignes.push([ids, tkt, dg, dr, ma, mc, refa, refc].join(op.sep))
-      }
-    )
-    const calc = this.lignes.join('\n')
-    this.lignes = null
-
-    const buf = Buffer.from(calc)
-    const buf2 = crypter(this.cleES, buf)
-    // const buf3 = decrypter(this.cleES, buf2)
-    // console.log('' + buf3)
-    await this.storage.putFile(this.args.org, ID.court(this.idC), 'T_' + this.mois, buf2)
-  }
-
   async phase2 (args) {
     const espace = await this.gd.getESOrg(args.org, false, true)
-    this.cleES = decrypterSrv(this.db.appKey, espace.cleES)
+    const cleES = decrypterSrv(this.db.appKey, espace.cleES)
 
-    this.ns = espace.id
+    const ns = espace.id
     const moisauj = Math.floor(this.auj / 100)
-    this.mois = AMJ.moisMoins(moisauj, args.mr)
+    const mois = AMJ.moisMoins(moisauj, args.mr)
 
-    this.idC = ID.duComptable(this.ns)
-    this.setRes('getUrl', await this.storage.getUrl(args.org, ID.court(this.idC), 'T_' + this.mois))
-    this.setRes('mois', this.mois)
-    if (espace.moisStatT && espace.moisStatT >= this.mois) {
+    this.setRes('getUrl', await this.storage.getUrl(args.org, ID.duComptable(), 'T_' + mois))
+    this.setRes('mois', mois)
+    if (espace.moisStatT && espace.moisStatT >= mois) {
       this.setRes('creation', false)
     } else {
       this.setRes('creation', true)
-      await this.creation()
+      await this.creationT(args.org, ns, cleES, mois)
       if (!espace.fige && args.mr > 3) {
-        espace.setMoisStatT(this.mois)
-        await this.db.delTickets (this, this.idC, this.ns, this.mois)
+        espace.setMoisStatT(mois)
+        await this.db.delTickets (this, ID.duComptable(ns), ns, mois)
       }
     }
   }
@@ -529,8 +472,7 @@ Taches.OPCLZ = {
   2: operations.DLV,
   3: operations.TRA,
   4: operations.VER,
-  5: operations.STC,
-  6: operations.STT,
+  5: operations.STA,
   7: operations.FPU,
   21: operations.GRM,
   22: operations.AGN,
