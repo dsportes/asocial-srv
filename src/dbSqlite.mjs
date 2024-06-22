@@ -459,8 +459,8 @@ export class SqliteProvider {
   
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
   */
-  async selTickets (op, id, aamm, fnprocess) {
-    const mx = ((aamm % 10000) * d10) + 9999999999
+  async selTickets (op, id, ns, aamm, fnprocess) {
+    const mx = (ns * d14) + ((aamm % 10000) * d10) + 9999999999
     const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND ids <= @mx')
     const rows = st.all({ id, mx })
     if (!rows) return []
@@ -482,8 +482,8 @@ export class SqliteProvider {
     return info.changes
   }
 
-  async delTickets (op, id, aamm) {
-    const mx = ((aamm % 10000) * d10) + 9999999999
+  async delTickets (op, id, ns, aamm) {
+    const mx = (ns * d14) + ((aamm % 10000) * d10) + 9999999999
     const code = 'DELTKT'
     const st = this._stmt(code, 'DELETE FROM tickets WHERE id = @id AND ids <= @mx')
     const info = st.run({id, mx})

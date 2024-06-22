@@ -1,10 +1,10 @@
 // import { AppExc, F_SRV, ID, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-
+import { decode } from '@msgpack/msgpack'
 import { Operation, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, IDBOBSGC, Compteurs } from './api.mjs'
+import { AMJ, ID, IDBOBSGC, Compteurs, idTkToL6 } from './api.mjs'
 import { sleep, crypter, decrypterSrv } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -396,7 +396,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
   }
 
   async phase2 (args) {
-    const espace = await this.gd.getESOrg (args.org, true, true)
+    const espace = await this.gd.getESOrg(args.org, true, true)
     this.cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (args.mr < 0 || args.mr > 2) args.mr = 1
     const m = AMJ.djMoisN(this.auj, - args.mr)
@@ -414,6 +414,112 @@ operations.ComptaStat = class ComptaStat extends Operation {
       if (args.mr !== 0) espace.setMoisStat(this.mois)
       await this.creation()
     }
+  }
+}
+
+/* OP_TicketsStat : 'Enregistre en storage la liste des tickets de M-3 désormais invariables'
+args.token: éléments d'authentification du compte.
+args.org: code de l'organisation
+args.mr: mois relatif
+
+Le dernier mois de disponibilté de la statistique est enregistré dans
+l'espace s'il est supérieur à celui existant.
+Purge des tickets archivés
+*/
+operations.TicketsStat = class TicketsStat extends Operation {
+  constructor () { super('TicketsStat'); this.SYS = true }
+
+  static cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
+
+  get sep () { return ','}
+
+  /* Ticket
+  - `ids` : numéro du ticket - ns + aamm + 10 chiffres rnd
+  - `dg` : date de génération.
+  - `dr`: date de réception. Si 0 le ticket est _en attente_.
+  - `ma`: montant déclaré émis par le compte A.
+  - `mc` : montant déclaré reçu par le Comptable.
+  - `refa` : texte court (32c) facultatif du compte A à l'émission.
+  - `refc` : texte court (32c) facultatif du Comptable à la réception.
+  */
+
+  quotes (v) {
+    if (!v) return '""'
+    const x = v.replaceAll('"', '_')
+    return '"' + x + '"'
+  }
+
+  async creation () {
+    this.lignes = []
+    this.lignes.push(operations.TicketsStat.cptM.join(this.sep))
+    // async selTickets (op, id, aamm, fnprocess)
+    await this.db.selTickets(
+      this, 
+      ID.duComptable(this.ns), 
+      this.ns,
+      this.mois,
+      (op, data) => { 
+        const d = decode(data)
+        const ids = d.ids
+        const tkt = op.quotes(idTkToL6(d.ids))
+        const dg = d.dg
+        const dr = d.dr
+        const ma = d.ma
+        const mc = d.mc
+        const refa = op.quotes(d.refa)
+        const refc = op.quotes(d.refc)
+        op.lignes.push([ids, tkt, dg, dr, ma, mc, refa, refc].join(op.sep))
+      }
+    )
+    const calc = this.lignes.join('\n')
+    this.lignes = null
+
+    const buf = Buffer.from(calc)
+    const buf2 = crypter(this.cleES, buf)
+    // const buf3 = decrypter(this.cleES, buf2)
+    // console.log('' + buf3)
+    await this.storage.putFile(this.args.org, ID.court(this.idC), 'T_' + this.mois, buf2)
+  }
+
+  async phase2 (args) {
+    const espace = await this.gd.getESOrg(args.org, false, true)
+    this.cleES = decrypterSrv(this.db.appKey, espace.cleES)
+
+    this.ns = espace.id
+    const moisauj = Math.floor(this.auj / 100)
+    this.mois = AMJ.moisMoins(moisauj, args.mr)
+
+    this.idC = ID.duComptable(this.ns)
+    this.setRes('getUrl', await this.storage.getUrl(args.org, ID.court(this.idC), 'T_' + this.mois))
+    this.setRes('mois', this.mois)
+    if (espace.moisStatT && espace.moisStatT >= this.mois) {
+      this.setRes('creation', false)
+    } else {
+      this.setRes('creation', true)
+      await this.creation()
+      if (!espace.fige && args.mr > 3) {
+        espace.setMoisStatT(this.mois)
+        await this.db.delTickets (this, this.idC, this.ns, this.mois)
+      }
+    }
+  }
+}
+
+/*****************************************
+GetUrlStat : retourne l'URL de get d'un fichier de stat mensuelle
+Comme c'est un GET, les arguments sont en string (et pas en number)
+args.token: éléments d'authentification du compte.
+args.org : 
+args.mois :
+args.cs : code statistique C ou T
+*/
+operations.GetUrlStat = class GetUrlStat extends Operation {
+  constructor (nom) { super(nom, 1) }
+
+  async phase2 (args) {
+    const id = ID.duComptable() // 100000...
+    const url = await this.storage.getUrl(args.org, id, args.cs + '_' + args.mois)
+    this.setRes('getUrl', url)
   }
 }
 

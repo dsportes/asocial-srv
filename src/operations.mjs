@@ -8,7 +8,7 @@ import { operations } from './cfgexpress.mjs'
 import { Operation, trace} from './modele.mjs'
 import { compile, Transferts } from './gendoc.mjs'
 import { sleep, crypterRSA, crypterRaw /*, decrypterRaw */ } from './util.mjs'
-import { A_SRV, idTkToL6, statistiques } from './api.mjs'
+import { A_SRV, statistiques } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function load () {
@@ -783,124 +783,5 @@ operations.ComptaStat = class ComptaStat extends Operation {
         this.update(espace.toRow())
       }
     }
-  }
-}
-
-/* OP_TicketsStat : 'Enregistre en storage la liste des tickets de M-3 désormais invariables'
-args.token: éléments d'authentification du compte.
-args.org: code de l'organisation
-args.mr: mois relatif
-
-Le dernier mois de disponibilté de la statistique est enregistrée dans
-l'espace s'il est supérieur à celui existant.
-Purge des tickets archivés
-*/
-operations.TicketsStat = class TicketsStat extends Operation {
-  constructor (gc) { 
-    super('TicketsStat', gc ? 3 : 1, 1)
-    if (gc) this.gc = true
-  }
-
-  static cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
-
-  get sep () { return ','}
-
-  /* Cette méthode est invoquée par collNs en tant que 
-  "processeur" de chaque row récupéré pour éviter son stockage en mémoire
-  puis son traitement
-  - `id`: id du Comptable.
-  - `ids` : numéro du ticket
-  - `v` : version du ticket.
-
-  - `dg` : date de génération.
-  - `dr`: date de réception. Si 0 le ticket est _en attente_.
-  - `ma`: montant déclaré émis par le compte A.
-  - `mc` : montant déclaré reçu par le Comptable.
-  - `refa` : texte court (32c) facultatif du compte A à l'émission.
-  - `refc` : texte court (32c) facultatif du Comptable à la réception.
-  - `di`: date d'incorporation du crédit par le compte A dans son solde.
-  */
-
-  quotes (v) {
-    if (!v) return '""'
-    const x = v.replaceAll('"', '_')
-    return '"' + x + '"'
-  }
-
-  processData (op, data) {  
-    const d = decode(data)
-    
-    const ids = d.ids
-    const tkt = op.quotes(idTkToL6(d.ids))
-    const dg = d.dg
-    const dr = d.dr
-    const ma = d.ma
-    const mc = d.mc
-    const refa = op.quotes(d.refa)
-    const refc = op.quotes(d.refc)
-    op.lignes.push([ids, tkt, dg, dr, ma, mc, refa, refc].join(op.sep))
-  }
-
-  async creation () {
-    this.lignes = []
-    this.lignes.push(operations.TicketsStat.cptM.join(this.sep))
-    await this.db.selTickets(this, this.idC, this.mois, this.processData)
-    const calc = this.lignes.join('\n')
-    this.lignes = null
-
-    const avatar = compile(await this.getRowAvatar(this.idC, 'ComptaStatT-1'))
-    const fic = crypterRaw(this.db.appKey, avatar.pub, Buffer.from(calc), true)
-    await this.storage.putFile(this.args.org, ID.court(this.idC), 'T_' + this.mois, fic)
-  }
-
-  async phase2 (args) {
-    const espace = await this.getEspaceOrg(args.org)
-    if (!espace) throw new AppExc(A_SRV, 18, [args.texte])
-    this.ns = espace.id
-    const moisauj = Math.floor(this.auj / 100)
-    this.mois = AMJ.moisMoins(moisauj, args.mr)
-
-    this.idC = ID.duComptable(this.ns)
-    this.setRes('getUrl', await this.storage.getUrl(args.org, ID.court(this.idC), 'T_' + this.mois))
-
-    if (!espace.moisStatT || (espace.moisStatT < this.mois)) {
-      await this.creation()
-      this.setRes('creation', true)
-    } else {
-      this.setRes('creation', false)
-      this.phase2 = null
-    }
-    this.setRes('mois', this.mois)
-
-    if (!this.estFige) {
-      const espace = compile(await this.getRowEspace(this.ns, 'ComptaStatT-2'))
-      if (!espace.moisStatT || (espace.moisStatT < this.mois)) {
-        espace.moisStatT = this.mois
-        espace.v++
-        this.update(espace.toRow())
-        await this.db.delTickets (this, this.idC, this.mois)
-      }
-    }
-  }
-}
-
-/*****************************************
-GetUrlStat : retourne l'URL de get d'un fichier de stat mensuelle
-Comme c'est un GET, les arguments sont en string (et pas en number)
-args.token: éléments d'authentification du compte.
-args.ns : 
-args.mois :
-args.cs : code statistique C ou T
-*/
-operations.GetUrlStat = class GetUrlStat extends Operation {
-  constructor (nom) { super(nom, 1) }
-
-  async phase2 (args) {
-    const ns = parseInt(args.ns)
-    const org = await this.org(ns)
-    const idC = ID.court(ID.duComptable(ns))
-    const url = await this.storage.getUrl(org, idC, args.cs + '_' + args.mois)
-    this.setRes('getUrl', url)
-    if (!this.id) this.setRes('appKey', this.db.appKey)
   }
 }
