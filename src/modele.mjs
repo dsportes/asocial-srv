@@ -473,7 +473,7 @@ class GD {
 
   async getAllCAV (id) {
     const l = []
-    for (const row of await this.op.db.scoll(this.op, 'chats', id, 0)) {
+    for (const row of await this.op.db.scoll(this.op, 'chats', ID.long(id, this.op.ns), 0)) {
       const k = id + '/CAV/' + row.ids
       let d = this.sdocs.get(k)
       if (!d) {
