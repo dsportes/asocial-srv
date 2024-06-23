@@ -3,7 +3,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, IDBOBSGC } from './api.mjs'
+import { AMJ, ID, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
 import { sleep, decrypterSrv } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -314,11 +314,30 @@ operations.STA = class STA extends Operation {
         - `moisStatT` : dernier mois de calcul de la statistique des tickets.
         */
         const mcre = Math.floor(esp.creation / 100) // Mois de création
-        const msC = esp.moisStat || AMJ.moisMoins(mcre, 1)
-        const msT = esp.moisStatT || AMJ.moisMoins(mcre, 1)
+        // mois relatif du dernier calcul C / T
+        const mrC = AMJ.nbMois(mc, esp.moisStat || AMJ.moisMoins(mcre, 1))
+        const mrT = AMJ.nbMois(mc, esp.moisStatT || AMJ.moisMoins(mcre, 1))
 
+        if (mrC > 1) { // Il y a un ou plusieurs mois à calculer C
+          for(let mr = 3; mr > 0; mr--) {
+            const mois = AMJ.moisMoins(mc, mr)
+            if (mois >= mcre)
+              args.todo.push({ org: esp.org, ns, t: 'C', mr, mois })
+          } 
+        }
+
+        // Nombre de mois de calcul T à effectuer
+        const nbmct = mrT - NBMOISENLIGNETKT - 1
+        if (nbmct > 0) { // Il y a au moins un calcul T à effectuer
+          for (let n = nbmct; n > 0; n--) {
+            const mois = AMJ.moisMoins(mc, n + NBMOISENLIGNETKT)
+            args.todo.push({ org: esp.org, ns, t: 'T', mois })
+          }
+        }
       }
     }
+
+    // args.todo.forEach(s => {console.log(JSON.stringify(s))}); args.todo.length = 0
 
     if (!args.todo.length) { args.fini = true; return }
     const s = args.todo.pop()

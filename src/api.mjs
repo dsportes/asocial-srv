@@ -41,6 +41,9 @@ export const limitesjour = {
   groupenonheb: 120 // durée de vie d'un groupe non hébbergé
 }
 
+// Nombre de mois de conservation en ligne des tickets
+export const NBMOISENLIGNETKT = 3
+
 /************************************************************************/
 export const FLAGS = {
   AM: 1 << 0, // **a accès aux notes**: un membre _actif_ décide s'il souhaite ou non accéder aux notes (il faut qu'il en ait le _droit_): un non accès allège sa session.
@@ -388,6 +391,12 @@ export class AMJ {
     let m2 = m - n
     while (m2 < 1) { a2--; m2 += 12}
     return (a2 * 100) + m2
+  }
+
+  static nbMois (am1, am2) {
+    const n1 = (Math.floor(am1 / 100) * 12) + (am1 % 100)
+    const n2 = (Math.floor(am2 / 100) * 12) + (am2 % 100)
+    return n1 - n2
   }
 
   // Retourne l'amj de l'amj passée en argument - 1 mois (en restant dans les jours acceptables)
