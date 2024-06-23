@@ -1336,18 +1336,6 @@ export class Chats extends GenDoc {
     return c
   }
 
-  chEdisp () {
-    const st1 = Math.floor(this.st / 10)
-    if (st1) { // était actif
-      this.st = (st1 * 10) + 2 
-      this.vcv = 0
-      this.cvE = null
-    } else { // était passif, disparait
-      this._zombi = true
-    }
-    this._maj = true
-  }
-
   addChatItem (item) {
     const nl = [item]
     let lg = item.t ? item.t.length : 0
@@ -1380,14 +1368,29 @@ export class Chats extends GenDoc {
     this._maj = true
   }
 
-  actifI () {
-    this.st = 10 + (this.st % 10)
+  get stI() { return Math.floor(this.st / 10) }
+
+  get stE () { return this.st % 10 }
+
+  chEdisp () {
+    if (this.stI) { // était actif
+      this.st = (this.stI * 10) + 2 
+      this.vcv = 0
+      this.cvE = null
+    } else { // était passif, disparait
+      this._zombi = true
+    }
     this._maj = true
   }
 
+  actifI () {
+    const x = 10 + this.stE
+    if (x !== this.st) { this.st = x; this._maj = true }
+  }
+
   actifE () {
-    this.st = (Math.floor(this.st / 10) * 10) + 1 
-    this._maj = true
+    const x = (this.stI * 10) + 1
+    if (x !== this.st) { this.st = x; this._maj = true }
   }
 
   setZombi () {
@@ -1396,17 +1399,16 @@ export class Chats extends GenDoc {
   }
 
   passifI () {
-    this.st = this.st % 10
-    this.items = []
-    this._maj = true
+    const x = this.stE
+    if (x !== this.st || this.items.length) { this.st = x; this.items = []; this._maj = true }
   }
 
   passifE () {
-    this.st = Math.floor(this.st / 10) * 10
-    this._maj = true
+    const x = this.stI * 10
+    if (x !== this.st) { this.st = x; this._maj = true }
   }
 
-  get estPassif () { return Math.floor(this.st / 10) === 0 }
+  get estPassif () { return this.stI === 0 }
 
   toShortRow (op) { return this.toRow(op)}
 }

@@ -1117,7 +1117,7 @@ export class Operation {
     for (const [ida, {rc, setInv}] of idas) {
       const av = await this.gd.getAV(ida)
       if (av) {
-        const invit = await this.gd.getIN(ida.idc)
+        const invit = await this.gd.getIN(av.idc)
         if (invit) {
           if (rc) invit.retourContact(gr.id, ida)
           else invit.majInvpar(gr.id, ida, setInv)
@@ -1141,6 +1141,7 @@ export class Operation {
         const mb = await this.gd.getMBR(gr.id, im)
         if (mb) mb.setZombi()
       }
+      await this.checkAnimInvitants(gr)
       if (estHeb) { // fin d'hébergement éventuel
         this.compta.finHeb(gr.nn, gr.vf)
         gr.finHeb(this.auj)

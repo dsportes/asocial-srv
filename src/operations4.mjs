@@ -362,11 +362,10 @@ operations.MajChat = class MajChat extends OperationCh {
     this.chI.setCvE(avE.cvA || {id: avE.id, v: 0 })
     this.chE.setCvE(avI.cvA || {id: avI.id, v: 0 })
    
-    if (Math.floor(this.chI.st / 10) === 0) { // I était passif, redevient actif
-      this.chI.actifI()
-      this.compta.ncPlus(1)
-      this.chE.actifE()
-    }
+    if (this.chI.stI === 0) this.compta.ncPlus(1) // I était passif, redevient actif
+    this.chI.actifI()
+    this.chE.actifE()
+    
   }
 }
 
@@ -452,7 +451,8 @@ operations.StatutAvatar = class StatutAvatar extends Operation {
 /* OP_RafraichirCvsAv: 'Rafraichissement des CVs des membres / chats de l\'avatar'
 - token : jeton d'authentification du compte de **l'administrateur**
 - id : id de l'avatar
-- membres: true si rafraichir les CV des membres des groupes auxquels le compte de l'avatar participe
+- lch : liste des chats. { ids, idE, vcv }
+- lmb : liste des membres: { id, im, ida, vcv}
 Retour: [nc, nv]
 - `nc`: nombre de CV mises à jour
 - `nv` : nombre de chats existants
@@ -472,23 +472,26 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
     const avatar = await this.gd.getAV(args.id) //
     if (!avatar) throw new AppExc(F_SRV, 1)
     let nc = 0, nv = 0
-    // liste des chats de l'avatar
-    for (const ch of await this.gd.getAllCAV(args.id, 0)) {
-      if (!ch._zombi) {
-        const { av, disp } = await this.gd.getAAVCV(ch.idE, ch.vcv)
-        nv++
-        if (disp) ch.chEdisp()
-        else if (av) {
-          ch.setCvE(av.cvA)
-          nc++
-        }
+
+    for(const {ids, idE, vcv} of args.lch) {
+      const { av, disp } = await this.gd.getAAVCV(idE, vcv)
+      if (disp) {
+        const ch = await this.gd.getCAV(args.id, ids)
+        if (ch) { nv++; ch.chEdisp() }
+      } else if (av) {
+        const ch = await this.gd.getCAV(args.id, ids)
+        if (ch) { nv++; ch.setCvE(av.cvA); nc++ }
       }
     }
-    if (args.membres) for (const idg of this.compte.lgr(args.id)) {
-      const [ncg, nvg] = await this.majCvMbr(idg)
-      nc += ncg
-      nv += nvg
+
+    for(const {id, im, ida, vcv} of args.lmb) {
+      const { av } = await this.gd.getAAVCV(ida, vcv)
+      if (av) {
+        const mb = await this.gd.getMBR(id, im)
+        if (mb) { nv++; mb.setCvA(av.cvA); nc++ }
+      }
     }
+
     this.setRes('ncnv', [nc, nv])
   }
 }
@@ -496,6 +499,7 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
 /* OP_RafraichirCvsGr: 'Rafraichissement des CVs des membres d\'un grouper'
 - token : jeton d'authentification du compte de **l'administrateur**
 - idg : id du groupe
+- lmb : liste des membres: { id, im, ida, vcv}
 Retour: [nc, nv]
 - `nc`: nombre de CV mises à jour
 - `nv` : nombre de chats existants
@@ -514,38 +518,16 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
     const groupe = await this.gd.getGR(args.idg)
     if (!groupe) throw new AppExc(F_SRV, 2)
     let nc = 0, nv = 0
-    const [ncg, nvg] = await this.majCvMbr(args.idg)
-    nc += ncg
-    nv += nvg
+
+    for(const {id, im, ida, vcv} of args.lmb) {
+      const { av } = await this.gd.getAAVCV(ida, vcv)
+      if (av) {
+        const mb = await this.gd.getMBR(id, im)
+        if (mb) { nv++; mb.setCvA(av.cvA); nc++ }
+      }
+    }
+    
     this.setRes('ncnv', [nc, nv])
-  }
-}
-
-/* OP_RafraichirCvChat: 'Rafraichissement de la carte de visite d\'un chat'
-- token : jeton d'authentification du compte de **l'administrateur**
-- id, ids : id du chat
-Retour:
-Exception générique:
-- 8001: avatar disparu
-- 8002: chat disparu
-*/
-operations.RafraichirCvChat = class RafraichirCvChat extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2(args) {
-    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
-    if (this.setR.has(R.MINI) && !this.estComptable) 
-      throw new AppExc(F_SRV, 802)
-    if (!this.compte.mav[args.id])
-      throw new AppExc(F_SRV, 227)
-
-    const avatar = await this.gd.getAV(args.id) //
-    if (!avatar) throw new AppExc(F_SRV, 1)
-    const ch = await this.gd.getCAV(args.id, args.ids)
-    if (!ch || ch._zombi) throw new AppExc(F_SRV, 2)
-    const { av, disp } = await this.gd.getAAVCV(ch.idE, ch.vcv)
-    if (disp) ch.chEdisp()
-    else if (av) ch.setCvE(av.cvA)
   }
 }
 
