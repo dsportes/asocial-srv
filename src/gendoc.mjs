@@ -646,7 +646,7 @@ export class Comptes extends GenDoc {
   chgPart (idp, clePK, notif) {
     this.clePK = clePK
     this.idp = idp
-    this.notif = notif
+    this.notif = notif || null
     this._maj = true
   }
 
@@ -1113,6 +1113,13 @@ export class Comptas extends GenDoc {
 
   majSolde (m) {
     this.solde += m
+    this.compile()
+    this._maj = true
+  }
+
+  reinitSolde (m) {
+    this.solde = m
+    this.tickets = {}
     this.compile()
     this._maj = true
   }

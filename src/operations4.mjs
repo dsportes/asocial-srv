@@ -430,7 +430,8 @@ indique si l'avatar donné en argument est
 un avatar principal ou non, d'un compte autonome ou non
 - token : jeton d'authentification du compte de **l'administrateur**
 - id : id de l'avatar
-Retour: 
+Retour: [idc, idp]
+- `idc`: id du compte
 - `idp`: numéro de tranche de quota si compte "0", 0 si compte "A"
 */
 operations.StatutAvatar = class StatutAvatar extends Operation {
@@ -439,7 +440,7 @@ operations.StatutAvatar = class StatutAvatar extends Operation {
   async phase2(args) {
     const avatar = await this.gd.getAV(args.id, 'StatutAvatar-1')
     const c = await this.gd.getCO(avatar.idc)
-    this.setRes('idp', c.idp || 0)
+    this.setRes('idcidp', [c.id, c.idp || 0])
   }
 }
 
@@ -618,6 +619,37 @@ operations.SetCodePart = class SetCodePart extends Operation {
 
   async phase2 (args) {
     if (!this.compte.setCodePart(args.idp, args.etpk)) throw new AppExc(F_SRV, 229)
+  }
+}
+
+/*  OP_MuterCompteO: 'Mutation d\'un compte A en compte O' ************
+- token: éléments d'authentification du compte.
+- id : id du compte devenant O
+- quotas: { qc, qn, qv }
+- cleAP : clé A du compte cryptée par la clé P de la partition
+- clePK : clé de la nouvelle partition cryptée par la clé publique du compte
+Retour:
+*/
+operations.MuterCompteO = class MuterCompteO extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    const ec = this.estComptable
+    const ed = !ec && this.compte.del
+    if (!ec && !ed) throw new AppExc(F_SRV, 287)
+    const idp = this.compte.idp
+
+    const cpt = await this.gd.getCO(args.id, 'MuterCompteO-2')
+    if (cpt.idp) throw new AppExc(F_SRV, 288)
+    const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
+    compta.quotas(args.quotas)
+    compta.reinitSolde(2)
+
+    const part = await this.gd.getPA(idp, 'MuterCompteO-4')
+    part.ajoutCompte(compta, args.cleAP, false)
+
+    // Maj du compte
+    cpt.chgPart(idp, args.clePK, null)
   }
 }
 
