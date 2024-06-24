@@ -644,9 +644,15 @@ export class Comptes extends GenDoc {
   }
 
   chgPart (idp, clePK, notif) {
-    this.clePK = clePK
-    this.idp = idp
-    this.notif = notif || null
+    if (idp) {
+      this.clePK = clePK
+      this.idp = idp
+      this.notif = notif || null
+    } else {
+      this.clePK = null
+      this.idp = 0
+      this.notif = null
+    }
     this._maj = true
   }
 
@@ -1117,8 +1123,15 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  reinitSolde (m) {
-    this.solde = m
+  reinitSoldeO () {
+    this.solde = 0
+    this.tickets = null
+    this.compile()
+    this._maj = true
+  }
+
+  reinitSoldeA () {
+    this.solde = 2
     this.tickets = {}
     this.compile()
     this._maj = true

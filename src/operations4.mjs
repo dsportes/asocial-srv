@@ -622,6 +622,27 @@ operations.SetCodePart = class SetCodePart extends Operation {
   }
 }
 
+/*  OP_MuterCompteA: 'Mutation du compte O en compte A' ************
+- token: éléments d'authentification du compte.
+Retour:
+*/
+operations.MuterCompteA = class MuterCompteA extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 () {
+    if (!this.compte.idp) throw new AppExc(F_SRV, 289)
+    const q = this.compta.qv
+    this.compta.quotas({ qc: 0, qn: q.qn, qv: q.qv })
+    this.compta.reinitSoldeA()
+
+    const part = await this.gd.getPA(this.compte.idp, 'MuterCompteA-4')
+    part.retraitCompte(this.id)
+
+    // Maj du compte
+    this.compte.chgPart(0)
+  }
+}
+
 /*  OP_MuterCompteO: 'Mutation d\'un compte A en compte O' ************
 - token: éléments d'authentification du compte.
 - id : id du compte devenant O
@@ -643,7 +664,7 @@ operations.MuterCompteO = class MuterCompteO extends Operation {
     if (cpt.idp) throw new AppExc(F_SRV, 288)
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
     compta.quotas(args.quotas)
-    compta.reinitSolde(2)
+    compta.reinitSoldeO()
 
     const part = await this.gd.getPA(idp, 'MuterCompteO-4')
     part.ajoutCompte(compta, args.cleAP, false)
