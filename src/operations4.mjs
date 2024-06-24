@@ -431,20 +431,15 @@ un avatar principal ou non, d'un compte autonome ou non
 - token : jeton d'authentification du compte de **l'administrateur**
 - id : id de l'avatar
 Retour: 
-- `st`: [P, A]
-  - P : true si avatar principal
-  - A : true si compte A
+- `idp`: numéro de tranche de quota si compte "0", 0 si compte "A"
 */
 operations.StatutAvatar = class StatutAvatar extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2(args) {
-    const avatar = await this.getAV(args.id) // 401 si non trouvé
-    const idcl = this.long(avatar.idc, this.ns)
-    const p = avatar.id !== idcl
-    const c = await this.getCO()
-    const a = c.idp ? false : true
-    this.setRes('st', [p, a])
+    const avatar = await this.gd.getAV(args.id, 'StatutAvatar-1')
+    const c = await this.gd.getCO(avatar.idc)
+    this.setRes('idp', c.idp || 0)
   }
 }
 
