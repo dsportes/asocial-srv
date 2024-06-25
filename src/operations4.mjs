@@ -365,7 +365,6 @@ operations.MajChat = class MajChat extends OperationCh {
     if (this.chI.stI === 0) this.compta.ncPlus(1) // I était passif, redevient actif
     this.chI.actifI()
     this.chE.actifE()
-    
   }
 }
 
@@ -649,6 +648,8 @@ operations.MuterCompteA = class MuterCompteA extends Operation {
 - quotas: { qc, qn, qv }
 - cleAP : clé A du compte cryptée par la clé P de la partition
 - clePK : clé de la nouvelle partition cryptée par la clé publique du compte
+- ids : ids du chat du compte demandeur (Comptable / Délégué)
+- t : texte (crypté) de l'item à ajouter au chat
 Retour:
 */
 operations.MuterCompteO = class MuterCompteO extends Operation {
@@ -671,6 +672,29 @@ operations.MuterCompteO = class MuterCompteO extends Operation {
 
     // Maj du compte
     cpt.chgPart(idp, args.clePK, null)
+
+    const chI = await this.gd.getCAV(this.id, args.ids, 'MuterCompteO-5')
+    const chE = await this.gd.getCAV(chI.idE, chI.idsE)
+    if (!chE) { // pas de chatE: pas de mise à jour de chat I
+      chI.chEdisp()
+      return
+    }
+    // cas normal : maj sur chI et chE - avE et cptE existent
+    const avI = await this.gd.getAV(this.id, 'MuterCompteO-6')
+    const avE = await this.gd.getAV(chI.idE, 'MuterCompteO-7')
+    if (args.t) {
+      const itemI = args.t ? { a: 0, dh: this.dh, t: args.t } : null
+      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null  
+      chI.addChatItem(itemI)
+      chE.addChatItem(itemE)
+    }
+    // Maj CVs
+    chI.setCvE(avE.cvA || {id: avE.id, v: 0 })
+    chE.setCvE(avI.cvA || {id: avI.id, v: 0 })
+
+    if (chI.stI === 0) this.compta.ncPlus(1) // I était passif, redevient actif
+    chI.actifI()
+    chE.actifE()
   }
 }
 
