@@ -872,8 +872,8 @@ export class Comptis extends GenDoc {
     this._maj = true
   }
 
-  setMc (args) {
-    this.mc[args.id] = { ht: args.htK, tx: args.txK }
+  setMc (id, ht, tx) {
+    this.mc[id] = { ht, tx }
     this._maj = true
   }
 

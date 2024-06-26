@@ -979,7 +979,7 @@ operations.McMemo = class McMemo extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     const compti = await this.gd.getCI(this.id, 'McMemo-2')
-    compti.setMc(args)
+    compti.setMc(this.id, args.htK, args.txK)
   }
 }
 
@@ -1265,6 +1265,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
 - cleGK: cle du groupe cryptée par la clé K du compte
 - cas: 1:accepte 2:contact 3:radié 4:radié + LN
 - msgG: message de remerciement crypté par la cle G du groupe
+- txK: texte à attacher à idg s'il n'y en a pas
 Retour:
 EXC: 
 - 8002: groupe disparu
@@ -1319,6 +1320,11 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     // écriture du chat
     const ch = await this.gd.getCGR(args.idg, 'InvitationGroupe-4')
     ch.addItem(im, this.dh, args.msgG)
+
+    if (args.txK) {
+      const compti = await this.gd.getCI(this.id)
+      if (compti && !compti.mc[args.idg]) compti.setMc(args.idg, null, args.txK)
+    }
   }
 }
 
