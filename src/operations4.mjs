@@ -1612,10 +1612,9 @@ class OperationNo extends Operation {
         if (an) this.mavc.set(idm, { im, am, de, anim })
       }
       if (!this.mavc.size) throw new AppExc(F_SRV, 291)
-      this.aut = this.mavc.get(this.args.ida)
+      this.aut = this.args.ida ? this.mavc.get(this.args.ida) : null
     } else {
       if (!this.compte.mav[id]) throw new AppExc(F_SRV, 292)
-      this.avatar = await this.gd.getAV(id, 'OperationNo-2') // ???
     }
   }
 
@@ -1642,7 +1641,6 @@ class OperationNo extends Operation {
       if (!ids) break
     }
   }
-
 }
 
 /* OP_NouvelleNote: 'Création d\'une nouvelle note' ***************
@@ -1679,5 +1677,19 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
     const par = { im, dh: this.dh, t: args.t, aut, ref: args.ref}
     const n = await this.gd.nouvNOT(args.id, args.ids, par)
     this.setRes('key', n.id + '/' + n.ids)
+  }
+}
+
+/* OP_RattNote: 'Gestion du rattachement d\'une note à une autre' ********
+- token: éléments d'authentification du compte.
+- id ids: identifiant de la note
+- ref : [id, ids] : racine ou note de rattachemnt
+Retour: rien
+*/
+operations.RattNote = class RattNote extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 () { 
+
   }
 }
