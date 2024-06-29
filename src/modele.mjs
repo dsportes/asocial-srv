@@ -6,7 +6,7 @@ import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
-  Chatgrs, Chats, Tickets, Sponsorings, /*Notes,*/
+  Chatgrs, Chats, Tickets, Sponsorings, Notes,
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
 
 export function trace (src, id, info, err) {
@@ -535,15 +535,27 @@ class GD {
     return d
   }
 
-  /*
-  async nouvNOT (id, nex) {
-
+  async nouvNOT (id, ids, par, assert) {
+    const k = id + '/NOT/' + ids
+    const a = ID.estGroupe(id) ? await this.getGR(id, assert) : await this.getAV(id, assert)
+    const d = Notes.nouveau(id, ids, par)
+    d.rds = a.rds
+    if (!await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 13, [k]) }
+    this.sdocs.set(k, d)
+    return d
   }
 
-  async getNOT (id, ids, nex) {
-    
+  async getNOT (id, ids, assert) {
+    const k = id + '/NOT/' + ids
+    let d = this.sdocs.get(k)
+    if (d) return d
+    d = compile(await this.op.getRowNote(id, ids))
+    if (!d || !await this.getV(d.rds)) { 
+      if (!assert) return null; else assertKO(assert, 13, [k]) }
+    this.sdocs.set(k, d)
+    return d
   }
-  */
 
   async getV (rds) {
     let v = this.versions.get(rds)

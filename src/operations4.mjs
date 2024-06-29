@@ -1,7 +1,7 @@
 import { AppExc, F_SRV, ID, FLAGS, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { eqU8 } from './util.mjs'
+import { eqU8, rnd6 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
 import { compile } from './gendoc.mjs'
@@ -1585,5 +1585,98 @@ operations.SupprCompte = class SupprCompte extends Operation {
     const compte = await this.gd.getCO(this.id)
     if (!compte) throw new AppExc(F_SRV, 1)
     await this.resilCompte(compte)
+  }
+}
+
+/* OperationNoh : super classe hébergeant des méthodes utilitaires de gestion des notes */
+class OperationNo extends Operation {
+
+  async checkNoteId () {
+    const id = this.args.id
+    if (ID.estGroupe(id)) {
+      const e = this.compte.mpg[id] 
+      if (!e) throw new AppExc(F_SRV, 290)
+      this.mavc = new Map()
+      this.groupe = await this.gd.getGR(id, 'OperationNo-1')
+      this.anim = false
+      for (const idm of e.lav) {
+        const im = this.groupe.mmb.get(idm)
+        if (!im || this.groupe.st[im] < 4) continue
+        const anim = this.groupe.st[im] === 5
+        if (anim) this.anim = true
+        const f = this.flags[im]
+        let am = false, an = false, de = false
+        if ((f & FLAGS.AN) && (f & FLAGS.DN)) an = true 
+        if ((f & FLAGS.AM) && (f & FLAGS.DM)) am = true 
+        if (an && (f & FLAGS.DE)) de = true
+        if (an) this.mavc.set(idm, { im, am, de, anim })
+      }
+      if (!e) throw new AppExc(F_SRV, 291)
+      this.aut = this.mavc.get(this.args.ida)
+    } else {
+      if (!this.compte.mav[id]) throw new AppExc(F_SRV, 292)
+      this.avatar = await this.gd.getAV(id, 'OperationNo-2') // ???
+    }
+  }
+
+  // Contrôle d'existence de la note parent et de l'absence de cycle
+  async checkRatt (g) {
+    let notep, id = this.args.ref[0], ids = this.args.ref[1]
+    const cycle = [this.args.ids]
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      notep = await this.gd.getNOT(id, ids)
+      if (!notep && cycle.length === 1) throw new AppExc(F_SRV, 294)
+      if (!notep) break
+      cycle.push(notep.ids)
+      if (notep.ids === this.args.ids) throw new AppExc(F_SRV, 295, [cycle.join(' ')])
+      if (g) {
+        if (notep.id !== this.args.id) throw new AppExc(F_SRV, 297)
+      } else {
+        if (ID.estGroupe(notep.id)) break
+        if (notep.id !== this.args.id) throw new AppExc(F_SRV, 296)  
+      }
+      if (!notep.ref) break
+      id = notep.ref[0]
+      ids = notep.ref[1]
+      if (!ids) break
+    }
+  }
+
+}
+
+/* OP_NouvelleNote: 'Création d\'une nouvelle note' ***************
+- token: éléments d'authentification du compte
+- id : de la note
+- ida : pour une note de groupe, id de son avatar auteur
+- exclu : auteur est exclusif
+- ref : [id, ids] pour une note rattachée
+- t : texte crypté
+Retour: rien
+*/
+operations.NouvelleNote = class NouvelleNote extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    await this.checkNoteId()
+    args.ids = rnd6()
+    let im = 0, aut = 0
+    if (!this.groupe) {
+      if (args.ref) await this.checkRatt()
+      this.compta.nnPlus(1)
+      this.compta.exN()
+    } else {
+      if (!this.aut || !this.aut.de) throw new AppExc(F_SRV, 293)
+      if (args.exclu) im = this.aut.im
+      aut = this.aut.im
+      if (args.ref) await this.checkRatt(true)
+      const compta = await this.getCA(this.groupe.idc, 'NouvelleNote-1')
+      compta.nnPlus(1)
+      compta.exN()
+      this.groupe.setNV(1, 0)
+      this.groupe.exN()
+    }
+    const par = { im, dh: this.dh, t: args.t, aut, ref: args.ref}
+    await this.gd.nouvNOT(args.id, args.ids, par)
   }
 }

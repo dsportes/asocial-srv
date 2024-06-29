@@ -1052,6 +1052,16 @@ export class Comptas extends GenDoc {
     return this
   }
 
+  exN () {
+    const x = this.qv.nn + this.qv.nc + this.qv.ng
+    if (x > this.qv.qn) throw new AppExc(F_SRV, 55, [x, this.qv.qn])
+  }
+
+  exV () {
+    const x = this.qv.v
+    if (x > this.qv.qv) throw new AppExc(F_SRV, 56, [x, this.qv.qn])
+  }
+
   quotas (q) { // q: { qc: qn: qv: }
     this.qv.qc = q.qc
     this.qv.qn = q.qn
@@ -1244,9 +1254,49 @@ export class Avatars extends GenDoc {
   toShortRow (op) { return this.toRow(op) }
 }
 
-/* Classe Notes ******************************************************/
+/* Classe Notes *****************************************************
+_data_:
+- `id` : id de l'avatar ou du groupe.
+- `ids` : identifiant aléatoire relatif à son avatar.
+- `v` : 1..N.
+
+- `rds`:
+- `im` : exclusivité dans un groupe. L'écriture est restreinte au membre du groupe dont `im` est `ids`. 
+- `vf` : volume total des fichiers attachés.
+- `ht` : liste des hashtags _personnels_ cryptée par la clé K du compte.
+  - En session, pour une note de groupe, `ht` est le terme de `htm` relatif au compte de la session.
+- `htg` : note de groupe : liste des hashtags cryptée par la clé du groupe.
+- `htm` : note de groupe seulement, hashtags des membres. Map:
+    - _clé_ : id courte du compte de l'auteur,
+    - _valeur_ : liste des hashtags cryptée par la clé K du compte.
+    - non transmis en session.
+- `l` : liste des _auteurs_ (leurs `im`) pour une note de groupe.
+- `d` : date-heure de dernière modification du texte.
+- `texte` : texte (gzippé) crypté par la clé de la note.
+- `mfa` : map des fichiers attachés.
+- `ref` : triplet `[id, ids]` référence de sa note _parent_:
+*/
 export class Notes extends GenDoc { 
   constructor() { super('notes') } 
+
+  static nouveau (id, ids, { im, dh, t, aut, ref}) {
+    const n = new Notes()
+    n._maj = true
+    n.id = id
+    n.ids = ids,
+    n.im = im
+    n.vf = 0
+    n.d = dh
+    n.texte = t
+    n.mfa = {}
+    n.ref = ref || null
+    n.ht = null
+    if (ID.estGroupe(id)) {
+      n.l = [aut]
+      n.htg = null
+      n.htm = {}
+    }
+  }
 
   toShortRow (op, idc) { //idc : id du compte demandeur
     const htmx = this.htm
@@ -1527,6 +1577,10 @@ export class Groupes extends GenDoc {
     this.vf += dv
     this._maj = true
   }
+
+  exN () { if (this.nn > this.qn) throw new AppExc(F_SRV, 65, [this.nn, this.qn]) }
+
+  exV () { if (this.vf > this.qv) throw new AppExc(F_SRV, 66, [this.vf, this.qv]) }
 
   setCv (cv) {
     cv.v = 0
