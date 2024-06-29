@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS, F_SRV, AppExc, AMJ, 
+import { FLAGS, F_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { operations } from './cfgexpress.mjs'
 import { config } from './config.mjs'
@@ -1054,12 +1054,12 @@ export class Comptas extends GenDoc {
 
   exN () {
     const x = this.qv.nn + this.qv.nc + this.qv.ng
-    if (x > this.qv.qn) throw new AppExc(F_SRV, 55, [x, this.qv.qn])
+    if (x > this.qv.qn * UNITEN) throw new AppExc(F_SRV, 55, [x, this.qv.qn * UNITEN])
   }
 
   exV () {
     const x = this.qv.v
-    if (x > this.qv.qv) throw new AppExc(F_SRV, 56, [x, this.qv.qn])
+    if (x > this.qv.qv * UNITEV) throw new AppExc(F_SRV, 56, [x, this.qv.qn * UNITEV])
   }
 
   quotas (q) { // q: { qc: qn: qv: }
@@ -1296,6 +1296,7 @@ export class Notes extends GenDoc {
       n.htg = null
       n.htm = {}
     }
+    return n
   }
 
   toShortRow (op, idc) { //idc : id du compte demandeur
@@ -1578,9 +1579,9 @@ export class Groupes extends GenDoc {
     this._maj = true
   }
 
-  exN () { if (this.nn > this.qn) throw new AppExc(F_SRV, 65, [this.nn, this.qn]) }
+  exN () { if (this.nn > this.qn * UNITEN) throw new AppExc(F_SRV, 65, [this.nn, this.qn * UNITEN]) }
 
-  exV () { if (this.vf > this.qv) throw new AppExc(F_SRV, 66, [this.vf, this.qv]) }
+  exV () { if (this.vf > this.qv * UNITEV) throw new AppExc(F_SRV, 66, [this.vf, this.qv * UNITEV]) }
 
   setCv (cv) {
     cv.v = 0

@@ -1604,14 +1604,14 @@ class OperationNo extends Operation {
         if (!im || this.groupe.st[im] < 4) continue
         const anim = this.groupe.st[im] === 5
         if (anim) this.anim = true
-        const f = this.flags[im]
+        const f = this.groupe.flags[im]
         let am = false, an = false, de = false
         if ((f & FLAGS.AN) && (f & FLAGS.DN)) an = true 
         if ((f & FLAGS.AM) && (f & FLAGS.DM)) am = true 
         if (an && (f & FLAGS.DE)) de = true
         if (an) this.mavc.set(idm, { im, am, de, anim })
       }
-      if (!e) throw new AppExc(F_SRV, 291)
+      if (!this.mavc.size) throw new AppExc(F_SRV, 291)
       this.aut = this.mavc.get(this.args.ida)
     } else {
       if (!this.compte.mav[id]) throw new AppExc(F_SRV, 292)
@@ -1670,13 +1670,14 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
       if (args.exclu) im = this.aut.im
       aut = this.aut.im
       if (args.ref) await this.checkRatt(true)
-      const compta = await this.getCA(this.groupe.idc, 'NouvelleNote-1')
+      const compta = await this.gd.getCA(this.groupe.idh, 'NouvelleNote-1')
       compta.nnPlus(1)
       compta.exN()
       this.groupe.setNV(1, 0)
       this.groupe.exN()
     }
     const par = { im, dh: this.dh, t: args.t, aut, ref: args.ref}
-    await this.gd.nouvNOT(args.id, args.ids, par)
+    const n = await this.gd.nouvNOT(args.id, args.ids, par)
+    this.setRes('key', n.id + '/' + n.ids)
   }
 }
