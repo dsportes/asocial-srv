@@ -1,7 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
-import { operations } from './cfgexpress.mjs'
 import { config } from './config.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
@@ -21,8 +20,7 @@ const ROWSENCLAIR = new Set(['versions'])
 export function compile (row) {
   if (!row) return null
   const d = GenDoc._new(row._nom)
-  const z = row._nom !== 'comptes' && row.dlv && row.dlv <= operations.auj
-  if (z || !row._data_ || !row._data_.length) {
+  if (!row._data_ || !row._data_.length) {
     d._zombi = true
     d.id = ID.court(row.id)
     if (row.ids !== undefined) d.ids = ID.court(row.ids)
@@ -166,12 +164,8 @@ export class GenDoc {
     if (this.dlv !== undefined) row.dlv = this.dlv
     if (this.dfh !== undefined) row.dfh = this.dfh
     if (this.org !== undefined) row.org = this.org
-    /* le row est "zombi", c'est à dire sans _data_ quand,
-      a) sa dlv non 0 est dépassée : sponsorings versions
-      b) son flag _zombi est à true : notes
-    */
-    const z = this.dlv && this.dlv <= operations.auj
-    if (!z && !this._zombi) {
+    // le row est "zombi", c'est à dire sans _data_ quand son flag _zombi est à true
+    if (!this._zombi) {
       const d = {}
       for (const [key, value] of Object.entries(this)) if (!key.startsWith('_')) d[key] = value
       row._data_ = Buffer.from(encode(d))
@@ -266,8 +260,8 @@ export class Espaces extends GenDoc {
   }
 
   setOptions (optionA, nbmi) {
-    if (optionA !== undefined) this.opt = optionA
-    if (nbmi !== undefined) this.nbmi = nbmi
+    if (optionA !== null) this.opt = optionA
+    if (nbmi !== null) this.nbmi = nbmi
     this._maj = true
   }
 
@@ -723,12 +717,12 @@ export class Comptes extends GenDoc {
 
     let dlv
     if (this.idp) // Compte O
-      dlv = dlvmaxO
+      dlv = ID.estComptable(this.id) ? AMJ.max : dlvmaxO
     else { // Compte A
       const d = AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, compta._nbj))
       dlv = dlvmax > d ? d : dlvmax
     }
-    let diff1 = ID.estComptable(this.id) ? 0 : AMJ.diff(dlv, this.dlv)
+    let diff1 = AMJ.diff(dlv, this.dlv)
     if (diff1 < 0) diff1 = -diff1
 
     const rep = this._maj || diff1 || this.reporter(compta)

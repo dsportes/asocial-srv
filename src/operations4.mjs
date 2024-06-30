@@ -1265,7 +1265,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
 - cleGK: cle du groupe cryptée par la clé K du compte
 - cas: 1:accepte 2:contact 3:radié 4:radié + LN
 - msgG: message de remerciement crypté par la cle G du groupe
-- txK: texte à attacher à idg s'il n'y en a pas
+- txK: texte à attacher à compti/idg s'il n'y en a pas
 Retour:
 EXC: 
 - 8002: groupe disparu
@@ -1620,26 +1620,31 @@ class OperationNo extends Operation {
 
   // Contrôle d'existence de la note parent et de l'absence de cycle
   async checkRatt (g) {
-    let notep, id = this.args.ref[0], ids = this.args.ref[1]
-    const cycle = [this.args.ids]
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      notep = await this.gd.getNOT(id, ids)
-      if (!notep && cycle.length === 1) throw new AppExc(F_SRV, 294)
-      if (!notep) break
-      cycle.push(notep.ids)
-      if (notep.ids === this.args.ids) throw new AppExc(F_SRV, 295, [cycle.join(' ')])
-      if (g) {
-        if (notep.id !== this.args.id) throw new AppExc(F_SRV, 297)
-      } else {
-        if (ID.estGroupe(notep.id)) break
-        if (notep.id !== this.args.id) throw new AppExc(F_SRV, 296)  
+    let notep, id = this.args.ref[0], ids = this.args.ref[1] || 0
+    if (!ids) {
+      
+    } else {
+      const cycle = [this.args.ids]
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        notep = await this.gd.getNOT(id, ids)
+        if (!notep && cycle.length === 1) throw new AppExc(F_SRV, 294)
+        if (!notep) break
+        cycle.push(notep.ids)
+        if (notep.ids === this.args.ids) throw new AppExc(F_SRV, 295, [cycle.join(' ')])
+        if (g) {
+          if (notep.id !== this.args.id) throw new AppExc(F_SRV, 297)
+        } else {
+          if (ID.estGroupe(notep.id)) break
+          if (notep.id !== this.args.id) throw new AppExc(F_SRV, 296)  
+        }
+        if (!notep.ref) break
+        id = notep.ref[0]
+        ids = notep.ref[1]
+        if (!ids) break
       }
-      if (!notep.ref) break
-      id = notep.ref[0]
-      ids = notep.ref[1]
-      if (!ids) break
     }
+
   }
 }
 

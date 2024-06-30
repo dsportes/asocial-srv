@@ -829,6 +829,9 @@ export class Operation {
     if (!this.compte || this.compte.hXC !== authData.hXC) { 
       await sleep(3000); throw new AppExc(F_SRV, 998) 
     }
+    if (this.compte.dlv < this.auj) { 
+      await sleep(3000); throw new AppExc(F_SRV, 997) 
+    }
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp
