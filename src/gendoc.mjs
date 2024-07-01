@@ -1309,6 +1309,17 @@ export class Notes extends GenDoc {
     this.ref = ref
     this._maj = true
   }
+
+  setTexte (t, aut, dh) {
+    this.d = dh
+    this.texte = t
+    if (aut) {
+      const l = [aut]
+      this.l.forEach(a => { if (a !== aut) l.push(a)})
+      this.l = l
+    }
+    this._maj = true
+  }
 }
 
 export class Transferts extends GenDoc { constructor() { super('transferts') } }

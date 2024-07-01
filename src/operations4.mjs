@@ -1703,11 +1703,35 @@ operations.RattNote = class RattNote extends OperationNo {
     await this.checkNoteId()
     let ok = ng ? false : true
     if (ng) for(const [, e] of this.mavc ) { // idm, { im, am, de, anim }
-      if (e.de && (!note.im || ((note.im === e.im) || e.anim))) ok = true
+      if (e.de && (!note.im || (note.im === e.im) || e.anim)) ok = true
     }
     if (!ok) throw new AppExc(F_SRV, 301)
     await this.checkRatt(ng)
     const r = !args.ref[1] && args.ref[0] === note.id ? null : args.ref
     note.setRef(r)
+  }
+}
+
+/* OP_MajNote: 'Mise à jour du texte d\'une note' ******
+- token: éléments d'authentification du compte.
+- id ids: identifiant de la note (dont celle du groupe pour un note de groupe)
+- t : nouveau texte encrypté
+- aut : im de l'auteur de la note pour un groupe
+Retour:
+*/
+operations.MajNote = class MajNote extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const note = await this.gd.getNOT(args.id, args.ids, 'MajNote-1')
+    const ng = ID.estGroupe(args.id)
+    await this.checkNoteId()
+    let im = 0
+    if (ng) {
+      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
+      if (!e) throw new AppExc(F_SRV, 301)
+      im = e.im    
+    }
+    note.setTexte(args.t, im, this.dh)
   }
 }
