@@ -1304,6 +1304,11 @@ export class Notes extends GenDoc {
     this.htm = htmx
     return r
   }
+
+  setRef (ref) {
+    this.ref = ref
+    this._maj = true
+  }
 }
 
 export class Transferts extends GenDoc { constructor() { super('transferts') } }
