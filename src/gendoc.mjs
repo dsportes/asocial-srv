@@ -1100,10 +1100,10 @@ export class Comptas extends GenDoc {
   }
 
   debHeb (nn, vf) {
-    if ((this.qv.nn + this.qv.ng + 1 + this.qv.nc) > this.qv.qn) throw new AppExc(F_SRV, 281)
-    if ((this.qv.v + vf) > this.qv.qv) throw new AppExc(F_SRV, 282)
     this.qv.nn += nn
     this.qv.v += vf
+    if ((this.qv.nn + this.qv.ng + this.qv.nc) > (this.qv.qn * UNITEN)) throw new AppExc(F_SRV, 281)
+    if (this.qv.v > (this.qv.qv * UNITEV)) throw new AppExc(F_SRV, 282)
     const c = new Compteurs(this.compteurs, this.qv)
     this.compteurs = c.serial
     this.majcpt(c)

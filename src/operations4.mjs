@@ -1621,9 +1621,12 @@ class OperationNo extends Operation {
   // Contrôle d'existence de la note parent et de l'absence de cycle
   async checkRatt (g) {
     let notep, id = this.args.ref[0], ids = this.args.ref[1] || 0
-    if (!ids) {
-      
-    } else {
+    if (!ids) { // rattachée à une racine
+      if (id !== this.args.id) {
+        if (g) throw new AppExc(F_SRV, 298)
+        else if (!ID.estGroupe(id)) throw new AppExc(F_SRV, 299)
+      }
+    } else { // rattachée
       const cycle = [this.args.ids]
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -1644,7 +1647,6 @@ class OperationNo extends Operation {
         if (!ids) break
       }
     }
-
   }
 }
 
