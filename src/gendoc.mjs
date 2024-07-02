@@ -1335,6 +1335,10 @@ export class Notes extends GenDoc {
     this._maj = true
   }
 
+  setExclu (im) {
+    this.im = im;
+    this._maj = true
+  }
 }
 
 export class Transferts extends GenDoc { constructor() { super('transferts') } }

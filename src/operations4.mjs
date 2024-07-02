@@ -1756,3 +1756,37 @@ operations.HTNote = class HTNote extends OperationNo {
     } else note.setHT(args.htK)
   }
 }
+
+/* OP_ExcluNote: 'Changement de l\'attribution de l\'exclusivité d\'écriture d\'une note'
+- token: éléments d'authentification du compte.
+- id ids: identifiant de la note
+- ida: id de l'avatar prenant l'exclusivité
+Retour: rien
+//   PNOpeut: 'Pour attribuer l\'exclusité d\'écriture d\'une note, il faut, a) soit être animateur, b) soit l\'avoir soi-même, c) soit que personne ne l\'ait déjà.',
+*/
+operations.ExcluNote = class ExcluNote extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
+    if (!ID.estGroupe(args.id)) throw new AppExc(F_SRV, 303)
+    await this.checkNoteId()
+    let aExclu = false
+    for(const [, e] of this.mavc) 
+      if (e.im === note.im) aExclu = true
+
+    let im = 0
+    if (!args.ida) {
+      if (!aExclu && !this.anim) throw new AppExc(F_SRV, 306)
+    } else {
+      const peut = this.anim || aExclu || !note.im
+      if (!peut) throw new AppExc(F_SRV, 304)
+      im = this.groupe.mmb.get(args.ida)
+      if (!im) throw new AppExc(F_SRV, 305)
+      const f = this.groupe.flags[im]
+      const ok = (f & FLAGS.AN) && (f & FLAGS.DN) && (f & FLAGS.DE)
+      if (!ok) throw new AppExc(F_SRV, 305)
+    }
+    note.setExclu(im)
+  }
+}
