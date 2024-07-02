@@ -457,7 +457,7 @@ operations.Sync = class Sync extends Operation {
     /* SI la session avait des notes chargées, chargement incrémental depuis vs
     SINON chargement initial de puis 0 */
     if (x.n) for (const row of await this.db.scoll(this, 'notes', ID.long(ida, this.ns), x.ns ? x.vs : 0))
-      this.addRes('rowNotes', compile(row).toShortRow(this.id))
+      this.addRes('rowNotes', compile(row).toShortRow(this, this.id))
   }
   
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe

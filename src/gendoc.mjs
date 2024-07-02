@@ -1321,15 +1321,20 @@ export class Notes extends GenDoc {
     this._maj = true
   }
 
-  setHT (htK, htG, idc) {
-    if (ID.estGroupe(this.id)) {
+  setHT (htK, idc) {
+    if (idc) {
       if (htK) this.htm[idc] = htK; else delete this.htm[idc]
-      if (htG) this.htg = htG; this.htg = null
     } else {
       if (htK) this.ht = htK; else this.ht = null
     }
     this._maj = true
   }
+
+  setHTG (htG) {
+    this.htg = htG;
+    this._maj = true
+  }
+
 }
 
 export class Transferts extends GenDoc { constructor() { super('transferts') } }

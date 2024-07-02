@@ -1750,7 +1750,9 @@ operations.HTNote = class HTNote extends OperationNo {
     const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
-    if (ng && !this.anim) throw new AppExc(F_SRV, 302)
-    note.setHT(args.htK, args.htG, this.id)
+    if (ng) {
+      note.setHT(args.htK, this.id)
+      if (this.anim) note.setHTG(args.htG)
+    } else note.setHT(args.htK)
   }
 }
