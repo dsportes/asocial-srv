@@ -1735,3 +1735,22 @@ operations.MajNote = class MajNote extends OperationNo {
     note.setTexte(args.t, im, this.dh)
   }
 }
+
+/* OP_HTNote: 'Changement des hashtags attachés à une note par un compte' ******
+- token: éléments d'authentification du compte.
+- id ids: identifiant de la note
+- htK : ht personels
+- htG : hashtags du groupe
+Retour: rien
+*/
+operations.HTNote = class HTNote extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
+    const ng = ID.estGroupe(args.id)
+    await this.checkNoteId()
+    if (ng && !this.anim) throw new AppExc(F_SRV, 302)
+    note.setHT(args.htK, args.htG, this.id)
+  }
+}
