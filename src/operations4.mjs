@@ -1,10 +1,10 @@
-import { AppExc, F_SRV, ID, FLAGS, d14 } from './api.mjs'
+import { AppExc, F_SRV, ID, FLAGS, d14, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8, rnd6 } from './util.mjs'
 
 import { Operation, R } from './modele.mjs'
-import { compile } from './gendoc.mjs'
+import { compile, Transferts } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -91,8 +91,9 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
 
-    const ids = (ID.ns(args.id) * d14) + (args.hYR % d14)
-    if (await this.db.getSponsoringIds(this, ids)) 
+    if (!this.compte.mav.has(args.id)) throw new AppExc(F_SRV, 308)
+
+    if (await this.db.getSponsoringIds(this, (this.ns * d14) + args.hYR)) 
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
@@ -117,7 +118,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       }
     }
 
-    await this.gd.nouvSPO(args, ids, 'AjoutSponsoring')
+    await this.gd.nouvSPO(args, args.id, 'AjoutSponsoring')
   }
 }
 
@@ -1788,5 +1789,51 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
       if (!ok) throw new AppExc(F_SRV, 305)
     }
     note.setExclu(im)
+  }
+}
+
+/** OP_GetUrlNf : retourne l'URL de get d'un fichier d'une note
+- token: éléments d'authentification du compte.
+- id ids : id de la note.
+- idf : id du fichier.
+Retour:
+- url : url de get
+*/
+operations.GetUrlNf = class GetUrl extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    const note = await this.gd.getNOT(args.id, args.ids, 'GetUrlNf-1')
+    const f = note.mfa[args.idf] // { nom, info, dh, type, gz, lg, sha }
+    if (!f) throw new AppExc(F_SRV, 307)
+    const url = await this.storage.getUrl(this.org, args.id, args.idf)
+    this.setRes('url', url)
+    this.op.vd += f.lg // décompte du volume descendant
+  }
+}
+
+/* OP_PutUrlNf : retourne l'URL de put d'un fichier d'une note ******
+- token: éléments d'authentification du compte.
+- id ids : id de la note
+- idf : identifiant du fichier
+Retour:
+- url : url à passer sur le PUT de son contenu
+Remarque: l'excès de volume pour un groupe et un compte, ainsi que le volume 
+descendant seront décomptés à la validation de l'upload
+*/
+operations.PutUrlNf = class PutUrl extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
+    const f = note.mfa[args.idf] // { nom, info, dh, type, gz, lg, sha }
+    if (!f) throw new AppExc(F_SRV, 307)
+
+    const url = await this.storage.getUrl(this.org, args.id, args.idf)
+    this.setRes('url', url)
+
+    const dlv = AMJ.amjUtcPlusNbj(this.auj, 1)
+    const tr = new Transferts().init({ id: args.id, ids: args.idf, dlv })
+    this.insert(tr.toRow())
   }
 }

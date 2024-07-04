@@ -1,135 +1,16 @@
 /* Opérations d'écrire et toutes du GC */
 
-import { AppExc, F_SRV, ID, Compteurs, AMJ, UNITEV, edvol, d14 } from './api.mjs'
+import { AppExc, F_SRV, ID, Compteurs, UNITEV, edvol, d14 } from './api.mjs'
 import { encode, decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 
 import { Operation } from './modele.mjs'
-import { compile, Transferts } from './gendoc.mjs'
+import { compile } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load () {
   if (config.mondebug) config.logger.debug('Operations: ' + operations.auj)
-}
-
-/* Nouvelle Note *************************************************
-args.token: éléments d'authentification du compte.
-args.rowNote : row de la note
-args.idc: id du compte (note avatar) ou de l'hébergeur (note groupe)
-Retour: rien
-*/
-operations.NouvelleNote = class NouvelleNote extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) { 
-    const note = compile(args.rowNote)
-    let v
-    if (ID.estGroupe(note.id)) {
-      v = await this.majVolumeGr (note.id, 1, 0, false, 'NouvelleNote-1')
-    } else {
-      v = compile(await this.getRowVersion(note.id, 'NouvelleNote-2', true))
-    }
-    v.v++
-    this.update(v.toRow())
-    note.v = v.v
-    this.insert(note.toRow())
-    await this.augmentationVolumeCompta(args.idc, 1, 0, 0, 0, 'NouvelleNote-2')
-  }
-}
-
-/* Maj Note *************************************************
-args.token: éléments d'authentification du compte.
-args.id ids: identifiant de la note (dont celle du groupe pour un note de groupe)
-args.txts : nouveau texte encrypté
-args.aut : auteur de la note pour un groupe
-Retour: rien
-*/
-operations.MajNote = class MajNote extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) { 
-    const note = compile(await this.getRowNote(args.id, args.ids, 'MajNote-1'))
-    const v = compile(await this.getRowVersion(note.id, 'MajNote-2', true))
-    v.v++
-    this.update(v.toRow())
-    
-    note.txts = args.txts
-    if (args.aut) {
-      const nl = [args.aut]
-      if (note.auts) note.auts.forEach(t => { if (t !== args.aut) nl.push(t) })
-      note.auts = nl
-    }
-    note.v = v.v
-    this.update(note.toRow())
-  }
-}
-
-/* Changer l'exclusivité d'écriture d'une note ***********************
-args.token: éléments d'authentification du compte.
-args.id ids: identifiant de la note
-args.im : 0 / im
-Retour: rien
-*/
-operations.ExcluNote = class ExcluNote extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) { 
-    const note = compile(await this.getRowNote(args.id, args.ids, 'ExcluNote-1'))
-    const v = compile(await this.getRowVersion(note.id, 'ExcluNote-2', true))
-    v.v++
-    this.update(v.toRow())
-    note.im = args.im
-    note.v = v.v
-    this.update(note.toRow())
-  }
-}
-
-/* Changer les mots clés d'une note ***********************
-args.token: éléments d'authentification du compte.
-args.id ids: identifiant de la note
-args.hgc: si mc perso d'une note de groupe, id dans la map mc
-args.mc: mots clés perso
-args.mc0: mots clés du groupe
-Retour: rien
-*/
-operations.McNote = class McNote extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) { 
-    const note = compile(await this.getRowNote(args.id, args.ids, 'McNote-1'))
-    const v = compile(await this.getRowVersion(note.id, 'McNote-2', true))
-    v.v++
-    this.update(v.toRow())
-    if (ID.estGroupe(note.id)) {
-      const mc = note.mc ? decode(note.mc) : {}
-      if (args.mc0) mc['0'] = args.mc0
-      if (args.mc) mc[args.hgc] = args.mc
-      note.mc = encode(mc)
-    } else note.mc = args.mc
-    note.v = v.v
-    this.update(note.toRow())
-  }
-}
-
-/* Rattacher une note à une autre ou à une racine ***********************
-args.token: éléments d'authentification du compte.
-args.id ids: identifiant de la note
-args.ref : [rid, rids, rnom] crypté par la clé de la note. Référence d'une autre note
-Retour: rien
-*/
-operations.RattNote = class RattNote extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) { 
-    const note = compile(await this.getRowNote(args.id, args.ids, 'RattNote-1'))
-    const v = compile(await this.getRowVersion(note.id, 'RattNote-2', true))
-    v.v++
-    this.update(v.toRow())
-    note.v = v.v
-    note.ref = args.ref
-    this.update(note.toRow())
-  }
 }
 
 /* Supprimer la note ******
@@ -177,65 +58,6 @@ operations.SupprNote = class SupprNote extends Operation {
     } catch (e) { 
       // trace
     }
-  }
-}
-
-/*****************************************
-GetUrl : retourne l'URL de get d'un fichier
-Comme c'est un GET, les arguments sont en string (et pas en number)
-args.token: éléments d'authentification du compte.
-args.id : id de la note
-args.idf : id du fichier
-args.idc : id du compte demandeur
-args.vt : volume du fichier (pour compta des volumes v2 transférés)
-*/
-operations.GetUrl = class GetUrl extends Operation {
-  constructor (nom) { super(nom, 1, 2); this.lecture = true }
-
-  async phase2 (args) {
-    const org = await this.org(ID.ns(args.id))
-    const idi = args.id % d14
-    const url = await this.storage.getUrl(org, idi, args.idf)
-    this.setRes('getUrl', url)
-    this.compta.v++
-    this.compta.compteurs = new Compteurs(this.compta.compteurs, null, { vd: args.vt }).serial
-    this.update(this.compta.toRow())
-  }
-}
-
-/* Put URL : retourne l'URL de put d'un fichier ****************************************
-args.token: éléments d'authentification du compte.
-args.id : id de la note
-args.idh : id de l'hébergeur pour une note groupe
-args.dv2 : variation de volume v2
-args.idf : identifiant du fichier
-Retour:
-- url : url à passer sur le PUT de son contenu
-*/
-operations.PutUrl = class PutUrl extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 (args) {
-    if (args.dv2 > 0) {
-      if (ID.estGroupe(args.id)) {
-        // Pour provoquer une exception de dépassement éventuel
-        await this.majVolumeGr (args.id, 0, args.dv2, false, 'PutUrl-2')
-      }
-      const h = compile(await this.getRowCompta(args.idh, 'PutUrl-1'))
-      const c = decode(h.compteurs)
-      const d = c.v2 + args.dv2
-      const q = c.q2 * UNITEV
-      if (d > q)
-        throw new AppExc(F_SRV, 56, [edvol(d), edvol(q)])
-    }
-
-    const org = await this.org(ID.ns(args.id))
-    const idi = args.id % d14
-    const url = await this.storage.putUrl(org, idi, args.idf)
-    this.setRes('putUrl', url)
-    const dlv = AMJ.amjUtcPlusNbj(this.auj, 5)
-    const tr = new Transferts().init({ id: args.id, ids: args.idf, dlv })
-    this.insert(tr.toRow())
   }
 }
 
