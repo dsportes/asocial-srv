@@ -103,12 +103,6 @@ export function idTkToL6 (t) {
 }
 
 /************************************************************************/
-export function nomFichier (v) {
-  if (!v) return ''
-  return v.trim().replace(regIntg, '_').replace(regInt2g, '')
-}
-
-/************************************************************************/
 /* retourne un safe integer (53 bits) hash:
 - d'un string
 - d'un u8
