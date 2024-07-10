@@ -1799,12 +1799,13 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
 Retour:
 - url : url de get
 */
-operations.GetUrlNf = class GetUrl extends Operation {
+operations.GetUrlNf = class GetUrl extends OperationNo {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
+    await this.checkNoteId()
     const note = await this.gd.getNOT(args.id, args.ids, 'GetUrlNf-1')
-    const f = note.mfa[args.idf] // { nom, info, dh, type, gz, lg, sha }
+    const f = note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
     if (!f) throw new AppExc(F_SRV, 307)
     const url = await this.storage.getUrl(this.org, args.id, args.idf)
     this.setRes('url', url)
@@ -1815,8 +1816,9 @@ operations.GetUrlNf = class GetUrl extends Operation {
 /* OP_PutUrlNf : retourne l'URL de put d'un fichier d'une note ******
 - token: éléments d'authentification du compte.
 - id ids : id de la note
-- idf : identifiant du fichier
+- aut: pour une note de groupe, ida de l'auteur de l'enregistrement
 Retour:
+- idf : identifiant du fichier
 - url : url à passer sur le PUT de son contenu
 Remarque: l'excès de volume pour un groupe et un compte, ainsi que le volume 
 descendant seront décomptés à la validation de l'upload
@@ -1825,15 +1827,74 @@ operations.PutUrlNf = class PutUrl extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
-    const f = note.mfa[args.idf] // { nom, info, dh, type, gz, lg, sha }
-    if (!f) throw new AppExc(F_SRV, 307)
+    await this.checkNoteId()
+    await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
+    if (ID.estGroupe(args.id)) {
+      const x = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      if (!x || !x.de) throw new AppExc(F_SRV, 309)
+    }
 
-    const url = await this.storage.getUrl(this.org, args.id, args.idf)
+    const idf = rnd6()
+    const url = await this.storage.getUrl(this.org, args.id, idf)
     this.setRes('url', url)
+    this.setRes('idf', idf)
 
     const dlv = AMJ.amjUtcPlusNbj(this.auj, 1)
-    const tr = new Transferts().init({ id: args.id, ids: args.idf, dlv })
+    const tr = new Transferts().init({ id: args.id, ids: idf, dlv })
     this.insert(tr.toRow())
+  }
+}
+
+/* validerUpload ****************************************
+- token: éléments d'authentification du compte.
+- id, ids : de la note
+- fic : { idf, nom, info, type, lg, gz, sha}
+- aut: id de l'auteur (pour une note de groupe)
+- lidf : liste des idf fichiers de la note à supprimer
+Retour: aucun
+*/
+operations.ValiderUpload = class ValiderUpload extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    await this.checkNoteId()
+    await this.gd.getNOT(args.id, args.ids, 'ValiderUpload-1')
+    const note = await this.gd.getNOT(args.id, args.ids, 'ValiderUpload-2')
+    const f = note.mfa[args.fic.idf]
+    if (f) throw new AppExc(F_SRV, 310)
+    let dv = note.vf
+    note.setFic(args.fic)
+    if (args.lidf && args.lidf.length) 
+      args.lidf.forEach(idf => { note.delFic(idf)})
+    note.setVf()
+    dv = note.vf - dv
+
+    let compta
+
+    if (ID.estGroupe(args.id)) {
+      const x = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      if (!x || !x.de) throw new AppExc(F_SRV, 309)
+      const groupe = await this.gd.getGR(args.id, 'ValiderUpload-3')
+      if (groupe.idh) {
+        groupe.setNV(0, dv)
+        groupe.exV()
+        compta = groupe.idh === this.id ? this.compta : 
+          await this.gd.getCA(groupe.idh, 'ValiderUpload-4')
+      } else {
+        if (dv > 0) throw new AppExc(F_SRV, 312)
+        groupe.setNV(0, dv)
+      }
+    } else {
+      compta = this.compta
+    }
+    
+    if (compta) {
+      compta.vPlus(dv)
+      compta.exV()
+    }
+    
+    if (args.lidf && args.lidf.length) 
+      for (const idf of args.lidf)
+        await this.db.purgeTransferts(args.id, idf)
   }
 }

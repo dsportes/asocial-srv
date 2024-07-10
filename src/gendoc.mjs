@@ -1347,6 +1347,25 @@ export class Notes extends GenDoc {
     this.im = im;
     this._maj = true
   }
+
+  setFic (fic) {
+    this.mfa[fic.idf] = fic
+    this.vf += fic.lg
+    this._maj = true
+  }
+
+  delFic (idf) {
+    delete this.mfa[idf]
+    this._maj = true
+  }
+
+  setVF () {
+    let v = 0
+    for (const idf in this.mfa) { v += this.mfa[idf].lg }
+    if (v > (this.qv * UNITEV)) throw new AppExc(F_SRV, 311)
+    this.vf = v
+    this._maj = true
+  }
 }
 
 export class Transferts extends GenDoc { constructor() { super('transferts') } }
