@@ -1809,7 +1809,7 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
     if (!f) throw new AppExc(F_SRV, 307)
     const url = await this.storage.getUrl(this.org, args.id, args.idf)
     this.setRes('url', url)
-    this.op.vd += f.lg // décompte du volume descendant
+    this.vd += f.lg // décompte du volume descendant
   }
 }
 
@@ -1823,7 +1823,7 @@ Retour:
 Remarque: l'excès de volume pour un groupe et un compte, ainsi que le volume 
 descendant seront décomptés à la validation de l'upload
 */
-operations.PutUrlNf = class PutUrl extends Operation {
+operations.PutUrlNf = class PutUrl extends OperationNo {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
@@ -1841,7 +1841,7 @@ operations.PutUrlNf = class PutUrl extends Operation {
 
     const dlv = AMJ.amjUtcPlusNbj(this.auj, 1)
     const tr = new Transferts().init({ id: args.id, ids: idf, dlv })
-    this.insert(tr.toRow())
+    this.insert(tr.toRow(this))
   }
 }
 
@@ -1866,7 +1866,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     note.setFic(args.fic)
     if (args.lidf && args.lidf.length) 
       args.lidf.forEach(idf => { note.delFic(idf)})
-    note.setVf()
+    note.setVF()
     dv = note.vf - dv
 
     let compta

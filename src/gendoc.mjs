@@ -1350,7 +1350,6 @@ export class Notes extends GenDoc {
 
   setFic (fic) {
     this.mfa[fic.idf] = fic
-    this.vf += fic.lg
     this._maj = true
   }
 
@@ -1361,14 +1360,18 @@ export class Notes extends GenDoc {
 
   setVF () {
     let v = 0
-    for (const idf in this.mfa) { v += this.mfa[idf].lg }
+    for (const idf in this.mfa) { 
+      v += this.mfa[idf].lg 
+    }
     if (v > (this.qv * UNITEV)) throw new AppExc(F_SRV, 311)
     this.vf = v
     this._maj = true
   }
 }
 
-export class Transferts extends GenDoc { constructor() { super('transferts') } }
+export class Transferts extends GenDoc { 
+  constructor() { super('transferts') } 
+}
 
 export class Sponsorings extends GenDoc { 
   constructor() { super('sponsorings') } 
