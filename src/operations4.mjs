@@ -1897,13 +1897,13 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
     }
 
-    const idf = rnd6()
+    const idf = ID.rnd()
     const url = await this.storage.getUrl(this.org, args.id, idf)
     this.setRes('url', url)
     this.setRes('idf', idf)
 
     const dlv = AMJ.amjUtcPlusNbj(this.auj, 1)
-    const tr = new Transferts().init({ id: args.id, ids: idf, dlv })
+    const tr = new Transferts().init({ id: args.id, idf, dlv })
     this.insert(tr.toRow(this))
   }
 }

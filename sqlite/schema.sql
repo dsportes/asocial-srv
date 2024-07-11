@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS "partitions" (
   "_data_"	BLOB,
   PRIMARY KEY("id")
 ) WITHOUT ROWID;
-CREATE INDEX "tribus_id_v" ON "partitions" ( "id", "v" );
+CREATE INDEX "partitions_id_v" ON "partitions" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "comptes" (
   "id"	INTEGER,
   "v" INTEGER,
@@ -116,10 +116,10 @@ CREATE TABLE IF NOT EXISTS "tickets" (
 CREATE INDEX "tickets_id_v" ON "tickets" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "transferts" (
   "id"	 INTEGER,
-  "ids"  INTEGER,
+  "idf"  TEXT,
   "dlv"  INTEGER,
   "_data_"	BLOB,
-  PRIMARY KEY("id", "ids")
+  PRIMARY KEY("id", "idf")
 );
 CREATE INDEX "transferts_dlv" ON "transferts" ( "dlv" );
 CREATE TABLE IF NOT EXISTS "sponsorings" (

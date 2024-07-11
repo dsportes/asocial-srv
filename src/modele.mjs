@@ -1049,8 +1049,7 @@ export class Operation {
 
   async purgeTransferts (idag, idf) {
     const id = (this.ns * d14) + (idag % d14)
-    const ids = (this.ns * d14) + (idf % d14)
-    await this.db.purgeTransferts(this, id, ids)
+    await this.db.purgeTransferts(this, id, idf)
   }
 
   async setFpurge (idag, lidf) {

@@ -101,7 +101,7 @@ export class GenDoc {
     versions: ['id', 'v', 'dlv', '_data_'],
     avatars: ['id', 'v', 'vcv', 'hk', '_data_'],
     notes: ['id', 'ids', 'v', '_data_'],
-    transferts: ['id', 'ids', 'dlv', '_data_'],
+    transferts: ['id', 'idf', 'dlv', '_data_'],
     sponsorings: ['id', 'ids', 'v', 'dlv', '_data_'],
     chats: ['id', 'ids', 'v', 'vcv', '_data_'],
     tickets: ['id', 'ids', 'v', '_data_'],
@@ -164,6 +164,7 @@ export class GenDoc {
     if (this.dlv !== undefined) row.dlv = this.dlv
     if (this.dfh !== undefined) row.dfh = this.dfh
     if (this.org !== undefined) row.org = this.org
+    if (this.idf !== undefined) row.idf = this.idf
     // le row est "zombi", c'est à dire sans _data_ quand son flag _zombi est à true
     if (!this._zombi) {
       const d = {}
@@ -1372,9 +1373,7 @@ export class Notes extends GenDoc {
 
   setVF () {
     let v = 0
-    for (const idf in this.mfa) { 
-      v += this.mfa[idf].lg 
-    }
+    for (const idf in this.mfa) v += this.mfa[idf].lg 
     if (v > (this.qv * UNITEV)) throw new AppExc(F_SRV, 311)
     this.vf = v
     this._maj = true

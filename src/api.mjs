@@ -1,5 +1,6 @@
 /* eslint-disable lines-between-class-members */
 import { encode, decode } from '@msgpack/msgpack'
+import { fromByteArray } from './base64.mjs'
 import { random } from './util.mjs'
 
 export const version = '1'
@@ -107,7 +108,7 @@ export function idTkToL6 (t) {
 - d'un string
 - d'un u8
 */
-export function hash (arg) {
+export function hash (arg, court) {
   const t = typeof arg
   const bin = t !== 'string'
   /* https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
@@ -132,7 +133,8 @@ export function hash (arg) {
   }
   h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
-  return 4294967296 * (2097151 & h2) + (h1 >>> 0)
+  const r = 4294967296 * (2097151 & h2) + (h1 >>> 0)
+  return court ? (r % d14) : r
 }
 
 /** Cles **********************************************************************/
@@ -227,6 +229,11 @@ export class ID {
   static estEspace (id) { return id >= 10 && id <= 89 }
 
   static ns (id) { return id < 100 ? id : Math.floor(id / d14)}
+
+  static rnd () {
+    const s = fromByteArray(random(9))
+    return s.replace(/=/g, '').replace(/\+/g, '0').replace(/\//g, '1')
+  }
 }
 
 export const E_BRK = 1000 // Interruption volontaire de l'opération

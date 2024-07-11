@@ -561,15 +561,15 @@ export class SqliteProvider {
     const st = this._stmt('SELTRADLV', 'SELECT * FROM transferts WHERE dlv <= @dlv')
     const rows = st.all({ dlv })
     if (rows) rows.forEach(row => {
-      r.push([row.id, row.ids])
+      r.push([row.id, row.idf])
     })
     op.nl += r.length
     return r
   }
 
-  async purgeTransferts (op, id, ids) {
-    const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND ids = @ids')
-    st.run({ id, ids })
+  async purgeTransferts (op, id, idf) {
+    const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND idf = @idf')
+    st.run({ id, idf })
     op.ne++
   }
 
