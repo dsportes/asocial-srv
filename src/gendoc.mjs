@@ -1313,6 +1313,18 @@ export class Notes extends GenDoc {
     return r
   }
 
+  setZombi () {
+    this._zombi = true
+    this._maj = true
+  }
+
+  setAut (im) {
+    if (this.aut[0] === im) return
+    const a = [im]; this.aut.forEach(i => { if (i !== im) a.push(i)})
+    this.aut = a
+    this._maj = true
+  }
+
   setRef (ref) {
     this.ref = ref
     this._maj = true

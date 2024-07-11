@@ -3,7 +3,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8, rnd6 } from './util.mjs'
 
-import { Operation, R } from './modele.mjs'
+import { Operation, R, trace } from './modele.mjs'
 import { compile, Transferts } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
@@ -1730,10 +1730,72 @@ operations.MajNote = class MajNote extends OperationNo {
     let im = 0
     if (ng) {
       const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
-      if (!e) throw new AppExc(F_SRV, 301)
+      if (!e || !e.de) throw new AppExc(F_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
+      note.setAut(e.im)
       im = e.im    
     }
     note.setTexte(args.t, im, this.dh)
+  }
+}
+
+/* OP_MajNote: 'Mise à jour du texte d\'une note' ******
+- token: éléments d'authentification du compte.
+- id ids: identifiant de la note
+Retour: aucun
+*/
+operations.SupprNote = class SupprNote extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) { 
+    const note = await this.gd.getNOT(args.id, args.ids)
+    if (!note) return
+    const ng = ID.estGroupe(args.id)
+    await this.checkNoteId()
+    let ok = false
+    if (ng) {
+      if (!this.anim) {
+        for(const [,e] of this.mavc) {
+          if (e.de && (!note.im || note.im === e.im)) ok = true
+        }
+      } else ok = true
+      if (!ok) throw new AppExc(F_SRV, 315)
+    }
+    const dv = -note.vf
+
+    let compta
+
+    if (ng) {
+      this.groupe.setNV(0, dv)
+      if (this.groupe.idh) {
+        compta = this.groupe.idh === this.id ? this.compta : 
+          await this.gd.getCA(this.groupe.idh, 'SupprNote-1')
+      }
+    } else {
+      compta = this.compta
+    }
+    
+    if (compta) {
+      compta.vPlus(dv)
+      compta.exV()
+    }
+
+    this.lidf = []
+    for(const idf in note.mfa) this.lidf.push(parseInt(idf))
+
+    note.setZombi()
+
+    if (this.lidf.length) 
+      this.idfp = await this.setFpurge(args.id, this.lidf)
+  }
+
+  async phase3 (args) {
+    if (this.lidf.length) try {
+      await this.storage.delFiles(this.org, args.id, this.lidf)
+      await this.unsetFpurge(this.idfp)
+    } catch (e) { 
+      trace('SupprNote-phase3', args.id, e.message)
+    }
   }
 }
 
@@ -1828,10 +1890,11 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
 
   async phase2 (args) {
     await this.checkNoteId()
-    await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
+    const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
     if (ID.estGroupe(args.id)) {
-      const x = this.auts.get(args.aut) // idm, { im, am, de, anim }
-      if (!x || !x.de) throw new AppExc(F_SRV, 309)
+      const e = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      if (!e || !e.de) throw new AppExc(F_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
     }
 
     const idf = rnd6()
@@ -1872,17 +1935,18 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     let compta
 
     if (ID.estGroupe(args.id)) {
-      const x = this.auts.get(args.aut) // idm, { im, am, de, anim }
-      if (!x || !x.de) throw new AppExc(F_SRV, 309)
-      const groupe = await this.gd.getGR(args.id, 'ValiderUpload-3')
-      if (groupe.idh) {
-        groupe.setNV(0, dv)
-        groupe.exV()
-        compta = groupe.idh === this.id ? this.compta : 
-          await this.gd.getCA(groupe.idh, 'ValiderUpload-4')
+      const e = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      if (!e || !e.de) throw new AppExc(F_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
+      note.setAut(e.im)
+      if (this.groupe.idh) {
+        this.groupe.setNV(0, dv)
+        this.groupe.exV()
+        compta = this.groupe.idh === this.id ? this.compta : 
+          await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
       } else {
         if (dv > 0) throw new AppExc(F_SRV, 312)
-        groupe.setNV(0, dv)
+        this.groupe.setNV(0, dv)
       }
     } else {
       compta = this.compta
@@ -1893,8 +1957,78 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
       compta.exV()
     }
     
+    await this.purgeTransferts(args.id, args.fic.idf)
+
     if (args.lidf && args.lidf.length) 
-      for (const idf of args.lidf)
-        await this.db.purgeTransferts(args.id, idf)
+      this.idfp = await this.setFpurge(args.id, args.lidf)
   }
+
+  async phase3 (args) {
+    if (this.idfp) try {
+      await this.storage.delFiles(this.org, args.id, args.lidf)
+      await this.unsetFpurge(this.idfp)
+    } catch (e) { 
+      trace('ValiderUpload-phase3', args.id, e.message)
+    }
+  }
+
 }
+
+/* OP_SupprFichier : 'Suppression d\'un fichier d\'une note', ****************************************
+- token: éléments d'authentification du compte.
+- id, ids : de la note
+- idf : id du fichier
+- aut: id de l'auteur (pour une note de groupe)
+Retour: aucun
+*/
+operations.SupprFichier = class SupprFichier extends OperationNo {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    await this.checkNoteId()
+    await this.gd.getNOT(args.id, args.ids, 'SupprFichier-1')
+    const note = await this.gd.getNOT(args.id, args.ids, 'SupprFichier-2')
+    const f = note.mfa[args.idf]
+    if (!f) return
+    let dv = note.vf
+    note.delFic(args.idf)
+    note.setVF()
+    dv = note.vf - dv // négatif
+
+    let compta
+
+    if (ID.estGroupe(args.id)) {
+      const e = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      if (!e || !e.de) throw new AppExc(F_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
+      note.setAut(e.im)
+      if (this.groupe.idh) {
+        this.groupe.setNV(0, dv)
+        this.groupe.exV()
+        compta = this.groupe.idh === this.id ? this.compta : 
+          await this.gd.getCA(this.groupe.idh, 'SupprFichier-4')
+      } else {
+        this.groupe.setNV(0, dv)
+      }
+    } else {
+      compta = this.compta
+    }
+    
+    if (compta) {
+      compta.vPlus(dv)
+      compta.exV()
+    }
+    this.idfp = await this.setFpurge(args.id, [args.idf])
+  }
+
+  async phase3 (args) {
+    try {
+      await this.storage.delFiles(this.org, args.id, [args.idf])
+      await this.unsetFpurge(this.idfp)
+    } catch (e) { 
+      trace('SupprFichier-phase3', args.id, e.message)
+    }
+  }
+
+}
+

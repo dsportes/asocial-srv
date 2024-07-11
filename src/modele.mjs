@@ -1047,17 +1047,17 @@ export class Operation {
     return rc
   }
 
-  // async getSingletons () { return this.db.getSingletons(this) }
+  async purgeTransferts (idag, idf) {
+    const id = (this.ns * d14) + (idag % d14)
+    const ids = (this.ns * d14) + (idf % d14)
+    await this.db.purgeTransferts(this, id, ids)
+  }
 
-  // async setSingleton (data) { this.db.setSingleton(this, data) }
-
-  /* fpurge, transferts */
   async setFpurge (idag, lidf) {
     const x = rnd6()
-    const ns = ID.ns(idag)
-    const id = (ns * d14) + (x % d14)
+    const id = (this.ns * d14) + (x % d14)
     const _data_ = new Uint8Array(encode({ id, idag, lidf }))
-    this.db.setFpurge(this, id, _data_)
+    await this.db.setFpurge(this, id, _data_)
     return id
   }
 
