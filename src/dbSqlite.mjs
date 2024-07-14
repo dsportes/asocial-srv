@@ -236,20 +236,6 @@ export class SqliteProvider {
     }
     return null
   }
-  
-  /*
-  async getEspaceOrg(op, org) {
-    const code = 'SELORG'
-    const st = this._stmt(code, 'SELECT * FROM espaces WHERE org = @org')
-    const row = st.get({ org })
-    if (row) {
-      row._nom = 'espaces'
-      op.nl++
-      return await decryptRow(op, row)
-    }
-    return null
-  }
-  */
 
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   */
@@ -262,19 +248,6 @@ export class SqliteProvider {
       const b = await decryptRow(op, row)
       const a = compile(b)
       return a
-    }
-    return null
-  }
-  
-  /* Retourne LE chat si sa CV est MOINS récente que celle détenue en session (de version vcv)
-  */
-  async getChatVCV(op, id, ids, vcv) {
-    const st = this._stmt('SELCHCV', 'SELECT * FROM chats WHERE id = @id AND ids = @ids AND vcv < @vcv')
-    const row = st.get({ id : id, ids: ids, vcv: vcv })
-    if (row) {
-      row._nom = 'chats'
-      op.nl++
-      return compile(await decryptRow(op, row))
     }
     return null
   }
@@ -291,20 +264,6 @@ export class SqliteProvider {
     return null
   }
   */
-
-  /* Retourne LE membre si sa CV est MOINS récente que celle détenue en session (de version vcv)
-  */
-  async getMembreVCV(op, id, ids, vcv) {
-    const st = this._stmt('SELMBCV', 'SELECT * FROM membres WHERE id = @id AND ids = @ids AND vcv < @vcv')
-    const row = st.get({ id : id, ids: ids, vcv: vcv })
-    if (row) {
-      row._nom = 'membres'
-      op.nl++
-      return compile(await decryptRow(op, row))
-    }
-    return null
-  }
-  
   async getCompteHk(op, hk) {
     const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hk = @hk')
     const row = st.get({ hk })

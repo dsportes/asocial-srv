@@ -268,23 +268,6 @@ export class FirestoreProvider {
     return compile(await decryptRow(op, row))
   }
 
-  /* Retourne LE chat si sa CV est MOINS récente que celle détenue en session (de version vcv)
-  */
-  async getChatVCV (op, id, ids, vcv) {
-    const p = 'versions/' + id + '/chats'
-    // INDEX simple sur chats vcv
-    const q = this.fs.collection(p).where('ids', '==', ids).where('vcv', '>', vcv)
-    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
-    let row = null
-    if (!qs.empty) {
-      for (const qds of qs.docs) { row = qds.data(); break }
-    }
-    if (!row) return null
-    row._nom = 'chats'
-    op.nl++
-    return compile(await decryptRow(op, row))
-  }
-
   /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
 
   async getRowTicketV (op, id, ids, v) {
@@ -304,23 +287,6 @@ export class FirestoreProvider {
     return null
   }
   */
-
-  /* Retourne LE membre si sa CV est MOINS récente que celle détenue en session (de version vcv)
-  */
-  async getMembreVCV (op, id, ids, vcv) {
-    const p = 'versions/' + id + '/membres'
-    // INDEX simple sur membres vcv
-    const q = this.fs.collection(p).where('ids', '==', ids).where('vcv', '>', vcv)
-    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
-    let row = null
-    if (!qs.empty) {
-      for (const qds of qs.docs) { row = qds.data(); break }
-    }
-    if (!row) return null
-    row._nom = 'membres'
-    op.nl++
-    return compile(await decryptRow(op, row))
-  }
 
   async getCompteHk(op, hk) { // OK1
     const p = FirestoreProvider._collPath('comptes')

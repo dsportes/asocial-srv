@@ -92,12 +92,10 @@ CREATE TABLE IF NOT EXISTS "chats" (
   "id"	INTEGER,
   "ids"  INTEGER,
   "v" INTEGER,
-  "vcv" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id", "ids")
 );
 CREATE INDEX "chats_id_v" ON "chats" ( "id", "v" );
-CREATE INDEX "chats_id_vcv" ON "chats" ( "id", "vcv" );
 CREATE TABLE IF NOT EXISTS "notes" (
   "id"	INTEGER,
   "ids"  INTEGER,
@@ -146,12 +144,10 @@ CREATE TABLE IF NOT EXISTS "membres" (
   "id"	INTEGER,
   "ids"  INTEGER,
   "v"  INTEGER,
-  "vcv" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id", "ids")
 );
 CREATE INDEX "membres_id_v" ON "membres" ( "id", "v" );
-CREATE INDEX "membres_id_vcv" ON "membres" ( "id", "vcv" );
 CREATE TABLE IF NOT EXISTS "chatgrs" (
   "id"	INTEGER,
   "ids"  INTEGER,

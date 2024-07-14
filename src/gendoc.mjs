@@ -103,10 +103,10 @@ export class GenDoc {
     notes: ['id', 'ids', 'v', '_data_'],
     transferts: ['id', 'idf', 'dlv', '_data_'],
     sponsorings: ['id', 'ids', 'v', 'dlv', '_data_'],
-    chats: ['id', 'ids', 'v', 'vcv', '_data_'],
+    chats: ['id', 'ids', 'v', '_data_'],
     tickets: ['id', 'ids', 'v', '_data_'],
     groupes: ['id', 'v', 'dfh', '_data_'],
-    membres: ['id', 'ids', 'v', 'vcv', '_data_'],
+    membres: ['id', 'ids', 'v', '_data_'],
     chatgrs: ['id', 'ids', 'v', '_data_']
   }
 
@@ -1511,7 +1511,6 @@ export class Chats extends GenDoc {
   }
 
   setCvE (cv) {
-    this.vcv = cv.v
     this.cvE = cv
     this._maj = true
   }
@@ -1523,7 +1522,6 @@ export class Chats extends GenDoc {
   chEdisp () {
     if (this.stI) { // était actif
       this.st = (this.stI * 10) + 2 
-      this.vcv = 0
       this.cvE = null
     } else { // était passif, disparait
       this._zombi = true
@@ -1930,7 +1928,6 @@ export class Groupes extends GenDoc {
 - `id` : id du groupe.
 - `ids`: identifiant, indice `im` de membre relatif à son groupe.
 - `v` : 
-- `vcv` : version de la carte de visite du membre.
 
 - `rds`: 
 - `dpc` : date de premier contact (ou de première invitation s'il a été directement invité).
@@ -1952,7 +1949,6 @@ export class Membres extends GenDoc {
       _maj: true, v: 0,
       id: idg, 
       ids: im, 
-      vcv: cvA.v, 
       cvA: cvA, 
       cleAG: cleAG,
       dpc: 0, ddi: 0, dac: 0, fac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
@@ -1967,7 +1963,6 @@ export class Membres extends GenDoc {
   }
 
   setCvA (cv) {
-    this.vcv = cv.v
     this.cvA = cv
     this._maj = true
   }

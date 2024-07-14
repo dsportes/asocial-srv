@@ -609,7 +609,7 @@ class GD {
       if (d._nom === 'avatars') {
         if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       } else if (d._nom === 'groupes') {
-        if (d.cvG && !d.cvG.v) { d.vcv = d.v; d.cvG.v = d.v }
+        if (d.cvG && !d.cvG.v) d.cvG.v = d.v
       }
       if (ins) this.op.insert(d.toRow(this.op))
       else this.op.update(d.toRow(this.op))
@@ -978,38 +978,6 @@ export class Operation {
   async scoll (nom, id, v) { return this.db.scoll(this, nom, id, v) }
 
   async delScoll (nom, id) { return this.db.delScollSql(this, nom, id) }
-
-  // async getVersionsDlv (dlvmin, dlvmax) { return this.db.getVersionsDlv(this, dlvmin, dlvmax) }
-
-  // async getMembresDlv (dlvmax) {return this.db.getMembresDlv(this, dlvmax) }
-
-  // async getMembresDlvat (ns, dlvat) {return this.db.getMembresDlvat(this, ns, dlvat) }
-
-  // async getVersionsDlvat (ns, dlvat) {return this.db.getVersionsDlvat(this, ns, dlvat) }
-
-  // async getGroupesDfh (dfh) { return this.db.getGroupesDfh(this, dfh) }
-
-  // async setVdlv (id, dlv) { return this.db.setVdlv(this, id, dlv) }
-
-  // async getChatVCV (id, ids, vcv) { return this.db.getChatVCV(this, id, ids, vcv) }
-
-  // async getRowTicketV (id, ids, v) { return this.db.getRowTicketV(this, id, ids, v) }
-
-  async getMembreVCV (id, ids, vcv) { return this.db.getMembreVCV(this, id, ids, vcv) }
-
-  // async getAllRowsNote(id, v) { return await this.scoll('notes', id, v) }
-
-  // async getAllRowsEspace () { return await this.coll('espaces') }
-
-  // async getAllRowsChat(id, v) { return await this.scoll('chats', id, v)}
-
-  // async getAllRowsTicket(id, v) { return await this.scoll('tickets', id, v) }
-
-  // async getAllRowsSponsoring(id, v) { return await this.scoll('sponsorings', id, v) }
-
-  // async getAllRowsMembre(id, v) { return await this.scoll('membres', id, v) }
-
-  // async getAllRowsChatgr(id, v) { return await this.scoll('chatgrs', id, v) }
 
   async getRowNote (id, ids, assert) {
     const rs = await this.db.get(this, 'notes', ID.long(id, this.ns), ID.long(ids, this.ns))
