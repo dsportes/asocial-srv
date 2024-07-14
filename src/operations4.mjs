@@ -5,6 +5,7 @@ import { eqU8, rnd6 } from './util.mjs'
 
 import { Operation, R, trace } from './modele.mjs'
 import { compile, Transferts } from './gendoc.mjs'
+import { Taches } from './taches.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -54,8 +55,9 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
   async phase2 (args) {
     this.ns = args.ns
     const espace = await this.gd.getES(true)
+    const dla = espace.dlvat ? espace.dlvat : AMJ.max
     espace.setDlvat(args.dlvat)
-    // TODO : créer et réveiller la tache de nettoyage
+    await Taches.nouvelle(this, Taches.ESP, this.ns, dla)
   }
 }
 

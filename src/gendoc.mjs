@@ -702,6 +702,24 @@ export class Comptes extends GenDoc {
     return false
   }
 
+  defDlv (e, auj, compta) {
+    // DLV maximale : N mois depuis aujourd'hui
+    const dlvmax = !e ? 0 : (AMJ.djMois(AMJ.amjUtcPlusNbj(auj, e.nbmi * 30)))
+    // DLV maximale pour les comptes 0: dlvmax OU dlv de l'espace si plus proche
+    const dlvmaxO = !e ? 0 :(e.dlvat && (dlvmax > e.dlvat) ? e.dlvat : dlvmax)
+
+    let dlv
+    if (this.idp) // Compte O
+      dlv = ID.estComptable(this.id) ? AMJ.max : dlvmaxO
+    else { // Compte A
+      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(auj, compta._nbj))
+      dlv = dlvmax > d ? d : dlvmax
+    }
+    let diff1 = AMJ.diff(dlv, this.dlv)
+    if (diff1 < 0) diff1 = -diff1
+    return [dlv, diff1]
+  }
+
   /* Report de compta et calcul DLV: seulement si,
   - compte était déjà en maj
   - OU chgt DLV significatif
@@ -711,20 +729,7 @@ export class Comptes extends GenDoc {
     compta.compile() // calcul _nbj _c2m _pc
 
     const e = await gd.getES(true)
-    // DLV maximale : N mois depuis aujourd'hui
-    const dlvmax = !e ? 0 : (AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, e.nbmi * 30)))
-    // DLV maximale pour les comptes 0: dlvmax OU dlv de l'espace si plus proche
-    const dlvmaxO = !e ? 0 :(e.dlvat && (dlvmax > e.dlvat) ? e.dlvat : dlvmax)
-
-    let dlv
-    if (this.idp) // Compte O
-      dlv = ID.estComptable(this.id) ? AMJ.max : dlvmaxO
-    else { // Compte A
-      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, compta._nbj))
-      dlv = dlvmax > d ? d : dlvmax
-    }
-    let diff1 = AMJ.diff(dlv, this.dlv)
-    if (diff1 < 0) diff1 = -diff1
+    const [dlv, diff1] = this.defDlv (e, gd.op.auj, compta)
 
     const rep = this._maj || diff1 || this.reporter(compta)
     if (rep) {

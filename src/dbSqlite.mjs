@@ -402,7 +402,22 @@ export class SqliteProvider {
     if (rows) rows.forEach(row => { r.push(row.id)})
     return r
   }
-  
+
+  /* Retourne l'array des id des comptes du ns donné dont la dlv est:
+  - bridée par la dlvat actuelle
+  - ou supérieure à la dlvat future
+  Plus complexe en FIrestore ?
+  */
+  async getComptesDlvat(op, dla, dlf, ns) {
+    const ns1 = ns * d14
+    const ns2 = (ns + 1) * d14
+    const st = this._stmt('SELCDLVAT', 'SELECT id FROM comptes WHERE id >= @ns1 AND id < @ns2 AND (dlv > @dlf OR dlv = @dla)')
+    const rows = st.all({ dla, dlf, ns1, ns2 })
+    const r = []
+    if (rows) rows.forEach(row => { r.push(row.id)})
+    return r
+  }
+
   /* Retourne la collection de nom 'nom' : pour avoir tous les espaces */
   async coll (op, nom) {
     const code = 'COLV' + nom
