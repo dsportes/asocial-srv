@@ -408,7 +408,7 @@ export class SqliteProvider {
   - ou supérieure à la dlvat future
   Plus complexe en FIrestore ?
   */
-  async getComptesDlvat(op, dla, dlf, ns) {
+  async getComptesDlvat(op, ns, dla, dlf) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const st = this._stmt('SELCDLVAT', 'SELECT id FROM comptes WHERE id >= @ns1 AND id < @ns2 AND (dlv > @dlf OR dlv = @dla)')

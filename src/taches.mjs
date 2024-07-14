@@ -407,12 +407,12 @@ operations.ESP = class ESP extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    this.ns = args.tache.id
-    this.dla = args.tache.ids
-    if (!args.args) {
+    this.ns = ID.ns(args.tache.id)
+    this.dla = ID.court(args.tache.ids)
+    if (!args.lst) {
       const esp = await this.gd.getES(true)
       if (!esp) { args.fini = true; return }
-      args.e = { dlf: esp.dlvat, nbmi: esp.nbmi }
+      args.e = { dlvat: esp.dlvat, nbmi: esp.nbmi }
       // Récupération de la liste des id des comptes à traiter
       args.lst = await this.db.getComptesDlvat(this, this.ns, this.dla, esp.dlvat)
       if (!args.lst.length) { args.fini = true; return }
@@ -421,7 +421,7 @@ operations.ESP = class ESP extends Operation {
     while (args.lst.length) {
       const id = ID.court(args.lst.pop())
       const compte = await this.gd.getCO(id)
-      if (!compte || compte.estA || compte.estComptable) continue
+      if (!compte || compte._estA || compte._estComptable) continue
       const compta = await this.gd.getCA(id)
       if (!compta) continue
       const [, diff1] = compte.defDlv(args.e, this.auj, compta)

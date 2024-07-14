@@ -560,6 +560,8 @@ export class Comptes extends GenDoc {
 
   get _estA () { return this.idp === 0 }
 
+  get _estComptable () { return ID.estComptable(this.id) }
+
   toShortRow (op) {
     const x1 = this.rds
     const x2 = encode(this.mav)
