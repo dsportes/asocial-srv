@@ -1741,7 +1741,7 @@ operations.MajNote = class MajNote extends OperationNo {
   }
 }
 
-/* OP_MajNote: 'Mise à jour du texte d\'une note' ******
+/* OP_SupprNote: 'Suppression d\'une note' ******
 - token: éléments d'authentification du compte.
 - id ids: identifiant de la note
 Retour: aucun
