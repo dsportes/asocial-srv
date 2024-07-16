@@ -222,6 +222,17 @@ export class Espaces extends GenDoc {
     })
   }
 
+  reset (cleET, hTC) {
+    this.cleET = cleET
+    this.hTC = hTC
+    this._maj = true
+  }
+
+  comptableOK () {
+    delete this.hTC
+    this._maj = true
+  }
+
   setPartition (n) {
     for (let i = 0; i < n - this.tnotifP.length + 1; i++) this.tnotifP.push(null)
     this._maj = true

@@ -1,11 +1,11 @@
 import { AppExc, F_SRV, ID } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { sleep, crypterSrv } from './util.mjs'
+import { sleep, crypterSrv, decrypterSrv } from './util.mjs'
 
 import { Operation, Cache, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { DataSync } from './api.mjs'
+import { DataSync, Cles } from './api.mjs'
 // import { Taches } from './taches.mjs'
 
 // Pour forcer l'importation des opérations
@@ -193,12 +193,12 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 }
 
 /* SyncSp - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
-- `token` : éléments d'authentification du compte à créer
+- token : éléments d'authentification du compte à créer
 - idsp idssp : identifiant du sponsoring
 - id : id du compte sponsorisé à créer
 - hXR: hash du PBKD de sa phrase secrète réduite
 - hXC: hash du PBKD de sa phrase secrète complète
-- `hYC`: hash du PNKFD de la phrase de sponsoring
+- hYC: hash du PNKFD de la phrase de sponsoring
 - cleKXC: clé K du nouveau compte cryptée par le PBKFD de sa phrase secrète complète
 - cleAK: clé A de son avatar principal cryptée par la clé K du compte
 - ardYC: ardoise du sponsoring
@@ -626,7 +626,7 @@ Création des rows:
 - compte, compta, avatar: du Comptable
 
 Exceptions:
-*/
+
 operations.CreerEspace = class CreerEspace extends Operation {
   constructor (nom) { super(nom, 3) }
 
@@ -646,7 +646,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
 
     args.id = ID.duComptable()
 
-    /* Espace */
+    // Espace 
     const cleES = crypterSrv(this.db.appKey, args.cleE)
     // this.espace = Espaces.nouveau(args.ns, args.org, this.auj, cleES)
     this.gd.nouvES(args.ns, args.org, cleES)
@@ -655,7 +655,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
     const partition = await this.gd.nouvPA(1, qc)
 
-    /* Compte Comptable */
+    // Compte Comptable
     const aco = config.allocComptable
     const quotas = { qc: aco[0], qn: aco[1], qv: aco[2] }
     const {compte, compta } = this.gd.nouvCO(args, null, quotas, 0)
@@ -666,6 +666,7 @@ operations.CreerEspace = class CreerEspace extends Operation {
     this.gd.nouvAV(compte, args, cvA)
   }
 }
+*/
 
 /*`SetEspaceNprof` : déclaration du profil de volume de l'espace par l'administrateur
 - `token` : jeton d'authentification du compte de **l'administrateur**
@@ -720,5 +721,124 @@ operations.GetNotifC = class GetNotifC extends Operation {
     if (this.estComptable) return
     const part = await this.gd.getPA(ID.long(c.idp, this.ns), 'GetNotifC-2')
     if (!part.estDel(this.id)) throw new AppExc(F_SRV, 231)
+  }
+}
+
+/* `CreationEspace` : création d'un nouvel espace
+- token : jeton d'authentification du compte de **l'administrateur**
+- ns : numéro de l'espace
+- org : code de l'organisation
+- TC : PBKFD de la phrase de sponsoring du Comptable par l'AT
+- hTC : hash de TC
+Retour: rien
+
+Traitement ssi si: 
+- soit espace n'existe pas, 
+- soit espace existe et a un `hTC` : re-création avec une nouvelle phrase de sponsoring.
+
+Création des rows espace, synthese
+- génération de la `cleE` de l'espace: -> `cleET` (par TC) et `cleES` (par clé système).
+- stocke dans l'espace: `hTC cleES cleET`. Il est _à demi_ créé, son Comptable n'a pas encore crée son compte.
+*/
+operations.CreationEspace = class CreationEspace extends Operation {
+  constructor (nom) { super(nom, 3) }
+
+  // eslint-disable-next-line no-useless-escape
+  static reg = /^([a-z0-9\-]+)$/
+
+  async phase2(args) {
+    this.ns = args.ns
+    if (args.ns < 10 || args.ns > 89) throw new AppExc(F_SRV, 202, [args.ns])
+    if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreationEspace.reg))) 
+      throw new AppExc(F_SRV, 201, [args.org])
+
+    let espace = await this.gd.getES()
+    if (espace && !espace.cleET) throw new AppExc(F_SRV, 203, [args.ns, args.org])
+    const e2 = await Esp.getEspOrg(this, args.org)
+    if (e2 && e2.id !== args.ns)
+      throw new AppExc(F_SRV, 204, [args.ns, args.org])
+
+    // this.espace = Espaces.nouveau(args.ns, args.org, this.auj, cleES)
+    let cleE
+    if (!espace) {
+      cleE = Cles.espace()
+      const cleES = crypterSrv(this.db.appKey, cleE)
+      espace = this.gd.nouvES(args.ns, args.org, cleES)
+    } else {
+      cleE = decrypterSrv(this.db.appKey, espace.cleES)
+    }
+    const cleET = crypterSrv(args.TC, cleE)
+    espace.reset(cleET, args.hTC)
+  }
+}
+
+/* GetCleET: retourne la clé de l'espace cryptée par la phrase de sponsoting du Comptable
+- org : code de l'organisation
+- hTC : hash du PBKFD de la phrase de sponsoring du Comptable
+Retour:
+- soit cleET
+- soit 1: phrase de sponsoring non reconnue
+- soit 2: espace ayant déjà un Comptable
+*/
+operations.GetCleET = class GetCleET extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2 (args) {
+    await this.gd.getESOrg(args.org) // set this.ns this.org
+    const espace = await this.getCheckEspace()
+    const cleET = !espace.hTC ? 2 : (espace.hTC !== args.hTC ? 1 : espace.cleET)
+    this.setRes('cleET', cleET)
+  }
+}
+
+/* `CreationComptable` : création du comptable d'un nouvel espace
+- token : jeton d'authentification du compte à créer
+- org : code de l'organisation
+- hTC : hash du PBKFD de la phrase de sponsoring du Comptable
+- hXR : hash du PBKFD de la phrase secrète réduite
+- hXC : hash du PBKFD de la phrase secrète complète
+- pub: clé RSA publique du Comptable
+- privK: clé RSA privée du Comptable cryptée par la clé K
+- clePK: clé P de la partition 1 cryptée par la clé K du Comptable
+- cleEK: clé E cryptée par la clé K
+- cleAP: clé A du Comptable cryptée par la clé de la partition
+- cleAK: clé A du Comptable cryptée par la clé K du Comptable
+- cleKXC: clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
+- clePA: cle P de la partition cryptée par la clé A du Comptable
+- ck: {cleP, code} cryptés par la clé K du Comptable. 
+  - `cleP` : clé P de la partition.
+  - `code` : code / commentaire court de convenance attribué par le Comptable
+
+Retour: rien
+
+Création des rows:
+- partition : primitive, avec le Comptable comme premier participant et délégué
+- compte / compti / compta, avatar du Comptable
+*/
+operations.CreationComptable = class CreationComptable extends Operation {
+  constructor (nom) { super(nom, 0) }
+
+  async phase2(args) {
+    const espace = await this.gd.getESOrg(args.org) // set this.ns this.org
+    if (!espace.hTC) throw new AppExc(F_SRV, 105)
+    if (espace.hTC !== args.hTC) throw new AppExc(F_SRV, 106)
+    
+    args.id = ID.duComptable()
+
+    const apr = config.allocPrimitive
+    const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
+    const partition = await this.gd.nouvPA(1, qc)
+
+    // Compte Comptable
+    const aco = config.allocComptable
+    const quotas = { qc: aco[0], qn: aco[1], qv: aco[2] }
+    const {compte, compta } = this.gd.nouvCO(args, null, quotas, 0)
+
+    partition.ajoutCompte(compta, compta._c2m, args.cleAP, true)
+
+    const cvA = { id: args.id }
+    this.gd.nouvAV(compte, args, cvA)
+
+    espace.comptableOK()
   }
 }
