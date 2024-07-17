@@ -1,7 +1,7 @@
 import { AppExc, F_SRV, ID } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { sleep, crypterSrv, decrypterSrv } from './util.mjs'
+import { sleep, crypter, crypterSrv, decrypterSrv } from './util.mjs'
 
 import { Operation, Cache, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
@@ -130,9 +130,10 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
 }
 
 /* Get Sponsoring **************************************************
-args.token: éléments d'authentification du compte.
-args.org : organisation
-args.hps1 : hash du PBKFD de la phrase de contact réduite SANS ns
+- token: éléments d'authentification du compte.
+- org : organisation
+- hps1 : hash du PBKFD de la phrase de contact réduite SANS ns
+- hTC: hash de la phrase de sponoring complète
 Retour:
 - rowSponsoring s'il existe
 */
@@ -140,12 +141,15 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.gd.getESOrg(args.org) // set this.ns
-
-    const row = await this.db.getSponsoringIds(this, ID.long(args.hps1, this.ns))
-    if (!row) { sleep(3000); throw new AppExc(F_SRV, 11) }
-    this.setRes('rowSponsoring', row)
-    this.setRes('ns', this.ns)
+    const espace = await this.gd.getESOrg(args.org) // set this.ns
+    if (espace.hTC) // Compte du Comptable pas encore créé
+      this.setRes('cleET', espace.hTC === args.hTC ? espace.cleET : false)
+    else {
+      const row = await this.db.getSponsoringIds(this, ID.long(args.hps1, this.ns))
+      if (!row) { sleep(3000); throw new AppExc(F_SRV, 11) }
+      this.setRes('rowSponsoring', row)
+      this.setRes('ns', this.ns)  
+    }
   }
 }
 
@@ -767,7 +771,7 @@ operations.CreationEspace = class CreationEspace extends Operation {
     } else {
       cleE = decrypterSrv(this.db.appKey, espace.cleES)
     }
-    const cleET = crypterSrv(args.TC, cleE)
+    const cleET = crypter(args.TC, cleE)
     espace.reset(cleET, args.hTC)
   }
 }
@@ -788,7 +792,7 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
     const espace = await this.gd.getES(false, 'MajSponsEspace-1')
     if (!espace.cleET) throw new AppExc(F_SRV, 316)
     const cleE = decrypterSrv(this.db.appKey, espace.cleES)
-    const cleET = crypterSrv(args.TC, cleE)
+    const cleET = crypter(args.TC, cleE)
     espace.reset(cleET, args.hTC)
   }
 }
@@ -800,7 +804,7 @@ Retour:
 - soit cleET
 - soit 1: phrase de sponsoring non reconnue
 - soit 2: espace ayant déjà un Comptable
-*/
+
 operations.GetCleET = class GetCleET extends Operation {
   constructor (nom) { super(nom, 0) }
 
@@ -811,6 +815,7 @@ operations.GetCleET = class GetCleET extends Operation {
     this.setRes('cleET', cleET)
   }
 }
+*/
 
 /* `CreationComptable` : création du comptable d'un nouvel espace
 - token : jeton d'authentification du compte à créer
