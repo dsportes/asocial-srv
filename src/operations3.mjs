@@ -772,6 +772,27 @@ operations.CreationEspace = class CreationEspace extends Operation {
   }
 }
 
+/* OP_MajSponsEspace : 'Changement de la phrase de contact du Comptable'
+- token : jeton d'authentification du compte de **l'administrateur**
+- ns : numéro de l'espace
+- org : code de l'organisation
+- TC : PBKFD de la phrase de sponsoring du Comptable par l'AT
+- hTC : hash de TC
+Retour: rien
+*/
+operations.MajSponsEspace = class MajSponsEspace extends Operation {
+  constructor (nom) { super(nom, 3) }
+
+  async phase2(args) {
+    this.ns = args.ns
+    const espace = await this.gd.getES(false, 'MajSponsEspace-1')
+    if (!espace.cleET) throw new AppExc(F_SRV, 316)
+    const cleE = decrypterSrv(this.db.appKey, espace.cleES)
+    const cleET = crypterSrv(args.TC, cleE)
+    espace.reset(cleET, args.hTC)
+  }
+}
+
 /* GetCleET: retourne la clé de l'espace cryptée par la phrase de sponsoting du Comptable
 - org : code de l'organisation
 - hTC : hash du PBKFD de la phrase de sponsoring du Comptable
