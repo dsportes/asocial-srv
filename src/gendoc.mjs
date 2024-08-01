@@ -37,19 +37,19 @@ export function compile (row) {
   return d.compile()
 }
 
-export async function decryptRow (op, row) {
+export async function decryptRow (appKey, row) {
   if (!row || ROWSENCLAIR.has(row._nom)) return row
   const d = row._data_
   if (!d || d.length < 4) return row
-  const dc = await decrypterSrv(op.db.appKey, d)
+  const dc = await decrypterSrv(appKey, d)
   row._data_ = new Uint8Array(dc)
   return row
 }
 
-export async function prepRow (op, row) {
+export async function prepRow (appKey, row) {
   const r = { ...row }
   if (!ROWSENCLAIR.has(row._nom)) 
-    r._data_ = crypterSrv(op.db.appKey, row._data_)
+    r._data_ = crypterSrv(appKey, row._data_)
   delete r._nom
   return r
 }

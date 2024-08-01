@@ -1,19 +1,19 @@
 // import { AppExc, F_SRV, ID, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { Operation, Esp } from './modele.mjs'
+import { Operation, Esp, trace } from './modele.mjs'
 import { compile } from './gendoc.mjs'
 import { AMJ, ID, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
 import { sleep, decrypterSrv } from './util.mjs'
 
 // Pour forcer l'importation des opérations
-export function loadTaches (db, storage) {
-  Taches.db = db
-  Taches.storage = storage
+export function loadTaches () {
   if (config.mondebug) config.logger.debug('Operations: ' + operations.auj)
 }
 
 export class Taches {
+  static demon = false
+
   static DFH = 1 // détection d'une fin d'hébergement
 
   static DLV = 2 // détection d'une résiliation de compte
@@ -71,32 +71,6 @@ export class Taches {
     return Taches.dh((nj * 86400000) + h + tache.op)
   }
 
-  /* Création des tâches GC n'existant pas dans taches
-  Invoqué à la création d'un espace pour initilaiser ces taches dans une base vide.
-  S'il manquait des taches par rapport à la liste, les ajoute.
-  */
-  static async initTachesGC (op) {
-    const rows = await Taches.db.nsTaches(0)
-    const s = new Set()
-    Taches.OPSGC.forEach(t => { s.add(t)})
-    rows.forEach(r => { s.delete(r.op) })
-    for (const t of s) {
-      const tache = new Taches({op: t, id: 0, ids: 0, ns: 0, dh: 0, exc: ''})
-      tache.dh = tache.op // Taches.dhRetry(tache) + tache.op
-      await Taches.db.setTache(op, tache)
-    }
-    return [Taches.OPSGC.size - s.size, s.size]
-  }
-
-  static startDemon () {
-    if (Demon.demon) return
-    Demon.demon = new Demon()
-    setTimeout(async () => {
-      await Demon.demon.run()
-      Demon.demon = null
-    }, 1)
-  }
-
   static async nouvelle (oper, top, id, ids) {
     const t = new Taches({
       op: top, 
@@ -105,7 +79,7 @@ export class Taches {
       ns: oper.ns, 
       dh: Taches.dh(oper.dh), 
       exc: ''})
-    oper.db.setTache(oper, t)
+    oper.db.setTache(t)
     oper.aTaches = true
   }
 
@@ -113,7 +87,7 @@ export class Taches {
     this.op = op; this.id = id; this.ids = ids; this.ns = ns; this.dh = dh; this.exc = exc
   }
 
-  async doit () {
+  async doit (db, storage) {
     const cl = Taches.OPCLZ[this.op]
     const args = { tache: this }
 
@@ -121,7 +95,7 @@ export class Taches {
     elle est déjà configurée pour être relancée. */
     this.dh = Taches.dhRetry(this)
     this.exc = ''
-    await Taches.db.setTache(null, this)
+    await db.setTache(this)
 
     /* L'opération va être lancée N fois, jusqu'à ce qu'elle indique
     qu'elle a épuisé son travail.
@@ -130,47 +104,21 @@ export class Taches {
     - fini: true quand l'opération a épuisé ce qu'elle avait à faire
     */
     while(!args.fini) {
-      const op = new cl(Taches.OPNOMS[this.op])
-      op.db = Taches.db
-      op.storage = Taches.storage
-      op.dh = Date.now()
-      op.auj = AMJ.amjUtcDeT(op.dh)
-      op.args = args
-      op.nomop = Taches.OPNOMS[this.op]
       try {
-        await op.run(args)
+        const op = new cl(Taches.OPNOMS[this.op])
+        await op.run(args, db.provider, storage)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!this.estGC) // La tache est supprimée
-            await Taches.db.delTache(null, this.op, this.id, this.ids)
+            await db.delTache(this.op, this.id, this.ids)
           // else : La tache est déjà inscrite pour sa prochaine exécution
           break
         }
       } catch (e) { // Opération sortie en exception
         // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
         this.exc = e.toString()
-        await Taches.db.setTache(null, this)
+        await db.setTache(this)
         break
       }
-    }
-  }
-
-}
-
-class Demon {
-  static demon = null
-
-  async run() {
-    const lns = Esp.actifs()
-    const dh = Taches.dh(Date.now())
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      let proch = await Taches.db.prochTache(null, dh, lns)
-      if (!proch) {
-        await sleep(500)
-        proch = await Taches.db.prochTache(null, dh, lns)
-        if (!proch) break
-      }
-      await new Taches(proch).doit()
     }
   }
 
@@ -181,13 +129,24 @@ class Demon {
 Retour: [nx nc]
 - nx : nombre de tâches existantes
 - nc : nombre de tâches créées
+Création des tâches GC n'existant pas dans taches
+Invoqué à la création d'un espace pour initilaiser ces taches dans une base vide.
+ S'il manquait des taches par rapport à la liste, les ajoute.
 */
 operations.InitTachesGC = class InitTachesGC extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2() {
-    const x = await Taches.initTachesGC(this)
-    this.setRes('nxnc', x)
+    const rows = await this.db.nsTaches(0)
+    const s = new Set()
+    Taches.OPSGC.forEach(t => { s.add(t)})
+    rows.forEach(r => { s.delete(r.op) })
+    for (const t of s) {
+      const tache = new Taches({op: t, id: 0, ids: 0, ns: 0, dh: 0, exc: ''})
+      tache.dh = tache.op // Taches.dhRetry(tache) + tache.op
+      await this.db.setTache(tache)
+    }
+    this.setRes('nxnc', [Taches.OPSGC.size - s.size, s.size])
   }
 }
 
@@ -199,8 +158,32 @@ operations.StartDemon = class StartDemon extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2() {
-    Taches.startDemon()
+    if (Taches.demon) return
+    setTimeout(async () => { await this.run() }, 1)
   }
+
+  async run() {
+    try {
+      Taches.demon = true
+      const lns = Esp.actifs()
+      const dh = Taches.dh(Date.now())
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        let proch = await this.db.prochTache(dh, lns)
+        if (!proch) {
+          await sleep(500)
+          proch = await this.db.prochTache(dh, lns)
+          if (!proch) break
+        }
+        await new Taches(proch).doit(this.db, this.storage)
+      }
+      Taches.demon = false
+    } catch (e) {
+      trace ('demon', 'run', e.toString(), true)
+      Taches.demon = false
+    }
+  }
+
 }
 
 // détection d'une fin d'hébergement
@@ -209,7 +192,7 @@ operations.DFH = class DFH extends Operation {
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
-    if (!args.lst) args.lst = await this.db.getGroupesDfh(this, this.auj)
+    if (!args.lst) args.lst = await this.db.getGroupesDfh(this.auj)
     if (!args.lst.length) { args.fini = true; return }
 
     const idg = args.lst.pop()
@@ -224,7 +207,7 @@ operations.DLV = class DLV extends Operation {
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer
-    if (!args.lst) args.lst = await this.db.getComptesDlv(this, this.auj)
+    if (!args.lst) args.lst = await this.db.getComptesDlv(this.auj)
     if (!args.lst.length) { args.fini = true; return }
 
     const id = args.lst.pop()
@@ -239,7 +222,7 @@ operations.TRA = class TRA extends Operation {
 
   async phase2(args) {
     // Récupération des couples (id, ids] des transferts à solder
-    const lst = await this.db.listeTransfertsDlv(this, this.auj)  
+    const lst = await this.db.listeTransfertsDlv(this.auj)  
     for (const [id, idf] of lst) {
       if (id && idf) {
         const ns = ID.ns(id)
@@ -273,7 +256,7 @@ operations.FPU = class FPU extends Operation {
         if (esp) {
           const idi = ID.court(fpurge.idag)  
           await this.storage.delFiles(esp.org, idi, fpurge.lidf)
-          await this.db.unsetFpurge(this, fpurge.id)
+          await this.db.unsetFpurge(fpurge.id)
         }
       }
     }
@@ -290,9 +273,9 @@ operations.VER = class VER extends Operation {
 
   async phase2(args) {
     const suppr = AMJ.amjUtcPlusNbj(this.auj, IDBOBSGC)
-    await this.db.purgeSPO(this, suppr)
+    await this.db.purgeSPO(suppr)
 
-    await this.db.purgeVER(this, suppr)
+    await this.db.purgeVER(suppr)
 
     args.fini = true
   }
@@ -309,7 +292,7 @@ operations.STA = class STA extends Operation {
       const mc = Math.floor(AMJ.amjUtc() / 100) // Mois courant
 
       args.todo = []
-      await Esp.load(this)
+      await Esp.load(this.db)
       for (const [ns, row] of Esp.map) {
         const esp = compile(row)
         /* 
@@ -354,7 +337,7 @@ operations.STA = class STA extends Operation {
     } else if (s.t === 'T') {
       await this.creationT(s.org, s.ns, cleES, s.mois)
       espace.setMoisStatT(s.mois)
-      await this.db.delTickets(this, ID.duComptable(s.ns), s.ns, s.mois)
+      await this.db.delTickets(ID.duComptable(s.ns), s.ns, s.mois)
     }
 
     args.fini = !args.todo.length
@@ -366,7 +349,7 @@ operations.GRM = class GRM extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    await this.db.delScoll(this, 'membres', args.tache.id)
+    await this.db.delScoll('membres', args.tache.id)
     args.fini = true
   }
 }
@@ -378,7 +361,7 @@ operations.AGN = class AGN extends Operation {
   async phase2(args) {
     const idag = args.tache.id
     this.ns = ID.ns(idag)
-    await this.db.delScoll(this, 'notes', args.tache.id)
+    await this.db.delScoll('notes', args.tache.id)
     const esp = await this.gd.getES(true)
     if (esp) await this.storage.delId(esp.org, ID.court(idag))
     args.fini = true
@@ -392,12 +375,12 @@ operations.AVC = class AVC extends Operation {
   async phase2(args) {
     const ida = args.tache.id
     this.ns = ID.ns(ida)
-    for (const row of await this.db.scoll(this, 'chats', ida, 0)) {
+    for (const row of await this.db.scoll('chats', ida, 0)) {
       const chI = compile(row)
       const chE = await this.gd.getCAV(chI.idE, chI.idsE)
       if (chE) chE.chEdisp()
     }
-    await this.db.delScoll(this, 'chats', ida)
+    await this.db.delScoll('chats', ida)
     args.fini = true
   }
 }
@@ -414,7 +397,7 @@ operations.ESP = class ESP extends Operation {
       if (!esp) { args.fini = true; return }
       args.e = { dlvat: esp.dlvat, nbmi: esp.nbmi }
       // Récupération de la liste des id des comptes à traiter
-      args.lst = await this.db.getComptesDlvat(this, this.ns, this.dla, esp.dlvat)
+      args.lst = await this.db.getComptesDlvat(this.ns, this.dla, esp.dlvat)
       if (!args.lst.length) { args.fini = true; return }
     }
 
@@ -497,7 +480,7 @@ operations.TicketsStat = class TicketsStat extends Operation {
       await this.creationT(args.org, ns, cleES, mois)
       if (!espace.fige && args.mr > 3) {
         espace.setMoisStatT(mois)
-        await this.db.delTickets (this, ID.duComptable(ns), ns, mois)
+        await this.db.delTickets(ID.duComptable(ns), ns, mois)
       }
     }
   }

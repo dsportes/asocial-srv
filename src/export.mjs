@@ -25,7 +25,7 @@ import { getStorageProvider, getDBProvider } from './util.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { AMJ, ID } from './api.mjs'
-import { compile, GenDoc, NsOrg } from './gendoc.mjs'
+import { GenDoc, NsOrg } from './gendoc.mjs'
 
 const cmdargs = parseArgs({
   allowPositionals: true,
@@ -101,9 +101,9 @@ class OpSimple {
   }
 
   async flush () {
-    if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
-    if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
-    if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
+    if (this.toInsert.length) await this.db.insertRows(this.toInsert)
+    if (this.toUpdate.length) await this.db.updateRows(this.toUpdate)
+    if (this.toDelete.length) await this.db.deleteRows(this.toDelete)
     this.toInsert = []; this.toUpdate = []; this.toDelete = []
   }
 }
@@ -113,10 +113,12 @@ class OpTest1 extends OpSimple {
     super(provider, null)
   }
 
-  async phase2 (args) {
+  async phase2 () {
+    /*
     const row = await this.db.org(this, args.ns)
     const espace = compile(row)
     console.log(espace.org)
+    */
   }
 }
 
@@ -257,23 +259,23 @@ export class Outils {
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
     // Opérations fake qui permettent de passer appKey aux méthodes decryptRow / preoRow
-    const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0, fake: true}
-    const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0, fake: true}
+    // const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0, fake: true}
+    // const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0, fake: true}
     const scollIds = []
     const ch = new NsOrg(cin, cout)
 
     for (const nom of GenDoc.collsExp1) {
-      const row = await pin.getNV(opin, nom, cin.ns)
-      await pout.insertRows(opout, [ch.chRow(row)])
+      const row = await pin.getNV(nom, cin.ns)
+      await pout.insertRows([ch.chRow(row)])
       this.log(`export ${nom}`)
     }
 
     for (const nom of GenDoc.collsExp2) {
       const v = nom === 'versions'
-      const rows = await pin.collNs(opin, nom, cin.ns)
+      const rows = await pin.collNs(nom, cin.ns)
       for (const row of rows) {
         if (v) scollIds.push(row.id)
-        await pout.insertRows(opout, [ch.chRow(row)])
+        await pout.insertRows([ch.chRow(row)])
       }
       this.log(`export ${nom} - ${rows.length}`)
     }
@@ -285,10 +287,10 @@ export class Outils {
       n++
       const sc = ID.estGroupe(id) ? GenDoc.collsExpG : GenDoc.collsExpA
       for (const nom of sc) {
-        const rows = await pin.scoll(opin, nom, id, 0)
+        const rows = await pin.scoll(nom, id, 0)
         for (const row of rows) {
           stats[nom]++
-          await pout.insertRows(opout, [ch.chRow(row)])
+          await pout.insertRows([ch.chRow(row)])
         }
       }
       this.log2(`export ${id} ${scollIds.length} / ${n}`)

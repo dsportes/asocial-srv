@@ -25,7 +25,7 @@ function setRes(res, status, respType) {
 }
 
 // Configuration express: retourne le "app"
-export function appExpress(db, storage) {
+export function appExpress(dbp, storage) {
   const app = express()
 
   if (config.pathapp) {
@@ -102,10 +102,10 @@ export function appExpress(db, storage) {
         body.push(Buffer.from(chunk))
       }).on('end', async () => {
         req.rawBody = Buffer.concat(body)
-        await operation(req, res, db, storage)
+        await operation(req, res, dbp, storage)
       })
     } else
-      await operation(req, res, db, storage)
+      await operation(req, res, dbp, storage)
   })
 
   if (config.prefixapp) app.get('/', function (req, res) {
@@ -138,22 +138,21 @@ function checkOrigin(req) {
  * Traitement générique d'une opération
 *************************************************************/
 
-async function operation(req, res, db, storage) {
+async function operation(req, res, dbp, storage) {
   operations.auj = AMJ.amjUtc()
-  const dh = Date.now()
   const opName = req.params.operation
   try {
     const isGet = req.method === 'GET'
 
     if (opName === 'yo'){
-      setRes(res, 200, 'text/plain').send('yo ' + new Date(dh).toISOString())
+      setRes(res, 200, 'text/plain').send('yo ' + new Date().toISOString())
       return
     }
 
     // checkOrigin(req)
 
     if (opName === 'yoyo'){
-      setRes(res, 200, 'text/plain').send('yoyo ' + new Date(dh).toISOString())
+      setRes(res, 200, 'text/plain').send('yoyo ' + new Date().toISOString())
       return
     }
 
@@ -190,17 +189,9 @@ async function operation(req, res, db, storage) {
     else {
       args = decode(req.rawBody)
     }
-    if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString())
     const op = new opClass(opName)
-    op.isGet = isGet
-    op.db = db
-    op.storage = storage
-    op.args = args
-    op.dh = dh
-    op.auj = AMJ.amjUtcDeT(dh)
-    const result = await op.run(args)
-
-    if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString() + ' 200')
+    if (isGet) op.isGet = true
+    const result = await op.run(args, dbp, storage)
     if (op.isGet) {
       if (!result.type)
         setRes(res, 200, 'application/octet-stream').send(Buffer.from(result.bytes))
@@ -220,10 +211,9 @@ async function operation(req, res, db, storage) {
     } else {
       // erreur non trappée : mise en forme en AppExc
       httpst = 403
-      const xx = (e.stack ? e.stack + '\n' : '') + (db ? db.excInfo() : '')
+      const xx = (e.stack ? e.stack + '\n' : '') + (dbp ? dbp.excInfo() : '')
       s = new AppExc(E_SRV, 0, [e.message], xx).toString()
     }
-    if (config.mondebug) config.logger.debug(opName + ' : ' + new Date(dh).toISOString() + ' ' + httpst + ' : ' + s)
     setRes(res, httpst).send(Buffer.from(s))
   }
 }

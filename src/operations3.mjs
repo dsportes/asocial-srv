@@ -84,7 +84,7 @@ operations.GetEspaces = class GetEspaces extends Operation {
   constructor (nom) { super(nom, 3, 0) }
 
   async phase2() {
-    await Esp.load(this)
+    await Esp.load(this.db)
     const espaces = []
     for(const [,row] of Esp.map) {
       const esp = compile(row)
@@ -145,7 +145,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
     if (espace.hTC) // Compte du Comptable pas encore créé
       this.setRes('cleET', espace.hTC === args.hTC ? espace.cleET : false)
     else {
-      const row = await this.db.getSponsoringIds(this, ID.long(args.hps1, this.ns))
+      const row = await this.db.getSponsoringIds(ID.long(args.hps1, this.ns))
       if (!row) { sleep(3000); throw new AppExc(F_SRV, 11) }
       this.setRes('rowSponsoring', row)
       this.setRes('ns', this.ns)  
@@ -166,7 +166,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   async phase2 (args) {
     await this.gd.getESOrg(args.org) // set this.ns
     await this.getCheckEspace()
-    if (await this.db.getCompteHk(this, ID.long(args.hps1, this.ns))) this.setRes('existe', true)
+    if (await this.db.getCompteHk(ID.long(args.hps1, this.ns))) this.setRes('existe', true)
   }
 }
 
@@ -183,12 +183,12 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 
   async phase2 (args) {
     if (args.t === 2) {
-      if (await this.db.getSponsoringIds(this, ID.long(args.hps1, this.ns))) {
+      if (await this.db.getSponsoringIds(ID.long(args.hps1, this.ns))) {
         this.setRes('existe', true)
         return
       }
     } if (args.t === 3) {
-      if (await this.db.getAvatarHk(this, ID.long(args.hps1, this.ns))) {
+      if (await this.db.getAvatarHk(ID.long(args.hps1, this.ns))) {
         this.setRes('existe', true)
         return
       }
@@ -446,36 +446,36 @@ operations.Sync = class Sync extends Operation {
   async getGrRows (ida, x) { 
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
-    if (!gr) gr = compile(await this.db.getV(this, 'groupes', ID.long(ida, this.ns), x.vs))
+    if (!gr) gr = compile(await this.db.getV('groupes', ID.long(ida, this.ns), x.vs))
     if (gr) this.addRes('rowGroupes', gr.toShortRow(this, this.compte, x.m))
 
     if (x.m) {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
       SINON chargement initial de puis 0 */
-      for (const row of await this.db.scoll(this, 'membres', ID.long(ida, this.ns), x.ms ? x.vs : 0))
+      for (const row of await this.db.scoll('membres', ID.long(ida, this.ns), x.ms ? x.vs : 0))
         this.addRes('rowMembres', compile(row).toShortRow(this))
-      for (const row of await this.db.scoll(this, 'chatgrs', ID.long(ida, this.ns), x.ms ? x.vs : 0))
+      for (const row of await this.db.scoll('chatgrs', ID.long(ida, this.ns), x.ms ? x.vs : 0))
         this.addRes('rowChatgrs', compile(row).toShortRow(this))
     }
 
     /* SI la session avait des notes chargées, chargement incrémental depuis vs
     SINON chargement initial de puis 0 */
-    if (x.n) for (const row of await this.db.scoll(this, 'notes', ID.long(ida, this.ns), x.ns ? x.vs : 0))
+    if (x.n) for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.ns ? x.vs : 0))
       this.addRes('rowNotes', compile(row).toShortRow(this, this.id))
   }
   
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
-    const rav = await this.db.getV(this, 'avatars', ID.long(ida, this.ns), x.vs)
+    const rav = await this.db.getV('avatars', ID.long(ida, this.ns), x.vs)
     if (rav) this.addRes('rowAvatars', rav)
 
-    for (const row of await this.db.scoll(this, 'notes', ID.long(ida, this.ns), x.vs))
+    for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.vs))
       this.addRes('rowNotes', compile(row).toShortRow(this))
-    for (const row of await this.db.scoll(this, 'chats', ID.long(ida, this.ns), x.vs))
+    for (const row of await this.db.scoll('chats', ID.long(ida, this.ns), x.vs))
       this.addRes('rowChats', compile(row).toShortRow(this))
-    for (const row of await this.db.scoll(this, 'sponsorings', ID.long(ida, this.ns), x.vs))
+    for (const row of await this.db.scoll('sponsorings', ID.long(ida, this.ns), x.vs))
       this.addRes('rowSponsorings', compile(row).toShortRow(this))
     if (ID.estComptable(this.id)) 
-      for (const row of await this.db.scoll(this, 'tickets', ID.long(ida, this.ns), x.vs))
+      for (const row of await this.db.scoll('tickets', ID.long(ida, this.ns), x.vs))
         this.addRes('rowTickets', compile(row).toShortRow(this))
   }
 

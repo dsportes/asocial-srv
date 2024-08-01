@@ -1,7 +1,7 @@
 import path from 'path'
 import { existsSync } from 'node:fs'
 import { Database } from './loadreq.mjs'
-import { decode, encode } from '@msgpack/msgpack'
+import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
@@ -31,6 +31,25 @@ export class SqliteProvider {
 
   get type () { return 'sqlite' }
 
+  excInfo () { return this.lastSql.join('\n') }
+
+  async connect(op) {
+    return await new Connx().connect(op, this)
+  }
+}
+
+class Connx {
+  async connect (op, dbp) {
+    this.op = op
+    this.provider = dbp
+    this.sql = dbp.sql
+    return this
+  }
+
+  get appKey () { return this.provider.appKey }
+
+  async end() { }
+
   get hasWS () { return true }
 
   async ping () {
@@ -53,18 +72,14 @@ export class SqliteProvider {
     }
   }
 
-  excInfo () {
-    return this.lastSql.join('\n')
-  }
-
   // eslint-disable-next-line no-unused-vars
-  setSyncData(op) {
+  setSyncData() {
   }
 
-  async doTransaction (op) {
+  async doTransaction () {
     try {
       this._stmt('begin', 'BEGIN').run()
-      await op.transac()
+      await this.op.transac()
       this._stmt('commit', 'COMMIT').run()
     } catch (e) {
       this._stmt('rollback', 'ROLLBACK').run()
@@ -76,11 +91,11 @@ export class SqliteProvider {
   L'argument SQL n'est pas requis si on est certain que le code donné a bien été enregistré
   */
   _stmt (code, sql) {
-    let s = this.cachestmt[code]
+    let s = this.provider.cachestmt[code]
     if (!s) {
       if (!sql) return null
       s = this.sql.prepare(sql)
-      this.cachestmt[code] = s
+      this.provider.cachestmt[code] = s
     }
     return s
   }
@@ -125,19 +140,19 @@ export class SqliteProvider {
   }
 
   /*********************************************************************/
-  async setTache (op, t) {
+  async setTache (t) {
     const st = this._stmt('SETTACHE',
       'INSERT INTO taches (op, id, ids, ns, dh, exc) VALUES (@op, @id, @ids, @ns, @dh, @exc) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
     const ns = t.id ? ID.ns(t.id) : 0
     st.run({ op: t.op, id: t.id, ids: t.ids, ns, dh: t.dh, exc: t.exc })
   }
 
-  async delTache (op, top, id, ids) {
+  async delTache (top, id, ids) {
     const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND id = @id AND ids = @ids')
     st.run({ op: top, id, ids })
   }
 
-  async prochTache (op, dh, lst) {
+  async prochTache (dh, lst) {
     const lns = '0,' + lst.join(',')
     const st = this._stmt('PROCHTACHE' + lns, 
       'SELECT * FROM taches WHERE dh < @dh AND ns IN (' + lns + ') ORDER BY dh ASC LIMIT 1')
@@ -151,7 +166,7 @@ export class SqliteProvider {
   }
 
   /** Ecritures groupées ***********************************************/
-  deleteRows (op, rows) {
+  deleteRows (rows) {
     for (const row of rows) {
       const code = 'DEL' + row._nom
       const st = this._stmt(code, this._delStmt(row._nom))
@@ -159,37 +174,31 @@ export class SqliteProvider {
     }
   }
 
-  async setVdlv (op, id, dlv) {
-    const st = this._stmt('UPDVDLV', 
-      'UPDATE versions SET dlv = @dlv, _data_ = NULL WHERE id = @id')
-    st.run({ id, dlv })
-  }
-
-  async insertRows (op, rows) {
+  async insertRows (rows) {
     for (const row of rows) {
-      const r = await prepRow(op, row)
+      const r = await prepRow(this.appKey, row)
       const code = 'INS' + row._nom
       const st = this._stmt(code, this._insStmt(row._nom))
       st.run(r)
     }
   }
 
-  async updateRows (op, rows) {
+  async updateRows (rows) {
     for (const row of rows) {
       const code = 'UPD' + row._nom
       const st = this._stmt(code, this._updStmt(row._nom))
-      const r = await prepRow(op, row)
+      const r = await prepRow(this.appKey, row)
       st.run(r)
     }
   }
 
-  async getRowEspaces(op, v) {
+  async getRowEspaces(v) {
     const code = 'SELESP'
     const st = this._stmt(code, 'SELECT * FROM espaces WHERE v > @v')
     const rows = st.all({ v })
     const r = []
     for (const row of rows) {
-      const x = await decryptRow(op, row)
+      const x = await decryptRow(this.appKey, row)
       x._nom = 'espaces'
       r.push(row)
     }
@@ -198,54 +207,54 @@ export class SqliteProvider {
 
   /* Retourne le row d'une collection de nom / id si sa version est postérieure à v
   */
-  async getV(op, nom, id, v) {
+  async getV(nom, id, v) {
     const code = 'SELV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND v > @v')
     const row = st.get({ id : id, v: v })
     if (row) {
       row._nom = nom
-      op.nl++
-      return await decryptRow(op, row)
+      this.op.nl++
+      return await decryptRow(this.appKey, row)
     }
     return null
   }
   
   /* Retourne le row d'une collection de nom / id (sans version))
   */
-  async getNV(op, nom, id) {
+  async getNV(nom, id) {
     const code = 'SELNV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id')
     const row = st.get({ id : id})
     if (row) {
       row._nom = nom
-      op.nl++
-      return await decryptRow(op, row)
+      this.op.nl++
+      return await decryptRow(this.appKey, row)
     }
     return null
   }
     
   /* Retourne le row d'un objet d'une sous-collection nom / id / ids */
-  async get(op, nom, id, ids) {
+  async get(nom, id, ids) {
     const code = 'SEL' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND ids = @ids')
     const row = st.get({ id : id, ids: ids })
     if (row) {
       row._nom = nom
-      op.nl++
-      return await decryptRow(op, row)
+      this.op.nl++
+      return await decryptRow(this.appKey, row)
     }
     return null
   }
 
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   */
-  async getAvatarVCV(op, id, vcv) {
+  async getAvatarVCV(id, vcv) {
     const st = this._stmt('SELCV', 'SELECT * FROM avatars WHERE id = @id AND vcv > @vcv')
     const row = st.get({ id : id, vcv: vcv })
     if (row) {
       row._nom = 'avatars'
-      op.nl++
-      const b = await decryptRow(op, row)
+      this.op.nl++
+      const b = await decryptRow(this.appKey, row)
       const a = compile(b)
       return a
     }
@@ -264,88 +273,92 @@ export class SqliteProvider {
     return null
   }
   */
-  async getCompteHk(op, hk) {
+  async getCompteHk(hk) {
     const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hk = @hk')
     const row = st.get({ hk })
     if (row) {
       row._nom = 'comptes'
-      op.nl++
-      return await decryptRow(op, row)
+      this.op.nl++
+      return await decryptRow(this.appKey, row)
     }
     return null
   }
   
-  async getAvatarHk(op, hk) {
+  async getAvatarHk(hk) {
     const st = this._stmt('SELHPC', 'SELECT * FROM avatars WHERE hk = @hk')
     const row = st.get({ hk })
     if (row) {
       row._nom = 'avatars'
-      op.nl++
-      return await decryptRow(op, row)
+      this.op.nl++
+      return await decryptRow(this.appKey, row)
     }
     return null
   }
   
-  async getSponsoringIds(op, ids) {
+  async getSponsoringIds(ids) {
     const st = this._stmt('SELSPIDS', 'SELECT * FROM sponsorings WHERE ids = @ids')
     const row = st.get({ ids })
     if (row) {
       row._nom = 'sponsorings'
-      op.nl++
-      return await decryptRow(op, row)
+      this.op.nl++
+      return await decryptRow(this.appKey, row)
     }
     return null
   }
   
-  /* Retourne l'array des ids des "versions" dont la dlv est entre min et max exclue */
-  async getVersionsSuppr(op, supprmin, supprmax) {
+  /* Retourne l'array des ids des "versions" dont la dlv est entre min et max exclue
+  async getVersionsSuppr(supprmin, supprmax) {
     const st = this._stmt('SELVSUPPR', 'SELECT id FROM versions WHERE dlv >= @supprmin AND dlv < @supprmax')
     const rows = st.all({ supprmin, supprmax })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
+  */
   
-  /* Retourne l'array des couples [id, ids] des membres ayant passé leur dlv, PAS les rows */
-  async getMembresDlv(op, dlvmax) {
+  /* Retourne l'array des couples [id, ids] des membres ayant passé leur dlv, PAS les rows
+  async getMembresDlv(dlvmax) {
     const st = this._stmt('SELMDLV', 'SELECT id, ids FROM membres WHERE dlv < @dlvmax')
     const rows = st.all({ dlvmax })
     const r = []
     if (rows) rows.forEach(row => { r.push([row.id, row.ids])})
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
+  */
   
   /* Retourne l'array des couples [id, ids] des membres du ns
-  ayant pour dlv dlvat, PAS les rows */
-  async getMembresDlvat(op, ns, dlvat) {
+  ayant pour dlv dlvat, PAS les rows
+  async getMembresDlvat(ns, dlvat) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const st = this._stmt('SELMDLVAT', 'SELECT id, ids FROM membres WHERE dlv = @dlvat AND id >= @ns1 AND id < @ns2')
     const rows = st.all({ dlvat, ns1, ns2 })
     const r = []
     if (rows) rows.forEach(row => { r.push([row.id, row.ids])})
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
+  */
 
   /* Retourne l'array des id des versions du ns
-  ayant pour dlv dlvat, PAS les rows */
-  async getVersionsDlvat(op, ns, dlvat) {
+  ayant pour dlv dlvat, PAS les rows
+  async getVersionsDlvat(ns, dlvat) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const st = this._stmt('SELVDLVAT', 'SELECT id FROM versions WHERE dlv = @dlvat AND id >= @ns1 AND id < @ns2')
     const rows = st.all({ dlvat, ns1, ns2 })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
+  */
   
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
   est inférieure à dfh */
-  async getGroupesDfh(op, dfh) {
+  async getGroupesDfh(dfh) {
     const st = this._stmt('SELGDFH', 'SELECT id FROM groupes WHERE dfh > 0 AND dfh < @dfh')
     const rows = st.all({ dfh })
     const r = []
@@ -354,7 +367,7 @@ export class SqliteProvider {
   }
   
   /* Retourne l'array des id des comptes ayant passé leur dlv */
-  async getComptesDlv(op, dlvmax) {
+  async getComptesDlv(dlvmax) {
     const st = this._stmt('SELCDLV', 'SELECT id FROM comptes WHERE dlv < @dlvmax')
     const rows = st.all({ dlvmax })
     const r = []
@@ -367,7 +380,7 @@ export class SqliteProvider {
   - ou supérieure à la dlvat future
   Plus complexe en FIrestore ?
   */
-  async getComptesDlvat(op, ns, dla, dlf) {
+  async getComptesDlvat(ns, dla, dlf) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const st = this._stmt('SELCDLVAT', 'SELECT id FROM comptes WHERE id >= @ns1 AND id < @ns2 AND (dlv > @dlf OR dlv = @dla)')
@@ -378,7 +391,7 @@ export class SqliteProvider {
   }
 
   /* Retourne la collection de nom 'nom' : pour avoir tous les espaces */
-  async coll (op, nom) {
+  async coll (nom) {
     const code = 'COLV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom)
     const rows = st.all({ })
@@ -386,9 +399,9 @@ export class SqliteProvider {
     const r = []
     for (const row of rows) {
       row._nom = nom
-      r.push(await decryptRow(op, row))
+      r.push(await decryptRow(this.appKey, row))
     }
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
   
@@ -397,7 +410,7 @@ export class SqliteProvider {
   elle est invoquée à chaque row pour traiter son _data_
   plutôt que d'accumuler les rows.
   */
-  async collNs (op, nom, ns, fnprocess) {
+  async collNs (nom, ns, fnprocess) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const code = 'COLNS' + nom
@@ -407,8 +420,8 @@ export class SqliteProvider {
     const r = []
     for (const row of rows) {
       row._nom = nom
-      const rx = await decryptRow(op, row)
-      op.nl++
+      const rx = await decryptRow(this.appKey, row)
+      this.op.nl++
       if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
     }
     return !fnprocess ? r : null
@@ -417,7 +430,7 @@ export class SqliteProvider {
   /* Retourne la sous-collection de 'nom' du document majeur id
   Si v est donnée, uniquement les documents de version supérieurs à v.
   */
-  async scoll (op, nom, id, v) {
+  async scoll (nom, id, v) {
     const code = (v ? 'SCOLV' : 'SCOLB') + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id = @id' + (v ? ' AND v > @v' : ''))
     const rows = st.all({ id: id, v: v })
@@ -425,15 +438,15 @@ export class SqliteProvider {
     const r = []
     for (const row of rows) {
       row._nom = nom
-      r.push(await decryptRow(op, row))
+      r.push(await decryptRow(this.appKey, row))
     }
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
   
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
   */
-  async selTickets (op, id, ns, aamm, fnprocess) {
+  async selTickets (id, ns, aamm, fnprocess) {
     const mx = (ns * d14) + ((aamm % 10000) * d10) + 9999999999
     const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND ids <= @mx')
     const rows = st.all({ id, mx })
@@ -441,59 +454,41 @@ export class SqliteProvider {
     const r = []
     for (const row of rows) {
       row._nom = 'tickets'
-      const rx = await decryptRow(op, row)
-      op.nl++
+      const rx = await decryptRow(this.appKey, row)
+      this.op.nl++
       if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
     }
     return !fnprocess ? r : null
   }
 
-  async delScoll (op, nom, id) {
+  async delScoll (nom, id) {
     const code = 'DELSCOL'+ nom
     const st = this._stmt(code, 'DELETE FROM ' + nom + ' WHERE id = @id')
     const info = st.run({id : id})
-    op.ne += info.changes
+    this.op.ne += info.changes
     return info.changes
   }
 
-  async delTickets (op, id, ns, aamm) {
+  async delTickets (id, ns, aamm) {
     const mx = (ns * d14) + ((aamm % 10000) * d10) + 9999999999
     const code = 'DELTKT'
     const st = this._stmt(code, 'DELETE FROM tickets WHERE id = @id AND ids <= @mx')
     const info = st.run({id, mx})
-    op.ne += info.changes
+    this.op.ne += info.changes
     return info.changes
   }
 
-  async delAvGr (op, id) {
+  /*
+  async delAvGr (id) {
     const nom = ID.estGroupe(id) ? 'groupes' : 'avatars'
     const code = 'DELAVGR'+ nom
     const st = this._stmt(code, 'DELETE FROM ' + nom + ' WHERE id = @id')
     st.run({id : id})
-    op.ne++
+    this.op.ne++
   }
+  */
   
-  // Retourne les data (sérialisées) des singletons
-  async getSingletons (op) { 
-    const r = []
-    const st = this._stmt('SELSINGL', 'SELECT _data_ FROM singletons')
-    const rows = st.all({ })
-    if (rows) rows.forEach(row => {
-      r.push(row._data_)
-    })
-    op.nl += r.length
-    return r
-  }
-
-  // Stocke le singleton dont le data est donné: data.id est son id
-  async setSingleton (op, data) { 
-    let st = this._stmt('DELSINGL', 'DELETE FROM singletons WHERE id = @id')
-    st.run({ id: data.id })
-    const _data_ = encode(data)
-    st = this._stmt('INSSINGL', 'INSERT INTO singletons (id, v, _data_) VALUES (@id, @v, @_data_)')
-    st.run({ id: data.id, v: data.v || 0, _data_ })
-  }
-
+  /*
   async org (op, ns) {
     const st = this._stmt('SELORG', 'SELECT * FROM espaces WHERE id = @id')
     const row = st.get({ id: ns })
@@ -504,17 +499,18 @@ export class SqliteProvider {
     }
     return null
   }
+  */
 
-  async setFpurge (op, id, _data_) {
+  async setFpurge (id, _data_) {
     const st = this._stmt('INSFPURGE', 'INSERT INTO fpurges (id, _data_) VALUES (@id, @_data_)')
     st.run({ id, _data_ })
-    op.ne++
+    this.op.ne++
   }
 
-  async unsetFpurge (op, id) {
+  async unsetFpurge (id) {
     const st = this._stmt('DELFPURGE', 'DELETE FROM fpurges WHERE id = @id')
     st.run({ id })
-    op.ne++
+    this.op.ne++
   }
 
   /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
@@ -530,36 +526,36 @@ export class SqliteProvider {
   }
 
   /* Retourne une liste de couples [id, ids] PAS de rows */
-  async listeTransfertsDlv (op, dlv) {
+  async listeTransfertsDlv (dlv) {
     const r = []
     const st = this._stmt('SELTRADLV', 'SELECT * FROM transferts WHERE dlv <= @dlv')
     const rows = st.all({ dlv })
     if (rows) rows.forEach(row => {
       r.push([row.id, row.idf])
     })
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
 
-  async purgeTransferts (op, id, idf) {
+  async purgeTransferts (id, idf) {
     const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND idf = @idf')
     st.run({ id, idf })
-    op.ne++
+    this.op.ne++
   }
 
-  async purgeVER (op, suppr) {
+  async purgeVER (suppr) {
     const st = this._stmt('DELVER', 'DELETE FROM versions WHERE dlv > 0 AND dlv < @suppr')
     const info = st.run({ suppr })
     const n = info.changes
-    op.ne += n
+    this.op.ne += n
     return n
   }
 
-  async purgeSPO (op, dlv) { // nom: sponsorings
+  async purgeSPO (dlv) { // nom: sponsorings
     const st = this._stmt('DELSPO', 'DELETE FROM sponsorings WHERE dlv < @dlv')
     const info = st.run({ dlv })
     const n = info.changes
-    op.ne += n
+    this.op.ne += n
     return n
   }
 

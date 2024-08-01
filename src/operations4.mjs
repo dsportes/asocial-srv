@@ -95,7 +95,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
     if (!this.compte.mav.has(args.id)) throw new AppExc(F_SRV, 308)
 
-    if (await this.db.getSponsoringIds(this, (this.ns * d14) + args.hYR)) 
+    if (await this.db.getSponsoringIds((this.ns * d14) + args.hYR)) 
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
@@ -194,7 +194,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   constructor (nom) { super(nom, 1) }
 
   async phase2 (args) {
-    const av = compile(await this.db.getAvatarHk(this, ID.long(args.hZR, this.ns)))
+    const av = compile(await this.db.getAvatarHk(ID.long(args.hZR, this.ns)))
     if (!av) return
     const avatar = await this.gd.getAV(av.id, 'GetAvatarPC')
     if (avatar && avatar.hZC === args.hZC) {
@@ -417,7 +417,7 @@ operations.ChangementPC = class ChangementPC extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    if (args.hZR && await this.db.getAvatarHk(this, ID.long(args.hZR, this.ns))) 
+    if (args.hZR && await this.db.getAvatarHk(ID.long(args.hZR, this.ns))) 
       throw new AppExc(F_SRV, 26) // trop proche existante
 
     if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 224)

@@ -44,20 +44,22 @@ export async function getStorageProvider (codeProvider) {
 
 export async function getDBProvider (codeProvider, site) {
   config.logger.info('DB= [' + config.run.db_provider + ']')
-  let db
+  let dbp
   switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
-  case 'sqlite' : { db = new SqliteProvider(site, codeProvider); break }
-  case 'firestore' : { db = new FirestoreProvider(site, codeProvider); break }
+  case 'sqlite' : { dbp = new SqliteProvider(site, codeProvider); break }
+  case 'firestore' : { dbp = new FirestoreProvider(site, codeProvider); break }
   }
-  if (!db) {
+  if (!dbp) {
     config.logger.error('DB provider non trouvé:' + config.run.db_provider)
     return false
   }
   if (config.mondebug) {
+    const db = await dbp.connect({})
     const m = await db.ping()
+    await db.end()
     config.logger.info(m)
   }
-  return db
+  return dbp
 }
 
 /* Retourne le couple [hostname, port] d'une URL */

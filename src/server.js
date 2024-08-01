@@ -6,18 +6,17 @@ import path from 'path'
 import { exit, env } from 'process'
 import { existsSync, readFileSync } from 'node:fs'
 import { WebSocketServer } from 'ws'
-import schedule from 'node-schedule'
 
 import { setLogger } from './logger.mjs'
 import { SyncSession } from './ws.mjs'
 import { getDBProvider, getStorageProvider } from './util.mjs'
-import { appExpress, operations } from './cfgexpress.mjs'
+import { appExpress } from './cfgexpress.mjs'
 
 import{ loadTaches } from './taches.mjs'
 import{ load3 } from './operations3.mjs'
 import{ load4 } from './operations4.mjs'
 
-let db = null, storage = null
+let dbp = null, storage = null
 const keys = ['favicon.ico', 'fullchain.pem', 'privkey.pem']
 try {
   config.logger = setLogger()
@@ -36,13 +35,13 @@ try {
   }
   */
 
-  db = await getDBProvider(config.run.db_provider, config.run.site)
-  if (!db) exit(1)
+  dbp = await getDBProvider(config.run.db_provider, config.run.site)
+  if (!dbp) exit(1)
   
   storage = await getStorageProvider(config.run.storage_provider)
   if (!storage) exit(1)
 
-  loadTaches(db, storage)
+  loadTaches()
   load3()
   load4()
 
@@ -62,16 +61,9 @@ try {
 
 //***************************************************************************
 
-const app = appExpress(db, storage)
+const app = appExpress(dbp, storage)
 
-function atStart() {
-  if (config.run && config.run.croninterne && operations.GCGen) {
-    config.logger.info('Scheduler started')
-    schedule.scheduleJob(config.run.croninterne, function(){
-      new operations.GCGen(true).run()
-    })
-  }
-}
+function atStart() { }
 
 //***** starts listen ***************************
 // Modes possibles : (ctx.mode)
@@ -91,7 +83,7 @@ if (typeof(PhusionPassenger) !== 'undefined') {
 }
 
 try {
-  if (db.hasWS) SyncSession.start()
+  // if (db.hasWS) SyncSession.start()
 
   let server
   switch (mode) {

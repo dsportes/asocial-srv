@@ -417,22 +417,22 @@ export class FirestoreProvider {
   elle est invoquée à chaque row pour traiter son _data_
   plutôt que d'accumuler les rows.
   */
-  async collNs (op, nom, ns, fnprocess) {
+  async collNs (nom, ns, fnprocess) {
     const ns1 = ns * d14
     const ns2 = (ns + 1) * d14
     const p = FirestoreProvider._collPath(nom)
     // INDEX simple sur les collections id (avatars, groupes, versions ...) ! PAS les sous-collections
     const q = this.fs.collection(p).where('id', '>=', ns1).where('id', '<', ns2) 
-    let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
+    let qs; if (!this.op.fake && this.op.transaction) qs = await this.op.transaction.get(q); else qs = await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
       const x = qds.data()
       x._nom = nom
-      const rx = await decryptRow(op, x)
-      if (!fnprocess) r.push(rx); else fnprocess(op, rx._data_)
+      const rx = await decryptRow(this.provider.appKey, x)
+      if (!fnprocess) r.push(rx); else fnprocess(this.op, rx._data_)
     }
-    op.nl += r.length
+    this.op.nl += r.length
     return !fnprocess ? r : null
   }
   

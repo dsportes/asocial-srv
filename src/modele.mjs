@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash, Compteurs, idTkToL6 } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { SyncSession } from './ws.mjs'
@@ -81,8 +81,8 @@ export class Esp {
 
   static dh = 0
 
-  static async load (op) {
-    const l = await op.db.getRowEspaces(op, Esp.v)
+  static async load (db) {
+    const l = await db.getRowEspaces(Esp.v)
     l.forEach(r => { 
       const ns = ID.ns(r.id)
       Esp.map.set(ns, r)
@@ -99,12 +99,12 @@ export class Esp {
   }
 
   static async getEsp (op, ns, lazy) {
-    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
+    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op.db)
     return compile(Esp.map.get(ns))
   }
 
   static async getNsOrg (op, org, lazy) {
-    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op)
+    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op.db)
     return Esp.orgs.get(org)
   }
 
@@ -144,12 +144,12 @@ export class Cache {
     const x = Cache.map.get(k)
     if (x) {
       // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
-      const n = await op.db.getV(op, nom, id, x.row.v)
+      const n = await op.db.getV(nom, id, x.row.v)
       x.lru = now
       if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       return x.row
     }
-    const n = await op.db.getV(op, nom, id, 0)
+    const n = await op.db.getV(nom, id, 0)
     if (n) { // dernière version si elle existe
       const y = { lru: now, row: n }
       this.map.set(k, y)
@@ -318,7 +318,7 @@ class GD {
       c = this.comptes.get(id)
       if (c) t = true; else c = compile(await this.op.getRowCompte(id))
     } else
-      c = compile(await this.op.db.getCompteHk(this.op, ID.long(hXR, this.op.ns)))
+      c = compile(await this.op.db.getCompteHk(ID.long(hXR, this.op.ns)))
     if (!c) { 
       if (!assert) return null; else assertKO(assert, 4, [c.id]) }
     if (!t) this.comptes.set(c.id, c)
@@ -385,7 +385,7 @@ class GD {
     let disp = false
     let av = this.avatars.get(id)
     if (av) return av.vcv > vcv ? { av, disp } : { disp }
-    av = await this.op.db.getAvatarVCV(this.op, ID.long(id, this.op.ns) , vcv)
+    av = await this.op.db.getAvatarVCV(ID.long(id, this.op.ns) , vcv)
     disp = (!av)
     if (disp) return { disp }
     this.avatars.set(id, av)
@@ -473,7 +473,7 @@ class GD {
 
   async getAllCAV (id) {
     const l = []
-    for (const row of await this.op.db.scoll(this.op, 'chats', ID.long(id, this.op.ns), 0)) {
+    for (const row of await this.op.db.scoll('chats', ID.long(id, this.op.ns), 0)) {
       const k = id + '/CAV/' + row.ids
       let d = this.sdocs.get(k)
       if (!d) {
@@ -693,6 +693,10 @@ export class Operation {
     this... isGet, db, storage, args, dh
   */
   constructor (nomop, authMode, excFige) { 
+    this.dh = Date.now()
+    this.auj = AMJ.amjUtcDeT(this.dh)
+    if (config.mondebug) config.logger.debug(nomop + ' : ' + new Date(this.dh).toISOString())
+
     this.nomop = nomop
     this.estSync = this.nomop === 'Sync'
     this.authMode = authMode
@@ -707,32 +711,43 @@ export class Operation {
   }
 
   /* Exécution de l'opération */
-  async run () {
-    console.log('Opération: ', this.nomop)
-    this.gd = new GD(this)
-    await this.phase1(this.args)
+  async run (args, dbp, storage) {
+    try {
+      this.db = await dbp.connect(this)
 
-    await this.db.doTransaction(this) // Fait un appel à transac
+      this.args = args
+      this.storage = storage
 
-    /* Envoi en cache des objets majeurs mis à jour / supprimés */  
-    const updated = [] // rows mis à jour / ajoutés
-    const deleted = [] // paths des rows supprimés
-    this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-    this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-    this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-    Cache.update(updated, deleted)
-    if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
+      this.gd = new GD(this)
+      await this.phase1(this.args)
 
-    await this.phase3(this.args) // peut ajouter des résultas
+      await this.db.doTransaction() // Fait un appel à transac
 
-    if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
-    
-    if (this.aTaches) Taches.startDemon()
+      /* Envoi en cache des objets majeurs mis à jour / supprimés */  
+      const updated = [] // rows mis à jour / ajoutés
+      const deleted = [] // paths des rows supprimés
+      this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+      this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+      this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
+      Cache.update(updated, deleted)
+      if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
 
-    if (this.setR.has(R.RAL1)) await sleep(500)
-    if (this.setR.has(R.RAL2)) await sleep(500)
+      await this.phase3(this.args) // peut ajouter des résultas
 
-    return this.result
+      if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
+      
+      if (this.aTaches) Taches.startDemon()
+
+      if (this.setR.has(R.RAL1)) await sleep(500)
+      if (this.setR.has(R.RAL2)) await sleep(500)
+      await this.db.end()
+      return this.result
+    } catch (e) {
+      await this.db.end()
+      if (config.mondebug) 
+        config.logger.debug(this.opName + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
+      throw e
+    }
   }
 
   async phase1 () { return }
@@ -752,9 +767,9 @@ export class Operation {
 
     await this.gd.maj()
 
-    if (this.toInsert.length) await this.db.insertRows(this, this.toInsert)
-    if (this.toUpdate.length) await this.db.updateRows(this, this.toUpdate)
-    if (this.toDelete.length) await this.db.deleteRows(this, this.toDelete)
+    if (this.toInsert.length) await this.db.insertRows(this.toInsert)
+    if (this.toUpdate.length) await this.db.updateRows(this.toUpdate)
+    if (this.toDelete.length) await this.db.deleteRows(this.toDelete)
   }
 
   /* Authentification *************************************************************
@@ -969,67 +984,67 @@ export class Operation {
   }
 
   // HELPERS d'accès à la base
-  async delAvGr (id) { await this.db.delAvGr(this, id)}
+  // async delAvGr (id) { await this.db.delAvGr(this, id)}
 
-  async coll (nom) { return await this.db.coll(this, nom) }
+  // async coll (nom) { return await this.db.coll(this, nom) }
 
-  async collNs (nom, ns) { return this.db.collNs(this, nom, ns) }
+  // async collNs (nom, ns) { return this.db.collNs(nom, ns) }
 
-  async scoll (nom, id, v) { return this.db.scoll(this, nom, id, v) }
+  // async scoll (nom, id, v) { return this.db.scoll(nom, id, v) }
 
-  async delScoll (nom, id) { return this.db.delScollSql(this, nom, id) }
+  // async delScoll (nom, id) { return this.db.delScollSql(this, nom, id) }
 
   async getRowNote (id, ids, assert) {
-    const rs = await this.db.get(this, 'notes', ID.long(id, this.ns), ID.long(ids, this.ns))
+    const rs = await this.db.get('notes', ID.long(id, this.ns), ID.long(ids, this.ns))
     if (assert && !rs) throw assertKO('getRowNote/' + assert, 7, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rs
   }
 
   async getRowChat (id, ids, assert) {
-    const rc = await this.db.get(this, 'chats', ID.long(id, this.ns), ID.long(ids, this.ns))
+    const rc = await this.db.get('chats', ID.long(id, this.ns), ID.long(ids, this.ns))
     if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rc
   }
  
   async getRowTicket (id, ids, assert) {
-    const rc = await this.db.get(this, 'tickets', ID.long(id, this.ns), ID.long(ids, this.ns))
+    const rc = await this.db.get('tickets', ID.long(id, this.ns), ID.long(ids, this.ns))
     if (assert && !rc) throw assertKO('getRowTicket/' + assert, 17, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rc
   }
 
   async getRowSponsoring (id, ids, assert) {
-    const rs = await this.db.get(this, 'sponsorings', ID.long(id, this.ns), ID.long(ids, this.ns))
+    const rs = await this.db.get('sponsorings', ID.long(id, this.ns), ID.long(ids, this.ns))
     if (assert && !rs) throw assertKO('getRowSponsoring/' + assert, 13, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rs
   }
 
   async getRowMembre (id, ids, assert) {
-    const rm = await this.db.get(this, 'membres', ID.long(id, this.ns), ID.long(ids, this.ns))
+    const rm = await this.db.get('membres', ID.long(id, this.ns), ID.long(ids, this.ns))
     if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [ID.long(id, this.ns), ID.long(ids, this.ns)])
     return rm
   }
 
   async getRowChatgr (id, assert) {
-    const rc = await this.db.get(this, 'chatgrs', ID.long(id, this.ns), ID.long(1, this.ns))
+    const rc = await this.db.get('chatgrs', ID.long(id, this.ns), ID.long(1, this.ns))
     if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [ID.long(id, this.ns), 1])
     return rc
   }
 
   async purgeTransferts (idag, idf) {
     const id = (this.ns * d14) + (idag % d14)
-    await this.db.purgeTransferts(this, id, idf)
+    await this.db.purgeTransferts(id, idf)
   }
 
   async setFpurge (idag, lidf) {
     const x = rnd6()
     const id = (this.ns * d14) + (x % d14)
     const _data_ = new Uint8Array(encode({ id, idag, lidf }))
-    await this.db.setFpurge(this, id, _data_)
+    await this.db.setFpurge(id, _data_)
     return id
   }
 
   async unsetFpurge (id) {
-    await this.db.unsetFpurge(this, id) 
+    await this.db.unsetFpurge(id) 
   }
 
   /* Méthode de suppression d'un groupe */
@@ -1143,7 +1158,7 @@ export class Operation {
     enfin l'avatar lui même ici (et dlv de son versions).
     */
     av.setZombi()
-    await this.db.delScoll(this, 'sponsorings', av.id)
+    await this.db.delScoll('sponsorings', av.id)
 
     await Taches.nouvelle(this, Taches.AVC, av.id, 0)
     await Taches.nouvelle(this, Taches.AGN, av.id, 0)
@@ -1200,7 +1215,6 @@ export class Operation {
     const lignes = []
     lignes.push(Compteurs.CSVHDR(sep))
     await this.db.collNs(
-      this, 
       'comptas', 
       ns, 
       (data) => { Compteurs.CSV(lignes, mr, sep, data) }
@@ -1229,7 +1243,6 @@ export class Operation {
     - `refc` : texte court (32c) facultatif du Comptable à la réception.
     */
     await this.db.selTickets(
-      this, 
       ID.duComptable(ns), 
       ns,
       mois,
