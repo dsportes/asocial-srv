@@ -79,7 +79,7 @@ if (typeof(PhusionPassenger) !== 'undefined') {
   PhusionPassenger.configure({ autoInstall: false })
   mode = 3
 } else {
-  mode = config.run.gae ? 2 : 1
+  mode = config.run.gae ? 2 : 4
 }
 
 try {
@@ -127,6 +127,25 @@ try {
     })
     break
   }
+
+  case 4 : { // HTTP
+    const port = config.run.port
+    server = http.createServer(app).listen(port, () => {
+      config.logger.info('HTTP écoute [' + port + ']')
+      try {
+        atStart()
+        if (config.mondebug) config.logger.debug('Server atStart OK')
+      } catch (e) {
+        console.error('Server atStart erreur : ' + e.message)
+      }
+    })
+    const wss = new WebSocketServer({ server })
+    wss.on('connection', (ws, request) => {
+      new SyncSession (ws, request, wss)
+    })
+    break
+  }
+
   }
 
   server.on('error', (e) => { // les erreurs de création du server ne sont pas des exceptions

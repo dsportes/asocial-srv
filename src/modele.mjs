@@ -2,6 +2,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
+import { webPush } from './loadreq.mjs'
 import { SyncSession } from './ws.mjs'
 import { rnd6, sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
@@ -812,6 +813,7 @@ export class Operation {
     if (t) 
       try { 
         authData = decode(b64ToU8(t)) 
+        this.subscription = authData.subscription ? JSON.parse(authData.subscription) : null
         if (authData.shax) {
           try {
             const shax64 = Buffer.from(authData.shax).toString('base64')
@@ -885,6 +887,14 @@ export class Operation {
 
     // Facilité
     this.compta = await this.gd.getCA(this.id)
+  }
+
+  async sendNotification (payload) {  
+    try {
+      await webPush.sendNotification(this.subscription, payload, { TTL: 0 })
+    } catch (error) {
+      console.log(error)
+    }
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/

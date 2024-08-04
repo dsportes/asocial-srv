@@ -600,6 +600,11 @@ operations.Sync = class Sync extends Operation {
     // Mise à jour des abonnements aux versions
     if (this.sync) this.sync.setAboRds(this.ds.setLongsRds(this.ns), this.dh)
   }
+
+  async phase3 () {
+    if (this.cnx)
+      await this.sendNotification('Org=' + this.org)
+  }
 }
 
 /*******************************************************************************

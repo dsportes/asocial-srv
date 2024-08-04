@@ -3,6 +3,13 @@ import { env } from 'process'
 // eslint-disable-next-line no-unused-vars
 import { app_keys, service_account } from './keys.mjs'
 import { Tarif } from './api.mjs'
+import { webPush } from './loadreq.mjs'
+
+webPush.setVapidDetails(
+  'https://example.com/',
+  app_keys.vapid_public_key,
+  app_keys.vapid_private_key,
+)
 
 export const config = {
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
