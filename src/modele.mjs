@@ -4,7 +4,7 @@ import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { webPush } from './loadreq.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6, sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
+import { rnd6, sleep, b64ToU8, u8ToB64, crypter, crypterSrv, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
@@ -812,7 +812,8 @@ export class Operation {
     this.estAdmin = false
     if (t) 
       try { 
-        authData = decode(b64ToU8(t)) 
+        authData = decode(b64ToU8(t))
+        this.sessionId = authData.sessionId || ''
         this.subscription = authData.subscription ? JSON.parse(authData.subscription) : null
         if (authData.shax) {
           try {
@@ -889,9 +890,13 @@ export class Operation {
     this.compta = await this.gd.getCA(this.id)
   }
 
-  async sendNotification (payload) {  
+  async sendNotification (payload) { // payload est un objet
     try {
-      await webPush.sendNotification(this.subscription, payload, { TTL: 0 })
+      if (this.sessionId && payload) {
+        payload.sessionId = this.sessionId
+        const b = u8ToB64(encode(payload))
+        await webPush.sendNotification(this.subscription, b, { TTL: 0 })
+      }
     } catch (error) {
       console.log(error)
     }

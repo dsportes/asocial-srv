@@ -601,9 +601,9 @@ operations.Sync = class Sync extends Operation {
     if (this.sync) this.sync.setAboRds(this.ds.setLongsRds(this.ns), this.dh)
   }
 
-  async phase3 () {
+  async phase3 () { // Pour test
     if (this.cnx)
-      await this.sendNotification('Org=' + this.org)
+      await this.sendNotification({ type: 'cnx', org: this.org, compteId: this.id })
   }
 }
 
