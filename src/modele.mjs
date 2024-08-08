@@ -941,9 +941,9 @@ export class Operation {
   /* Helper d'accès depuis Cache */
 
   async getRowPartition (id, assert) {
-    const tr = await Cache.getRow(this, 'partitions', id)
-    if (assert && !tr) throw assertKO('getRowPartition/' + assert, 2, [id])
-    return tr
+    const p = await Cache.getRow(this, 'partitions', id)
+    if (assert && !p) throw assertKO('getRowPartition/' + assert, 2, [id])
+    return p
   }
 
   async getPartition (id, assert) {

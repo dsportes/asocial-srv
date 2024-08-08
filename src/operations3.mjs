@@ -428,7 +428,8 @@ LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / grou
 - dataSync: sérialisation de l'état de synchro de la session
   - null : C'EST UNE PREMIERE CONNEXION - Création du DataSync
   recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
-- lrds: liste des rds des sous-arbres à recharger (dataSync n'est pas null)
+- lids: liste des ids des sous-arbres à recharger (dataSync n'est pas null)
+- full: si true, revérifie tout le périmètre
 */
 operations.Sync = class Sync extends Operation {
   constructor (nom) { super(nom, 1, 1) }
@@ -479,101 +480,81 @@ operations.Sync = class Sync extends Operation {
         this.addRes('rowTickets', compile(row).toShortRow(this))
   }
 
-  async setAv (ida, rds) {
+  async setAv (ida) {
     const x = this.ds.avatars.get(ida)
-    if (x) {
-      const version = rds ? await this.getV({ rds }) : null
-      if (!version || version.dlv) this.ds.avatars.delete(ida) // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
-      else x.vb = version.v
-    }
+    const rowVersion = await this.getRowVersion(ida)
+    if (!rowVersion || rowVersion.dlv) this.ds.avatars.delete(ida) // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
+    else x.vb = rowVersion.v
   }
 
-  async setGr (idg, rds) {
+  async setGr (idg) {
     const x = this.ds.groupes.get(idg)
     const g = await this.getGr(idg)
-    if (x) {
-      const version = rds ? await this.getV({rds}) : null
-      if (!g || !version || version.dlv) 
-        this.ds.groupes.delete(idg) // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
-      else {
-        x.vb = version.v
-        // reset de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
-        const sid = this.compte.idMbGr(idg)
-        if (sid.size) { 
-          const [mx, nx] = g.amAn(sid)
-          x.m = mx; x.n = nx 
-        }
-        else { x.m = false; x.n = false }
-      }
-    }
-  }
+    const rowVersion = await this.getRowVersion(idg)
 
-  async getV (doc, src) {
-    const r = await this.getRowVersion(doc.rds, src)
-    return compile(r)
+    if (!g || !rowVersion || rowVersion.dlv) 
+      this.ds.groupes.delete(idg) // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
+    else {
+      x.vb = rowVersion.v
+      // reset de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
+      const sid = this.compte.idMbGr(idg)
+      if (sid.size) { 
+        const [mx, nx] = g.amAn(sid)
+        x.m = mx; x.n = nx 
+      }
+      else { x.m = false; x.n = false }
+    }
   }
 
   async phase2(args) {
     this.mgr = new Map() // Cache locale des groupes acquis dans l'opération
-    this.cnx = !args.dataSync
-    const srds = args.lrds ? new Set(args.lrds) : new Set()
 
     /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */
-    this.ds = DataSync.deserial(this.cnx ? null : args.dataSync)
+    this.ds = DataSync.deserial(args.dataSync || null)
 
-    const vcpt = await this.getV(this.compte)
-    // Compte/Version forcément trouvés, auth() vient de le checker
-    this.ds.compte.rds = this.compte.rds
-    this.ds.compte.vb = vcpt.v
+    this.ds.compte.vb = this.compte.v
 
-    if (this.cnx || (this.ds.compte.vs < this.ds.compte.vb))
+    if (!args.dataSync || (this.ds.compte.vs < this.compte.v))
       this.setRes('rowCompte', this.compte.toShortRow(this))
-    let rowCompti = Cache.aVersion(this, 'comptis', this.compte.id, vcpt.v) // déjà en cache ?
-    if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
-    if (this.cnx || (rowCompti.v > this.ds.compte.vs)) 
+
+    if (!args.dataSync || (this.ds.compte.vs < this.compte.vci)) {
+      let rowCompti = Cache.aVersion(this, 'comptis', this.compte.id, this.compte.vci) // déjà en cache ?
+      if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
       this.setRes('rowCompti', compile(rowCompti).toShortRow(this))
-    let rowInvit = Cache.aVersion(this, 'invits', this.compte.id, vcpt.v) // déjà en cache ?
-    if (!rowInvit) rowInvit = await this.getRowInvit(this.compte.id)
-    if (this.cnx || (rowInvit.v > this.ds.compte.vs)) 
+    }
+
+    if (!args.dataSync || (this.ds.compte.vs < this.compte.vin)) {
+      let rowInvit = Cache.aVersion(this, 'invits', this.compte.id, this.compte.vin) // déjà en cache ?
+      if (!rowInvit) rowInvit = await this.getRowInvit(this.compte.id)
       this.setRes('rowInvit', compile(rowInvit).toShortRow(this))
-  
+    }
+
     /* Mise à niveau des listes avatars / groupes du dataSync
     en fonction des avatars et groupes listés dans mav/mpg du compte 
     Ajoute les manquants dans ds, supprime ceux de ds absents de mav / mpg
     Pour CHAQUE GROUPE les indicateurs m et n NE SONT PAS bien positionnés.
     */
-    this.compte.majPerimetreDataSync(this.ds, srds)  
+    this.compte.majPerimetreDataSync(this.ds)  
 
-    if (this.cnx) {
+    if (!args.dataSync || args.full) {
       // Recherche des versions vb de TOUS les avatars requis
-      for(const [ida, dsav] of this.ds.avatars)
-        await this.setAv(ida, dsav.rds)
-
+      for(const [ida,] of this.ds.avatars) await this.setAv(ida)
       // Recherche des versions vb de TOUS les groupes requis
-      for(const [idg, dsgr] of this.ds.groupes) 
-        await this.setGr(idg, dsgr.rds)
-        
+      for(const [idg,] of this.ds.groupes) await this.setGr(idg)
     } else {
-      /* Recherche des versions uniquement pour les avatars / groupes signalés 
-      comme ayant (a priori) changé de version 
-      OU ceux apparus / disparus détectés par la maj du périmètre vi-avant*/
-      if (srds.size) for(const rds of srds) {
-        const id = this.ds.idDeRds(rds)
-        if (id) {
-          if (ID.estAvatar(id)) await this.setAv(id, rds)
-          if (ID.estGroupe(id)) await this.setGr(id, rds)
-        }
+      // Recherche des versions uniquement pour les avatars / groupes signalés 
+      // comme ayant (a priori) changé de version 
+      if (args.lids && args.lids.length) for(const id of args.lids) {
+        if (ID.estAvatar(id)) await this.setAv(id)
+        if (ID.estGroupe(id)) await this.setGr(id)
       }
     }
 
-    if (this.cnx) {
-      // credentials / emulator en cas de première connexion
-      this.db.setSyncData(this)
-    } else {
+    if (args.dataSync) { // Charge les avatars et groupes dont le vs < vb
       const n = this.nl
       for(const [ida, x] of this.ds.avatars) {
         x.chg = false
-        /* Si la version en base est supérieure à celle en session, chargement */
+        // Si la version en base est supérieure à celle en session, chargement
         if (!x.vb || (x.vs < x.vb)) {
           await this.getAvRows(ida, x)
           x.chg = true
@@ -596,14 +577,6 @@ operations.Sync = class Sync extends Operation {
 
     // Sérialisation et retour de dataSync
     this.setRes('dataSync', this.ds.serial(this.ns))
-
-    // Mise à jour des abonnements aux versions
-    if (this.sync) this.sync.setAboRds(this.ds.setLongsRds(this.ns), this.dh)
-  }
-
-  async phase3 () { // Pour test
-    if (this.cnx)
-      await this.sendNotification({ type: 'cnx', org: this.org, compteId: this.id })
   }
 }
 

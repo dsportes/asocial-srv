@@ -800,40 +800,27 @@ export class Comptes extends GenDoc {
   en fonction des avatars et groupes listés dans mav/mpg du compte 
   Ajoute les manquants dans ds, supprime ceux de ids absents de mav / mpg
   */
-  majPerimetreDataSync (ds, srds) {
+  majPerimetreDataSync (ds) {
 
     // Ajout dans ds des avatars existants dans le compte et inconnus de ds
-    for(const idx in this.mav) {
-      const ida = parseInt(idx)
-      const rds = this.mav[idx].rds
-      srds.add(rds)
-      if (!ds.avatars.has(ida)) { ds.avatars.set(ida, { id: ida, rds, vs: 0, vb: 0 }) }
-    }
+    for(const ida in this.mav)
+      if (!ds.avatars.has(ida)) 
+        ds.avatars.set(ida, { id: ida, vs: 0, vb: 0 })
+    
     /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte
     Suppression de leurs entrées dans idRds / rdsId */
     const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
-    for(const ida of sa) if (!this.mav[ida]) {
-      const dsav = ds.avatars.get(ida)
-      srds.delete(dsav.rds)
-      ds.avatars.delete(ida)
-    }
+    for(const ida of sa) if (!this.mav[ida]) ds.avatars.delete(ida)
 
     // Ajout dans ds des groupes existants dans le compte et inconnus de ds
-    for(const idx in this.mpg) {
-      const idg = parseInt(idx)
-      const rds = this.mpg[idx].rds
-      srds.add(rds)
-      const x = { id: idg, rds, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false }
-      if (!ds.groupes.has(idg)) ds.groupes.set(idg, x)
-    }
+    for(const idg in this.mpg)
+      if (!ds.groupes.has(idg)) 
+        ds.groupes.set(idg, { id: idg, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false })
+    
     /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte
     Suppression de leurs entrées dans idRds / rdsId */
     const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
-    for(const idg of sg) if (!this.mpg[idg]) {
-      const dsgr = ds.groupes.get(idg)
-      srds.delete(dsgr.rds)
-      ds.groupes.delete(idg)
-    }
+    for(const idg of sg) if (!this.mpg[idg]) ds.groupes.delete(idg)
   }
 
   // Set des id des membres des participations au groupe idg
