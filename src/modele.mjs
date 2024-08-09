@@ -84,8 +84,8 @@ export class Esp {
 
   static async load (db) {
     const l = await db.getRowEspaces(Esp.v)
-    l.forEach(r => { 
-      const ns = ID.ns(r.id)
+    l.forEach(r => {
+      const ns = r.id
       Esp.map.set(ns, r)
       Esp.orgs.set(r.org, ns)
       if (r.v > Esp.v) Esp.v = r.v
@@ -232,9 +232,11 @@ class GD {
     this.espace = e
     this.lazy = false
     this.synthese = Syntheses.nouveau(ns)
+    /*
     const v = Versions.nouveau(ns)
     v.v = 0
     this.versions.set(ns, v)
+    */
     return e
   }
 
@@ -278,11 +280,11 @@ class GD {
   }
 
   /* Nouvelle partition de l'espace courant. Comptable est le compte courant */
-  async nouvPA (np, qc) {
-    const p = Partitions.nouveau(this.op.ns, np, qc)
-    this.partitions.set(p.id, p)
+  async nouvPA (id, qc) {
+    const p = Partitions.nouveau(id, qc)
+    this.partitions.set(id, p)
     const espace = await this.getES()
-    espace.setPartition(np)
+    espace.setPartition(id)
     return p
   }
 
@@ -298,18 +300,14 @@ class GD {
 
   nouvCO (args, sp, quotas, don) {
     const c = Comptes.nouveau(args, sp)
-    c.rds = ID.rds(ID.RDSCOMPTE)
     this.comptes.set(c.id, c)
-    this.nouvV(c.rds)
     const compta = Comptas.nouveau(c.id, quotas, don || 0)
     this.comptas.set(c.id, compta)
     const compti = Comptis.nouveau(c.id)
-    compti.rds = c.rds
     this.comptis.set(compti.id, compti)
     const invit = Invits.nouveau(c.id)
-    invit.rds = c.rds
     this.invits.set(invit.id, invit)
-    return { compte:c, compta: compta, compti: compti, invit: invit }
+    return { compte:c, compta, compti, invit }
   }
 
   async getCO (id, assert, hXR) {
@@ -331,7 +329,7 @@ class GD {
     if (id) c = this.comptis.get(id)
     if (c) return c
     c = compile(await this.op.getRowCompti(id))
-    if (!c || !await this.getV(c.rds)) { 
+    if (!c || !await this.getCO(c.id)) { 
       if (!assert) return null; else assertKO(assert, 12, [c.id]) }
     this.comptis.set(id, c)
     return c
@@ -342,7 +340,7 @@ class GD {
     if (id) c = this.invits.get(id)
     if (c) return c
     c = compile(await this.op.getRowInvit(id))
-    if (!c || !await this.getV(c.rds)) { 
+    if (!c || !await this.getCO(c.id)) { 
       if (!assert) return null; else assertKO(assert, 11, [id]) }
     this.invits.set(id, c)
     return c
@@ -352,19 +350,18 @@ class GD {
     let c = this.comptas.get(id)
     if (c) return c
     c = compile(await this.op.getRowCompta(id))
-    if (!c) { 
+    if (!c || !await this.getCO(c.id)) { 
       if (!assert) return null; else assertKO(assert, 3, [c.id]) }
     this.comptas.set(id, c)
     return c
   }
 
-  nouvAV (compte, args, cvA) {
+  nouvAV (args, cvA) {
     const a = Avatars.nouveau(args, cvA)
-    a.rds = ID.rds(ID.RDSAVATAR)
-    a.idc = ID.court(compte.id)
-    compte.ajoutAvatar(a, args.cleAK)
+    a.idc = this.op.compte.id
+    this.op.compte.ajoutAvatar(a, args.cleAK)
     this.avatars.set(a.id, a)
-    this.nouvV(a.rds)
+    this.nouvV(a.id)
     return a
   }
 
@@ -396,14 +393,12 @@ class GD {
 
   nouvGR (args) {
     const g = Groupes.nouveau(args)
-    g.rds = ID.rds(ID.RDSGROUPE)
-    g.idh = ID.court(this.op.compte.id)
-    this.op.compte.ajoutGroupe(g.id, args.ida, args.cleGK, g.rds)
+    g.idh = this.op.compte.id
+    this.op.compte.ajoutGroupe(g.id, args.ida, args.cleGK)
     this.groupes.set(g.id, g)
-    this.nouvV(g.rds)
+    this.nouvV(g.id)
     const ch = Chatgrs.nouveau(g.id)
-    ch.rds = g.rds
-    this.sdocs.set(g.id + '/', ch)
+    this.sdocs.set(g.id + '/CGR/', ch)
     return g
   }
 
@@ -422,7 +417,7 @@ class GD {
     let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowChatgr(id))
-    if (!d || !await this.getV(d.rds)) { 
+    if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 17, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -432,8 +427,7 @@ class GD {
     const k = id + '/MBR/' + im
     const g = await this.getGR(id, assert)
     const m = Membres.nouveau(id, im, cvA, cleAG)
-    m.rds = g.rds
-    if (!await this.getV(m.rds)) { 
+    if (!g || !await this.getV(m.id)) { 
       if (!assert) return null; else assertKO(assert, 10, [k]) }
     this.sdocs.set(k, m)
     return m
@@ -444,7 +438,7 @@ class GD {
     let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowMembre(id, im))
-    if (!d || !await this.getV(d.rds)) { 
+    if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 10, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -452,10 +446,8 @@ class GD {
 
   async nouvCAV (args, assert) {
     const k = args.id + '/CAV/' + args.ids
-    const a = await this.getAV(args.id, assert)
     const d = Chats.nouveau(args)
-    d.rds = a.rds
-    if (!await this.getV(d.rds)) { 
+    if (!await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 5, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -466,7 +458,7 @@ class GD {
     let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowChat(id, ids))
-    if (!d || !await this.getV(d.rds)) { 
+    if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 5, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -479,7 +471,7 @@ class GD {
       let d = this.sdocs.get(k)
       if (!d) {
         d = compile(row)
-        await this.getV(d.rds)
+        await this.getV(d.id)
         this.sdocs.set(k, d)
       }
       l.push(d)
@@ -490,12 +482,11 @@ class GD {
   async nouvTKT (id, args, assert) {
     const idc = ID.duComptable()
     const k = idc + '/TKT/' + args.ids
-    const a = await this.getAV(idc, assert)
+
     const d = Tickets.nouveau(id, args)
     d.id = idc
     d.dg = this.op.auj
-    d.rds = a.rds
-    if (!await this.getV(d.rds)) { 
+    if (!await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 15, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -507,7 +498,7 @@ class GD {
     let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowTicket(idc, ids))
-    if (!d || !await this.getV(d.rds)) { 
+    if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 15, [k]) }
     this.sdocs.set(idc + '/TKT/' + ids, d)
     return d
@@ -515,11 +506,9 @@ class GD {
 
   async nouvSPO (args, ids, assert) {
     const k = args.id + '/SPO/' + ids
-    const a = await this.getAV(args.id, assert)
     const d = Sponsorings.nouveau(args, ids)
-    d.rds = a.rds
     d.dh = this.op.dh
-    if (!await this.getV(d.rds)) { 
+    if (!await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -530,7 +519,7 @@ class GD {
     let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowSponsoring(id, ids))
-    if (!d || !await this.getV(d.rds)) { 
+    if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -538,10 +527,8 @@ class GD {
 
   async nouvNOT (id, ids, par, assert) {
     const k = id + '/NOT/' + ids
-    const a = ID.estGroupe(id) ? await this.getGR(id, assert) : await this.getAV(id, assert)
     const d = Notes.nouveau(id, ids, par)
-    d.rds = a.rds
-    if (!await this.getV(d.rds)) { 
+    if (!await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
@@ -552,25 +539,25 @@ class GD {
     let d = this.sdocs.get(k)
     if (d) return d
     d = compile(await this.op.getRowNote(id, ids))
-    if (!d || !await this.getV(d.rds)) { 
+    if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
   }
 
-  async getV (rds) {
-    let v = this.versions.get(rds)
+  async getV (id) {
+    let v = this.versions.get(id)
     if (!v) {
-      v = compile(await this.op.getRowVersion(rds))
-      if (v) this.versions.set(rds, v)
+      v = compile(await this.op.getRowVersion(id))
+      if (v) this.versions.set(id, v)
     }
     return !v || v.dlv ? null : v
   }
 
-  nouvV (rds) {
-    const v = Versions.nouveau(rds)
+  nouvV (id) {
+    const v = Versions.nouveau(id)
     v.v = 0
-    this.versions.set(rds, v)
+    this.versions.set(id, v)
   }
 
   /* Met à jour le version d'un doc ou sous-doc,
@@ -578,11 +565,11 @@ class GD {
   - pour cage, récupère le version
   - s'il avait déjà été incrémenté, ne fait rien
   */
-  async majV (rds, id, suppr) { // id: seulement pour trace sur assert
-    let v = this.versions.get(rds)
+  async majV (id, suppr) { 
+    let v = this.versions.get(id)
     if (!v) {
-      v = await this.getV(rds)
-      if (!v) assertKO('majV', 20, [rds, id])
+      v = await this.getV(id)
+      if (!v) assertKO('majV', 20, [id])
     }
     if (!v._maj) {
       v.v++

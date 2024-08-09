@@ -233,16 +233,14 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
-  setPartition (n) {
-    for (let i = 0; i < n - this.tnotifP.length + 1; i++) this.tnotifP.push(null)
+  setPartition (id) {
+    this.tnotifP[id] = null
     this._maj = true
   }
 
-  supprPartition (n) {
-    if (n < this.tnotifP.length) {
-      this.tnotifP[n] = null
-      this._maj = true
-    }
+  supprPartition (id) {
+    delete this.tnotifP[id]
+    this._maj = true
   }
 
   setMoisStat (m) {
@@ -255,9 +253,8 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
-  setNotifP (ntf, n) {
-    if (n > this.tnotifP.length) throw new AppExc(F_SRV, 236)
-    this.tnotifP[n] = ntf
+  setNotifP (ntf, id) {
+    this.tnotifP[id] = ntf
     this._maj = true
   }
 
@@ -303,16 +300,16 @@ export class Espaces extends GenDoc {
     delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
     const r = this.toRow(op)
     this.moisStat = x1; this.moisStatT = x2; this.dlvat = x3; this.nbmi = x4
-    return r
+    return r._data_
   }
 }
+
 /* Tickets **********************************************
 _data_:
 - `id`: id du Comptable.
 - `ids` : numéro du ticket
 - `v` : version du ticket.
 
-- `rds`:
 - `dg` : date de génération.
 - `dr`: date de réception. Si 0 le ticket est _en attente_.
 - `ma`: montant déclaré émis par le compte A.
@@ -364,7 +361,7 @@ export class Tickets extends GenDoc {
 
   toShortRow (op) {
     const idc = this.idc; delete this.idc
-    const row = this.toRow(op)
+    const row = this.toRow(op)._data_
     this.idc = idc
     return row
   }
@@ -395,7 +392,7 @@ export class Partitions extends GenDoc {
 
   static qz = {qc: 0, qn: 0, qv: 0, c2m: 0, nn: 0, nc: 0, ng: 0, v: 0 }
 
-  static nouveau (ns, id, q) { // q: { qc, qn, qv } qc: apr[0], qn: apr[1], qv: apr[2],
+  static nouveau (id, q) { // q: { qc, qn, qv } qc: apr[0], qn: apr[1], qv: apr[2],
     return new Partitions().init( {
       _maj: true, v: 0,
       id, q, nrp: 0, mcpt: {}
@@ -411,9 +408,9 @@ export class Partitions extends GenDoc {
       if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAP }
     }
     this.mcpt = m
-    const r = this.toRow(op)
+    const row = this.toRow(op)._data_
     this.mcpt = sv
-    return r
+    return row
   }
 
   majQC(idc, qv, c2m) {
@@ -498,22 +495,21 @@ export class Syntheses extends GenDoc {
     return new Syntheses().init({
       _maj: true, v: 0,
       id: ns,
-      tsp: []
+      tsp: {}
     })
   }
 
   setPartition(p) {
-    for(let i = this.tsp.length; i <= p.id; i++) this.tsp.push(null)
     this.tsp[p.id] = synthesesPartition(p)
     this._maj = true
   }
 
-  supprPartition(n) {
-    if (n < this.tsp.length) this.tsp[n] = null
+  supprPartition(id) {
+    delete this.tsp[id]
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op)}
+  toShortRow (op) { return this.toRow(op)._data_}
 }
 
 /* Comptes ************************************************************
@@ -523,7 +519,10 @@ _data_ :
 - `hxr` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
 - `dlv` : dernier jour de validité du compte.
 
-- `rds` : null en session.
+- `vpe` : version du périmètre
+- `vci` : version de Compti
+- `vin` : version de Invit
+
 - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
 - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
 - `cleEK` : clé de l'espace cryptée par la clé K du compte, à la création de l'espace pour le Comptable. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
@@ -549,15 +548,12 @@ _Comptes "O" seulement:_
 - `notif`: notification de niveau _compte_ dont le texte est crypté par la clé P de la partition (`null` s'il n'y en a pas).
 
 - `mav` : map des avatars du compte. 
-  - _clé_ : id court de l'avatar.
-  - _valeur_ : `{ rds, claAK }`
-    - `rds`: de l'avatar (clé d'accès à son `versions`). null en session.
-    - `cleAK`: clé A de l'avatar crypté par la clé K du compte.
+  - _clé_ : id de l'avatar.
+  - _valeur_ : `cleAK`: clé A de l'avatar crypté par la clé K du compte.
 
 - `mpg` : map des participations aux groupes:
   - _clé_ : id du groupe
-  - _valeur_: `{ rds, cleGK, lav }`
-    - `rds`: du groupe (clé d'accès à son `versions`). null en session.
+  - _valeur_: `{ cleGK, lav }`
     - `cleGK` : clé G du groupe cryptée par la clé K du compte.
     - `lav`: liste de ses avatars participant au groupe. compilé -> sav : Set
 
@@ -574,22 +570,35 @@ export class Comptes extends GenDoc {
   get _estComptable () { return ID.estComptable(this.id) }
 
   toShortRow (op) {
-    const x1 = this.rds
-    const x2 = encode(this.mav)
-    const x3 = encode(this.mpg)
-    delete this.rds
-    for(const idx in this.mav) delete this.mav[idx].rds
-    for(const idx in this.mpg) delete this.mpg[idx].rds
-    const row = this.toRow(op)
-    this.rds = x1
-    this.mav = decode(x2)
-    this.mpg = decode(x3)
-    return row
+    return this.toRow(op)._data_
+  }
+
+  get perimetre () {
+    const p = []
+    if (this.idp) p.push(this.idp)
+    for (const ida in this.mav) p.push(ida)
+    for (const idg in this.mpg) p.push(idg)
+    p.sort((a,b) => { return a < b ? -1 : (a > b ? 1 : 0)})
+    return p
+  }
+
+  compile () {
+    this.perimetreAv = this.perimetre
+    return this
+  }
+
+  get perimetreChg () { 
+    const p = this.perimetre
+    const pav = this.perimetreAv
+    if (p.length !== pav.length) return true
+    for (let i = 0; i < p.length; i++) if (p[i] !== pav[i]) return true
+    return false
   }
 
   static nouveau (args, sp) {
     const r = {
-      _maj: true, v: 0,
+      _maj: true, _majci: true, _majin: true,
+      v: 0, vpe: 0, vci: 0, vin: 0,
       id: args.id,
       hk: args.hXR,
       hXC: args.hXC,
@@ -612,13 +621,14 @@ export class Comptes extends GenDoc {
     } else { // Comptable
       r.cleEK = args.cleEK
       r.clePA = args.clePA
-      r.idp = 1
+      r.idp = args.idp
       r.del = true
       const aco = config.allocComptable
       r.qv = { qc: aco[0], qn: aco[1], qv: aco[2], pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
       // args.ck: `{ cleP, code }` crypté par la clé K du comptable
-      r.tpk = [null, args.ck]
+      r.tpk[r.idp] = args.ck
     }
+    this.perimetreAv = []
     return new Comptes().init(r)
   }
 
@@ -677,17 +687,14 @@ export class Comptes extends GenDoc {
   }
 
   // Comptable seulement
-  ajoutPartition (np, itemK) { // itemK: {cleP, code} crypté par la clé K du Comptable.
-    if (this.tpk.length !== np) throw new AppExc(F_SRV, 228)
-    this.tpk.push(itemK)
+  ajoutPartition (idp, itemK) { // itemK: {cleP, code} crypté par la clé K du Comptable.
+    this.tpk[idp] = itemK
     this._maj = true
   }
 
-  supprPartition (np) {
-    if (np < this.tpk.length) {
-      this.tpk[np] = null
-      this._maj = true
-    }
+  supprPartition (idp) {
+    delete this.tpk[idp]
+    this._maj = true
   }
 
   setCodePart (np, itemK) {
@@ -763,7 +770,7 @@ export class Comptes extends GenDoc {
   }
 
   ajoutAvatar (avatar, cleAK) {
-    this.mav[avatar.id] = { rds: avatar.rds, cleAK: cleAK }
+    this.mav[avatar.id] = cleAK
     this._maj = true
   }
 
@@ -772,9 +779,9 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
-  ajoutGroupe (idg, ida, cleGK, rds) {
+  ajoutGroupe (idg, ida, cleGK) {
     let e = this.mpg[idg]
-    if (!e) { e = { cleGK, rds, lav: []}; this.mpg[idg] = e }
+    if (!e) { e = { cleGK, lav: []}; this.mpg[idg] = e }
     if (e.lav.indexOf(ida) === -1) e.lav.push(ida)
     this._maj = true
   }
@@ -877,7 +884,7 @@ export class Comptis extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op) }
+  toShortRow (op) { return this.toRow(op)._data_ }
 }
 
 /* Invits *************************************************

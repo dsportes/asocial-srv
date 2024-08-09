@@ -547,12 +547,12 @@ operations.SetQuotas = class SetQuotas extends Operation {
 
 /* OP_NouvellePartition: 'Création d\'une nouvelle partition' *******
 Dans Comptes : **Comptable seulement:**
-- `tpK` : table des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
+- `tpK` : map des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
   - `cleP` : clé P de la partition.
   - `code` : code / commentaire court de convenance attribué par le Comptable
 
 - token: éléments d'authentification du compte.
-- n : numéro de partition
+- idp : ID de la partition
 - itemK: {cleP, code} crypté par la clé K du Comptable.
 - quotas: { qc, qn, qv }
 Retour:
@@ -561,10 +561,10 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
-    await this.gd.nouvPA(args.n, args.quotas)
-    this.compte.ajoutPartition(args.n, args.itemK)
+    await this.gd.nouvPA(args.idp, args.quotas)
+    this.compte.ajoutPartition(args.idp, args.itemK)
     const espace = await this.gd.getES(false, 'NouvellePartition-2')
-    espace.setPartition(args.n)
+    espace.setPartition(args.idp)
   }
 }
 
@@ -964,7 +964,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
     const a = await this.gd.getAV(args.id)
     if (a) throw new AppExc(F_SRV, 245)
 
-    this.gd.nouvAV(this.compte, args, args.cvA)
+    this.gd.nouvAV(args, args.cvA)
   }
 }
 
