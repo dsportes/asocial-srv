@@ -45,3 +45,8 @@ export async function genNotif(ns, sid, s) {
   Session.getSession(ns).notif(sid, log)
   return true
 }
+
+export async function genLogin(ns, sessionId, subscription, compteId) {
+  Session.getSession(ns).login(sessionId, subscription, compteId)
+  return true
+}

@@ -1,11 +1,64 @@
 /* eslint-disable lines-between-class-members */
 import { encode, decode } from '@msgpack/msgpack'
+import { sha256 as jssha256 } from 'js-sha256'
 import { fromByteArray } from './base64.mjs'
 import { random } from './util.mjs'
 
 export const version = '1'
 
-export const WSHEARTBEAT = false
+/** Cles **********************************************************************/
+export class Cles {
+  // Retourne un hash string sur 12c en base64 URL (sans = + /) d'un u8
+  static hash9 (u8) {
+    const x = new Uint8Array(jssha256(u8).arrayBuffer())
+    const y = new Uint8Array(9)
+    for(let i = 0; i < 9; i++) y[i] = (x[i] ^ x[i+9]) ^ x[x+18]
+    const s = fromByteArray(y)
+    return s.replace(/=/g, '').replace(/\+/g, '0').replace(/\//g, '1')
+  }
+
+  static ns = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+  static nsToInt (ns) { return ns.indexOf(ns)}
+
+  static espace(ns) { // ns: [0-9][a-z][A-Z]
+    const rnd = random(32); rnd[0] = 1; rnd[1] = Cles.nsToInt(ns); return rnd
+  }
+
+  static partition () { const rnd = random(32); rnd[0] = 2; return rnd }
+  static comptable() { const rnd = new Uint8Array(32); rnd[0] = 3; return rnd }
+  static avatar() { const rnd = random(32); rnd[0] = 4; return rnd }
+  static groupe() { const rnd = random(32); rnd[0] = 5; return rnd }
+
+  static id (cle) {
+    const t = cle[0]
+    if (t === 1) return Cles.ns.charAt(cle[1])
+    if (t === 3) return '100000000000'
+    return t + Cles.hash9(cle).substring(1)
+  }
+
+  static lnoms = ['espaces', 'partitions', 'avatars', 'avatars', 'groupes', 'espaces']
+
+  static nom (cle) { return Cles.lnoms[cle[0]] }
+}
+
+/** ID **********************************************************************/
+export class ID {
+  static type (id) { return parseInt(id.charAt(0))}
+  static estPartition (id) { return id.charAt(0) === '2' }
+  static estComptable (id) { return id.charAt(0) === '3' }
+  static estAvatar (id) { const c = id.charAt(0); return c === '3' || c === '4' }
+  static estGroupe (id) { return id.charAt(0) === '5' }
+
+  static long (id, ns) { return ns + id}
+  static court (id) { return id.substring(1)}
+
+  static rnd () {
+    const s = fromByteArray(random(9))
+    return s.replace(/=/g, '').replace(/\+/g, '0').replace(/\//g, '1')
+  }
+}
+
 export const PINGTO = 5 // en minutes : session auto close après PINGTO minutes d'inactivité
 export const PINGTO2 = 4 // en minutes : rafraîchissement des compteurs de consommation
 
@@ -16,15 +69,6 @@ export const MSPARMOIS = 30 * MSPARJOUR
 ne soit considérée comme obsolète */
 export const IDBOBS = 18 * 30
 export const IDBOBSGC = 19 * 30
-
-// Liste des statistiques mensuelles et délai / mois courant
-export const statistiques = { moisStat: 1, moisStatT: 3 }
-
-export const d13 = 10 * 1000 * 1000 * 1000 * 1000
-export const d14 = d13 * 10
-export const d10 = 10000000000
-
-export const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1, (256 ** 6) - 1, (256 ** 7) - 1]
 
 export const UNITEN = 250 // nombre de notes + chats + groupes
 export const UNITEV = 100 * 1000 * 1000 // volume de fichiers
@@ -44,6 +88,9 @@ export const limitesjour = {
 
 // Nombre de mois de conservation en ligne des tickets
 export const NBMOISENLIGNETKT = 3
+
+// Liste des statistiques mensuelles et délai / mois courant
+export const statistiques = { moisStat: 1, moisStatT: 3 }
 
 /************************************************************************/
 export const FLAGS = {
@@ -94,6 +141,7 @@ Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 /* retourne un code à 6 lettres majuscules depuis l'id d'un ticket 
 id d'un ticket: aa mm rrr rrr rrr r 
 */
+const d10 = 10000000000
 export function idTkToL6 (t) {
   const am = Math.floor(t / d10)
   const m = am % 100
@@ -104,138 +152,6 @@ export function idTkToL6 (t) {
 }
 
 /************************************************************************/
-/* retourne un safe integer (53 bits) hash:
-- d'un string
-- d'un u8
-*/
-export function hash (arg, court) {
-  const t = typeof arg
-  const bin = t !== 'string'
-  /* https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
-    Many of the answers here are the same String.hashCode hash function taken 
-    from Java. It dates back to 1981 from Gosling Emacs, 
-    is extremely weak, and makes zero sense performance-wise in
-    modern JavaScript. 
-    In fact, implementations could be significantly faster by using ES6 Math.imul,
-    but no one took notice. 
-    We can do much better than this, at essentially identical performance.
-    Here's one I did—cyrb53, a simple but high quality 53-bit hash. 
-    It's quite fast, provides very good* hash distribution,
-    and because it outputs 53 bits, has significantly lower collision rates
-    compared to any 32-bit hash.
-    Also, you can ignore SA's CC license as it's public domain on my GitHub.
-  */
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57
-  for (let i = 0, ch; i < arg.length; i++) {
-    ch = bin ? arg[i] : arg.charCodeAt(i)
-    h1 = Math.imul(h1 ^ ch, 2654435761)
-    h2 = Math.imul(h2 ^ ch, 1597334677)
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
-  const r = 4294967296 * (2097151 & h2) + (h1 >>> 0)
-  return court ? (r % d14) : r
-}
-
-/** Cles **********************************************************************/
-export class Cles {
-  /* Génération des clés */
-
-  /* idx : numéro de partition */
-  static partition (idx) {
-    const rnd = random(32)
-    rnd[0] = 0
-    rnd[1] = Math.floor(idx / 256)
-    rnd[2] = idx % 256
-    return rnd
-  }
-
-  static comptable() {
-    const rnd = new Uint8Array(32)
-    rnd[0] = 1
-    return rnd
-  }
-
-  static avatar() {
-    const rnd = random(32)
-    rnd[0] = 2
-    return rnd
-  }
-
-  static groupe() {
-    const rnd = random(32)
-    rnd[0] = 3
-    return rnd
-  }
-
-  static espace() {
-    const rnd = random(32)
-    rnd[0] = 4
-    return rnd
-  }
-  
-  /* Retourne l'id courte ou longue depuis une clé */
-  static id (cle) {
-    if (!cle) return 0
-    let id = 0
-    if (cle[0] === 0) id = (cle[1] * 256) + cle[2]
-    else if (cle[0] !== 4) {
-      let z = true; for (let i = 1; i < 32; i++) if(cle[i]) { z = false; break }
-      const n = z ? 0 : (hash(cle) % d13)
-      id = (cle[0] * d13) + n
-    }
-    return id
-  }
-  static lnoms = ['partitions', 'avatars', 'avatars', 'groupes', 'espaces']
-
-  static nom (cle) { return Cles.lnoms[cle[0]] }
-}
-
-/** ID **********************************************************************/
-export class ID {
-  static RDSESPACE = 0
-  static RDSCOMPTE = 7
-  static RDSAVATAR = 8
-  static RDSGROUPE = 9
-
-  /* Retourne l'id COURT depuis une id, longue ou courte */
-  static court (long) { return long % d14 }
-
-  /* Retourne l'id LONG depuis: - un ns, - une id, longue ou courte
-  */
-  static long (court, ns) { return court > d14 ? court : ((ns * d14) + court) }
-
-  static rds (type) { return (type * d13) + (hash(random(32)) % d13) }
-
-  static rdsType(id) { return Math.floor(id / d13) % 10 }
-
-  static idEsp (rds) { 
-    const ns = ID.ns(rds)
-    return ID.rdsType(rds) === ID.RDSESPACE && ns === (rds % 100) ? ns : 0 
-  }
-
-  static duComptable (ns) { return (((ns || 0) * 10) + 1) * d13 }
-
-  static estComptable (id) { return id % d13 === 0 }
-
-  static estPartition (id) { return Math.floor(id / d13) % 10 === 0 }
-
-  static estAvatar (id) { const x = Math.floor(id / d13) % 10 
-    return x === 2 || x === 1
-  }
-
-  static estGroupe (id) { return Math.floor(id / d13) % 10 === 3 }
-
-  static estEspace (id) { return id >= 10 && id <= 89 }
-
-  static ns (id) { return id < 100 ? id : Math.floor(id / d14)}
-
-  static rnd () {
-    const s = fromByteArray(random(9))
-    return s.replace(/=/g, '').replace(/\+/g, '0').replace(/\//g, '1')
-  }
-}
-
 export const E_BRK = 1000 // Interruption volontaire de l'opération
 export const E_WS = 2000 // Toutes erreurs de réseau
 export const E_DB = 3000 // Toutes erreurs d'accès à la base locale
@@ -246,7 +162,6 @@ export const E_SRV = 7000 // Erreur inattendue trappée sur le serveur
 export const F_SRV = 8000 // Erreur fonctionnelle trappée sur le serveur
 export const A_SRV = 9000 // Situation inattendue : assertion trappée sur le serveur
 
-/************************************************************************/
 export class AppExc {
   constructor (majeur, mineur, args, stack) {
     this.name = 'AppExc'
@@ -1112,50 +1027,29 @@ export class Compteurs {
 
 /** DataSync ****************************************************/
 export class DataSync {
-  static vide = { rds: 0, vs: 0, vb: 0 }
-  static videg = { rds: 0, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false } 
+  static vide = { vs: 0, vb: 0 }
+  static videg = { id: '', vs: 0, vb: 0, ms: false, ns: false, m: false, n:false } 
 
   static deserial (serial) {
     const ds = new DataSync()
     const x = serial ? decode(serial) : {}
-    ds.compte = x.compte || { ...DataSync.vide },
+    ds.compte = x.compte || { ...DataSync.vide }
     ds.avatars = new Map()
     if (x.avatars) x.avatars.forEach(t => ds.avatars.set(t.id, t))
     ds.groupes = new Map()
     if (x.groupes) x.groupes.forEach(t => ds.groupes.set(t.id, t))
-    if (x.setRds) ds.setRds = x.setRds
     return ds
   }
 
-  serial (ns) { // ns: donné côté serveur
+  serial () { // ns: donné côté serveur
     const x = {
       compte: this.compte || { ...DataSync.vide },
       avatars: [],
       groupes: []
     }
-    if (ns) x.setRds = Array.from(this.setLongsRds(ns))
-    else if (this.setRds) x.setRds = this.setRds
     if (this.avatars) this.avatars.forEach(t => x.avatars.push(t))
     if (this.groupes) this.groupes.forEach(t => x.groupes.push(t))
     return new Uint8Array(encode(x))
-  }
-
-  idDeRds (rds) {
-    if (ID.rdsType(rds) === ID.RDSAVATAR) {
-      for(const [id, e] of this.avatars) if (rds === e.rds) return id
-    } else {
-      for(const [id, e] of this.groupes) if (rds === e.rds) return id
-    }
-    return 0
-  }
-
-  setLongsRds (ns) {
-    const s = new Set()
-    s.add(ID.long(ns, ns)) // espaces
-    s.add(ID.long(this.compte.rds, ns)) // compte
-    if (this.avatars) this.avatars.forEach(t => s.add(ID.long(t.rds, ns))) // avatars
-    if (this.groupes) this.groupes.forEach(t => s.add(ID.long(t.rds, ns))) // groupes
-    return s
   }
 
   get estAJour() {
@@ -1173,7 +1067,7 @@ export function synthesesPartition (p) {
   const ntfp = [0,0,0]
   if (p.nrp) ntfp[p.nrp - 1] = 1
   const r = {
-    id: ID.court(p.id),
+    id: p.id,
     ntfp: ntfp,
     q: { ...p.q },
     qt: { qc: 0, qn: 0, qv: 0, c2m: 0, n: 0, v: 0 },

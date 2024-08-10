@@ -63,9 +63,9 @@ export class NsOrg {
 
   chRow (row) {
     if (this.ch) {
-      row.id = ID.long(ID.court(row.id), this.ns)
-      if (row.ids !== undefined) row.ids = ID.long(ID.court(row.ids), this.ns)
-      if (row.hk !== undefined) row.hk = ID.long(ID.court(row.hk), this.ns)
+      row.id = ID.long(row.id, this.ns)
+      if (row.ids !== undefined) row.ids = ID.long(row.ids, this.ns)
+      if (row.hk !== undefined) row.hk = ID.long(row.hk, this.ns)
       if (row.org !== undefined) row.org = this.org
     }
     return row
@@ -1319,13 +1319,17 @@ export class Notes extends GenDoc {
   }
 
   toShortRow (op, idc) { //idc : id du compte demandeur
+    if (this._zombi) {
+      const x = { _nom: 'notes', id: this.id, ids: this.ids, v: this.v, _zombi: true}
+      return encode(x)
+    }
     const htmx = this.htm
     if (idc && this.htm) {
       const ht = this.htm[idc]
       if (ht) this.ht = ht
       delete this.htm
     }
-    const r = this.toRow(op)
+    const r = this.toRow(op)._data_
     this.htm = htmx
     return r
   }
@@ -1479,7 +1483,7 @@ export class Sponsorings extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op) }
+  toShortRow (op) { return this.toRow(op)._data_ }
 }
 
 /* Chats *************************************************/
@@ -1565,7 +1569,13 @@ export class Chats extends GenDoc {
 
   get estPassif () { return this.stI === 0 }
 
-  toShortRow (op) { return this.toRow(op)}
+  toShortRow (op) { 
+    if (this._zombi) {
+      const x = { _nom: 'chats', id: this.id, ids: this.ids, v: this.v, _zombi: true}
+      return encode(x)
+    }
+    return this.toRow(op)._data_
+  }
 }
 
 /* Classe Groupe ****************************************************
@@ -2019,7 +2029,13 @@ export class Membres extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op) }
+  toShortRow (op) { 
+    if (this._zombi) {
+      const x = { _nom: 'membres', id: this.id, ids: this.ids, v: this.v, _zombi: true}
+      return encode(x)
+    }
+    return this.toRow(op) 
+  }
 }
 
 /* Chatgrs ******************************************************

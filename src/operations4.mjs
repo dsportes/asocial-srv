@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, ID, FLAGS, d14, AMJ } from './api.mjs'
+import { AppExc, F_SRV, ID, FLAGS, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8, rnd6 } from './util.mjs'
@@ -95,7 +95,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
     if (!this.compte.mav.has(args.id)) throw new AppExc(F_SRV, 308)
 
-    if (await this.db.getSponsoringIds((this.ns * d14) + args.hYR)) 
+    if (await this.db.getSponsoringIds(this.ns + args.hYR)) 
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O

@@ -1,14 +1,13 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash, Compteurs, idTkToL6, AMJ } from './api.mjs'
+import { ID, PINGTO, AppExc, A_SRV, F_SRV, Cles, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
-import { SyncSession } from './ws.mjs'
-import { rnd6, sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
+import { sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
-import { genNotif } from './notif.mjs'
+import { genNotif, genLogin } from './notif.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -229,8 +228,8 @@ class TrLog {
     return x
   }
 
-  get serialCourt () { 
-    return !this.fake && this.cid ? new encode(this.x) : null
+  get court () { 
+    return !this.fake && this.cid ? this.x : null
   }
 
   get serialLong () {
@@ -826,9 +825,13 @@ export class Operation {
 
       await this.db.end()
 
+      if (this.subJSON)
+        await genLogin(this.ns, this.sessionId, this.subJSON, this.id)
+
       if (this.gd.trLog_maj) {
-        const sc = this.gd.trLog.serialCourt // sc, encode de { vcpt, vesp, lag }
+        const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
         if (sc) this.setRes('trlog', sc)
+        
         const sl = this.gd.trLog.serialLong
         if (sl) {
           const ok = await genNotif(this.sessionId || null, this.ns, sl)
@@ -928,13 +931,7 @@ export class Operation {
 
     if (this.estAdmin) return
 
-    if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) } 
-
-    if (authData && authData.sessionId) {
-      /* Récupérer la session WS afin de pouvoir lui transmettre les évolutions d'abonnements */
-      this.sync = SyncSession.getSession(authData.sessionId, this.dh)
-      if (!this.sync) throw new AppExc(E_SRV, 4)
-    }
+    if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) }
 
     if (this.authMode === 0) return
 
@@ -1009,7 +1006,7 @@ export class Operation {
   delete (row) { if (row) this.toDelete.push(row); return row }
 
   idsChat (idI, idE) {
-    return hash(crypterSrv(this.db.appKey, Buffer.from(ID.court(idI) + '/' + ID.court(idE)))) % d14
+    return Cles.hash9(crypterSrv(this.db.appKey, Buffer.from(idI + '/' + idE)))
   }
 
   async getCheckEspace (fige) {
@@ -1133,13 +1130,11 @@ export class Operation {
   }
 
   async purgeTransferts (idag, idf) {
-    const id = (this.ns * d14) + (idag % d14)
-    await this.db.purgeTransferts(id, idf)
+    await this.db.purgeTransferts(this.ns + idag, idf)
   }
 
   async setFpurge (idag, lidf) {
-    const x = rnd6()
-    const id = (this.ns * d14) + (x % d14)
+    const id = this.ns + ID.rnd()
     const _data_ = new Uint8Array(encode({ id, idag, lidf }))
     await this.db.setFpurge(id, _data_)
     return id

@@ -56,7 +56,7 @@ export const config = {
 
   run: { // Configuration du "serveur"
     nom: 'test asocial-sql',
-    serveur: true,
+    mode: 'http', // 'http' 'https' 'gae' 'passenger'
 
     // Provider DB
     storage_provider: 'fs_a',

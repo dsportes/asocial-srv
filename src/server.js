@@ -5,10 +5,8 @@ import https from 'https'
 import path from 'path'
 import { exit, env } from 'process'
 import { existsSync, readFileSync } from 'node:fs'
-import { WebSocketServer } from 'ws'
 
 import { setLogger } from './logger.mjs'
-import { SyncSession } from './ws.mjs'
 import { getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress } from './cfgexpress.mjs'
 
@@ -66,29 +64,22 @@ const app = appExpress(dbp, storage)
 function atStart() { }
 
 //***** starts listen ***************************
-// Modes possibles : (ctx.mode)
-// - 1: serveur node.js dans un environnement dédié
-// - 2: GAE - node.js dans GoogleAppEngine
-// - 3: passenger - node.js dans un site Web partagé
-// Pour installation sur o2switch
+// Modes possibles : config.run.mode: http https gae passenger
+// - http / https: serveur node.js dans un environnement dédié
+// - gae - node.js dans GoogleAppEngine
+// - passenger - node.js dans un site Web partagé
+// Pour installation sur o2switch par exemple
 // https://faq.o2switch.fr/hebergement-mutualise/tutoriels-cpanel/app-nodejs
 
-let mode
-if (typeof(PhusionPassenger) !== 'undefined') {
-  // eslint-disable-next-line no-undef
-  PhusionPassenger.configure({ autoInstall: false })
-  mode = 3
-} else {
-  mode = config.run.gae ? 2 : 4
-}
-
 try {
-  // if (db.hasWS) SyncSession.start()
-
   let server
-  switch (mode) {
+  switch (config.run.mode) {
   
-  case 3 : { // Passenger
+  case 'passenger' : {
+    if (typeof(PhusionPassenger) !== 'undefined') {
+      // eslint-disable-next-line no-undef
+      PhusionPassenger.configure({ autoInstall: false })
+    }
     const port = 'passenger'
     server = http.createServer(app).listen(port, () => {
       config.logger.info('PASSENGER HTTP_SERVER écoute [' + port + ']')
@@ -102,7 +93,7 @@ try {
     break
   }
 
-  case 2 : { // GAE
+  case 'gae' : {
     const port = env.PORT
     server = http.createServer(app).listen(port, () => {
       config.logger.info('GAE HTTP_SERVER écoute [' + port +']')
@@ -110,7 +101,7 @@ try {
     break
   }
 
-  case 1 : { // HTTPS : certificat
+  case 'https' : {
     const port = config.run.port
     server = https.createServer({key: config.run.privkey, cert: config.run.fullchain}, app).listen(port, () => {
       config.logger.info('HTTPS écoute [' + port + ']')
@@ -121,14 +112,10 @@ try {
         console.error('Server atStart erreur : ' + e.message)
       }
     })
-    const wss = new WebSocketServer({ server })
-    wss.on('connection', (ws, request) => {
-      new SyncSession (ws, request, wss)
-    })
     break
   }
 
-  case 4 : { // HTTP
+  case 'http' : {
     const port = config.run.port
     server = http.createServer(app).listen(port, () => {
       config.logger.info('HTTP écoute [' + port + ']')
@@ -138,10 +125,6 @@ try {
       } catch (e) {
         console.error('Server atStart erreur : ' + e.message)
       }
-    })
-    const wss = new WebSocketServer({ server })
-    wss.on('connection', (ws, request) => {
-      new SyncSession (ws, request, wss)
     })
     break
   }

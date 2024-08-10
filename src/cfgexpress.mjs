@@ -49,7 +49,7 @@ export function appExpress(dbp, storage) {
   })
 
   //**** Pour un "vrai" serveur favicon.ico et robots.txt du sites ****
-  if (config.run.serveur) {
+  if (config.run.mode) {
     app.get('/favicon.ico', (req, res) => {
       setRes(res, 200, 'image/x-icon').send(favicon)
     })

@@ -145,9 +145,9 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
     if (espace.hTC) // Compte du Comptable pas encore créé
       this.setRes('cleET', espace.hTC === args.hTC ? espace.cleET : false)
     else {
-      const row = await this.db.getSponsoringIds(ID.long(args.hps1, this.ns))
-      if (!row) { sleep(3000); throw new AppExc(F_SRV, 11) }
-      this.setRes('rowSponsoring', row)
+      const sp = compile(await this.db.getSponsoringIds(ID.long(args.hps1, this.ns)))
+      if (!sp) { sleep(3000); throw new AppExc(F_SRV, 11) }
+      this.setRes('rowSponsoring', sp.toShortRow())
       this.setRes('ns', this.ns)  
     }
   }
@@ -198,6 +198,8 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 
 /* SyncSp - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
 - token : éléments d'authentification du compte à créer
+- subJSON: subscription de la session
+
 - idsp idssp : identifiant du sponsoring
 - id : id du compte sponsorisé à créer
 - hXR: hash du PBKD de sa phrase secrète réduite
@@ -234,6 +236,8 @@ operations.SyncSp = class SyncSp extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
+    this.subJSON = args.subJSON || null
+
     await this.gd.getESOrg(this.org) // set this.ns
     const espace = await this.getCheckEspace(false)
     this.setRes('rowEspace', espace.toShortRow(this))
@@ -425,6 +429,9 @@ operations.GetEspace = class GetEspace extends Operation {
 
 /* Sync : opération générique de synchronisation d'une session cliente
 LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / groupes tirés du compte
+- token: éléments d'authentification
+- subJSON: subscription de la session
+
 - dataSync: sérialisation de l'état de synchro de la session
   - null : C'EST UNE PREMIERE CONNEXION - Création du DataSync
   recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
@@ -507,6 +514,8 @@ operations.Sync = class Sync extends Operation {
   }
 
   async phase2(args) {
+    this.subJSON = args.subJSON || null
+
     this.mgr = new Map() // Cache locale des groupes acquis dans l'opération
 
     /* Mise à jour du DataSync en fonction du compte et des avatars / groupes actuels du compte */

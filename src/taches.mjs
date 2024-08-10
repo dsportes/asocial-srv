@@ -1,4 +1,3 @@
-// import { AppExc, F_SRV, ID, d14 } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, Esp, trace } from './modele.mjs'
@@ -361,9 +360,10 @@ operations.AGN = class AGN extends Operation {
   async phase2(args) {
     const idag = args.tache.id
     this.ns = ID.ns(idag)
-    await this.db.delScoll('notes', args.tache.id)
+    const id = ID.court(idag)
+    await this.db.delScoll('notes', idag)
     const esp = await this.gd.getES(true)
-    if (esp) await this.storage.delId(esp.org, ID.court(idag))
+    if (esp) await this.storage.delId(esp.org, id)
     args.fini = true
   }
 }
