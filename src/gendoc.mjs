@@ -590,8 +590,8 @@ export class Comptes extends GenDoc {
   get perimetreChg () { 
     const p = this.perimetre
     const pav = this.perimetreAv
-    if (p.length !== pav.length) return true
-    for (let i = 0; i < p.length; i++) if (p[i] !== pav[i]) return true
+    if (p.length !== pav.length) return p
+    for (let i = 0; i < p.length; i++) if (p[i] !== pav[i]) return p
     return false
   }
 
@@ -631,6 +631,10 @@ export class Comptes extends GenDoc {
     this.perimetreAv = []
     return new Comptes().init(r)
   }
+
+  setCI () { this._majci = true; this._maj = true }
+
+  setIN () { this._majin = true; this._maj = true }
 
   setZombi () {
     this._suppr = true
@@ -1672,13 +1676,13 @@ export class Groupes extends GenDoc {
   nvContact (ida) {
     const im = this.st.length
     this.tid.push(ida)
-    const x = new Uint8Array(this.flags.length + 1)
+    const x = new Uint8Array(im + 1)
     this.flags.forEach((v, i) => {x[i] = v})
-    x[this.flags.length] = 0
+    x[im] = 0
     this.flags = x
-    const y = new Uint8Array(this.st.length + 1)
+    const y = new Uint8Array(im + 1)
     this.st.forEach((v, i) => {y[i] = v})
-    y[this.st.length] = 1
+    y[im] = 1
     this.st = y
     this._maj = true
     return im
@@ -1953,7 +1957,7 @@ export class Membres extends GenDoc {
     const m = new Membres().init({
       _maj: true, v: 0,
       id: idg, 
-      ids: im, 
+      ids: '' + im, 
       cvA: cvA, 
       cleAG: cleAG,
       dpc: 0, ddi: 0, dac: 0, fac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0

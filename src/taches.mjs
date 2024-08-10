@@ -188,7 +188,7 @@ operations.StartDemon = class StartDemon extends Operation {
 
 // détection d'une fin d'hébergement
 operations.DFH = class DFH extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+  constructor (nom) { super(nom, 3); this.SYS = true; this.NTF = true }
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
@@ -203,7 +203,7 @@ operations.DFH = class DFH extends Operation {
 
 // détection d'une résiliation de compte
 operations.DLV = class DLV extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+  constructor (nom) { super(nom, 3); this.SYS = true; this.NTF = true }
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer

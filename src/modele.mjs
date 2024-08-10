@@ -2,13 +2,13 @@ import { encode, decode } from '@msgpack/msgpack'
 import { ID, PINGTO, AppExc, A_SRV, E_SRV, F_SRV, d14, hash, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
-import { webPush } from './loadreq.mjs'
 import { SyncSession } from './ws.mjs'
-import { rnd6, sleep, b64ToU8, u8ToB64, crypter, crypterSrv, quotes } from './util.mjs'
+import { rnd6, sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
+import { genNotif } from './notif.mjs'
 
 export function trace (src, id, info, err) {
   const msg = `${src} - ${id} - ${info}`
@@ -200,12 +200,70 @@ export class Cache {
 
 }
 
-/** class GD : gestionnaires des documents d'une opération **************************
-
+/** class TrLog ******************************************************
+Enregistre les changements:
+- de l'espace
+- du compte principal
+- des versions des sous-arbres avatar et groupe
+- des périmètres des comptes mis à jour quand ils ont changé
+Un trLog peut concerner:
+- un compte précis
+- aucun compte précis pour une opération admin ou de GC notifiée
+Une opération de GC non notifiée n'enregistra pas de trLog.
 */
+class TrLog {
+  constructor (op) {
+    if (!op.SYS || op.NTF) {
+      this._maj = false
+      this.cid = op.compte ? op.compte.id : 0 // pas de compte (admin / GC)
+      this.vcpt = 0 // compte pas mis à jour
+      this.vesp = 0 // espace du ns pas mis à jour
+      this.avgr = new Map() // clé: ID de av / gr, valeur: version
+      this.perimetres = new Map() // clé: ID du compte, valeur: {v, p} -version, périmètre
+    } else this.fake = true
+  }
+
+  get x () {
+    const x = { vcpt: this.vcpt, vesp: this.vesp }
+    const y = []; for(const e of this.avgr) y.push(e); x.lag = y
+    return x
+  }
+
+  get serialCourt () { 
+    return !this.fake && this.cid ? new encode(this.x) : null
+  }
+
+  get serialLong () {
+    if (this.fake) return null
+    const x = this.x
+    x.cid = this.cid
+    if (this.perimetres.size) {
+      const y = []; for(const e of this.perimetres) y.push(e)
+      x.lp = y
+    }
+    return encode(x)
+  }
+
+  addAvgr (ag, v) { if (!this.fake) { this.avgr.set(ag, v); this._maj = true } }
+
+  setEsp (esp) { if (!this.fake) { this.vesp = esp.v; this._maj = true } }
+
+  setCpt (cpt, p) {
+    if (!this.fake) {
+      this._maj = true
+      if (cpt.id === this.cid) this.vcpt = cpt.v
+      if (p) this.perimetres.set(cpt.id, { v: cpt.v, p: p})
+    }
+  }
+
+}
+
+/** class GD : gestionnaires des documents d'une opération ***************************/
 class GD {
   constructor (op) {
     this.op = op
+
+    this.trLog = new TrLog(op)
 
     this.espace = null
     this.lazy = true
@@ -427,7 +485,7 @@ class GD {
     const k = id + '/MBR/' + im
     const g = await this.getGR(id, assert)
     const m = Membres.nouveau(id, im, cvA, cleAG)
-    if (!g || !await this.getV(m.id)) { 
+    if (!g || !await this.getV(id)) { 
       if (!assert) return null; else assertKO(assert, 10, [k]) }
     this.sdocs.set(k, m)
     return m
@@ -560,11 +618,7 @@ class GD {
     this.versions.set(id, v)
   }
 
-  /* Met à jour le version d'un doc ou sous-doc,
-  - SAUF pour cage, le version doit avoir été chargé par un getXX précédent, sinon EXCEPTION
-  - pour cage, récupère le version
-  - s'il avait déjà été incrémenté, ne fait rien
-  */
+  // Met à jour le version d'un doc ou sous-doc. S'il avait déjà été incrémenté, ne fait rien
   async majV (id, suppr) { 
     let v = this.versions.get(id)
     if (!v) {
@@ -577,23 +631,23 @@ class GD {
       if (suppr) v.dlv = this.op.auj
       const rv = v.toRow(this.op)
       if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
-      this.op.versions.push(rv)  
+      this.trLog.addAvgr(id, v)  
     }
     return v.v
   }
 
   async majdoc (d) {
     if (d._suppr) { 
-      if (d.ids) { // pour membres
-        await this.majV(d.rds, d.id)
+      if (d.ids) { // pour membres, notes, chats, sponsorings, iickets
+        await this.majV(d.id)
         this.op.delete({ _nom: d._nom, id: ID.long(d.id, this.op.ns), ids: ID.long(d.ids, this.op.ns) })
       } else { // pour groupes, avatars, comptes, comptas, invits, comptis
-        await this.majV(d.rds, d.id, true)
+        await this.majV(d.id, true)
         this.op.delete({ _nom: d._nom, id: ID.long(d.id, this.op.ns) })
       }
     } else if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.rds, d.id + (d.ids ? '/' + d.ids : ''))
+      d.v = await this.majV(d.id)
       if (d._nom === 'avatars') {
         if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       } else if (d._nom === 'groupes') {
@@ -607,7 +661,8 @@ class GD {
   async majesp (d) {
     if (d._maj) {
       const ins = d.v === 0
-      d.v = await this.majV(d.id, d.id)
+      d.v++
+      this.trLog.setEsp(d.v)
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
@@ -620,6 +675,53 @@ class GD {
       const compte = await this.getCO(compta.id)
       await compte.reportDeCompta(compta, this)
       if (compta.v === 1) this.op.insert(compta.toRow(this.op)); else this.op.update(compta.toRow(this.op))
+    }
+  }
+
+  async majCompti (compti) {
+    if (compti._maj) {
+      const compte = await this.getCO(compti.id)
+      if (compte) compte.setCI()
+    }
+  }
+
+  async majInvit (invit) {
+    if (invit._maj) {
+      const compte = await this.getCO(invit.id)
+      if (compte) compte.setIN()
+    }
+  }
+
+  async majCompte (compte) {
+    if (compte._suppr) {
+      this.op.delete({ _nom: 'comptes', id: ID.long(compte.id, this.op.ns) })
+    } else if (compte._maj) {
+      let compti, invit, p
+      compte.v++
+      if (compte.v === 1) {
+        p = compte.perimetre
+        compti = await this.getCompti(compte.id); compti.v = 1
+        invit = await this.getInvit(compte.id); invit.v = 1
+        compte.vci = 1; compte.vpe = 1; compte.vci = 1; compte.vin = 1
+        this.op.insert(compte.toRow(this.op))
+        this.op.insert(compti.toRow(this.op))
+        this.op.insert(invit.toRow(this.op))
+      } else {
+        p = compte.perimetreChg
+        if (p) compte.vpe = compte.v
+        if (compte._majci) {
+          compti = await this.getCompti(compte.id); compti.v = compte.v
+          compte.vci = compte.v
+          this.op.update(compti.toRow(this.op))
+        }
+        if (compte._majin) {
+          invit = await this.getCompti(compte.id); invit.v = compte.v
+          compte.vin = compte.v
+          this.op.update(invit.toRow(this.op))
+        }
+        this.op.update(compte.toRow(this.op))
+      }
+      this.trLog.setCpt(compte, p)
     }
   }
 
@@ -644,8 +746,8 @@ class GD {
     for(const [,d] of this.avatars) await this.majdoc(d)
     for(const [,d] of this.groupes) await this.majdoc(d)
     for(const [,d] of this.sdocs) await this.majdoc(d)
-    for(const [,d] of this.comptis) await this.majdoc(d)
-    for(const [,d] of this.invits) await this.majdoc(d)
+    for(const [,d] of this.comptis) await this.majCompti(d)
+    for(const [,d] of this.invits) await this.majInvit(d)
     if (this.espace) await this.majesp(this.espace)
     
     // comptas SAUF celle du compte courant
@@ -654,7 +756,7 @@ class GD {
 
     // comptes SAUF le compte courant
     for(const [id, d] of this.comptes) 
-      if (id !== this.op.id) await this.majdoc(d, 1)
+      if (id !== this.op.id) await this.majCompte(d)
 
     // Incorporation de la consommation dans compta courante
     if (!this.op.SYS && this.op.compte) {
@@ -664,7 +766,7 @@ class GD {
     }
 
     // maj compte courant
-    if (this.op.compte) await this.majdoc(this.op.compte)
+    if (this.op.compte) await this.majCompte(this.op.compte)
 
     // maj partitions (possiblement affectées aussi par maj des comptes O)
     for(const [,d] of this.partitions) await this.majpart(d)
@@ -722,13 +824,23 @@ export class Operation {
 
       await this.phase3(this.args) // peut ajouter des résultas
 
-      if (this.db.hasWS && this.versions.length) SyncSession.toSync(this.versions)
-      
+      await this.db.end()
+
+      if (this.gd.trLog_maj) {
+        const sc = this.gd.trLog.serialCourt // sc, encode de { vcpt, vesp, lag }
+        if (sc) this.setRes('trlog', sc)
+        const sl = this.gd.trLog.serialLong
+        if (sl) {
+          const ok = await genNotif(this.sessionId || null, this.ns, sl)
+          if (!ok) this.setRes('notifko', true)
+        }
+      }
+
       if (this.aTaches) Taches.startDemon()
 
       if (this.setR.has(R.RAL1)) await sleep(500)
       if (this.setR.has(R.RAL2)) await sleep(500)
-      await this.db.end()
+      
       return this.result
     } catch (e) {
       await this.db.end()
@@ -875,18 +987,6 @@ export class Operation {
 
     // Facilité
     this.compta = await this.gd.getCA(this.id)
-  }
-
-  async sendNotification (payload) { // payload est un objet
-    try {
-      if (this.sessionId && payload) {
-        payload.sessionId = this.sessionId
-        const b = u8ToB64(encode(payload))
-        await webPush.sendNotification(this.subscription, b, { TTL: 0 })
-      }
-    } catch (error) {
-      console.log(error)
-    }
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
@@ -1179,8 +1279,7 @@ export class Operation {
       if (!gr) continue
       let nbac = 0
       let esth = false
-      for (const avidx in c.mav) {
-        const avid = parseInt(avidx)
+      for (const avid in c.mav) {
         const { im, estHeb, nbActifs } = gr.supprAvatar(avid)
         if (im) { // suppression du membre
           const mb = await this.gd.getMBR(gr.id, im)
@@ -1197,8 +1296,7 @@ export class Operation {
       const p = await this.gd.getPA(c.idp)
       if (p) p.retraitCompte(c.id)
     }
-    for (const avidx in c.mav) {
-      const avid = parseInt(avidx)
+    for (const avid in c.mav) {
       const av = await this.gd.getAV(avid)
       if (av) av.setZombi()
       await Taches.nouvelle(this, Taches.AVC, avid, 0)
