@@ -646,14 +646,14 @@ export class Comptes extends GenDoc {
   }
 
   setTousGroupes(s) {
-    for(const idg in this.mpg) { s.add(parseInt(idg))}
+    for(const idg in this.mpg) { s.add(idg) }
   }
 
   lgr (ida) { // liste des ids des groupes auxquels participe l'avatar ida
     const l = []
     for(const idg in this.mpg) {
       const e = this.mpg[idg]
-      if (e.lav.indexOf(ida) !== -1) l.push(parseInt(idg))
+      if (e.lav.indexOf(ida) !== -1) l.push(idg)
     }
     return l
   }

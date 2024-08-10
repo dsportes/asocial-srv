@@ -141,7 +141,7 @@ Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 /* retourne un code à 6 lettres majuscules depuis l'id d'un ticket 
 id d'un ticket: aa mm rrr rrr rrr r 
 */
-const d10 = 10000000000
+export const d10 = 10000000000
 export function idTkToL6 (t) {
   const am = Math.floor(t / d10)
   const m = am % 100

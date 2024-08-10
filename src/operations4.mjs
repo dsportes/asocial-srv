@@ -1058,8 +1058,7 @@ operations.NouveauContact = class NouveauContact extends Operation {
 
     // const groupe = compile(await this.getRowGroupe(args.idg, 'NouveauContact-1'))
     let ok = false
-    for(const x in this.compte.mav) {
-      const idav = parseInt(x)
+    for(const idav in this.compte.mav) {
       const im = groupe.mmb.get(idav)
       const f = groupe.flags[im]
       if (im && groupe.st[im] >= 4 && (f & FLAGS.AM) && (f & FLAGS.DM) ) { ok = true; break }
@@ -1783,7 +1782,7 @@ operations.SupprNote = class SupprNote extends OperationNo {
     }
 
     this.lidf = []
-    for(const idf in note.mfa) this.lidf.push(parseInt(idf))
+    for(const idf in note.mfa) this.lidf.push(idf)
 
     note.setZombi()
 

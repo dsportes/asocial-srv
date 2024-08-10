@@ -5,7 +5,7 @@ import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
-import { d14, ID, d10 } from './api.mjs'
+import { ID } from './api.mjs'
 
 export class SqliteProvider {
   constructor (site, code) {
@@ -306,56 +306,6 @@ class Connx {
     return null
   }
   
-  /* Retourne l'array des ids des "versions" dont la dlv est entre min et max exclue
-  async getVersionsSuppr(supprmin, supprmax) {
-    const st = this._stmt('SELVSUPPR', 'SELECT id FROM versions WHERE dlv >= @supprmin AND dlv < @supprmax')
-    const rows = st.all({ supprmin, supprmax })
-    const r = []
-    if (rows) rows.forEach(row => { r.push(row.id)})
-    this.op.nl += r.length
-    return r
-  }
-  */
-  
-  /* Retourne l'array des couples [id, ids] des membres ayant passé leur dlv, PAS les rows
-  async getMembresDlv(dlvmax) {
-    const st = this._stmt('SELMDLV', 'SELECT id, ids FROM membres WHERE dlv < @dlvmax')
-    const rows = st.all({ dlvmax })
-    const r = []
-    if (rows) rows.forEach(row => { r.push([row.id, row.ids])})
-    this.op.nl += r.length
-    return r
-  }
-  */
-  
-  /* Retourne l'array des couples [id, ids] des membres du ns
-  ayant pour dlv dlvat, PAS les rows
-  async getMembresDlvat(ns, dlvat) {
-    const ns1 = ns * d14
-    const ns2 = (ns + 1) * d14
-    const st = this._stmt('SELMDLVAT', 'SELECT id, ids FROM membres WHERE dlv = @dlvat AND id >= @ns1 AND id < @ns2')
-    const rows = st.all({ dlvat, ns1, ns2 })
-    const r = []
-    if (rows) rows.forEach(row => { r.push([row.id, row.ids])})
-    this.op.nl += r.length
-    return r
-  }
-  */
-
-  /* Retourne l'array des id des versions du ns
-  ayant pour dlv dlvat, PAS les rows
-  async getVersionsDlvat(ns, dlvat) {
-    const ns1 = ns * d14
-    const ns2 = (ns + 1) * d14
-    const st = this._stmt('SELVDLVAT', 'SELECT id FROM versions WHERE dlv = @dlvat AND id >= @ns1 AND id < @ns2')
-    const rows = st.all({ dlvat, ns1, ns2 })
-    const r = []
-    if (rows) rows.forEach(row => { r.push(row.id)})
-    this.op.nl += r.length
-    return r
-  }
-  */
-  
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
   est inférieure à dfh */
   async getGroupesDfh(dfh) {
@@ -381,8 +331,8 @@ class Connx {
   Plus complexe en FIrestore ?
   */
   async getComptesDlvat(ns, dla, dlf) {
-    const ns1 = ns * d14
-    const ns2 = (ns + 1) * d14
+    const ns1 = ns
+    const ns2 = ns + '{'
     const st = this._stmt('SELCDLVAT', 'SELECT id FROM comptes WHERE id >= @ns1 AND id < @ns2 AND (dlv > @dlf OR dlv = @dla)')
     const rows = st.all({ dla, dlf, ns1, ns2 })
     const r = []
@@ -411,8 +361,8 @@ class Connx {
   plutôt que d'accumuler les rows.
   */
   async collNs (nom, ns, fnprocess) {
-    const ns1 = ns * d14
-    const ns2 = (ns + 1) * d14
+    const ns1 = ns
+    const ns2 = ns + '{'
     const code = 'COLNS' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id >= @ns1 AND id < @ns2')
     const rows = st.all({ ns1, ns2 })
@@ -447,7 +397,7 @@ class Connx {
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
   */
   async selTickets (id, ns, aamm, fnprocess) {
-    const mx = (ns * d14) + ((aamm % 10000) * d10) + 9999999999
+    const mx = ns + (aamm % 10000) + '9999999999'
     const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND ids <= @mx')
     const rows = st.all({ id, mx })
     if (!rows) return []
@@ -470,7 +420,7 @@ class Connx {
   }
 
   async delTickets (id, ns, aamm) {
-    const mx = (ns * d14) + ((aamm % 10000) * d10) + 9999999999
+    const mx = ns + (aamm % 10000) + '9999999999'
     const code = 'DELTKT'
     const st = this._stmt(code, 'DELETE FROM tickets WHERE id = @id AND ids <= @mx')
     const info = st.run({id, mx})
@@ -560,8 +510,8 @@ class Connx {
   }
 
   async deleteNS(log, log2, ns) {
-    const min = ns * d14
-    const max = (ns + 1) * d14
+    const min = ns
+    const max = ns + '{'
     const dels = {}
     GenDoc.collsExp1.forEach(nom => {
       dels[nom] = this.sql.prepare(

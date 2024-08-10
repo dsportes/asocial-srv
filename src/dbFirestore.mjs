@@ -3,7 +3,7 @@ import { decode, encode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { firebase_config, app_keys, service_account } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
-import { d14, ID, d10 } from './api.mjs'
+import { ID } from './api.mjs'
 
 export class FirestoreProvider {
   constructor (site, code) {
@@ -354,8 +354,8 @@ export class FirestoreProvider {
   /* Retourne l'array des couples [id, ids] des membres du ns
   ayant pour dlv dlvat, PAS les rows */
   async getMembresDlvat (op, ns, dlvat) { 
-    const ns1 = ns * d14
-    const ns2 = (ns + 1) * d14
+    const ns1 = ns
+    const ns2 = ns + '{'
     // INDEX COLECTION_GROUP sur membres dlv
     const q = this.fs.collectionGroup('membres')
       .where('dlv', '==', dlvat)
@@ -370,8 +370,8 @@ export class FirestoreProvider {
   /* Retourne l'array des id des versions du ns
   ayant pour dlv dlvat, PAS les rows */
   async getVersionsDlvat(op, ns, dlvat) {
-    const ns1 = ns * d14
-    const ns2 = (ns + 1) * d14
+    const ns1 = ns
+    const ns2 = ns + '{'
     // INDEX COLECTION_GROUP sur membres dlv
     const q = this.fs.collectionGroup('membres')
       .where('dlv', '==', dlvat)
@@ -418,8 +418,8 @@ export class FirestoreProvider {
   plutôt que d'accumuler les rows.
   */
   async collNs (nom, ns, fnprocess) {
-    const ns1 = ns * d14
-    const ns2 = (ns + 1) * d14
+    const ns1 = ns
+    const ns2 = ns + '{'
     const p = FirestoreProvider._collPath(nom)
     // INDEX simple sur les collections id (avatars, groupes, versions ...) ! PAS les sous-collections
     const q = this.fs.collection(p).where('id', '>=', ns1).where('id', '<', ns2) 
@@ -459,8 +459,8 @@ export class FirestoreProvider {
 
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
   */
-  async selTickets (op, id, aamm, fnprocess) {
-    const mx = ((aamm % 10000) * d10) + 9999999999
+  async selTickets (op, ns, id, aamm, fnprocess) {
+    const mx = ns + (aamm % 10000) + '9999999999'
     const p = FirestoreProvider._collPath('tickets', id)
     // INDEX simple sur (chats sponsorings notes membres chatgrs) v
     const q = this.fs.collection(p).where('ids', '<=', mx)
@@ -498,9 +498,9 @@ export class FirestoreProvider {
     return n
   }
 
-  async delTickets (op, id, aamm) {
+  async delTickets (op, ns, id, aamm) {
     let n = 0
-    const mx = ((aamm % 10000) * d10) + 9999999999
+    const mx = ns + (aamm % 10000) + '9999999999'
     const p = FirestoreProvider._collPath('tickets', id)
     const q = this.fs.collection(p).where('ids', '<=', mx)
     let qs; if (!op.fake && op.transaction) qs = await op.transaction.get(q); else qs = await q.get()
@@ -636,8 +636,8 @@ export class FirestoreProvider {
 
   // Util: suppression d'un ns
   _queryExp2 (ns, nom) {
-    const min = ns * d14
-    const max = (ns + 1) * d14
+    const min = ns
+    const max = ns + '{'
     if (!GenDoc.majeurs.has(nom)) {
       return this.fs.collection(nom)
         .where('id', '>=', min)

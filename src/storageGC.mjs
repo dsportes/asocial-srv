@@ -141,7 +141,7 @@ export class GcProvider {
     const [files] = await this.bucket.getFiles({prefix})
     const lst = []
     files.forEach(file => {
-      lst.push(parseInt(file.name.substring(lg)))
+      lst.push(file.name.substring(lg))
     }) 
     return lst
   }
@@ -160,7 +160,7 @@ export class GcProvider {
           const l = []
           const lst = apiResponse.prefixes
           if (lst) lst.forEach(p => {
-            l.push(parseInt(p.substring(lg, p.length - 1)))
+            l.push(p.substring(lg, p.length - 1))
           })
           resolve(l)
         })
