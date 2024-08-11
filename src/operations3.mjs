@@ -103,11 +103,9 @@ operations.GetEspaces = class GetEspaces extends Operation {
 - id : id de l'avatar
 */
 operations.GetPub = class GetPub extends Operation {
-  constructor (nom) { super(nom, 1) }
+  constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    await this.getCheckEspace()
-    
     const avatar = await this.gd.getAV(args.id, 'getPub')
     this.setRes('pub', avatar.pub)
   }
@@ -121,8 +119,7 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.gd.getESOrg(args.org) // set this.ns
-    await this.getCheckEspace()
+    this.checkEspaceOrg(args.org)
     
     const avatar = await this.gd.getAV(args.id, 'getPub')
     this.setRes('pub', avatar.pub)
@@ -141,7 +138,8 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    const espace = await this.gd.getESOrg(args.org) // set this.ns
+    const espace = await this.setEspaceOrg(args.org)
+
     if (espace.hTC) // Compte du Comptable pas encore créé
       this.setRes('cleET', espace.hTC === args.hTC ? espace.cleET : false)
     else {
@@ -164,8 +162,8 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    await this.gd.getESOrg(args.org) // set this.ns
-    await this.getCheckEspace()
+    this.checkEspaceOrg(args.org)
+
     if (await this.db.getCompteHk(ID.long(args.hps1, this.ns))) this.setRes('existe', true)
   }
 }
@@ -238,8 +236,7 @@ operations.SyncSp = class SyncSp extends Operation {
   async phase2 (args) {
     this.subJSON = args.subJSON || null
 
-    await this.gd.getESOrg(this.org) // set this.ns
-    const espace = await this.getCheckEspace(false)
+    const espace = await this.setEspaceOrg(args.org)
     this.setRes('rowEspace', espace.toShortRow(this))
 
     const avsponsor = await this.gd.getAV(args.idsp)
@@ -342,7 +339,7 @@ operations.SyncSp = class SyncSp extends Operation {
 }
 
 /* OP_RefusSponsoring: 'Rejet d\'une proposition de sponsoring'
-- `token` : éléments d'authentification du compte.
+- org: organisation,
 - id ids : identifiant du sponsoring
 - ardYC : réponse du filleul
 - hYC: hash du PBKFD de la phrase de sponsoring
@@ -351,8 +348,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2(args) {
-    await this.gd.getESOrg(args.org) // set this.ns
-    await this.getCheckEspace(true)
+    await this.setEspaceOrg(args.org)
 
     const avsponsor = await this.gd.getAV(args.ids)
     if (!avsponsor) throw new AppExc(F_SRV, 401)
@@ -416,8 +412,9 @@ operations.GetEspace = class GetEspace extends Operation {
   constructor (nom) { super(nom, 1, 1) }
 
   async phase2 (args) {
-    if (this.isAdmin) this.ns = args.ns
-    const espace = await this.getCheckEspace()
+    const ns = !this.isAdmin ? this.ns : args.ns
+    const espace = await Esp.getEsp (this, ns, false)
+    espace.excFerme()
     this.setRes('rowEspace', espace.toShortRow(this))
   }
 }
@@ -604,8 +601,8 @@ operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
   constructor (nom) { super(nom, 3)}
 
   async phase2 (args) {
-    this.ns = args.ns
-    const espace = await this.getCheckEspace()
+    const espace = await this.setEspaceNs(args.ns, true)
+
     espace.setNprof(args.nprof)
   }
 }
@@ -622,8 +619,8 @@ operations.SetNotifE = class SetNotifE extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2 (args) {
-    this.ns = args.ns
-    const espace = await this.gd.getES(true)
+    const espace = await this.setEspaceNs(args.ns, false)
+
     if (args.ntf) args.ntf.dh = this.dh
     espace.setNotifE(args.ntf || null)
   }
@@ -672,20 +669,20 @@ operations.CreationEspace = class CreationEspace extends Operation {
   static reg = /^([a-z0-9\-]+)$/
 
   async phase2(args) {
-    this.ns = args.ns
     if (Cles.nsToInt(args.ns) === -1) 
       throw new AppExc(F_SRV, 202, [args.ns])
     if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreationEspace.reg))) 
       throw new AppExc(F_SRV, 201, [args.org])
 
-    let espace = await this.gd.getES()
+    let espace
+    try { espace = await this.setEspaceNs(args.ns, false) } catch (e) { /* */ }
     if (espace && !espace.cleET) 
       throw new AppExc(F_SRV, 203, [args.ns, args.org])
+
     const e2 = await Esp.getEspOrg(this, args.org)
     if (e2 && e2.id !== args.ns)
       throw new AppExc(F_SRV, 204, [args.ns, args.org])
 
-    // this.espace = Espaces.nouveau(args.ns, args.org, this.auj, cleES)
     let cleE
     if (!espace) {
       cleE = Cles.espace(args.ns)
@@ -701,7 +698,7 @@ operations.CreationEspace = class CreationEspace extends Operation {
 
 /* OP_MajSponsEspace : 'Changement de la phrase de contact du Comptable'
 - token : jeton d'authentification du compte de **l'administrateur**
-- ns : numéro de l'espace
+- ns : ID de l'espace
 - org : code de l'organisation
 - TC : PBKFD de la phrase de sponsoring du Comptable par l'AT
 - hTC : hash de TC
@@ -711,34 +708,14 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2(args) {
-    this.ns = args.ns
-    const espace = await this.gd.getES(false, 'MajSponsEspace-1')
+    const espace = await this.setEspaceNs(args.ns, false)
+
     if (!espace.cleET) throw new AppExc(F_SRV, 316)
     const cleE = decrypterSrv(this.db.appKey, espace.cleES)
     const cleET = crypter(args.TC, cleE)
     espace.reset(cleET, args.hTC)
   }
 }
-
-/* GetCleET: retourne la clé de l'espace cryptée par la phrase de sponsoting du Comptable
-- org : code de l'organisation
-- hTC : hash du PBKFD de la phrase de sponsoring du Comptable
-Retour:
-- soit cleET
-- soit 1: phrase de sponsoring non reconnue
-- soit 2: espace ayant déjà un Comptable
-
-operations.GetCleET = class GetCleET extends Operation {
-  constructor (nom) { super(nom, 0) }
-
-  async phase2 (args) {
-    await this.gd.getESOrg(args.org) // set this.ns this.org
-    const espace = await this.getCheckEspace()
-    const cleET = !espace.hTC ? 2 : (espace.hTC !== args.hTC ? 1 : espace.cleET)
-    this.setRes('cleET', cleET)
-  }
-}
-*/
 
 /* `CreationComptable` : création du comptable d'un nouvel espace
 - token : jeton d'authentification du compte à créer
@@ -769,7 +746,8 @@ operations.CreationComptable = class CreationComptable extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2(args) {
-    const espace = await this.gd.getESOrg(args.org) // set this.ns this.org
+    const espace = await this.setEspaceOrg(args.org, false)
+
     if (!espace.hTC) throw new AppExc(F_SRV, 105)
     if (espace.hTC !== args.hTC) throw new AppExc(F_SRV, 106)
     

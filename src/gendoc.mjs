@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { FLAGS, F_SRV, AppExc, AMJ, UNITEN, UNITEV,
+import { FLAGS, F_SRV, A_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { config } from './config.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
@@ -169,6 +169,7 @@ export class GenDoc {
     if (!this._zombi) {
       const d = {}
       for (const [key, value] of Object.entries(this)) if (!key.startsWith('_')) d[key] = value
+      d._nom = this._nom
       row._data_ = Buffer.from(encode(d))
     } else row._data_ = null
     return row
@@ -197,6 +198,10 @@ _data_ :
 */
 export class Espaces extends GenDoc { 
   constructor () { super('espaces') } 
+
+  excFerme() { if (this.clos) throw new AppExc(A_SRV, 999, this.clos); return this }
+
+  excFige() { if (this.fige) throw new AppExc(F_SRV, 101, this.fige); return this }
 
   get fige () { return this.notifE && this.notifE.nr === 2 }
 
@@ -291,16 +296,16 @@ export class Espaces extends GenDoc {
       const cleES = this.cleES
       const cleE = decrypterSrv(op.db.appKey, cleES)
       this.cleES = cleE
-      const r = this.toRow(op)
+      const r = this.toRow(op)._data_
       this.cleES = cleES
       return r
     }
-    if (op.estComptable) return this.toRow(op)
+    if (op.estComptable) return this.toRow(op)._data_
     const x1 = this.moisStat, x2 = this.moisStatT, x3 = this.dlvat, x4 = this.nbmi
     delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
-    const r = this.toRow(op)
+    const r = this.toRow(op)._data_
     this.moisStat = x1; this.moisStatT = x2; this.dlvat = x3; this.nbmi = x4
-    return r._data_
+    return r
   }
 }
 
@@ -388,8 +393,6 @@ _data_:
 export class Partitions extends GenDoc { 
   constructor () { super('partitions') }
 
-  get ns () { return ID.ns(this.id) }
-
   static qz = {qc: 0, qn: 0, qv: 0, c2m: 0, nn: 0, nc: 0, ng: 0, v: 0 }
 
   static nouveau (id, q) { // q: { qc, qn, qv } qc: apr[0], qn: apr[1], qv: apr[2],
@@ -472,7 +475,6 @@ export class Partitions extends GenDoc {
 }
 
 /* Syntheses : un par espace ******************************
-_data_:
 _data_:
 - `id` : ns de son espace.
 - `v` : 
@@ -575,7 +577,6 @@ export class Comptes extends GenDoc {
 
   get perimetre () {
     const p = []
-    if (this.idp) p.push(this.idp)
     for (const ida in this.mav) p.push(ida)
     for (const idg in this.mpg) p.push(idg)
     p.sort((a,b) => { return a < b ? -1 : (a > b ? 1 : 0)})
@@ -607,7 +608,8 @@ export class Comptes extends GenDoc {
       privK: args.privK,
       clePK: args.clePK,
       mav: {},
-      mpg: {}
+      mpg: {},
+      tpk: {}
     }
     if (sp) { // sponsorisé
       if (sp.partitionId) {
@@ -615,7 +617,7 @@ export class Comptes extends GenDoc {
         r.idp = sp.partitionId
         r.del = sp.del
       } else {
-        r.idp = 0
+        r.idp = ''
       }
       r.qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
     } else { // Comptable
@@ -628,7 +630,7 @@ export class Comptes extends GenDoc {
       // args.ck: `{ cleP, code }` crypté par la clé K du comptable
       r.tpk[r.idp] = args.ck
     }
-    this.perimetreAv = []
+    r.perimetreAv = []
     return new Comptes().init(r)
   }
 
@@ -752,7 +754,7 @@ export class Comptes extends GenDoc {
   async reportDeCompta (compta, gd) {
     compta.compile() // calcul _nbj _c2m _pc
 
-    const e = await gd.getES(true)
+    const e = await gd.getEspace()
     const [dlv, diff1] = this.defDlv (e, gd.op.auj, compta)
 
     const rep = this._maj || diff1 || this.reporter(compta)
@@ -925,7 +927,7 @@ export class Invits extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op) }
+  toShortRow (op) { return this.toRow(op)._data_ }
 
   setDesGroupes(ida, s) {
     this.invits.forEach(i => { if (i.ida !== ida) s.push(i.idg)})
@@ -1048,7 +1050,7 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op) }
+  toShortRow (op) { return this.toRow(op)._data_ }
 
   majcpt (c) {
     this._estA = c.estA 
@@ -1270,7 +1272,7 @@ export class Avatars extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op) }
+  toShortRow (op) { return this.toRow(op)._data_ }
 }
 
 /* Classe Notes *****************************************************
@@ -1879,10 +1881,10 @@ export class Groupes extends GenDoc {
       }
       for (let im = 0; im < tid.length; im++) tidn[im] = s.has(im) ? tid[im] : 0
       this.tid = tidn; delete this.lng; delete this.lnc
-      row = this.toRow(op)
+      row = this.toRow(op)._data_
       this.tid = tid; this.lnc = lnc; this.lng = lng
     } else {
-      row = this.toRow(op)
+      row = this.toRow(op)._data_
     }
     this.idh = idh
     return row
@@ -2034,7 +2036,7 @@ export class Membres extends GenDoc {
       const x = { _nom: 'membres', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
     }
-    return this.toRow(op) 
+    return this.toRow(op)._data_
   }
 }
 
@@ -2059,7 +2061,7 @@ export class Chatgrs extends GenDoc {
     })
   }
 
-  toShortRow (op) { return this.toRow(op) }
+  toShortRow (op) { return this.toRow(op)._data_ }
 
   addItem (im, dh, t) {
     const it = { im, dh, dhx: 0, t }

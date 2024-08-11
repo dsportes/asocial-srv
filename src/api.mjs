@@ -10,7 +10,7 @@ export const version = '1'
 export class Cles {
   // Retourne un hash string sur 12c en base64 URL (sans = + /) d'un u8
   static hash9 (u8) {
-    const x = new Uint8Array(jssha256(u8).arrayBuffer())
+    const x = new Uint8Array(jssha256.arrayBuffer(u8))
     const y = new Uint8Array(9)
     for(let i = 0; i < 9; i++) y[i] = (x[i] ^ x[i+9]) ^ x[x+18]
     const s = fromByteArray(y)
@@ -33,7 +33,7 @@ export class Cles {
   static id (cle) {
     const t = cle[0]
     if (t === 1) return Cles.ns.charAt(cle[1])
-    if (t === 3) return '100000000000'
+    if (t === 3) return ID.duComptable()
     return t + Cles.hash9(cle).substring(1)
   }
 
@@ -45,6 +45,7 @@ export class Cles {
 /** ID **********************************************************************/
 export class ID {
   static type (id) { return parseInt(id.charAt(0))}
+  static duComptable () { return '300000000000' }
   static estPartition (id) { return id.charAt(0) === '2' }
   static estComptable (id) { return id.charAt(0) === '3' }
   static estAvatar (id) { const c = id.charAt(0); return c === '3' || c === '4' }

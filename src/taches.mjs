@@ -225,7 +225,8 @@ operations.TRA = class TRA extends Operation {
     for (const [id, idf] of lst) {
       if (id && idf) {
         const ns = ID.ns(id)
-        const esp = await this.gd.getES(ns)
+        let esp
+        try { esp = await this.checkEspaceNs(ns) } catch(e) { /* */ }
         if (esp) {
           const idi = ID.court(id)        
           await this.storage.delFiles(esp.org, idi, [idf])
@@ -251,7 +252,8 @@ operations.FPU = class FPU extends Operation {
     for (const fpurge of lst) {
       if (fpurge.id && fpurge.idag && fpurge.lidf) {
         const ns = ID.ns(fpurge.id)
-        const esp = await this.gd.getES(ns)
+        let esp
+        try { esp = await this.setEspace(ns) } catch (e) { /* */ }
         if (esp) {
           const idi = ID.court(fpurge.idag)  
           await this.storage.delFiles(esp.org, idi, fpurge.lidf)
@@ -327,7 +329,8 @@ operations.STA = class STA extends Operation {
 
     if (!args.todo.length) { args.fini = true; return }
     const s = args.todo.pop()
-    const espace = await this.gd.getESOrg(s.org, true, true)
+    const espace = await this.setEspaceOrg(s.org, true)
+
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
 
     if (s.t === 'C') {
@@ -362,7 +365,8 @@ operations.AGN = class AGN extends Operation {
     this.ns = ID.ns(idag)
     const id = ID.court(idag)
     await this.db.delScoll('notes', idag)
-    const esp = await this.gd.getES(true)
+    let esp
+    try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }
     if (esp) await this.storage.delId(esp.org, id)
     args.fini = true
   }
@@ -393,7 +397,8 @@ operations.ESP = class ESP extends Operation {
     this.ns = ID.ns(args.tache.id)
     this.dla = ID.court(args.tache.ids)
     if (!args.lst) {
-      const esp = await this.gd.getES(true)
+      let esp
+      try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }
       if (!esp) { args.fini = true; return }
       args.e = { dlvat: esp.dlvat, nbmi: esp.nbmi }
       // Récupération de la liste des id des comptes à traiter
@@ -431,7 +436,8 @@ operations.ComptaStat = class ComptaStat extends Operation {
   constructor (nom) { super(nom, 0); this.SYS = true }
 
   async phase2 (args) {
-    const espace = await this.gd.getESOrg(args.org, true, true)
+    const espace = await this.setEspaceOrg(args.org, true)
+
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (args.mr < 0 || args.mr > 2) args.mr = 1
     const m = AMJ.djMoisN(this.auj, - args.mr)
@@ -464,7 +470,8 @@ operations.TicketsStat = class TicketsStat extends Operation {
   constructor () { super('TicketsStat'); this.SYS = true }
 
   async phase2 (args) {
-    const espace = await this.gd.getESOrg(args.org, false, true)
+    const espace = await this.setEspaceOrg(args.org, true)
+
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
 
     const ns = espace.id

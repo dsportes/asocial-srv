@@ -98,9 +98,13 @@ export class Esp {
     return l
   }
 
-  static async getEsp (op, ns, lazy) {
+  static async getEsp (op, ns, lazy, assert) {
     if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op.db)
-    return compile(Esp.map.get(ns))
+    if (!ns) { if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
+    const espace = compile(Esp.map.get(ns))
+    op.ns = ns
+    op.org = espace.org
+    return espace
   }
 
   static async getNsOrg (op, org, lazy) {
@@ -108,8 +112,11 @@ export class Esp {
     return Esp.orgs.get(org)
   }
 
-  static async getEspOrg (op, org, lazy) {
+  static async getEspOrg (op, org, lazy, assert) {
     const ns = await Esp.getNsOrg(op, org, lazy)
+    if (!ns) { if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
+    op.ns = ns
+    op.org = org
     return compile(Esp.map.get(ns))
   }
 
@@ -284,37 +291,21 @@ class GD {
   /* Création conjointe de espace et synthese */
   nouvES (ns, org, cleES) {
     const e = Espaces.nouveau(ns, org, this.op.auj, cleES)
-    this.op.ns = ns
-    this.op.org = e.org
     this.espace = e
     this.lazy = false
     this.synthese = Syntheses.nouveau(ns)
-    /*
-    const v = Versions.nouveau(ns)
-    v.v = 0
-    this.versions.set(ns, v)
-    */
     return e
   }
 
   // Depuis Authentification : l'espace a été obtenu depuis org et non son id
   setEspace (espace) {
     this.espace = espace
-    this.lazy = true
   }
 
-  async getESOrg (org, fige, fort) {
-    const espace = await Esp.getEspOrg(this.op, org, !fort)
-    if (!espace) { if (!fort) await sleep(3000); throw new AppExc(F_SRV, 102) }
-    if (espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
-    this.op.org = org
-    this.op.ns = espace.id
-    this.espace = espace
-    this.lazy = !fort
-    if (espace.fige)
-      if (fige) throw new AppExc(F_SRV, 101, espace.fige)
-      else this.op.setR.add(R.FIGE)
-    return espace
+  async getEspace () { 
+    if (!this.espace)
+      this.espace = await this.op.setEspaceNs(this.op.ns, true)
+    return this.espace
   }
 
   /* Gère l'espace courant unique d'une opération */
@@ -330,7 +321,7 @@ class GD {
 
   async getSY () {
     if (!this.synthese) {
-      this.synthese = compile(await Cache.getRow(this.op, 'syntheses',  this.op.ns))
+      this.synthese = compile(await Cache.getRow(this.op, 'syntheses', ''))
       if (!this.synthese) throw assertKO('getSy', 16, [this.op.ns])
     }
     return this.synthese
@@ -340,8 +331,7 @@ class GD {
   async nouvPA (id, qc) {
     const p = Partitions.nouveau(id, qc)
     this.partitions.set(id, p)
-    const espace = await this.getES()
-    espace.setPartition(id)
+    this.espace.setPartition(id)
     return p
   }
 
@@ -699,8 +689,8 @@ class GD {
       compte.v++
       if (compte.v === 1) {
         p = compte.perimetre
-        compti = await this.getCompti(compte.id); compti.v = 1
-        invit = await this.getInvit(compte.id); invit.v = 1
+        compti = await this.getCI(compte.id); compti.v = 1
+        invit = await this.getIN(compte.id); invit.v = 1
         compte.vci = 1; compte.vpe = 1; compte.vci = 1; compte.vin = 1
         this.op.insert(compte.toRow(this.op))
         this.op.insert(compti.toRow(this.op))
@@ -709,12 +699,12 @@ class GD {
         p = compte.perimetreChg
         if (p) compte.vpe = compte.v
         if (compte._majci) {
-          compti = await this.getCompti(compte.id); compti.v = compte.v
+          compti = await this.getCI(compte.id); compti.v = compte.v
           compte.vci = compte.v
           this.op.update(compti.toRow(this.op))
         }
         if (compte._majin) {
-          invit = await this.getCompti(compte.id); invit.v = compte.v
+          invit = await this.getIN(compte.id); invit.v = compte.v
           compte.vin = compte.v
           this.op.update(invit.toRow(this.op))
         }
@@ -728,7 +718,7 @@ class GD {
     if (p._maj) {
       p.v++
       if (p.v === 1) this.op.insert(p.toRow(this.op)); else this.op.update(p.toRow(this.op))
-      const s = await this.getSY(p.ns)
+      const s = await this.getSY()
       s.setPartition(p)
     }
   }
@@ -825,19 +815,18 @@ export class Operation {
 
       await this.db.end()
 
+      let nhb
       if (this.subJSON)
-        await genLogin(this.ns, this.sessionId, this.subJSON, this.id)
-
-      if (this.gd.trLog_maj) {
+        nhb = await genLogin(this.ns, this.sessionId, this.subJSON, this.id, this.compte.perimetre)
+      else if (this.gd.trLog_maj) {
         const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
         if (sc) this.setRes('trlog', sc)
         
         const sl = this.gd.trLog.serialLong
-        if (sl) {
-          const ok = await genNotif(this.sessionId || null, this.ns, sl)
-          if (!ok) this.setRes('notifko', true)
-        }
+        if (sl)
+          nhb = await genNotif(this.sessionId || null, this.ns, sl)
       }
+      if (nhb !== undefined) this.setRes('nhb', nhb)
 
       if (this.aTaches) Taches.startDemon()
 
@@ -885,7 +874,7 @@ export class Operation {
     1 : pas d'exception si figé. Lecture seulement ou estFige testé dans l'opération
     2 : exception si figé
   Après authentification, sont disponibles:
-    - this.id this.ns this.estA this.sync (ou null) 
+    - this.id this.ns this.estA
     - this.compte this.compta
     - this.setR : set des restictions
       `1-RAL1  2-RAL2` : Ralentissement des opérations
@@ -916,11 +905,13 @@ export class Operation {
       try { 
         authData = decode(b64ToU8(t))
         this.sessionId = authData.sessionId || ''
-        this.subscription = authData.subscription ? JSON.parse(authData.subscription) : null
         if (authData.shax) {
           try {
             const shax64 = Buffer.from(authData.shax).toString('base64')
-            if (app_keys.admin.indexOf(shax64) !== -1) this.estAdmin = true
+            if (app_keys.admin.indexOf(shax64) !== -1) {
+              this.estAdmin = true
+              this.ns = ''
+            }
           } catch (e) { /* */ }
         }
         this.org = authData.org
@@ -929,14 +920,15 @@ export class Operation {
         throw new AppExc(F_SRV, 206, [e.message])
       }
 
-    if (this.estAdmin) return
+    if (this.estAdmin || this.authMode === 0) return
 
     if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) }
 
-    if (this.authMode === 0) return
-
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    const espace = await this.gd.getESOrg(this.org, this.excFige === 2)
+    const espace = await Esp.getEspOrg (this, this.org, true)
+    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 996) }
+    espace.excFerme()
+    if (this.excFige === 2) espace.excFige()
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, authData.hXR)
@@ -950,7 +942,7 @@ export class Operation {
     this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp
     // Opération du seul Comptable
-    if (this.authMode === 2 && !ID.estComptable(this.id)) { 
+    if (this.authMode === 2 && !this.estComptable) { 
       await sleep(3000); throw new AppExc(F_SRV, 104) 
     }
     // Recherche des restrictions
@@ -1009,10 +1001,43 @@ export class Operation {
     return Cles.hash9(crypterSrv(this.db.appKey, Buffer.from(idI + '/' + idE)))
   }
 
-  async getCheckEspace (fige) {
-    const espace = await this.gd.getES(true)
-    if (!espace || espace.clos) throw new AppExc(A_SRV, 999, espace.clos)
-    if (fige && espace.fige) throw new AppExc(A_SRV, 999, espace.fige)
+  async checkEspaceOrg (org, fige) {
+    // espace seulement pour checking
+    const espace = await Esp.getEspOrg(this, org, true, this.nom + '-checkEspace') // set this.ns
+    espace.excFerme()
+    if (fige) espace.excFerme()
+    this.ns = espace.id
+    this.org = org
+    return espace
+  }
+
+  async checkEspaceNs (ns, fige) {
+    // espace seulement pour checking
+    const espace = await Esp.getEsp(this, ns, true, this.nom + '-checkEspace') // set this.ns
+    espace.excFerme()
+    if (fige) espace.excFerme()
+    this.ns = ns
+    this.org = espace.org
+    return espace
+  }
+
+  async setEspaceOrg (org, fige) {
+    const espace = await Esp.getEspOrg(this, org, false, this.nom + '-checkEspace') // set this.ns
+    espace.excFerme()
+    if (fige) espace.excFerme()
+    this.gd.setEspace(espace)
+    this.ns = espace.id
+    this.org = org
+    return espace
+  }
+
+  async setEspaceNs (ns, fige) {
+    const espace = await Esp.getEsp(this, ns, false, this.nom + '-checkEspace') // set this.ns
+    espace.excFerme()
+    if (fige) espace.excFerme()
+    this.gd.setEspace(espace)
+    this.ns = ns
+    this.org = espace.org
     return espace
   }
 

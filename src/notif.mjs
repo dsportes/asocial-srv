@@ -28,25 +28,56 @@ class Session {
     }
   }
 
-  // eslint-disable-next-line no-unused-vars
+  // Traitemnt des notifications aux sessions sur fin d'une opération de maj
   notif (sid, log) { // log: { vcpt, vesp, lag, lp } - sid null (admin, GC)
+    // lp : [[compteId, {v, p}] ... (vpe, périmètre}
+    const perimetres = new Map()
+    if (log.lp) log.lp.forEach(x => { perimetres.set(x[0], { v: x[1][0], p: x[1][1] }) })
     // TODO
+    if (sid) {
+      const s = this.sessions.get(sid)
+      return s ? s.nhb : 0
+    } else return 0
   }
 
-  login (sessionId, subscription, compteId) {
-    const s = { sid: sessionId, subscription, cid: compteId }
+  // Enregistrement d'une session
+  login (sid, subscription, cid, perimetre) {
+    const s = { 
+      sid, 
+      subscription, 
+      cid, 
+      perimetre,
+      nhb: 0
+    }
     // TODO
-    this.sessions.set(sessionId, s)
+    this.sessions.set(sid, s)
+    return s.nhb
+  }
+
+  // Enregistrement du heartbeat d'une session
+  // eslint-disable-next-line no-unused-vars
+  heartbeat (sid, nhb) {
+    const s = this.sessions.get(sid)
+    // TODO
+    return s.nhb
   }
 }
 
-export async function genNotif(ns, sid, s) {
-  const log = decode(s)
-  Session.getSession(ns).notif(sid, log)
-  return true
+// Appel de fonction locale OU post au service PUBSUB
+// Retourne le numéro de HB courant ou 0 si service NON joignable
+export async function genNotif(ns, sid, trlogLong) {
+  const log = decode(trlogLong)
+  return Session.getSession(ns).notif(sid, log)
 }
 
-export async function genLogin(ns, sessionId, subscription, compteId) {
-  Session.getSession(ns).login(sessionId, subscription, compteId)
-  return true
+// Appel de fonction locale OU post au service PUBSUB
+// Retourne le numéro de HB courant ou 0 si service NON joignable
+export async function genLogin(ns, sid, subscription, cid, perimetre) {
+  return Session.getSession(ns).login(sid, subscription, cid, perimetre)
+}
+
+// Appel de fonction locale OU post au service PUBSUB
+// Retourne le numéro de HB courant ou 0 si service NON joignable
+export async function genHeartbeat(ns, sid, nhb) {
+  return Session.getSession(ns).heartbeat(sid, nhb)
 }

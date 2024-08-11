@@ -38,7 +38,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { super(nom, 2, 2)}
 
   async phase2 (args) {
-    const espace = await this.getCheckEspace(true)
+    const espace = await this.setEspaceOrg(this.org)
     espace.setOptions(args.optionA, args.nbmi)
   }
 }
@@ -53,8 +53,7 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
   constructor (nom) { super(nom, 1, 0)}
 
   async phase2 (args) {
-    this.ns = args.ns
-    const espace = await this.gd.getES(true)
+    const espace = await this.setEspaceNs(args.ns, true)
     const dla = espace.dlvat ? espace.dlvat : AMJ.max
     espace.setDlvat(args.dlvat)
     await Taches.nouvelle(this, Taches.ESP, this.ns, dla)
@@ -563,7 +562,7 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   async phase2 (args) {
     await this.gd.nouvPA(args.idp, args.quotas)
     this.compte.ajoutPartition(args.idp, args.itemK)
-    const espace = await this.gd.getES(false, 'NouvellePartition-2')
+    const espace = await this.gd.getEspace()
     espace.setPartition(args.idp)
   }
 }
@@ -588,7 +587,7 @@ operations.SupprPartition = class SupprPartition extends Operation {
     for(const id in p.mcpt) vide = false
     if (!vide) throw new AppExc(F_SRV, 271)
     this.compte.supprPartition(args.n)
-    const espace = await this.gd.getES(false, 'SupprPartition-2')
+    const espace = await this.gd.getEspace()
     espace.supprPartition(args.n)
     const s = await this.gd.getSY(this.ns)
     s.supprPartition(args.n)
@@ -763,7 +762,7 @@ operations.SetNotifP = class SetNotifP extends Operation {
     const ed = !ec && this.compte.del
     if ((!ec && !ed) || (ed && this.compte.idp !== args.idp)) throw new AppExc(F_SRV, 235)
     
-    const espace = await this.gd.getES(false, 'SetNotifP-1')
+    const espace = await this.gd.getEspace()
     const ntf = espace.tnotifP[args.idp]
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
