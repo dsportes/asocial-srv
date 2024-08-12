@@ -114,18 +114,18 @@ export class Esp {
 
   static async getEspOrg (op, org, lazy, assert) {
     const ns = await Esp.getNsOrg(op, org, lazy)
-    if (!ns) { if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
+    if (!ns) { if (!assert) return null; assertKO(assert, 1, [ns]) }
     op.ns = ns
     op.org = org
     return compile(Esp.map.get(ns))
   }
 
   static updEsp(op, e) {
-    const x = Esp.map.get(e.id)
+    const x = Esp.map.get(op.ns)
     if (!x || x.v < e.v) {
       const r = e.toRow(op)
-      Esp.map.set(e.id, r)
-      Esp.orgs.set(e.org, e.id)
+      Esp.map.set(op.ns, r)
+      Esp.orgs.set(e.org, op.ns)
     }
   }
 
@@ -272,7 +272,6 @@ class GD {
     this.trLog = new TrLog(op)
 
     this.espace = null
-    this.lazy = true
     this.synthese = null
 
     this.comptes = new Map()
@@ -292,7 +291,6 @@ class GD {
   nouvES (ns, org, cleES) {
     const e = Espaces.nouveau(ns, org, this.op.auj, cleES)
     this.espace = e
-    this.lazy = false
     this.synthese = Syntheses.nouveau(ns)
     return e
   }
@@ -308,17 +306,6 @@ class GD {
     return this.espace
   }
 
-  /* Gère l'espace courant unique d'une opération */
-  async getES (lazy, assert) {
-    if (this.espace && !lazy && !this.lazy) return this.espace
-    if (this.espace && lazy) return this.espace
-    this.espace = await Esp.getEsp(this.op, this.op.ns, lazy)
-    if (!this.espace) {
-      if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
-    this.lazy = lazy
-    return this.espace
-  }
-
   async getSY () {
     if (!this.synthese) {
       this.synthese = compile(await Cache.getRow(this.op, 'syntheses', ''))
@@ -331,7 +318,7 @@ class GD {
   async nouvPA (id, qc) {
     const p = Partitions.nouveau(id, qc)
     this.partitions.set(id, p)
-    this.espace.setPartition(id)
+    this.espace.setPartition(p)
     return p
   }
 
@@ -816,9 +803,10 @@ export class Operation {
       await this.db.end()
 
       let nhb
-      if (this.subJSON)
-        nhb = await genLogin(this.ns, this.sessionId, this.subJSON, this.id, this.compte.perimetre)
-      else if (this.gd.trLog_maj) {
+      if (this.subJSON) {
+        nhb = await genLogin(this.ns, this.sessionId, this.subJSON, this.id, 
+          this.compte.perimetre, this.compte.vpe)
+      } else if (this.gd.trLog_maj) {
         const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
         if (sc) this.setRes('trlog', sc)
         
@@ -1006,7 +994,7 @@ export class Operation {
     const espace = await Esp.getEspOrg(this, org, true, this.nom + '-checkEspace') // set this.ns
     espace.excFerme()
     if (fige) espace.excFerme()
-    this.ns = espace.id
+    this.ns = Esp.orgs.get(org)
     this.org = org
     return espace
   }
@@ -1026,7 +1014,7 @@ export class Operation {
     espace.excFerme()
     if (fige) espace.excFerme()
     this.gd.setEspace(espace)
-    this.ns = espace.id
+    this.ns = Esp.orgs.get(org)
     this.org = org
     return espace
   }

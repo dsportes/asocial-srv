@@ -470,8 +470,8 @@ operations.Sync = class Sync extends Operation {
   }
   
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
-    const rav = await this.db.getV('avatars', ID.long(ida, this.ns), x.vs)
-    if (rav) this.addRes('rowAvatars', rav)
+    const row = await this.db.getV('avatars', ID.long(ida, this.ns), x.vs)
+    if (row) this.addRes('rowAvatars', compile(row).toShortRow(this))
 
     for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.vs))
       this.addRes('rowNotes', compile(row).toShortRow(this))

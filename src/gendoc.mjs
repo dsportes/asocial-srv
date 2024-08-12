@@ -212,7 +212,7 @@ export class Espaces extends GenDoc {
   static nouveau (ns, org, auj, cleES) {
     return new Espaces().init({
       _maj: true, v: 0,
-      id: ns,
+      id: '',
       org: org,
       creation: auj,
       cleES: cleES,
@@ -493,10 +493,10 @@ _data_:
 export class Syntheses extends GenDoc { 
   constructor () { super('syntheses') }
 
-  static nouveau (ns) { 
+  static nouveau (/* ns */) { 
     return new Syntheses().init({
       _maj: true, v: 0,
-      id: ns,
+      id: '',
       tsp: {}
     })
   }
