@@ -220,13 +220,18 @@ Une opération de GC non notifiée n'enregistra pas de trLog.
 class TrLog {
   constructor (op) {
     if (!op.SYS || op.NTF) {
+      this.op = op
       this._maj = false
-      this.cid = op.compte ? op.compte.id : 0 // pas de compte (admin / GC)
       this.vcpt = 0 // compte pas mis à jour
       this.vesp = 0 // espace du ns pas mis à jour
       this.avgr = new Map() // clé: ID de av / gr, valeur: version
       this.perimetres = new Map() // clé: ID du compte, valeur: {v, p} -version, périmètre
     } else this.fake = true
+  }
+
+  fermer () {
+    if (!this.fake && this.op.compte._maj) 
+      this.vcpt = this.op.compte.v
   }
 
   get x () {
@@ -236,7 +241,7 @@ class TrLog {
   }
 
   get court () { 
-    return !this.fake && this.cid ? this.x : null
+    return !this.fake ? this.x : null
   }
 
   get serialLong () {
@@ -257,7 +262,6 @@ class TrLog {
   setCpt (cpt, p) {
     if (!this.fake) {
       this._maj = true
-      if (cpt.id === this.cid) this.vcpt = cpt.v
       if (p) this.perimetres.set(cpt.id, { v: cpt.v, p: p})
     }
   }
@@ -806,7 +810,8 @@ export class Operation {
       if (this.subJSON) {
         nhb = await genLogin(this.ns, this.sessionId, this.subJSON, this.id, 
           this.compte.perimetre, this.compte.vpe)
-      } else if (this.gd.trLog_maj) {
+      } else if (this.gd.trLog._maj) {
+        this.gd.trLog.fermer()
         const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
         if (sc) this.setRes('trlog', sc)
         
