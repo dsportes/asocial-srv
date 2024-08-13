@@ -60,6 +60,7 @@ export class ID {
   }
 }
 
+export const HBINSECONDS = 1000 // 120
 export const PINGTO = 5 // en minutes : session auto close après PINGTO minutes d'inactivité
 export const PINGTO2 = 4 // en minutes : rafraîchissement des compteurs de consommation
 

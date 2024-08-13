@@ -404,7 +404,7 @@ class GD {
     if (a) return a
     a = compile(await this.op.getRowAvatar(id))
     if (!a) { 
-      if (!assert) return null; else assertKO(assert, 8, [a.id]) }
+      if (!assert) return null; else assertKO(assert, 8, [id]) }
     this.avatars.set(id, a)
     return a
   }
@@ -991,7 +991,7 @@ export class Operation {
 
   async checkEspaceOrg (org, fige) {
     // espace seulement pour checking
-    const espace = await Esp.getEspOrg(this, org, true, this.nom + '-checkEspace') // set this.ns
+    const espace = await Esp.getEspOrg(this, org, true, this.nomop + '-checkEspace') // set this.ns
     espace.excFerme()
     if (fige) espace.excFerme()
     this.ns = Esp.orgs.get(org)
@@ -1001,7 +1001,7 @@ export class Operation {
 
   async checkEspaceNs (ns, fige) {
     // espace seulement pour checking
-    const espace = await Esp.getEsp(this, ns, true, this.nom + '-checkEspace') // set this.ns
+    const espace = await Esp.getEsp(this, ns, true, this.nomop + '-checkEspace') // set this.ns
     espace.excFerme()
     if (fige) espace.excFerme()
     this.ns = ns
@@ -1010,8 +1010,7 @@ export class Operation {
   }
 
   async setEspaceOrg (org, fige) {
-    const espace = await Esp.getEspOrg(this, org, false, this.nom + '-checkEspace') // set this.ns
-    espace.excFerme()
+    const espace = await Esp.getEspOrg(this, org, false, this.nomop + '-checkEspace') // set this.ns
     if (fige) espace.excFerme()
     this.gd.setEspace(espace)
     this.ns = Esp.orgs.get(org)
@@ -1020,7 +1019,7 @@ export class Operation {
   }
 
   async setEspaceNs (ns, fige) {
-    const espace = await Esp.getEsp(this, ns, false, this.nom + '-checkEspace') // set this.ns
+    const espace = await Esp.getEsp(this, ns, false, this.nomop + '-checkEspace') // set this.ns
     espace.excFerme()
     if (fige) espace.excFerme()
     this.gd.setEspace(espace)

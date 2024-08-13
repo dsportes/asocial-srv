@@ -92,9 +92,9 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
 
-    if (!this.compte.mav.has(args.id)) throw new AppExc(F_SRV, 308)
+    if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 308)
 
-    if (await this.db.getSponsoringIds(this.ns + args.hYR)) 
+    if (await this.db.getSponsoringIds(ID.long(args.hYR, this.ns))) 
       throw new AppExc(F_SRV, 207)
 
     if (args.partitionId) { // compte O
@@ -119,7 +119,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       }
     }
 
-    await this.gd.nouvSPO(args, args.id, 'AjoutSponsoring')
+    await this.gd.nouvSPO(args, args.hYR, 'AjoutSponsoring')
   }
 }
 

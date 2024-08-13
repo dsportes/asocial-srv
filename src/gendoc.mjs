@@ -403,7 +403,7 @@ export class Partitions extends GenDoc {
   }
 
   toShortRow (op, del) {
-    if (del) return this.toRow(op)
+    if (del) return this.toRow(op)._data_
     const sv = this.mcpt
     const m = {}
     for(const idx in this.mcpt) {

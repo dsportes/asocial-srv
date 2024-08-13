@@ -119,10 +119,10 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    this.checkEspaceOrg(args.org)
+    await this.checkEspaceOrg(args.org)
     
     const avatar = await this.gd.getAV(args.id, 'getPub')
-    this.setRes('pub', avatar.pub)
+    this.setRes('pub', avatar ? avatar.pub : null)
   }
 }
 
@@ -145,7 +145,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
     else {
       const sp = compile(await this.db.getSponsoringIds(ID.long(args.hps1, this.ns)))
       if (!sp) { sleep(3000); throw new AppExc(F_SRV, 11) }
-      this.setRes('rowSponsoring', sp.toShortRow())
+      this.setRes('rowSponsoring', sp.toShortRow(this))
       this.setRes('ns', this.ns)  
     }
   }
@@ -162,7 +162,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   constructor (nom) { super(nom, 0) }
 
   async phase2 (args) {
-    this.checkEspaceOrg(args.org)
+    await this.checkEspaceOrg(args.org)
 
     if (await this.db.getCompteHk(ID.long(args.hps1, this.ns))) this.setRes('existe', true)
   }
@@ -265,14 +265,13 @@ operations.SyncSp = class SyncSp extends Operation {
     this.setRes('rowCompti', compti.toShortRow(this))
     this.setRes('rowInvit', invit.toShortRow(this))
 
-    const avatar = this.gd.nouvAV(compte, args, args.cvA)
+    const avatar = this.gd.nouvAV(args, args.cvA)
     this.setRes('rowAvatar', avatar.toShortRow(this))
 
     // création du dataSync
     const ds = DataSync.deserial()
     ds.compte.vb = 1
-    ds.compte.rds = compte.rds
-    const a = { id: avatar.id, rds: avatar.rds, vs: 0, vb: 1 }
+    const a = { id: avatar.id, vs: 0, vb: 1 }
     ds.avatars.set(a.id, a)
 
     // Sérialisation et retour de dataSync
@@ -763,7 +762,7 @@ operations.CreationComptable = class CreationComptable extends Operation {
     const {compte, compta} = this.gd.nouvCO(args, null, quotas, 0)
     this.compte = compte
 
-    partition.ajoutCompte(compta, compta._c2m, args.cleAP, true)
+    partition.ajoutCompte(compta, args.cleAP, true)
 
     const cvA = { id: args.id }
     this.gd.nouvAV(args, cvA)
