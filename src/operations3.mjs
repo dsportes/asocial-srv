@@ -485,13 +485,16 @@ operations.Sync = class Sync extends Operation {
 
   async setAv (ida) {
     const x = this.ds.avatars.get(ida)
-    const rowVersion = await this.getRowVersion(ida)
-    if (!rowVersion || rowVersion.dlv) this.ds.avatars.delete(ida) // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
-    else x.vb = rowVersion.v
+    if (x) {
+      const rowVersion = await this.getRowVersion(ida)
+      if (!rowVersion || rowVersion.dlv) this.ds.avatars.delete(ida) // NORMALEMENT l'avatar aurait déjà du être supprimé de compte/mav AVANT
+      else x.vb = rowVersion.v
+    }
   }
 
   async setGr (idg) {
     const x = this.ds.groupes.get(idg)
+    if (!x) return
     const g = await this.getGr(idg)
     const rowVersion = await this.getRowVersion(idg)
 

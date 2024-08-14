@@ -17,10 +17,11 @@ class Session {
   }
 
   // Emet une notification à la session enregistrée
-  async sendNotification (sessionId, subscription, trLog) { // trlog est un objet { vcpt, vesp, lag }
+  async sendNotification (sessionId, subJSON, trLog) { // trlog est un objet { vcpt, vesp, lag }
     try {
       const p = { sessionId: sessionId, trLog }
       const b = u8ToB64(encode(p))
+      const subscription = JSON.parse(subJSON)
       await webPush.sendNotification(subscription, b, { TTL: 0 })
     } catch (error) {
       console.log(error)
@@ -50,7 +51,7 @@ class Session {
       e = { subscription: s.subscription, trlog }
       trlogs.set(sessionId, e)
     }
-    e.trlog.lag.push([id, v])
+    if (id) e.trlog.lag.push([id, v])
   }
 
   // Traitemnt des notifications aux sessions sur fin d'une opération de maj
@@ -93,9 +94,20 @@ class Session {
       })
     })
 
+    if (cptid && (vcpt || vesp)) {
+      const c = this.comptes.get(cptid)
+      if (c) {
+        c.sessions.forEach(rnd => {
+          const s = this.sessions.get(rnd)
+          if (s)
+            this.setTrlog(trlogs, s, null, 0, sid, cptid, vcpt, vesp)
+        })
+      }
+    }
+
     if (trlogs.size) setTimeout(async () => { 
       for (const [sessionId, e] of trlogs) {
-        await this.sendNotification(sessionId, e.subscription, e.trLog) 
+        await this.sendNotification(sessionId, e.subscription, e.trlog) 
       }
     }, 1)
 
@@ -131,7 +143,7 @@ class Session {
   majPerimetreC (c, vpe, perimetre) {
     if (c.vpe < vpe) { // mise à jour du périmètre
       c.perimetre.forEach(id => { this.supprId(id)})
-      perimetre.forEach(id => { this.addId(c.cid, id)})
+      perimetre.forEach(id => { this.addId(c.cid, id); c.perimetre.push(id)})
       c.vpe = vpe
     }
   }

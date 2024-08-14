@@ -255,7 +255,7 @@ class TrLog {
     return encode(x)
   }
 
-  addAvgr (ag, v) { if (!this.fake) { this.avgr.set(ag, v); this._maj = true } }
+  addAvgr (ag, v) { if (!this.fake) { this.avgr.set(ag, v.v); this._maj = true } }
 
   setEsp (esp) { if (!this.fake) { this.vesp = esp.v; this._maj = true } }
 
@@ -817,7 +817,7 @@ export class Operation {
         
         const sl = this.gd.trLog.serialLong
         if (sl)
-          nhb = await genNotif(this.sessionId || null, this.ns, sl)
+          nhb = await genNotif(this.ns, this.sessionId || null, sl)
       }
       if (nhb !== undefined) this.setRes('nhb', nhb)
 
