@@ -16,17 +16,28 @@ export const operations = {
 
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
-  res.status(status).set({
-    'Access-Control-Allow-Origin' : '*',
-    'Access-Control-Allow-Methods' : 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-API-version'
-  })
+  res.status(status)
+  /*
+    .set({
+      'Access-Control-Allow-Origin' : '*',
+      'Access-Control-Allow-Methods' : 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-API-version'
+    })
+  */
   return res.type(respType ? respType : 'application/octet-stream')
 }
 
 // Configuration express: retourne le "app"
 export function appExpress(dbp, storage) {
   const app = express()
+
+  app.use((req, res, next) => {
+    // http://enable-cors.org/server_expressjs.html
+    res.header('Access-Control-Allow-Origin', '*')
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+    res.header('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept')
+    next();
+  })
 
   if (config.pathapp) {
     const ap = path.resolve(config.pathapp)
@@ -154,12 +165,6 @@ async function operation(req, res, dbp, storage) {
     if (opName === 'yoyo'){
       setRes(res, 200, 'text/plain').send('yoyo ' + new Date().toISOString())
       return
-    }
-
-    if (!isGet) {
-      // vérification de la version de l'API
-      const apiv = req.headers['x-api-version']
-      if (!apiv || apiv !== version) throw new AppExc(E_SRV, 5, [version, apiv || '???'])
     }
   
     // récupétration de la fonction de ce module traitant l'opération

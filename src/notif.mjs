@@ -58,6 +58,7 @@ class Session {
   notif (sid, log) { // log: { vcpt, vesp, lag, lp } - sid null (admin, GC)
     // lag : [[id, v] ...]
     // lp : [[compteId, {v, p}] ... (vpe, périmètre}
+    const dlv = Date.now()
     const perimetres = new Map()
     if (log.lp) log.lp.forEach(x => { perimetres.set(x[0], { v: x[1][0], p: x[1][1] }) })
 
@@ -82,14 +83,15 @@ class Session {
     const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, lag }
 
     log.lag.forEach(x => { // [id, v]
-      const dlv = Date.now()
       const v = x[1]
       const id = x[0]
       const scids = this.xrefs.get(id)
       if (scids) scids.forEach(cid => {
         const c = this.comptes.get(cid)
-        if (c) c.sessions.forEach(s => { if (s && s.dlv > dlv) 
-          this.setTrlog(trlogs, s, id, v, sid, cptid, vcpt, vesp)
+        if (c) c.sessions.forEach(rnd => {
+          const s = this.sessions.get(rnd)
+          if (s && s.dlv > dlv) 
+            this.setTrlog(trlogs, s, id, v, sid, cptid, vcpt, vesp)
         })
       })
     })

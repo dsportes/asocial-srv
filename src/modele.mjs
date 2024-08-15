@@ -808,8 +808,11 @@ export class Operation {
 
       let nhb
       if (this.subJSON) {
-        nhb = await genLogin(this.ns, this.sessionId, this.subJSON, this.id, 
-          this.compte.perimetre, this.compte.vpe)
+        if (this.subJSON.startsWith('???'))
+          console.log('subJSON=', this.subJSON)
+        else
+          nhb = await genLogin(this.ns, this.sessionId, this.subJSON, this.id, 
+            this.compte.perimetre, this.compte.vpe)
       } else if (this.gd.trLog._maj) {
         this.gd.trLog.fermer()
         const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
