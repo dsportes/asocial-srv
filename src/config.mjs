@@ -1,7 +1,7 @@
 // Branche 20240801
 import { env } from 'process'
 // eslint-disable-next-line no-unused-vars
-import { app_keys, service_account } from './keys.mjs'
+import { app_keys } from './keys.mjs'
 import { Tarif } from './api.mjs'
 import { webPush } from './loadreq.mjs'
 
@@ -13,6 +13,7 @@ webPush.setVapidDetails(
 
 export const config = {
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
+  NOPURGESESSIONS: true, // En test ne pas purger les sessions dans notif
 
   // Paramètres fonctionnels
   tarifs: [
@@ -47,6 +48,7 @@ export const config = {
 
   // Pour HTTP server seulement: configuration des paths des URL
   prefixop: '/op',
+  prefixpubsub: '/pubsub',
   prefixapp: '/app',
   pathapp: './app',
   prefixwww: '/www',
@@ -56,6 +58,7 @@ export const config = {
 
   run: { // Configuration du "serveur"
     nom: 'test asocial-sql',
+    pubsubURL: null, // 'https://test.sportes.fr/pubsub/'
     mode: 'http', // 'http' 'https' 'gae' 'passenger'
 
     // Provider DB

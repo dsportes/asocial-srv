@@ -1,17 +1,40 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { webPush } from './loadreq.mjs'
 import { u8ToB64 } from './util.mjs'
-import { HBINSECONDS } from './api.mjs'
+import { HBINSECONDS, isAppExc, AppExc, E_SRV } from './api.mjs'
+import { appKeyBin, config } from './config.mjs'
+import { decrypterSrv, crypterSrv } from './util.mjs'
+import fetch from 'node-fetch'
 
 class Session {
   static toutes = new Map()
 
+  static orgs = new Map() // donne le ns d'une org
+
   static getSession (ns) { return Session.toutes.get(ns) ||  new Session(ns) }
+
+  static purge (boot) {
+    if (!boot) {
+      const dlv = Date.now() + (HBINSECONDS * 1000)
+      for(const [, x] of Session.toutes) {
+        for(const [rnd, s] of x.sessions) {
+          if (s.dlv < dlv) {
+            x.detachCpt(rnd, s.cid)
+            x.sessions.delete(rnd)
+          }
+        }
+      }
+    }
+    if (!config.NOPURGESESSIONS)
+      setTimeout(() => { 
+        Session.purge(false) 
+      }, HBINSECONDS * 1500)
+  }
 
   constructor (ns) {
     this.ns = ns
     Session.toutes.set(ns, this)
-    this.sessions = new Map()
+    this.sessions = new Map() // cle: rnd, valeur: { rnd, nc, subscription, cid, nhb, dlv }
     this.comptes = new Map() // clé: cid, valeur: {cid, vpe, perimettre, sessions: Set(rnd)}
     this.xrefs = new Map() // cle: id du sous-arbre, valeur: Set des cid l'ayant en périmètre 
   }
@@ -24,7 +47,8 @@ class Session {
       const subscription = JSON.parse(subJSON)
       await webPush.sendNotification(subscription, b, { TTL: 0 })
     } catch (error) {
-      console.log(error)
+      config.logger.error('sendNotification: ' + error.toString())
+      // console.log(error)
     }
   }
 
@@ -191,15 +215,39 @@ class Session {
     const dlv = Date.now() + (HBINSECONDS * 1000)
     const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
     const s = this.sessions.get(rnd)
-    let nhbav = -1
-    if (s) {
-      if (s.nc === nc) {
-        nhbav = s.nhb
-        s.dlv = dlv
-        s.nhb = nhb
+    if (nhb) {
+      let nhbav = -1
+      if (s) {
+        if (s.nc === nc) {
+          nhbav = s.nhb
+          s.dlv = dlv
+          s.nhb = nhb
+        }
       }
+      return nhbav
+    } else {
+      // déconnexion
+      if (s) {
+        this.detachCpt(rnd, s.cid)
+        this.sessions.delete(rnd)
+      }
+      return 0
     }
-    return nhbav
+  }
+}
+
+async function post (fn, args) {
+  try {
+    const body = crypterSrv(Session.appKey, encode(args))
+    const response = await fetch(config.run.pubsubURL + fn, {
+      method: 'post',
+      body,
+      headers: {'Content-Type': 'application/octet-stream'}
+    })
+    return response.ok ? await response.json() : 0
+  } catch (e) {
+    config.logger.error('post pubsub: ' + e.toString())
+    return 0
   }
 }
 
@@ -207,17 +255,74 @@ class Session {
 // Retourne le numéro de HB courant ou 0 si service NON joignable
 export async function genNotif(ns, sid, trlogLong) {
   const log = decode(trlogLong)
-  return Session.getSession(ns).notif(sid, log)
+  if (!Session.pubsubURL)
+    return Session.getSession(ns).notif(sid, log)
+  return await post('notif', { ns, sid, log })
 }
 
 // Appel de fonction locale OU post au service PUBSUB
 // Retourne le numéro de HB courant ou 0 si service NON joignable
-export async function genLogin(ns, sid, subscription, cid, perimetre, vpe) {
-  return Session.getSession(ns).login(sid, subscription, cid, perimetre, vpe)
+export async function genLogin(ns, org, sid, subscription, cid, perimetre, vpe) {
+  if (!Session.pubsubURL) {
+    Session.orgs.set(org, ns)
+    return Session.getSession(ns).login(sid, subscription, cid, perimetre, vpe)
+  }
+  return await post('login', { ns, org, sid, subscription, cid, perimetre, vpe })
 }
 
 // Appel de fonction locale OU post au service PUBSUB
 // Retourne le numéro de HB courant ou 0 si service NON joignable
-export async function genHeartbeat(ns, sid, nhb) {
+export async function genHeartbeat(org, sid, nhb) {
+  const ns = Session.orgs.get(org)
   return Session.getSession(ns).heartbeat(sid, nhb)
+}
+
+export function pubsubStart(){
+  Session.appKey = appKeyBin(config.run.site)
+  Session.pubsubURL = config.run.pubsubURL
+  Session.purge(true)
+}
+
+// positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
+function setRes(res, status, type) {
+  res.status(status)
+  return res.type(type || 'application/octet-stream')
+}
+
+export async function pubsub (req, res) {
+  try {
+    const opName = req.params.operation
+    let result
+    switch (opName) {
+    case 'heartbeat' : {
+      const args = decode(req.rawBody)
+      const ns = Session.orgs.get(args.org)
+      result = await Session.getSession(ns).heartbeat(args.sid, args.nhb)
+      break
+    }
+    case 'login' : {
+      const args = decode(decrypterSrv(Session.appKey, req.rawBody))
+      Session.orgs.set(args.org, args.ns)
+      result = await Session.getSession(args.ns).login(args.sid, args.subscription, args.cid, args.perimetre, args.vpe)
+      break
+    }
+    case 'notif' : {
+      const args = decode(decrypterSrv(Session.appKey, req.rawBody))
+      result = await Session.getSession(args.ns).notif(args.sid, args.log)
+      break
+    }
+    }
+    setRes(res, 200, 'text/plain').send(JSON.stringify(result))
+
+  } catch (e) {
+    // exception non prévue ou prévue
+    if (isAppExc(e)) { // erreur trappée déjà mise en forme en tant que AppExc F_SRV A_SRV E_SRV
+      delete e.stack
+      setRes(res, 400).send(e.toString())
+    } else {
+      // erreur non trappée : mise en forme en AppExc
+      const xx = e.stack ? e.stack + '\n' : ''
+      setRes(res, 403).send(new AppExc(E_SRV, 0, [e.message], xx).toString())
+    }
+  }
 }

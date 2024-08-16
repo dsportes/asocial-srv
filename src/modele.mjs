@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, PINGTO, AppExc, A_SRV, F_SRV, Cles, Compteurs, idTkToL6, AMJ } from './api.mjs'
+import { ID, ESPTO, AppExc, A_SRV, F_SRV, Cles, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
@@ -99,7 +99,7 @@ export class Esp {
   }
 
   static async getEsp (op, ns, lazy, assert) {
-    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op.db)
+    if (!lazy || (Date.now() - Esp.dh > ESPTO * 60000)) await Esp.load(op.db)
     if (!ns) { if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
     const espace = compile(Esp.map.get(ns))
     op.ns = ns
@@ -108,7 +108,7 @@ export class Esp {
   }
 
   static async getNsOrg (op, org, lazy) {
-    if (!lazy || (Date.now() - Esp.dh > PINGTO * 60000)) await Esp.load(op.db)
+    if (!lazy || (Date.now() - Esp.dh > ESPTO * 60000)) await Esp.load(op.db)
     return Esp.orgs.get(org)
   }
 
@@ -811,7 +811,7 @@ export class Operation {
         if (this.subJSON.startsWith('???'))
           console.log('subJSON=', this.subJSON)
         else
-          nhb = await genLogin(this.ns, this.sessionId, this.subJSON, this.id, 
+          nhb = await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.id, 
             this.compte.perimetre, this.compte.vpe)
       } else if (this.gd.trLog._maj) {
         this.gd.trLog.fermer()

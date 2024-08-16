@@ -6,7 +6,8 @@ import { encode, decode } from '@msgpack/msgpack'
 import favicon from './favicon.mjs'
 import { config } from './config.mjs'
 import { decode3 } from './util.mjs'
-import { version, AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
+import { AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
+import { pubsub } from './notif.mjs'
 
 // Toutes les opérations
 export const operations = {
@@ -119,6 +120,20 @@ export function appExpress(dbp, storage) {
       await operation(req, res, dbp, storage)
   })
 
+  //**** appels des services PUBSUB ****
+  app.use(config.prefixpubsub + '/:operation', async (req, res) => {
+    if (!req.rawBody) {
+      const body = [];
+      req.on('data', (chunk) => {
+        body.push(Buffer.from(chunk))
+      }).on('end', async () => {
+        req.rawBody = Buffer.concat(body)
+        await pubsub(req, res)
+      })
+    } else
+      await pubsub(req, res)
+  })
+  
   if (config.prefixapp) app.get('/', function (req, res) {
     res.redirect(config.prefixapp + '/index.html');
   })

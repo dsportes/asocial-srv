@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { setLogger } from './logger.mjs'
 import { getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress } from './cfgexpress.mjs'
+import { pubsubStart } from './notif.mjs'
 
 import{ loadTaches } from './taches.mjs'
 import{ load3 } from './operations3.mjs'
@@ -57,6 +58,8 @@ try {
   exit(1)
 }
 
+//***************************************************************************
+pubsubStart()
 //***************************************************************************
 
 const app = appExpress(dbp, storage)
