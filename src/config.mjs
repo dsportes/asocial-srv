@@ -1,15 +1,6 @@
-// Branche 20240801
 import { env } from 'process'
-// eslint-disable-next-line no-unused-vars
 import { app_keys } from './keys.mjs'
 import { Tarif } from './api.mjs'
-import { webPush } from './loadreq.mjs'
-
-webPush.setVapidDetails(
-  'https://example.com/',
-  app_keys.vapid_public_key,
-  app_keys.vapid_private_key,
-)
 
 export const config = {
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
@@ -57,9 +48,16 @@ export const config = {
   pathkeys: './keys',
 
   run: { // Configuration du "serveur"
+    pubsubMode: 'http', // 'http' 'https' 'gae' 'passenger'
+    pubsubPort: 8444, // Utilisé par pubsub.js
+
     nom: 'test asocial-sql',
-    pubsubURL: null, // 'https://test.sportes.fr/pubsub/'
+    pubsubURL: null,
+    // pubsubURL: 'https://test.sportes.fr/pubsub/',
+    // pubsubURL: 'http://localhost:8444/pubsub/',
+
     mode: 'http', // 'http' 'https' 'gae' 'passenger'
+    port: 8443, // Port d'écoute, utilisé par server.js
 
     // Provider DB
     storage_provider: 'fs_a',
@@ -84,10 +82,8 @@ export const config = {
     délivrer une URL get / put file.
     - storageFS / storageGC en mode emulator
     */
-    rooturl: 'https://test.sportes.fr:8443',
+    rooturl: 'https://test.sportes.fr:8443'
 
-    // Port d'écoute
-    port: 8443
   }
 
 }

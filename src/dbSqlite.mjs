@@ -54,16 +54,16 @@ class Connx {
 
   async ping () {
     try {
-      const sts = this._stmt('PINGS', 'SELECT _data_ FROM singletons WHERE id = 1')
+      const sts = this._stmt('PINGS', 'SELECT _data_ FROM singletons WHERE id = \'1\'')
       const t = sts.get()
       const d = new Date()
       const v = d.getTime()
       const _data_ = d.toISOString()
       if (t) {
-        const stu = this._stmt('PINGU', 'UPDATE singletons SET _data_ = @_data_, v = @v  WHERE id = 1')
+        const stu = this._stmt('PINGU', 'UPDATE singletons SET _data_ = @_data_, v = @v  WHERE id = \'1\'')
         stu.run({ v, _data_ })
       } else {
-        const sti = this._stmt('PINGI', 'INSERT INTO singletons (id, v, _data_) VALUES (1, @v, @_data_)')
+        const sti = this._stmt('PINGI', 'INSERT INTO singletons (id, v, _data_) VALUES (\'1\', @v, @_data_)')
         sti.run({ v, _data_ })
       }
       return 'Sqlite ping OK: ' + (t && t._data_ ? t._data_ : '?') + ' <=> ' + _data_

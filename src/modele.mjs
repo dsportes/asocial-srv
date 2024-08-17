@@ -247,7 +247,7 @@ class TrLog {
   get serialLong () {
     if (this.fake) return null
     const x = this.x
-    x.cid = this.cid
+    if (this.op.id) x.cid = this.op.id
     if (this.perimetres.size) {
       const y = []; for(const e of this.perimetres) y.push(e)
       x.lp = y

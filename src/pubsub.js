@@ -8,35 +8,17 @@ import { exit, env } from 'process'
 import { existsSync, readFileSync } from 'node:fs'
 
 import { setLogger } from './logger.mjs'
-import { getDBProvider, getStorageProvider } from './util.mjs'
-import { appExpress } from './cfgexpress.mjs'
+import { appExpress } from './cfgexpress2.mjs'
 import { pubsubStart } from './notif.mjs'
 
-import{ loadTaches } from './taches.mjs'
-import{ load3 } from './operations3.mjs'
-import{ load4 } from './operations4.mjs'
-
-let dbp = null, storage = null
-const keys = ['favicon.ico', 'fullchain.pem', 'privkey.pem']
+const keys = ['fullchain.pem', 'privkey.pem']
 try {
   config.logger = setLogger()
   config.logger.info('Logs configurés' + (config.mondebug ? ' : MONDEBUG' : ''))
   config.logger.info('SITE= [' + config.run.site + ']')
-  config.logger.info('ROOTURL= [' + config.run.rooturl + ']')
   config.logger.info('PUBSUBURL= [' + (config.run.pubsubURL || '(none)') + ']')
-
-  const port = env.PORT || config.run.port
+  const port = env.PORT || config.run.pubsubPort
   config.logger.info('PORT= [' + port + ']')
-
-  dbp = await getDBProvider(config.run.db_provider, config.run.site)
-  if (!dbp) exit(1)
-  
-  storage = await getStorageProvider(config.run.storage_provider)
-  if (!storage) exit(1)
-
-  loadTaches()
-  load3()
-  load4()
 
   for (const nf of keys) {
     const p = path.resolve(config.pathkeys + '/' + nf)
@@ -62,7 +44,7 @@ try {
 }
 //***************************************************************************
 
-const app = appExpress(dbp, storage)
+const app = appExpress()
 
 function atStart() { }
 
@@ -76,7 +58,7 @@ function atStart() { }
 
 try {
   let server
-  switch (config.run.mode) {
+  switch (config.run.pubsubMode) {
   
   case 'passenger' : {
     if (typeof(PhusionPassenger) !== 'undefined') {
@@ -105,7 +87,7 @@ try {
   }
 
   case 'https' : {
-    const port = config.run.port
+    const port = config.run.pubsubPort
     server = https.createServer({key: config.run.privkey, cert: config.run.fullchain}, app).listen(port, () => {
       config.logger.info('HTTPS écoute [' + port + ']')
       try {
@@ -119,7 +101,7 @@ try {
   }
 
   case 'http' : {
-    const port = config.run.port
+    const port = config.run.pubsubPort
     server = http.createServer(app).listen(port, () => {
       config.logger.info('HTTP écoute [' + port + ']')
       try {

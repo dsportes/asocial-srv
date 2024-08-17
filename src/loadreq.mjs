@@ -4,7 +4,8 @@
 import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 export const Database = require('better-sqlite3')
-export const webPush = require('web-push')
+
+// export const webPush = require('web-push')
 
 /*
 // const prompt = require('prompt-sync')({ sigint: true })

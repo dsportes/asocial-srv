@@ -1,10 +1,48 @@
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
+export const webPush = require('web-push')
+
 import { encode, decode } from '@msgpack/msgpack'
-import { webPush } from './loadreq.mjs'
-import { u8ToB64 } from './util.mjs'
-import { HBINSECONDS, isAppExc, AppExc, E_SRV } from './api.mjs'
-import { appKeyBin, config } from './config.mjs'
-import { decrypterSrv, crypterSrv } from './util.mjs'
+import crypto from 'crypto'
 import fetch from 'node-fetch'
+import { fromByteArray } from './base64.mjs'
+
+import { HBINSECONDS, isAppExc, AppExc, E_SRV } from './api.mjs'
+
+export function pubsubStart (appKey, pubsubURL, vpub, vpriv, logger, NOPURGESESSIONS) {
+  webPush.setVapidDetails('https://example.com/', vpub, vpriv)
+
+  Session.appKey = appKey
+  Session.pubsubURL = pubsubURL
+  Session.logger = logger
+  Session.NOPURGESESSIONS = NOPURGESESSIONS
+  Session.purge(true)
+}
+
+export function u8ToB64 (u8, url) {
+  const s = fromByteArray(u8)
+  if (!url) return s
+  return s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
+
+export function crypterSrv (k, buffer) {
+  const b = buffer || new Uint16Array([])
+  const cipher = crypto.createCipheriv('aes-256-cbc', k, IV)
+  const x0 = Buffer.from([k[0], k[1], k[2], k[3]])
+  const x1 = cipher.update(b)
+  const x2 = cipher.final()
+  return Buffer.concat([x0, x1, x2])
+}
+
+export function decrypterSrv (k, b) {
+  if (b[0] !== k[0] || b[1] !== k[1] || b[2] !== k[2] || b[3] !== k[3]) return b
+  const decipher = crypto.createDecipheriv('aes-256-cbc', k, IV)
+  const x1 = decipher.update(b.slice(4))
+  const x2 = decipher.final()
+  return Buffer.concat([x1, x2])
+}
 
 class Session {
   static toutes = new Map()
@@ -25,7 +63,7 @@ class Session {
         }
       }
     }
-    if (!config.NOPURGESESSIONS)
+    if (!Session.NOPURGESESSIONS)
       setTimeout(() => { 
         Session.purge(false) 
       }, HBINSECONDS * 1500)
@@ -47,7 +85,7 @@ class Session {
       const subscription = JSON.parse(subJSON)
       await webPush.sendNotification(subscription, b, { TTL: 0 })
     } catch (error) {
-      config.logger.error('sendNotification: ' + error.toString())
+      Session.logger.error('sendNotification: ' + error.toString())
       // console.log(error)
     }
   }
@@ -114,7 +152,7 @@ class Session {
         const c = this.comptes.get(cid)
         if (c) c.sessions.forEach(rnd => {
           const s = this.sessions.get(rnd)
-          if (s && s.dlv > dlv) 
+          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) 
             this.setTrlog(trlogs, s, id, v, sid, cptid, vcpt, vesp)
         })
       })
@@ -125,7 +163,7 @@ class Session {
       if (c) {
         c.sessions.forEach(rnd => {
           const s = this.sessions.get(rnd)
-          if (s)
+          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) 
             this.setTrlog(trlogs, s, null, 0, sid, cptid, vcpt, vesp)
         })
       }
@@ -239,14 +277,14 @@ class Session {
 async function post (fn, args) {
   try {
     const body = crypterSrv(Session.appKey, encode(args))
-    const response = await fetch(config.run.pubsubURL + fn, {
+    const response = await fetch(Session.pubsubURL + fn, {
       method: 'post',
       body,
       headers: {'Content-Type': 'application/octet-stream'}
     })
     return response.ok ? await response.json() : 0
   } catch (e) {
-    config.logger.error('post pubsub: ' + e.toString())
+    Session.logger.error('post pubsub: ' + e.toString())
     return 0
   }
 }
@@ -275,12 +313,6 @@ export async function genLogin(ns, org, sid, subscription, cid, perimetre, vpe) 
 export async function genHeartbeat(org, sid, nhb) {
   const ns = Session.orgs.get(org)
   return Session.getSession(ns).heartbeat(sid, nhb)
-}
-
-export function pubsubStart(){
-  Session.appKey = appKeyBin(config.run.site)
-  Session.pubsubURL = config.run.pubsubURL
-  Session.purge(true)
 }
 
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers

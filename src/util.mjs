@@ -11,6 +11,31 @@ import { S3Provider } from './storageS3.mjs'
 import { SqliteProvider } from './dbSqlite.mjs'
 import { FirestoreProvider } from './dbFirestore.mjs'
 
+export function u8ToB64 (u8, url) {
+  const s = fromByteArray(u8)
+  if (!url) return s
+  return s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
+
+export function crypterSrv (k, buffer) {
+  const b = buffer || new Uint16Array([])
+  const cipher = crypto.createCipheriv('aes-256-cbc', k, IV)
+  const x0 = Buffer.from([k[0], k[1], k[2], k[3]])
+  const x1 = cipher.update(b)
+  const x2 = cipher.final()
+  return Buffer.concat([x0, x1, x2])
+}
+
+export function decrypterSrv (k, b) {
+  if (b[0] !== k[0] || b[1] !== k[1] || b[2] !== k[2] || b[3] !== k[3]) return b
+  const decipher = crypto.createDecipheriv('aes-256-cbc', k, IV)
+  const x1 = decipher.update(b.slice(4))
+  const x2 = decipher.final()
+  return Buffer.concat([x1, x2])
+}
+
 const SALTS = new Array(256)
 
 {
@@ -112,12 +137,6 @@ export function rnd6 () {
   return r
 }
 
-export function u8ToB64 (u8, url) {
-  const s = fromByteArray(u8)
-  if (!url) return s
-  return s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-}
-
 export function b64ToU8 (s) {
   const diff = s.length % 4
   let x = s
@@ -126,25 +145,6 @@ export function b64ToU8 (s) {
     x = s + pad
   }
   return toByteArray(x.replace(/-/g, '+').replace(/_/g, '/'))
-}
-
-const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
-
-export function crypterSrv (k, buffer) {
-  const b = buffer || new Uint16Array([])
-  const cipher = crypto.createCipheriv('aes-256-cbc', k, IV)
-  const x0 = Buffer.from([k[0], k[1], k[2], k[3]])
-  const x1 = cipher.update(b)
-  const x2 = cipher.final()
-  return Buffer.concat([x0, x1, x2])
-}
-
-export function decrypterSrv (k, b) {
-  if (b[0] !== k[0] || b[1] !== k[1] || b[2] !== k[2] || b[3] !== k[3]) return b
-  const decipher = crypto.createDecipheriv('aes-256-cbc', k, IV)
-  const x1 = decipher.update(b.slice(4))
-  const x2 = decipher.final()
-  return Buffer.concat([x1, x2])
 }
 
 export function crypter (cle, u8, idxIV) { // u8: Buffer

@@ -1,3 +1,10 @@
+CREATE TABLE IF NOT EXISTS "singletons" (
+  "id" TEXT,
+  "v" INTEGER,
+  "_data_"	BLOB,
+  PRIMARY KEY("id")
+)
+
 CREATE TABLE IF NOT EXISTS "taches" (
   "op" INTEGER,
   "id" TEXT,
