@@ -1,4 +1,4 @@
 {
-  "scm.showIncomingChanges": "never",
-  "scm.showOutgoingChanges": "never"
+  "scm.showIncomingChanges": "auto",
+  "scm.showOutgoingChanges": "auto"
 }
