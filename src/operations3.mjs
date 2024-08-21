@@ -86,8 +86,9 @@ operations.GetEspaces = class GetEspaces extends Operation {
   async phase2() {
     await Esp.load(this.db)
     const espaces = []
-    for(const [,row] of Esp.map) {
+    for(const [ns, row] of Esp.map) {
       const esp = compile(row)
+      esp.ns = ns
       espaces.push(esp.toShortRow(this))
     }
     this.setRes('espaces', espaces)
@@ -600,7 +601,7 @@ operations.Sync = class Sync extends Operation {
 Retour: rien
 */
 operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
-  constructor (nom) { super(nom, 3)}
+  constructor (nom) { super(nom, 3) }
 
   async phase2 (args) {
     const espace = await this.setEspaceNs(args.ns, true)

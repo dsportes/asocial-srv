@@ -133,7 +133,7 @@ Invoqué à la création d'un espace pour initilaiser ces taches dans une base v
  S'il manquait des taches par rapport à la liste, les ajoute.
 */
 operations.InitTachesGC = class InitTachesGC extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2() {
     const rows = await this.db.nsTaches(0)
@@ -154,7 +154,7 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
 Retour:
 */
 operations.StartDemon = class StartDemon extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2() {
     if (Taches.demon) return
@@ -187,7 +187,7 @@ operations.StartDemon = class StartDemon extends Operation {
 
 // détection d'une fin d'hébergement
 operations.DFH = class DFH extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true; this.NTF = true }
+  constructor (nom) { super(nom, 3) }
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
@@ -202,7 +202,7 @@ operations.DFH = class DFH extends Operation {
 
 // détection d'une résiliation de compte
 operations.DLV = class DLV extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true; this.NTF = true }
+  constructor (nom) { super(nom, 3) }
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer

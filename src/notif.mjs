@@ -126,12 +126,13 @@ class Session {
 
     let s = null
     let nhbav = -1
-    let cptid = null, vesp = 0, vcpt = 0
+    let cptid = null, vcpt = 0
+    const vesp = log.vesp || 0
 
     if (sid) {
       const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
       s = this.sessions.get(rnd)
-      if (s) { cptid = s.cid; vesp = log.vesp; vcpt = log.vcpt }
+      if (s) { cptid = s.cid; vcpt = log.vcpt }
       if (s && s.nc === nc) nhbav = s.nhb
     }
 
@@ -143,6 +144,14 @@ class Session {
 
     // préparation des notications à pousser ()
     const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, lag }
+
+    if (vesp) {
+      this.sessions.forEach(s => {
+        if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) {
+          this.setTrlog(trlogs, s, null, 0, sid, null, 0, vesp)
+        }
+      })
+    }
 
     log.lag.forEach(x => { // [id, v]
       const v = x[1]

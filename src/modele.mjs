@@ -100,7 +100,7 @@ export class Esp {
 
   static async getEsp (op, ns, lazy, assert) {
     if (!lazy || (Date.now() - Esp.dh > ESPTO * 60000)) await Esp.load(op.db)
-    if (!ns) { if (!assert) return null; assertKO(assert, 1, [this.op.ns]) }
+    if (!ns) { if (!assert) return null; assertKO(assert, 1, [op.ns]) }
     const espace = compile(Esp.map.get(ns))
     op.ns = ns
     op.org = espace.org
@@ -219,18 +219,18 @@ Une opération de GC non notifiée n'enregistra pas de trLog.
 */
 class TrLog {
   constructor (op) {
-    if (!op.SYS || op.NTF) {
+    if (!op.SYS) {
       this.op = op
       this._maj = false
       this.vcpt = 0 // compte pas mis à jour
       this.vesp = 0 // espace du ns pas mis à jour
       this.avgr = new Map() // clé: ID de av / gr, valeur: version
       this.perimetres = new Map() // clé: ID du compte, valeur: {v, p} -version, périmètre
-    } else this.fake = true
+    }
   }
 
   fermer () {
-    if (!this.fake && this.op.compte._maj) 
+    if (!this.op.SYS && this.op.compte && this.op.compte._maj) 
       this.vcpt = this.op.compte.v
   }
 
@@ -244,11 +244,11 @@ class TrLog {
   }
 
   get court () { 
-    return !this.fake ? this.x : null
+    return !this.op.SYS ? this.x : null
   }
 
   get serialLong () {
-    if (this.fake) return null
+    if (this.op.SYS) return null
     const x = this.x
     if (this.op.id) x.cid = this.op.id
     if (this.perimetres.size) {
@@ -258,12 +258,12 @@ class TrLog {
     return encode(x)
   }
 
-  addAvgr (ag, v) { if (!this.fake) { this.avgr.set(ag, v.v); this._maj = true } }
+  addAvgr (ag, v) { if (!this.op.SYS) { this.avgr.set(ag, v.v); this._maj = true } }
 
-  setEsp (esp) { if (!this.fake) { this.vesp = esp.v; this._maj = true } }
+  setEsp (vesp) { if (!this.op.SYS) { this.vesp = vesp; this._maj = true } }
 
   setCpt (cpt, p) {
-    if (!this.fake) {
+    if (!this.op.SYS) {
       this._maj = true
       if (p) this.perimetres.set(cpt.id, { v: cpt.v, p: p})
     }
