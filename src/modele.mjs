@@ -236,7 +236,10 @@ class TrLog {
 
   get x () {
     const x = { vcpt: this.vcpt, vesp: this.vesp }
-    const y = []; for(const e of this.avgr) y.push(e); x.lag = y
+    const y = []
+    for(const [id ,v] of this.avgr) 
+      y.push([id, v])
+    x.lag = y
     return x
   }
 

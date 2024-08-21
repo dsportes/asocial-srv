@@ -981,7 +981,7 @@ operations.McMemo = class McMemo extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     const compti = await this.gd.getCI(this.id, 'McMemo-2')
-    compti.setMc(this.id, args.htK, args.txK)
+    compti.setMc(args.id, args.htK, args.txK)
   }
 }
 

@@ -73,7 +73,7 @@ class Session {
     this.ns = ns
     Session.toutes.set(ns, this)
     this.sessions = new Map() // cle: rnd, valeur: { rnd, nc, subscription, cid, nhb, dlv }
-    this.comptes = new Map() // clé: cid, valeur: {cid, vpe, perimettre, sessions: Set(rnd)}
+    this.comptes = new Map() // clé: cid, valeur: {cid, vpe, perimetre, sessions: Set(rnd)}
     this.xrefs = new Map() // cle: id du sous-arbre, valeur: Set des cid l'ayant en périmètre 
   }
 
@@ -116,13 +116,13 @@ class Session {
     if (id) e.trlog.lag.push([id, v])
   }
 
-  // Traitemnt des notifications aux sessions sur fin d'une opération de maj
+  // Traitement des notifications aux sessions sur fin d'une opération de maj
   notif (sid, log) { // log: { vcpt, vesp, lag, lp } - sid null (admin, GC)
     // lag : [[id, v] ...]
     // lp : [[compteId, {v, p}] ... (vpe, périmètre}
     const dlv = Date.now()
     const perimetres = new Map()
-    if (log.lp) log.lp.forEach(x => { perimetres.set(x[0], { v: x[1][0], p: x[1][1] }) })
+    if (log.lp) log.lp.forEach(x => { perimetres.set(x[0], x[1]) })
 
     let s = null
     let nhbav = -1
@@ -207,7 +207,8 @@ class Session {
   majPerimetreC (c, vpe, perimetre) {
     if (c.vpe < vpe) { // mise à jour du périmètre
       c.perimetre.forEach(id => { this.supprId(id)})
-      perimetre.forEach(id => { this.addId(c.cid, id); c.perimetre.push(id)})
+      c.perimetre.clear()
+      perimetre.forEach(id => { this.addId(c.cid, id); c.perimetre.add(id)})
       c.vpe = vpe
     }
   }
@@ -215,7 +216,7 @@ class Session {
   setCpt (rnd, cid, vpe, perimetre) {
     let c = this.comptes.get(cid)
     if (!c) { 
-      c = { cid, vpe: 0, perimetre: [], sessions: new Set() }
+      c = { cid, vpe: 0, perimetre: new Set(), sessions: new Set() }
       this.comptes.set(cid, c)
     }
     c.sessions.add(rnd)
@@ -231,7 +232,7 @@ class Session {
       if (s.cid !== cid) { // Chgt de compte
         this.detachCpt(rnd, s.cid)
         this.setCpt (rnd, cid, vpe. perimetre)
-      } else { // même compte, mais péimètre peut-être à rafraîchir
+      } else { // même compte, mais périmètre peut-être à rafraîchir
         const c = this.comptes.get(s.cid) // état du compte avant
         this.majPerimetreC(c, vpe, perimetre)
       }
