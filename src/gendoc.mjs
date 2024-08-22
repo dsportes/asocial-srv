@@ -567,7 +567,7 @@ _Comptes "O" seulement:_
 export class Comptes extends GenDoc { 
   constructor() { super('comptes') }
 
-  get _estA () { return this.idp === 0 }
+  get _estA () { return !this.idp }
 
   get _estComptable () { return ID.estComptable(this.id) }
 

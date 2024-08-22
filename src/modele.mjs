@@ -325,7 +325,8 @@ class GD {
   async nouvPA (id, qc) {
     const p = Partitions.nouveau(id, qc)
     this.partitions.set(id, p)
-    this.espace.setPartition(p)
+    const esp = await this.getEspace()
+    esp.setPartition(p)
     return p
   }
 
