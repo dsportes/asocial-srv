@@ -298,7 +298,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       cvE: avE.cvA,
       cleCKP: args.ch.ccK,
       cleEC: args.ch.cleE2C,
-      items: [{a: 1, dh: this.dh, t: args.ch.txt}]
+      items: [{a: 0, dh: this.dh, t: args.ch.txt}]
     })
     this.setRes('rowChat', chI.toShortRow(this))
     this.compta.ncPlus(1)
@@ -312,7 +312,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       cvE: avI.cvA,
       cleCKP: args.ch.ccP,
       cleEC: args.ch.cleE1C,
-      items: [{a: 0, dh: this.dh, t: args.ch.txt}]
+      items: [{a: 1, dh: this.dh, t: args.ch.txt}]
     })
     const comptaE = await this.gd.getCA(args.idE, 'NouveauChat-3')
     comptaE.ncPlus(1)
