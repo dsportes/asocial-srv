@@ -88,8 +88,8 @@ operations.GetEspaces = class GetEspaces extends Operation {
     const espaces = []
     for(const [ns, row] of Esp.map) {
       const esp = compile(row)
-      esp.ns = ns
-      espaces.push(esp.toShortRow(this))
+      // esp.ns = ns
+      espaces.push(esp.toShortRow(this, ns))
     }
     this.setRes('espaces', espaces)
   }
@@ -237,8 +237,8 @@ operations.SyncSp = class SyncSp extends Operation {
   async phase2 (args) {
     this.subJSON = args.subJSON || null
 
-    const espace = await this.setEspaceOrg(args.org)
-    this.setRes('rowEspace', espace.toShortRow(this))
+    const espace = await this.setEspaceOrg(args.org) // set this.ns et this.org
+    this.setRes('rowEspace', espace.toShortRow(this, this.ns))
 
     const avsponsor = await this.gd.getAV(args.idsp)
     if (!avsponsor) throw new AppExc(F_SRV, 401)
@@ -415,7 +415,7 @@ operations.GetEspace = class GetEspace extends Operation {
     const ns = !this.isAdmin ? this.ns : args.ns
     const espace = await Esp.getEsp (this, ns, false)
     espace.excFerme()
-    this.setRes('rowEspace', espace.toShortRow(this))
+    this.setRes('rowEspace', espace.toShortRow(this, ns))
   }
 }
 

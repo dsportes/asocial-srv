@@ -296,7 +296,7 @@ class GD {
 
   /* Création conjointe de espace et synthese */
   nouvES (ns, org, cleES) {
-    const e = Espaces.nouveau(ns, org, this.op.auj, cleES)
+    const e = Espaces.nouveau(org, this.op.auj, cleES)
     this.espace = e
     this.synthese = Syntheses.nouveau(ns)
     return e

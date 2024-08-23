@@ -21,19 +21,19 @@ export class Cles {
 
   static nsToInt (ns) { return ns.indexOf(ns)}
 
-  static espace(ns) { // ns: [0-9][a-z][A-Z]
-    const rnd = random(32); rnd[0] = 1; rnd[1] = Cles.nsToInt(ns); return rnd
-  }
-
+  static espace() { const rnd = random(32); rnd[0] = 1; return rnd }
   static partition () { const rnd = random(32); rnd[0] = 2; return rnd }
   static comptable() { const rnd = new Uint8Array(32); rnd[0] = 3; return rnd }
-  static avatar() { const rnd = random(32); rnd[0] = 4; return rnd }
-  static groupe() { const rnd = random(32); rnd[0] = 5; return rnd }
+  static avatar() { const rnd = random(32); rnd[0] = 3; return rnd }
+  static groupe() { const rnd = random(32); rnd[0] = 4; return rnd }
 
   static id (cle) {
     const t = cle[0]
-    if (t === 1) return Cles.ns.charAt(cle[1])
-    if (t === 3) return ID.duComptable()
+    if (t === 3) {
+      let c = true
+      for (let i = 1; i < 32; i++) if (cle[i] !== 0) { c = false; break }
+      if (c) return ID.duComptable()
+    }
     return t + Cles.hash9(cle).substring(1)
   }
 
@@ -47,9 +47,9 @@ export class ID {
   static type (id) { return parseInt(id.charAt(0))}
   static duComptable () { return '300000000000' }
   static estPartition (id) { return id.charAt(0) === '2' }
-  static estComptable (id) { return id.charAt(0) === '3' }
-  static estAvatar (id) { const c = id.charAt(0); return c === '3' || c === '4' }
-  static estGroupe (id) { return id.charAt(0) === '5' }
+  static estComptable (id) { return id === '300000000000' }
+  static estAvatar (id) { return id.charAt(0) === '3' }
+  static estGroupe (id) { return id.charAt(0) === '4' }
 
   static long (id, ns) { return ns + id}
   static court (id) { return id.substring(1)}

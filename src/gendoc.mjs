@@ -209,7 +209,7 @@ export class Espaces extends GenDoc {
     return n && n.nr === 3 ? [n.texte, n.dh] : null
   }
 
-  static nouveau (ns, org, auj, cleES) {
+  static nouveau (org, auj, cleES) {
     return new Espaces().init({
       _maj: true, v: 0,
       id: '',
@@ -223,7 +223,23 @@ export class Espaces extends GenDoc {
       dlvat: 0,
       opt: 0,
       nbmi: 12,
-      tnotifP: [null]
+      tnotifP: {}
+    })
+  }
+
+  cloneCourt () {
+    return new Espaces().init({
+      id: '',
+      org: this.org,
+      creation: this.creation,
+      moisStat: this.moisStat,
+      moisStatT: this.moisStatT,
+      nprof: this.nprof,
+      notifE: this.notifE,
+      dlvat: this.dlvat,
+      opt: this.opt,
+      nbmi: this.nbmi,
+      tnotifP: {}
     })
   }
 
@@ -291,21 +307,30 @@ export class Espaces extends GenDoc {
     - Délégués : pas stats dlvat ...
     - tous comptes: la notification de _leur_ partition sera seule lisible.
   */
-  toShortRow (op) {
+  toShortRow (op, ns) {
+    const cl = this.cloneCourt()
+    cl.ns = ns
+
     if (op.estAdmin) {
-      const cleES = this.cleES
-      const cleE = decrypterSrv(op.db.appKey, cleES)
-      this.cleES = cleE
-      const r = this.toRow(op)._data_
-      this.cleES = cleES
-      return r
+      cl.cleES = decrypterSrv(op.db.appKey, this.cleES)
+      return cl.toRow(op)._data_
     }
-    if (op.estComptable) return this.toRow(op)._data_
-    const x1 = this.moisStat, x2 = this.moisStatT, x3 = this.dlvat, x4 = this.nbmi
-    delete this.moisStat; delete this.moisStatT; delete this.dlvat; delete this.nbmi
-    const r = this.toRow(op)._data_
-    this.moisStat = x1; this.moisStatT = x2; this.dlvat = x3; this.nbmi = x4
-    return r
+
+    if (op.estComptable) {
+      return cl.toRow(op)._data_
+    }
+
+    delete cl.moisStat; delete cl.moisStatT; delete cl.dlvat; delete cl.nbmi
+
+    if (op.compte && op.compte.idp) {
+      if (!op.compte.del) {
+        const x = this.tnotifP[op.compte.idp]
+        cl.tnotifP = x ? { x } : { }
+      }
+    } else { // par exemple depuis SyncSp
+      delete cl.tnotifP
+    }
+    return cl.toRow(op)._data_
   }
 }
 
@@ -1220,7 +1245,7 @@ _data_:
 - `id` : id de l'avatar.
 - `v` : 1..N. Par convention, une version à 999999 désigne un **avatar logiquement détruit** mais dont les données sont encore présentes. L'avatar est _en cours de suppression_.
 - `vcv` : version de la carte de visite afin qu'une opération puisse détecter (sans lire le document) si la carte de visite est plus récente que celle qu'il connaît.
-- `hZR` : `ns` + hash du PBKFD de la phrase de contact réduite.
+- `hk` : hash du PBKFD de la phrase de contact réduite.
 
 - `rds` :
 - `cleAZC` : clé A cryptée par ZC (PBKFD de la phrase de contact complète).
