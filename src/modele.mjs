@@ -1,8 +1,8 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, ESPTO, AppExc, A_SRV, F_SRV, Cles, Compteurs, idTkToL6, AMJ } from './api.mjs'
+import { ID, ESPTO, AppExc, A_SRV, F_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
-import { sleep, b64ToU8, crypter, crypterSrv, quotes } from './util.mjs'
+import { sleep, b64ToU8, crypter, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
@@ -997,9 +997,11 @@ export class Operation {
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
 
+  /*
   idsChat (idI, idE) {
     return Cles.hash9(crypterSrv(this.db.appKey, Buffer.from(idI + '/' + idE)))
   }
+  */
 
   async checkEspaceOrg (org, fige) {
     // espace seulement pour checking

@@ -283,8 +283,8 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
 
     await this.intro1()
 
-    const idsI = this.idsChat(args.idI, args.idE)
-    const idsE = this.idsChat(args.idE, args.idI)
+    const idsI = ID.rnd() // this.idsChat(args.idI, args.idE)
+    const idsE = ID.rnd() // this.idsChat(args.idE, args.idI)
 
     let chI = await this.gd.getCAV(args.idI, idsI)
     if (chI) { this.setRes('rowChat', chI.toShortRow(this)); return}

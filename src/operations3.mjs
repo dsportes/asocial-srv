@@ -297,8 +297,8 @@ operations.SyncSp = class SyncSp extends Operation {
         - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
         - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
       */
-      const idsI = this.idsChat(args.id, sp.id)
-      const idsE = this.idsChat(sp.id, args.id)
+      const idsI = ID.rnd() // this.idsChat(args.id, sp.id)
+      const idsE = ID.rnd() // this.idsChat(sp.id, args.id)
       const chI = await this.gd.nouvCAV({ // du sponsorisé
         id: args.id,
         ids: idsI,
