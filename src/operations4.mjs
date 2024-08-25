@@ -1,7 +1,7 @@
 import { AppExc, F_SRV, ID, FLAGS, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { eqU8, rnd6 } from './util.mjs'
+import { eqU8 } from './util.mjs'
 
 import { Operation, R, trace } from './modele.mjs'
 import { compile, Transferts } from './gendoc.mjs'
@@ -1665,7 +1665,7 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
 
   async phase2 (args) { 
     await this.checkNoteId()
-    args.ids = rnd6()
+    args.ids = ID.estGroupe(args.id) ? ID.noteGr() : ID.noteAv()
     let im = 0, aut = 0
     if (!this.groupe) {
       if (args.ref) await this.checkRatt()
@@ -1684,7 +1684,7 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
     }
     const par = { im, dh: this.dh, t: args.t, aut, ref: args.ref}
     const n = await this.gd.nouvNOT(args.id, args.ids, par)
-    this.setRes('key', n.id + '/' + n.ids)
+    this.setRes('ids', n.ids)
   }
 }
 
@@ -1897,7 +1897,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
     }
 
-    const idf = ID.rnd()
+    const idf = ID.fic()
     const url = await this.storage.getUrl(this.org, args.id, idf)
     this.setRes('url', url)
     this.setRes('idf', idf)

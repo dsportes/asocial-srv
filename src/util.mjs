@@ -129,6 +129,7 @@ export function quotes (v) {
 
 export function random (n) { return crypto.randomBytes(n) }
 
+/*
 const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1, (256 ** 6) - 1, (256 ** 7) - 1]
 export function rnd6 () {
   const u8 = crypto.randomBytes(6)
@@ -136,6 +137,7 @@ export function rnd6 () {
   for (let i = 5; i > 0; i--) r += u8[i] * (p2[i - 1] + 1)
   return r
 }
+*/
 
 export function b64ToU8 (s) {
   const diff = s.length % 4

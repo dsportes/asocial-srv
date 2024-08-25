@@ -50,6 +50,10 @@ export class ID {
   static estComptable (id) { return id === '300000000000' }
   static estAvatar (id) { return id.charAt(0) === '3' }
   static estGroupe (id) { return id.charAt(0) === '4' }
+  static estNoteAv (id) { return id.charAt(0) === '5' }
+  static estNoteGr (id) { return id.charAt(0) === '6' }
+  static estNoteLoc (id) { return id.charAt(0) === '7' }
+  static estFic (id) { return id.charAt(0) === '8' }
 
   static long (id, ns) { return ns + id}
   static court (id) { return id.substring(1)}
@@ -58,6 +62,11 @@ export class ID {
     const s = fromByteArray(random(9))
     return s.replace(/=/g, '').replace(/\+/g, '0').replace(/\//g, '1')
   }
+
+  static noteAv () { return '5' + ID.rnd().substring(1) }
+  static noteGr () { return '6' + ID.rnd().substring(1) }
+  static noteLoc () { return '7' + ID.rnd().substring(1) }
+  static fic () { return '8' + ID.rnd().substring(1) }
 }
 
 export const HBINSECONDS = 20 // 120
