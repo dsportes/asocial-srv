@@ -1320,12 +1320,12 @@ _data_:
 - `d` : date-heure de dernière modification du texte.
 - `texte` : texte (gzippé) crypté par la clé de la note.
 - `mfa` : map des fichiers attachés.
-- `ref` : triplet `[id, ids]` référence de sa note _parent_:
+- `pid pids` : identifiant de sa note _parent_:
 */
 export class Notes extends GenDoc { 
   constructor() { super('notes') } 
 
-  static nouveau (id, ids, { im, dh, t, aut, ref}) {
+  static nouveau (id, ids, { im, dh, t, aut, pid, pids}) {
     const n = new Notes()
     n._maj = true
     n.id = id
@@ -1335,7 +1335,8 @@ export class Notes extends GenDoc {
     n.d = dh
     n.texte = t
     n.mfa = {}
-    n.ref = ref || null
+    n.pid = pid || null
+    n.pids = pid ? (pids || null) : null,
     n.ht = null
     if (ID.estGroupe(id)) {
       n.l = [aut]
@@ -1373,8 +1374,9 @@ export class Notes extends GenDoc {
     this._maj = true
   }
 
-  setRef (ref) {
-    this.ref = ref
+  setRef (pid, pids) {
+    this.pid = pid
+    this.pids = pid ? (pids || null) : null
     this._maj = true
   }
 

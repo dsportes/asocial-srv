@@ -1621,7 +1621,7 @@ class OperationNo extends Operation {
 
   // Contrôle d'existence de la note parent et de l'absence de cycle
   async checkRatt (g) {
-    let notep, id = this.args.ref[0], ids = this.args.ref[1] || 0
+    let notep, id = this.args.pid, ids = this.args.pids || null
     if (!ids) { // rattachée à une racine
       if (id !== this.args.id) {
         if (g) throw new AppExc(F_SRV, 298)
@@ -1642,10 +1642,9 @@ class OperationNo extends Operation {
           if (ID.estGroupe(notep.id)) break
           if (notep.id !== this.args.id) throw new AppExc(F_SRV, 296)  
         }
-        if (!notep.ref) break
-        id = notep.ref[0]
-        ids = notep.ref[1]
-        if (!ids) break
+        if (!notep.pid || !notep.pids) break
+        id = notep.pid
+        ids = notep.pids
       }
     }
   }
@@ -1656,7 +1655,7 @@ class OperationNo extends Operation {
 - id : de la note
 - ida : pour une note de groupe, id de son avatar auteur
 - exclu : auteur est exclusif
-- ref : [id, ids] pour une note rattachée
+- pid, pids : identifiant du parent pour une note rattachée
 - t : texte crypté
 Retour: rien
 */
@@ -1682,23 +1681,22 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
       this.groupe.setNV(1, 0)
       this.groupe.exN()
     }
-    const par = { im, dh: this.dh, t: args.t, aut, ref: args.ref}
-    const n = await this.gd.nouvNOT(args.id, args.ids, par)
-    this.setRes('ids', n.ids)
+    const par = { im, dh: this.dh, t: args.t, aut, pid: args.pid, pids: args.pids}
+    await this.gd.nouvNOT(args.id, args.ids, par)
   }
 }
 
 /* OP_RattNote: 'Gestion du rattachement d\'une note à une autre' ********
 - token: éléments d'authentification du compte.
 - id ids: identifiant de la note
-- ref : [id, ids] : racine ou note de rattachemnt
+- pid, pids : identifiant du parent pour une note rattachée
 Retour: rien
 */
 operations.RattNote = class RattNote extends OperationNo {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) { 
-    if (!args.ref) throw new AppExc(F_SRV, 300)
+    if (!args.pid) throw new AppExc(F_SRV, 300)
     const note = await this.gd.getNOT(args.id, args.ids, 'RattNote-1')
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
@@ -1708,8 +1706,7 @@ operations.RattNote = class RattNote extends OperationNo {
     }
     if (!ok) throw new AppExc(F_SRV, 301)
     await this.checkRatt(ng)
-    const r = !args.ref[1] && args.ref[0] === note.id ? null : args.ref
-    note.setRef(r)
+    note.setRef(args.pid, args.pids)
   }
 }
 
