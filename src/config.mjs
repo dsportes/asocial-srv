@@ -88,7 +88,7 @@ export const config = {
 
 }
 
-Tarif.tarifs = config.tarifs
+Tarif.init(config.tarifs)
 
 for (const n in config.env) env[n] = config.env[n]
 

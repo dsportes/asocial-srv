@@ -5,7 +5,7 @@ import { sleep, crypter, crypterSrv, decrypterSrv } from './util.mjs'
 
 import { Operation, Cache, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { DataSync, Cles } from './api.mjs'
+import { DataSync, Cles, Tarif } from './api.mjs'
 // import { Taches } from './taches.mjs'
 
 // Pour forcer l'importation des opérations
@@ -335,6 +335,7 @@ operations.SyncSp = class SyncSp extends Operation {
   async phase3 () {
     /* Le row compte A ETE MIS A JOUR après la phase 2 */
     this.setRes('rowCompte', this.compte.toShortRow(this))
+    this.setRes('tarifs', Tarif.tarifs)
   }
 }
 
@@ -514,6 +515,7 @@ operations.Sync = class Sync extends Operation {
   }
 
   async phase2(args) {
+    if (!args.dataSync) this.setRes('tarifs', Tarif.tarifs)
     this.subJSON = args.subJSON || null
 
     this.mgr = new Map() // Cache locale des groupes acquis dans l'opération
