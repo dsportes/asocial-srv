@@ -82,7 +82,7 @@ export const config = {
     délivrer une URL get / put file.
     - storageFS / storageGC en mode emulator
     */
-    rooturl: 'https://test.sportes.fr:8443'
+    rooturl: 'http://test.sportes.fr:8443'
 
   }
 
