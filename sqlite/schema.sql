@@ -7,12 +7,12 @@ CREATE TABLE IF NOT EXISTS "singletons" (
 
 CREATE TABLE IF NOT EXISTS "taches" (
   "op" INTEGER,
+  "ns" TEXT,
   "id" TEXT,
   "ids" TEXT,
-  "ns" TEXT,
   "dh" INTEGER,
   "exc"	TEXT,
-  PRIMARY KEY("op", "id", "ids")
+  PRIMARY KEY("op", "ns", "id", "ids")
 );
 CREATE INDEX "taches_dh" ON "taches" ( "dh" );
 CREATE INDEX "taches_ns" ON "taches" ( "ns" );

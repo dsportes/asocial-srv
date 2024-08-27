@@ -94,7 +94,7 @@ export class Esp {
 
   static actifs () {
     const l = []
-    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(ID.ns(e.id)) })
+    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.ns) })
     return l
   }
 

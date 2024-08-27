@@ -5,7 +5,6 @@ import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
-import { ID } from './api.mjs'
 
 export class SqliteProvider {
   constructor (site, code) {
@@ -148,18 +147,26 @@ class Connx {
   /*********************************************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, id, ids, ns, dh, exc) VALUES (@op, @id, @ids, @ns, @dh, @exc) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
-    const ns = t.id ? ID.ns(t.id) : 0
-    st.run({ op: t.op, id: t.id, ids: t.ids, ns, dh: t.dh, exc: t.exc })
+      'INSERT INTO taches (op, ns, id, ids, dh, exc) VALUES (@op, @ns, @id, @ids, @dh, @exc) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
+    st.run({ 
+      op: t.op,
+      ns: t.ns, 
+      id: t.id || '', 
+      ids: t.ids || '',
+      dh: t.dh, 
+      exc: t.exc })
   }
 
-  async delTache (top, id, ids) {
-    const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND id = @id AND ids = @ids')
-    st.run({ op: top, id, ids })
+  async delTache (top, ns, id, ids) {
+    const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
+    st.run({ op: top, ns, id, ids })
   }
 
   async prochTache (dh, lst) {
-    const lns = '0,' + lst.join(',')
+    const lst2 = new Array(lst.length + 1)
+    lst2[0] = ''
+    lst.forEach((x, n) => { lst2[n + 1] = '\'' + x + '\''})
+    const lns = lst.join(',')
     const st = this._stmt('PROCHTACHE' + lns, 
       'SELECT * FROM taches WHERE dh < @dh AND ns IN (' + lns + ') ORDER BY dh ASC LIMIT 1')
     const rows = st.all({ dh })

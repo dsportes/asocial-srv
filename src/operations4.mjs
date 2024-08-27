@@ -1029,7 +1029,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 
     this.gd.nouvGR(args)
     const dx = { dpc: this.auj, dac: this.auj, dln: this.auj, den: this.auj, dam: this.auj }
-    await this.gd.nouvMBR(args.idg, '1', avatar.cvA, args.cleAG, dx)
+    await this.gd.nouvMBR(args.idg, 1, avatar.cvA, args.cleAG, dx)
 
     this.compta.ngPlus(1)
   }

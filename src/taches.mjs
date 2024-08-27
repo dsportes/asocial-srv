@@ -73,8 +73,8 @@ export class Taches {
   static async nouvelle (oper, top, id, ids) {
     const t = new Taches({
       op: top, 
-      id: ID.long(id, oper.ns), 
-      ids: ids ? ID.long(ids, oper.ns) : 0, 
+      id: id || '',
+      ids: ids || '', 
       ns: oper.ns, 
       dh: Taches.dh(oper.dh), 
       exc: ''})
@@ -108,7 +108,7 @@ export class Taches {
         await op.run(args, db.provider, storage)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!this.estGC) // La tache est supprimée
-            await db.delTache(this.op, this.id, this.ids)
+            await db.delTache(this.op, this.id, this.ids, this.ns)
           // else : La tache est déjà inscrite pour sa prochaine exécution
           break
         }
@@ -141,7 +141,7 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
     Taches.OPSGC.forEach(t => { s.add(t)})
     rows.forEach(r => { s.delete(r.op) })
     for (const t of s) {
-      const tache = new Taches({op: t, id: 0, ids: 0, ns: 0, dh: 0, exc: ''})
+      const tache = new Taches({op: t, id: '', ids: '', ns: '', dh: 0, exc: ''})
       tache.dh = tache.op // Taches.dhRetry(tache) + tache.op
       await this.db.setTache(tache)
     }
@@ -195,7 +195,7 @@ operations.DFH = class DFH extends Operation {
     if (!args.lst.length) { args.fini = true; return }
 
     const idg = args.lst.pop()
-    this.ns = ID.ns(idg)
+    this.ns = this.db.nsDeIdLongue(idg)
     await this.supprGroupe(idg) // bouclera sur le suivant de hb jusqu'à épuisement de hb
   }
 }
@@ -220,7 +220,7 @@ operations.TRA = class TRA extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    // Récupération des couples (id, ids] des transferts à solder
+    // Récupération des couples [id, idf] des transferts à solder
     const lst = await this.db.listeTransfertsDlv(this.auj)  
     for (const [id, idf] of lst) {
       if (id && idf) {
@@ -255,8 +255,7 @@ operations.FPU = class FPU extends Operation {
         let esp
         try { esp = await this.setEspace(ns) } catch (e) { /* */ }
         if (esp) {
-          const idi = ID.court(fpurge.idag)  
-          await this.storage.delFiles(esp.org, idi, fpurge.lidf)
+          await this.storage.delFiles(esp.org, fpurge.idag, fpurge.lidf)
           await this.db.unsetFpurge(fpurge.id)
         }
       }
@@ -361,10 +360,9 @@ operations.AGN = class AGN extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    const idag = args.tache.id
-    this.ns = ID.ns(idag)
-    const id = ID.court(idag)
-    await this.db.delScoll('notes', idag)
+    const id = args.tache.id
+    this.ns = args.tache.ns
+    await this.db.delScoll('notes', ID.long(id, this.ns))
     let esp
     try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }
     if (esp) await this.storage.delId(esp.org, id)
@@ -378,13 +376,13 @@ operations.AVC = class AVC extends Operation {
 
   async phase2(args) {
     const ida = args.tache.id
-    this.ns = ID.ns(ida)
-    for (const row of await this.db.scoll('chats', ida, 0)) {
+    this.ns = args.tache.ns
+    for (const row of await this.db.scoll('chats', ID.long(ida, this.ns), 0)) {
       const chI = compile(row)
       const chE = await this.gd.getCAV(chI.idE, chI.idsE)
       if (chE) chE.chEdisp()
     }
-    await this.db.delScoll('chats', ida)
+    await this.db.delScoll('chats', ID.long(ida, this.ns))
     args.fini = true
   }
 }
@@ -394,8 +392,9 @@ operations.ESP = class ESP extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    this.ns = ID.ns(args.tache.id)
-    this.dla = ID.court(args.tache.ids)
+    this.ns = args.tache.ns
+    this.id = args.tache.id
+    this.dla = args.tache.ids
     if (!args.lst) {
       let esp
       try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }

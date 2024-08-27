@@ -1634,7 +1634,6 @@ export class Groupes extends GenDoc {
   constructor() { super('groupes') }
 
   compile () {
-    this.ns = ID.ns(this.id)
     this.mmb = new Map()
     this.tid.forEach((id, im) => { 
       if (im) this.mmb.set(id, im)
@@ -1647,7 +1646,7 @@ export class Groupes extends GenDoc {
     return new Groupes().init({
       _maj: true, v: 0,
       id: args.idg, // id du groupe
-      tid: [0, args.ida], // id de l'avatar fondateur
+      tid: [null, args.ida], // id de l'avatar fondateur
       msu: args.msu, // mode simple (true) / unanime
       qn: args.quotas.qn,  // quotas.qn
       qv: args.quotas.qv, // quotas.qv
@@ -2084,7 +2083,7 @@ export class Chatgrs extends GenDoc {
   static nouveau (idg) {
     return new Chatgrs().init({
       _maj: true, v: 0,
-      id: idg, ids: 1, items: []
+      id: idg, ids: '1', items: []
     })
   }
 

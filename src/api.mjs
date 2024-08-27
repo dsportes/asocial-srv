@@ -57,6 +57,7 @@ export class ID {
 
   static long (id, ns) { return ns + id}
   static court (id) { return id.substring(1)}
+  static ns (id) { return id.substring(0, 1)}
 
   static rnd () {
     const s = fromByteArray(random(9))
