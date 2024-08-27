@@ -610,6 +610,7 @@ class GD {
       if (!v) assertKO('majV', 20, [id])
     }
     if (!v._maj) {
+      v._vav = v.v
       v.v++
       v._maj = true
       if (suppr) v.dlv = this.op.auj
@@ -631,6 +632,7 @@ class GD {
       }
     } else if (d._maj) {
       const ins = d.v === 0
+      d._vav = d.v
       d.v = await this.majV(d.id)
       if (d._nom === 'avatars') {
         if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
@@ -645,6 +647,7 @@ class GD {
   async majesp (d) {
     if (d._maj) {
       const ins = d.v === 0
+      d._vav = d.v
       d.v++
       this.trLog.setEsp(d.v)
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
@@ -655,6 +658,7 @@ class GD {
     if (compta._suppr) {
       this.op.delete({ _nom: 'comptas', id: ID.long(compta.id, this.op.ns) })
     } else if (compta._maj) {
+      compta._vav = compta.v
       compta.v++
       const compte = await this.getCO(compta.id)
       await compte.reportDeCompta(compta, this)
@@ -664,6 +668,7 @@ class GD {
 
   async majCompti (compti) {
     if (compti._maj) {
+      compti._vav = compti.v
       const compte = await this.getCO(compti.id)
       if (compte) compte.setCI()
     }
@@ -671,6 +676,7 @@ class GD {
 
   async majInvit (invit) {
     if (invit._maj) {
+      invit._vav = invit.v
       const compte = await this.getCO(invit.id)
       if (compte) compte.setIN()
     }
@@ -680,6 +686,7 @@ class GD {
     if (compte._suppr) {
       this.op.delete({ _nom: 'comptes', id: ID.long(compte.id, this.op.ns) })
     } else if (compte._maj) {
+      compte._vav = compte.v
       let compti, invit, p
       compte.v++
       if (compte.v === 1) {
@@ -711,6 +718,7 @@ class GD {
 
   async majpart (p) {
     if (p._maj) {
+      p._vav = p.v
       p.v++
       if (p.v === 1) this.op.insert(p.toRow(this.op)); else this.op.update(p.toRow(this.op))
       const s = await this.getSY()
@@ -721,6 +729,7 @@ class GD {
   async majsynth () {
     const s = this.synthese
     if (s && s._maj) {
+      s._vav = s.v
       s.v++
       if (s.v === 1) this.op.insert(s.toRow(this.op)); else this.op.update(s.toRow(this.op))
     }
@@ -859,9 +868,8 @@ export class Operation {
 
     await this.gd.maj()
 
-    if (this.toInsert.length) await this.db.insertRows(this.toInsert)
-    if (this.toUpdate.length) await this.db.updateRows(this.toUpdate)
-    if (this.toDelete.length) await this.db.deleteRows(this.toDelete)
+    if (this.toInsert.length || this.toUpdate.length || this.toDelete.length)
+      await this.db.bulkUpdates(this.toInsert, this.toUpdate, this.toDelete)
   }
 
   /* Authentification *************************************************************

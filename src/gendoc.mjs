@@ -155,7 +155,7 @@ export class GenDoc {
     - en produisant un _data_ null si l'objet n'a pas d'attributs NON META ou est _zombi
   */
   toRow (op) {
-    const row = { _nom: this._nom }
+    const row = { _nom: this._nom, _vav: this._vav }
     row.id = ID.long(this.id, op.ns)
     if (this.ids !== undefined) row.ids = ID.long(this.ids, op.ns)
     if (this.hk !== undefined) row.hk = ID.long(this.hk, op.ns)

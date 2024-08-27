@@ -87,6 +87,12 @@ class Connx {
     }
   }
 
+  async bulkUpdates(toInsert, toUpdate, toDelete) {
+    if (toInsert.length) await this.insertRows(toInsert)
+    if (toUpdate.length) await this.updateRows(toUpdate)
+    if (toDelete.length) await this.deleteRows(toDelete)
+  }
+
   /** PRIVATE : retourne le prepare SQL du statement et le garde en cache avec un code 
   L'argument SQL n'est pas requis si on est certain que le code donné a bien été enregistré
   */
