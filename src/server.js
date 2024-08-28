@@ -17,7 +17,7 @@ import{ load3 } from './operations3.mjs'
 import{ load4 } from './operations4.mjs'
 
 let dbp = null, storage = null
-const keys = ['favicon.ico', 'fullchain.pem', 'privkey.pem']
+const keys = ['fullchain.pem', 'privkey.pem']
 try {
   config.logger = setLogger()
   config.logger.info('Logs configurés' + (config.mondebug ? ' : MONDEBUG' : ''))
@@ -29,10 +29,10 @@ try {
   config.logger.info('PORT= [' + port + ']')
 
   dbp = await getDBProvider(config.run.db_provider, config.run.site)
-  if (!dbp) exit(1)
+  if (dbp.ko) exit(1)
   
   storage = await getStorageProvider(config.run.storage_provider)
-  if (!storage) exit(1)
+  if (storage.ko) exit(1)
 
   loadTaches()
   load3()

@@ -1,6 +1,14 @@
+/* En ES6, le buil par webpack est incoorect et produit une erreur en exécution:
+TypeError: Cannot read properties of undefined (reading 'indexOf')
+*/
+// import Database from 'better-sqlite3'
+
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
+export const Database = require('better-sqlite3')
+
 import path from 'path'
 import { existsSync } from 'node:fs'
-import { Database } from './loadreq.mjs'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
@@ -8,29 +16,18 @@ import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 
 export class SqliteProvider {
   constructor (site, code) {
+    this.type = 'sqlite'
     this.code = code
     this.appKey = Buffer.from(app_keys.sites[site], 'base64')
-    const p = path.resolve(config[code].path)
-    if (!existsSync(p)) {
-      config.logger.info('Path DB (création)= [' + p + ']')
+    this.path = path.resolve(config[code].path)
+    if (!existsSync(this.path)) {
+      config.logger.info('Path DB inaccessible= [' + this.path + ']')
+      this.ko = true
     } else {
-      config.logger.info('Path DB= [' + p + ']')
+      config.logger.info('Path DB= [' + this.path + ']')
     }
-    const options = {
-      verbose: (msg) => {
-        if (config.mondebug) config.logger.debug(msg)
-        this.lastSql.unshift(msg)
-        if (this.lastSql.length > 3) this.lastSql.length = 3
-      } 
-    }
-    this.sql = Database(p, options)
-    this.lastSql = []
-    this.cachestmt = { }
+    this.pragma = 'journal_mode = WAL'
   }
-
-  get type () { return 'sqlite' }
-
-  excInfo () { return this.lastSql.join('\n') }
 
   async connect(op) {
     return await new Connx().connect(op, this)
@@ -38,19 +35,68 @@ export class SqliteProvider {
 }
 
 class Connx {
+
+  // Méthode PUBLIQUE de coonexion: retourne l'objet de connexion à la base
   async connect (op, dbp) {
     this.op = op
     this.provider = dbp
-    this.sql = dbp.sql
+    this.lastSql = []
+    this.cachestmt = { }
+    this.appKey = dbp.appKey
+    this.options = {
+      verbose: (msg) => {
+        if (config.mondebug) config.logger.debug(msg)
+        this.lastSql.unshift(msg)
+        if (this.lastSql.length > 3) this.lastSql.length = 3
+      } 
+    }
+    this.sql = new Database(dbp.path, this.options);
+    this.sql.pragma(dbp.pragma)
     return this
   }
 
-  get appKey () { return this.provider.appKey }
+  // Méthode PUBLIQUE de déconnexion, impérative et sans exception
+  disconnect () {
+    try { this.close() } catch (e2) { /* */ }
+  }
 
-  async end() { }
+  /* Méthode PUBLIQUE d'exécution de la transaction:
+  - se placer en mode transaction
+  - invoquer la méthode transac() de l'opération
+  - mise à jour finale eff"ective de la transaction: (écritures groupées à la fin)
+  - commit et déconnexion
+  - retour [0, '']
+  Erreurs trappées
+  - pas une exception de DB: trow de l'exception
+  - si c'est une erreur de LOCK: retourne [1, 'msg de détail] - Le retry fonctionnera
+  - sinon (autre erreur de DB, retry inutile): retourne [2, 'msg de détail]
+  */
+  async doTransaction () {
+    try {
+      this._stmt('begin', 'BEGIN').run()
+      await this.op.transac()
+      if (this.op.toInsert.length) await this.insertRows(this.op.toInsert)
+      if (this.op.toUpdate.length) await this.updateRows(this.op.toUpdate)
+      if (this.op.toDelete.length) await this.deleteRows(this.op.toDelete)
+      this._stmt('commit', 'COMMIT').run()
+      this.disconnect()
+      return [0, '']
+    } catch (e) {
+      try { this._stmt('rollback', 'ROLLBACK').run() } catch (e2) { /* */ }
+      this.disconnect()
+      return this.trap(e)
+    }
+  }
 
-  get hasWS () { return true }
+  // PRIVATE
+  trap (e) {
+    if (e.constructor.name !== 'SqliteError') throw e
+    const s = (e.code || '???') + '\n' + this.lastSql.join('\n')
+    if (e.code && e.code.startsWith('SQLITE_BUSY')) return [1, s]
+    return [2, s]
+  }
 
+  // Méthode PUBLIQUE de test: retour comme doTransaction [0 / 1 / 2, detail]
   async ping () {
     try {
       const sts = this._stmt('PINGS', 'SELECT _data_ FROM singletons WHERE id = \'1\'')
@@ -65,42 +111,21 @@ class Connx {
         const sti = this._stmt('PINGI', 'INSERT INTO singletons (id, v, _data_) VALUES (\'1\', @v, @_data_)')
         sti.run({ v, _data_ })
       }
-      return 'Sqlite ping OK: ' + (t && t._data_ ? t._data_ : '?') + ' <=> ' + _data_
+      return [0, 'Sqlite ping OK: ' + (t && t._data_ ? t._data_ : '?') + ' <=> ' + _data_]
     } catch (e) {
-      return 'Sqlite ping KO: ' + e.toString()
+      return this.trap(e)
     }
-  }
-
-  // eslint-disable-next-line no-unused-vars
-  setSyncData() {
-  }
-
-  async doTransaction () {
-    try {
-      this._stmt('begin', 'BEGIN').run()
-      await this.op.transac()
-      this._stmt('commit', 'COMMIT').run()
-    } catch (e) {
-      this._stmt('rollback', 'ROLLBACK').run()
-      throw e
-    }
-  }
-
-  async bulkUpdates(toInsert, toUpdate, toDelete) {
-    if (toInsert.length) await this.insertRows(toInsert)
-    if (toUpdate.length) await this.updateRows(toUpdate)
-    if (toDelete.length) await this.deleteRows(toDelete)
   }
 
   /** PRIVATE : retourne le prepare SQL du statement et le garde en cache avec un code 
   L'argument SQL n'est pas requis si on est certain que le code donné a bien été enregistré
   */
   _stmt (code, sql) {
-    let s = this.provider.cachestmt[code]
+    let s = this.cachestmt[code]
     if (!s) {
       if (!sql) return null
       s = this.sql.prepare(sql)
-      this.provider.cachestmt[code] = s
+      this.cachestmt[code] = s
     }
     return s
   }
@@ -144,7 +169,34 @@ class Connx {
     return x.join('')
   }
 
-  /*********************************************************************/
+  /** PRIVATE Ecritures groupées ******************************************/
+  deleteRows (rows) {
+    for (const row of rows) {
+      const code = 'DEL' + row._nom
+      const st = this._stmt(code, this._delStmt(row._nom))
+      st.run(row) // row contient id et ids
+    }
+  }
+
+  async insertRows (rows) {
+    for (const row of rows) {
+      const r = await prepRow(this.appKey, row)
+      const code = 'INS' + row._nom
+      const st = this._stmt(code, this._insStmt(row._nom))
+      st.run(r)
+    }
+  }
+
+  async updateRows (rows) {
+    for (const row of rows) {
+      const code = 'UPD' + row._nom
+      const st = this._stmt(code, this._updStmt(row._nom))
+      const r = await prepRow(this.appKey, row)
+      st.run(r)
+    }
+  }
+  
+  /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
       'INSERT INTO taches (op, ns, id, ids, dh, exc) VALUES (@op, @ns, @id, @ids, @dh, @exc) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
@@ -176,33 +228,6 @@ class Connx {
   async nsTaches (ns) {
     const st = this._stmt('NSTACHES', 'SELECT * FROM taches WHERE ns = @ns')
     return st.all({ ns })
-  }
-
-  /** Ecritures groupées ***********************************************/
-  deleteRows (rows) {
-    for (const row of rows) {
-      const code = 'DEL' + row._nom
-      const st = this._stmt(code, this._delStmt(row._nom))
-      st.run(row) // row contient id et ids
-    }
-  }
-
-  async insertRows (rows) {
-    for (const row of rows) {
-      const r = await prepRow(this.appKey, row)
-      const code = 'INS' + row._nom
-      const st = this._stmt(code, this._insStmt(row._nom))
-      st.run(r)
-    }
-  }
-
-  async updateRows (rows) {
-    for (const row of rows) {
-      const code = 'UPD' + row._nom
-      const st = this._stmt(code, this._updStmt(row._nom))
-      const r = await prepRow(this.appKey, row)
-      st.run(r)
-    }
   }
 
   async getRowEspaces(v) {
@@ -440,29 +465,6 @@ class Connx {
     this.op.ne += info.changes
     return info.changes
   }
-
-  /*
-  async delAvGr (id) {
-    const nom = ID.estGroupe(id) ? 'groupes' : 'avatars'
-    const code = 'DELAVGR'+ nom
-    const st = this._stmt(code, 'DELETE FROM ' + nom + ' WHERE id = @id')
-    st.run({id : id})
-    this.op.ne++
-  }
-  */
-  
-  /*
-  async org (op, ns) {
-    const st = this._stmt('SELORG', 'SELECT * FROM espaces WHERE id = @id')
-    const row = st.get({ id: ns })
-    if (row) {
-      row._nom = 'espaces'
-      op.nl++
-      return await decryptRow(op, row)
-    }
-    return null
-  }
-  */
 
   async setFpurge (id, _data_) {
     const st = this._stmt('INSFPURGE', 'INSERT INTO fpurges (id, _data_) VALUES (@id, @_data_)')

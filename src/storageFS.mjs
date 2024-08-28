@@ -9,6 +9,10 @@ import { config } from './config.mjs'
 export class FsProvider {
   constructor (codeProvider) {
     this.rootpath = config[codeProvider].rootpath
+    if (!existsSync(this.rootpath)) {
+      config.logger.info('Path FsStorage inaccessible= [' + this.rootpath + ']')
+      this.ko = true
+    }
   }
 
   storageUrlGenerique (org, id, idf) {

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "mainX": "src/server.js",
-  "main": "index.js",
+  "mainY": "index.js",
   "type": "module",
   "scripts": {
     "run": "node src/server.js",
@@ -24,7 +24,7 @@
     "@google-cloud/storage": "^7.0.1",
     "@msgpack/msgpack": "^3.0.0-beta2",
     "@open-wc/webpack-import-meta-loader": "^0.4.7",
-    "better-sqlite3": "8.6.0",
+    "better-sqlite3": "^11.2.0",
     "express": "^4.18.2",
     "js-sha256": "^0.11.0",
     "node-args": "^2.1.8",

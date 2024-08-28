@@ -1,11 +1,9 @@
 /* eslint-disable no-unused-vars */
 import express from 'express'
-import path from 'path'
 import { encode, decode } from '@msgpack/msgpack'
 
-import favicon from './favicon.mjs'
 import { config } from './config.mjs'
-import { decode3 } from './util.mjs'
+import { decode3, getHP } from './util.mjs'
 import { AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
 import { pubsub } from './notif.mjs'
 
@@ -18,13 +16,6 @@ export const operations = {
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
   res.status(status)
-  /*
-    .set({
-      'Access-Control-Allow-Origin' : '*',
-      'Access-Control-Allow-Methods' : 'GET,POST,PUT,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-API-version'
-    })
-  */
   return res.type(respType ? respType : 'application/octet-stream')
 }
 
@@ -40,6 +31,7 @@ export function appExpress(dbp, storage) {
     next();
   })
 
+  /*
   if (config.pathapp) {
     const ap = path.resolve(config.pathapp)
     config.logger.info('PATH_APP= [' + ap + ']')
@@ -51,6 +43,7 @@ export function appExpress(dbp, storage) {
     config.logger.info('PATH_WWW= [' + ap + ']')
     app.use(config.prefixwww, express.static(ap))
   }
+  */
 
   // OPTIONS est toujours envoyé pour tester les appels cross origin
   app.use('/', (req, res, next) => {
@@ -60,11 +53,8 @@ export function appExpress(dbp, storage) {
       next()
   })
 
-  //**** Pour un "vrai" serveur favicon.ico et robots.txt du sites ****
+  //**** Pour un "vrai" serveur robots.txt du sites ****
   if (config.run.mode) {
-    app.get('/favicon.ico', (req, res) => {
-      setRes(res, 200, 'image/x-icon').send(favicon)
-    })
     const rob = 'User-agent: *\nDisallow: /\n'
     app.get('/robots.txt', (req, res) => {
       setRes(res, 200, 'text/plain').send(rob)
@@ -141,7 +131,7 @@ export function appExpress(dbp, storage) {
   return app
 }
 
-/************************************************************* 
+/*************************************************************/
 function checkOrigin(req) {
   const o = config.run.origins
   let origin = req.headers['origin']
@@ -158,7 +148,6 @@ function checkOrigin(req) {
   config.logger.error('Origine refusée : ' + origin)
   throw new AppExc(E_SRV, 1, [origin])
 }
-*/
 
 /************************************************************* 
  * Traitement générique d'une opération
@@ -170,17 +159,21 @@ async function operation(req, res, dbp, storage) {
   try {
     const isGet = req.method === 'GET'
 
+    /*
     if (opName === 'yo'){
       setRes(res, 200, 'text/plain').send('yo ' + new Date().toISOString())
       return
     }
+      */
 
-    // checkOrigin(req)
+    if (config.run.origins) checkOrigin(req)
 
+    /*
     if (opName === 'yoyo'){
       setRes(res, 200, 'text/plain').send('yoyo ' + new Date().toISOString())
       return
     }
+    */
   
     // récupétration de la fonction de ce module traitant l'opération
     const opClass = operations[opName]
@@ -231,7 +224,7 @@ async function operation(req, res, dbp, storage) {
     } else {
       // erreur non trappée : mise en forme en AppExc
       httpst = 403
-      const xx = (e.stack ? e.stack + '\n' : '') + (dbp ? dbp.excInfo() : '')
+      const xx = e.stack ? e.stack + '\n' : ''
       s = new AppExc(E_SRV, 0, [e.message], xx).toString()
     }
     setRes(res, httpst).send(Buffer.from(s))

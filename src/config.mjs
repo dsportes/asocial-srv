@@ -40,14 +40,11 @@ export const config = {
   // Pour HTTP server seulement: configuration des paths des URL
   prefixop: '/op',
   prefixpubsub: '/pubsub',
-  prefixapp: '/app',
-  pathapp: './app',
-  prefixwww: '/www',
-  pathwww: './www',
   pathlogs: './logs',
   pathkeys: './keys',
 
   run: { // Configuration du "serveur"
+    origins: new Set(['http://localhost:8080']),
     pubsubMode: 'http', // 'http' 'https' 'gae' 'passenger'
     pubsubPort: 8444, // Utilisé par pubsub.js
 

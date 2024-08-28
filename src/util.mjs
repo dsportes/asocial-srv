@@ -68,21 +68,21 @@ export async function getStorageProvider (codeProvider) {
 }
 
 export async function getDBProvider (codeProvider, site) {
-  config.logger.info('DB= [' + config.run.db_provider + ']')
+  config.logger.info('DB= [' + codeProvider + ']')
   let dbp
   switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
   case 'sqlite' : { dbp = new SqliteProvider(site, codeProvider); break }
   case 'firestore' : { dbp = new FirestoreProvider(site, codeProvider); break }
   }
-  if (!dbp) {
-    config.logger.error('DB provider non trouvé:' + config.run.db_provider)
+  if (dbp.ko) {
+    config.logger.error('DB provider non trouvé:' + codeProvider)
     return false
   }
   if (config.mondebug) {
     const db = await dbp.connect({})
-    const m = await db.ping()
-    await db.end()
-    config.logger.info(m)
+    const [st, detail] = await db.ping()
+    await db.disconnect()
+    config.logger.info('PING DB status:' + st + ' detail:' + detail)
   }
   return dbp
 }

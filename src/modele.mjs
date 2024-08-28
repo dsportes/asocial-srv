@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, ESPTO, AppExc, A_SRV, F_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
+import { ID, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { sleep, b64ToU8, crypter, quotes } from './util.mjs'
@@ -776,35 +776,46 @@ export class Operation {
     this... isGet, db, storage, args, dh
   */
   constructor (nomop, authMode, excFige) { 
-    this.dh = Date.now()
-    this.auj = AMJ.amjUtcDeT(this.dh)
-    if (config.mondebug) config.logger.debug(nomop + ' : ' + new Date(this.dh).toISOString())
-
     this.nomop = nomop
-    this.estSync = this.nomop === 'Sync'
     this.authMode = authMode
     this.excFige = excFige || 1
+  }
+
+  reset () {
+    this.dh = Date.now()
+    this.auj = AMJ.amjUtcDeT(this.dh)
+    if (config.mondebug) 
+      config.logger.debug(this.nomop + ' : ' + new Date(this.dh).toISOString())
     this.setR = new Set()
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
-    this.result = { }
-    this.toInsert = []; this.toUpdate = []; this.toDelete = []; this.versions = []
+    this.result = { dh: this.dh }
+    this.toInsert = []
+    this.toUpdate = []
+    this.toDelete = []
     this.ns = 0
     this.org = ''
     this.compte = null
+    this.gd = new GD(this)
   }
 
   /* Exécution de l'opération */
   async run (args, dbp, storage) {
     try {
-      this.db = await dbp.connect(this)
-
       this.args = args
       this.storage = storage
-
-      this.gd = new GD(this)
       await this.phase1(this.args)
 
-      await this.db.doTransaction() // Fait un appel à transac
+      for (let retry = 0; retry < 3; retry++) {
+        this.reset()
+        this.db = await dbp.connect(this)
+        const [st, detail] = await this.db.doTransaction() // Fait un appel à transac
+        if (st === 0) break // transcation OK
+        if (st === 1) { // DB lock / contention
+          if (retry === 2) throw new AppExc(E_SRV, 10, [detail])
+          await sleep(1000)
+        } else if (st === 2) // DB error
+          throw new AppExc(E_SRV, 11, [detail])
+      }
 
       /* Envoi en cache des objets majeurs mis à jour / supprimés */  
       const updated = [] // rows mis à jour / ajoutés
@@ -816,8 +827,6 @@ export class Operation {
       if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
 
       await this.phase3(this.args) // peut ajouter des résultas
-
-      await this.db.end()
 
       let nhb
       if (this.subJSON) {
@@ -844,7 +853,6 @@ export class Operation {
       
       return this.result
     } catch (e) {
-      await this.db.end()
       if (config.mondebug) 
         config.logger.debug(this.opName + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
       throw e
@@ -859,17 +867,9 @@ export class Operation {
 
   async transac () { // Appelé par this.db.doTransaction
     if (!this.SYS) await this.auth() // this.compta est accessible (si authentifié)
-
     if (this.phase2) await this.phase2(this.args)
-
-    this.result.dh = this.dh
-
     if (this.setR.has(R.FIGE)) return
-
     await this.gd.maj()
-
-    if (this.toInsert.length || this.toUpdate.length || this.toDelete.length)
-      await this.db.bulkUpdates(this.toInsert, this.toUpdate, this.toDelete)
   }
 
   /* Authentification *************************************************************
