@@ -1,6 +1,6 @@
 /*
 Exemple export-db:
-node src/export.mjs export-db --in 32,doda,sqlite_a,A --out 24,coltes,sqlite_b,A
+node src/export.mjs export-db --in 1,doda,sqlite_a,A --out 2,coltes,sqlite_b,A
 node src/export.mjs export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
 node src/export.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
 
@@ -8,10 +8,8 @@ Exemple export-st:
 node src/export.mjs export-db --in doda,fs_a --out doda,gc_a
 
 Exemple purge-db
-node src/export.mjs purge-db --in 32,doda,firebase-a,A
+node src/export.mjs purge-db --in 1,coltes,firebase-b,A
 
-Exemple de gen-mjs
-node src/export.mjs gen-mjs --in keys/favicon.ico --out src/favicon.mjs
 */
 import { exit } from 'process'
 import { parseArgs } from 'node:util'
@@ -24,7 +22,7 @@ import { existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { getStorageProvider, getDBProvider } from './util.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
-import { AMJ, ID } from './api.mjs'
+import { AMJ, ID, Cles } from './api.mjs'
 import { GenDoc, NsOrg } from './gendoc.mjs'
 
 const cmdargs = parseArgs({
@@ -51,74 +49,16 @@ function prompt (q) {
 }
 
 class OpSimple {
-  constructor (db, storage) {
+  constructor (storage) {
     this.nl = 0
     this.ne = 0
     this.auj = AMJ.amjUtc()
     this.result = {}
-    this.db = db
     this.storage = storage
     this.toInsert = []
     this.toUpdate = []
     this.toDelete = []
     this.result = {}
-  }
-
-  /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/
-  setRes(prop, val) {
-    this.result[prop] = val
-    return val
-  }
-
-  /* AJOUTE la valeur en fin de la propriété Array 'prop' du résultat (et la retourne)*/
-  addRes(prop, val) {
-    const r = this.result
-    let l = r[prop]; if (!l) { l = []; r[prop] = l }
-    l.push(val)
-    return val
-  }
-  
-  /* Inscrit row dans les rows à insérer en phase finale d'écritue, juste après la phase2 */
-  insert (row) {
-    this.toInsert.push(row)
-    return row
-  }
-
-  /* Inscrit row dans les rows à mettre à jour en phase finale d'écritue, juste après la phase2 */
-  update (row) {
-    this.toUpdate.push(row)
-    return row
-  }
-
-  /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
-  delete (row) {
-    this.toDelete.push(row)
-    return row
-  }
-
-  // eslint-disable-next-line no-unused-vars
-  async phase2 (args) { // A surcharger
-  }
-
-  async flush () {
-    if (this.toInsert.length) await this.db.insertRows(this.toInsert)
-    if (this.toUpdate.length) await this.db.updateRows(this.toUpdate)
-    if (this.toDelete.length) await this.db.deleteRows(this.toDelete)
-    this.toInsert = []; this.toUpdate = []; this.toDelete = []
-  }
-}
-
-class OpTest1 extends OpSimple {
-  constructor (provider) {
-    super(provider, null)
-  }
-
-  async phase2 () {
-    /*
-    const row = await this.db.org(this, args.ns)
-    const espace = compile(row)
-    console.log(espace.org)
-    */
   }
 }
 
@@ -131,11 +71,6 @@ export class Outils {
       this.simu = this.args.values.simulation
       this.cfg = {}
       switch (this.outil) {
-      case 'gen-mjs' : {
-        await this.setCfggm('in')
-        await this.genMjs()
-        break
-      }
       case 'export-db' : {
         await this.setCfgDb('in')
         await this.setCfgDb('out')
@@ -146,16 +81,6 @@ export class Outils {
         await this.setCfgSt('in')
         await this.setCfgSt('out')
         await this.exportSt()
-        break
-      }
-      case 'test-db' : {
-        await this.setCfgDb('in')
-        await this.testDb()
-        break
-      }
-      case 'test-st' : {
-        await this.setCfgSt('in')
-        await this.testSt()
         break
       }
       case 'purge-db' : {
@@ -199,25 +124,25 @@ export class Outils {
     const x = arg.split(',')
     
     if (x.length !== 4) 
-      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: 32,asso,sqlite_a,A + ( ns,org,provider,site)'
+      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: N,asso,sqlite_a,A + ( ns,org,provider,site)'
     
-    e.ns = parseInt(x[0])
-    if (e.ns < 10 || e.ns > 59)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : ns [' + e.ns + ']: doit être 10 et 60'
+    e.ns = x[0]
+    if (Cles.nsToInt(e.ns) === -1)
+      throw 'Argument --' + io + ' : Attendu: N,org,provider,site : N [' + e.ns + ']: doit être 0..1 OU a..z OU A..Z'
     
     e.org = x[1]
     if (!e.org || e.org.length < 4 || e.org.length > 8)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
+      throw 'Argument --' + io + ' : Attendu: N,org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
 
     e.site = x[3]
     e.appKey = app_keys.sites[e.site]
     if (!e.appKey)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site . site [' + e.site + '] inconnu'
+      throw 'Argument --' + io + ' : Attendu: N,org,provider,site . site [' + e.site + '] inconnu'
 
     e.pname = x[2]
-    e.prov = await getDBProvider(e.pname, e.site)
-    if (!e.prov)
-      throw 'Argument --' + io + ' : Attendu: ns,org,provider,site : provider [' + e.pname + ']: non trouvé'
+    e.dbp = await getDBProvider(e.pname, e.site)
+    if (e.dbp.ko)
+      throw 'Argument --' + io + ' : Attendu: N,org,provider,site : provider [' + e.pname + ']: non trouvé'
 
     this.cfg[io] = e
   }
@@ -233,8 +158,8 @@ export class Outils {
     if (!e.org || e.org.length < 4 || e.org.length > 12)
       throw 'Argument --' + io + ' : Attendu: org,provider : org [' + e.org + ']: est un code de 4 à 12 caractères'
     e.pname = x[1]
-    e.prov = await getStorageProvider(x[1])
-    if (!e.prov)
+    e.storage = await getStorageProvider(x[1])
+    if (e.storage.ko)
       throw 'Argument --' + io + ' : Attendu: org,provider : provider [' + x[1] + ']: non trouvé'
     this.cfg[io] = e
   }
@@ -242,14 +167,16 @@ export class Outils {
   async exportDb() {
     const cin = this.cfg.in
     const cout = this.cfg.out
-    const pin = cin.prov
-    const pout = cout.prov
- 
-    if (pin.type === 'firestore' && pout.type === 'firestore' && pin.code !== pout.code)
+    if (cin.dbp.type === 'firestore' && cout.dbp.type === 'firestore' && cin.dbp.code !== cout.dbp.code)
       throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre Firestore' 
-    if ((cin.ns === cout.ns) && (pin.code === pout.code)) 
+    if ((cin.ns === cout.ns) && (cin.dbp.code === cout.dbp.code)) 
       throw 'Il n\'est pas possible d\'exporter un ns d\'une base dans la même base sans changer de ns' 
 
+    const opin = new OpSimple(null)
+    await cin.dbp.connect(opin)
+    const opout = new OpSimple(null)
+    await cout.dbp.connect(opout)
+ 
     let msg = 'export-db:'
     msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
@@ -265,32 +192,32 @@ export class Outils {
     const ch = new NsOrg(cin, cout)
 
     for (const nom of GenDoc.collsExp1) {
-      const row = await pin.getNV(nom, cin.ns)
-      await pout.insertRows([ch.chRow(row)])
+      const row = await opin.db.getNV(nom, cin.ns)
+      if (!this.simu) await opout.db.insertRows([ch.chRow(row)])
       this.log(`export ${nom}`)
     }
 
     for (const nom of GenDoc.collsExp2) {
       const v = nom === 'versions'
-      const rows = await pin.collNs(nom, cin.ns)
+      const rows = await opin.db.collNs(nom, cin.ns)
       for (const row of rows) {
         if (v) scollIds.push(row.id)
-        await pout.insertRows([ch.chRow(row)])
+        if (!this.simu) await opout.db.insertRows([ch.chRow(row)])
       }
       this.log(`export ${nom} - ${rows.length}`)
     }
 
     let n = 0
     const stats = {}
-    GenDoc.sousColls.forEach(nom => { stats[nom] = 0 })
+    GenDoc.sousCollsExp.forEach(nom => { stats[nom] = 0 })
     for (const id of scollIds) {
       n++
-      const sc = ID.estGroupe(id) ? GenDoc.collsExpG : GenDoc.collsExpA
+      const sc = ID.estGroupe(ID.court(id)) ? GenDoc.collsExpG : GenDoc.collsExpA
       for (const nom of sc) {
-        const rows = await pin.scoll(nom, id, 0)
+        const rows = await opin.db.scoll(nom, id, 0)
         for (const row of rows) {
           stats[nom]++
-          await pout.insertRows([ch.chRow(row)])
+          if (!this.simu) await opout.db.insertRows([ch.chRow(row)])
         }
       }
       this.log2(`export ${id} ${scollIds.length} / ${n}`)
@@ -298,7 +225,7 @@ export class Outils {
     this.log2(`export ${scollIds.length} détails: OK`)
     const lg = []
     GenDoc.sousColls.forEach(nom => { lg.push(nom + ':' + stats[nom]) })
-    this.log(`\nexport ${scollIds.length} Versions : ${n} ` + lg.join('  '))
+    this.log(`\nexport ${scollIds.length} Versions: ${n} ` + lg.join('  '))
   }
 
   async exportSt() {
@@ -346,42 +273,17 @@ export class Outils {
   
   }
 
-  async testDb() {
-    const cin = this.cfg.in
-    let msg = 'test-db:'
-    msg += ' ns:' + cin.ns
-    msg += ' provider:' + cin.pname
-    msg += ' site:' + cin.site
-    const resp = await prompt(msg + '\nValider (o/N) ?')
-    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
-
-    const op = new OpTest1(this.cfg.in.prov, null)
-    op.args = cin
-    await op.phase2(cin)
-  }
-
-  async testSt() {
-    const cin = this.cfg.in
-    let msg = 'test-db:'
-    msg += ' org:' + cin.org
-    msg += ' provider:' + cin.pname
-    const resp = await prompt(msg + '\nValider (o/N) ?')
-    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
-    const p = cin.prov
-    await p.ping()
-    this.log('\nEcriture de la date-heure dans /ping.txt')
-  }
-
   async purgeDb() {
     const cin = this.cfg.in
+    const opin = new OpSimple(null)
+    await cin.dbp.connect(opin)
     let msg = 'purge-db:'
     msg += ' ns:' + cin.ns
     msg += ' provider:' + cin.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
-    const p = cin.prov
-    await p.deleteNS(this.log, this.log2, cin.ns)
+    await opin.db.deleteNS(this.log, cin.ns)
   }
 
   async purgeSt() {

@@ -74,7 +74,7 @@ export async function getDBProvider (codeProvider, site) {
   case 'sqlite' : { dbp = new SqliteProvider(site, codeProvider); break }
   case 'firestore' : { dbp = new FirestoreProvider(site, codeProvider); break }
   }
-  if (dbp.ko) {
+  if (!dbp || dbp.ko) {
     config.logger.error('DB provider non trouvé:' + codeProvider)
     return false
   }

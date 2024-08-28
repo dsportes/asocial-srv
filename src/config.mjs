@@ -4,6 +4,7 @@ import { Tarif } from './api.mjs'
 
 export const config = {
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
+  debugsql: false,
   NOPURGESESSIONS: true, // En test ne pas purger les sessions dans notif
 
   // Paramètres fonctionnels

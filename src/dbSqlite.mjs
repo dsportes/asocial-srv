@@ -45,13 +45,14 @@ class Connx {
     this.appKey = dbp.appKey
     this.options = {
       verbose: (msg) => {
-        if (config.mondebug) config.logger.debug(msg)
+        if (config.debugsql) config.logger.debug(msg)
         this.lastSql.unshift(msg)
         if (this.lastSql.length > 3) this.lastSql.length = 3
       } 
     }
     this.sql = new Database(dbp.path, this.options);
     this.sql.pragma(dbp.pragma)
+    this.op.db = this
     return this
   }
 
@@ -117,6 +118,59 @@ class Connx {
     }
   }
 
+  /** PUBLIQUES POUR EXPORT / PURGE ******************************************/
+  async deleteNS(log, ns) {
+    const min = ns
+    const max = ns + '{'
+    const dels = {}
+    GenDoc.collsExp1.forEach(nom => {
+      dels[nom] = this.sql.prepare(
+        `DELETE FROM ${nom} WHERE id = '${ns}';`)
+    })
+    GenDoc.collsExp2.forEach(nom => {
+      dels[nom] = this.sql.prepare(
+        `DELETE FROM ${nom} WHERE id >= '${min}' AND id < '${max}';`)
+    })
+    GenDoc.sousCollsExp.forEach(nom => {
+      dels[nom] = this.sql.prepare(
+        `DELETE FROM ${nom} WHERE id >= '${min}' AND id < '${max}';`)
+    })
+
+    for (const nom in GenDoc._attrs) {
+      const st = dels[nom]
+      if (st) {
+        const info = st.run({})
+        log(`delete ${nom} - ${info.changes} rows`)
+      }
+    }
+  }
+
+  deleteRows (rows) {
+    for (const row of rows) {
+      const code = 'DEL' + row._nom
+      const st = this._stmt(code, this._delStmt(row._nom))
+      st.run(row) // row contient id et ids
+    }
+  }
+
+  async insertRows (rows) {
+    for (const row of rows) {
+      const r = await prepRow(this.appKey, row)
+      const code = 'INS' + row._nom
+      const st = this._stmt(code, this._insStmt(row._nom))
+      st.run(r)
+    }
+  }
+
+  async updateRows (rows) {
+    for (const row of rows) {
+      const code = 'UPD' + row._nom
+      const st = this._stmt(code, this._updStmt(row._nom))
+      const r = await prepRow(this.appKey, row)
+      st.run(r)
+    }
+  }
+    
   /** PRIVATE : retourne le prepare SQL du statement et le garde en cache avec un code 
   L'argument SQL n'est pas requis si on est certain que le code donné a bien été enregistré
   */
@@ -169,33 +223,6 @@ class Connx {
     return x.join('')
   }
 
-  /** PRIVATE Ecritures groupées ******************************************/
-  deleteRows (rows) {
-    for (const row of rows) {
-      const code = 'DEL' + row._nom
-      const st = this._stmt(code, this._delStmt(row._nom))
-      st.run(row) // row contient id et ids
-    }
-  }
-
-  async insertRows (rows) {
-    for (const row of rows) {
-      const r = await prepRow(this.appKey, row)
-      const code = 'INS' + row._nom
-      const st = this._stmt(code, this._insStmt(row._nom))
-      st.run(r)
-    }
-  }
-
-  async updateRows (rows) {
-    for (const row of rows) {
-      const code = 'UPD' + row._nom
-      const st = this._stmt(code, this._updStmt(row._nom))
-      const r = await prepRow(this.appKey, row)
-      st.run(r)
-    }
-  }
-  
   /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
@@ -524,27 +551,4 @@ class Connx {
     return n
   }
 
-  async deleteNS(log, log2, ns) {
-    const min = ns
-    const max = ns + '{'
-    const dels = {}
-    GenDoc.collsExp1.forEach(nom => {
-      dels[nom] = this.sql.prepare(
-        `DELETE FROM ${nom} WHERE id = ${ns};`)
-    })
-    GenDoc.collsExp2.forEach(nom => {
-      dels[nom] = this.sql.prepare(
-        `DELETE FROM ${nom} WHERE id >= ${min} AND id < ${max};`)
-    })
-    GenDoc.sousColls.forEach(nom => {
-      dels[nom] = this.sql.prepare(
-        `DELETE FROM ${nom} WHERE id >= ${min} AND id < ${max};`)
-    })
-
-    for (const nom in GenDoc._attrs) {
-      const st = dels[nom]
-      const info = st.run({})
-      log(`delete ${nom} - ${info.changes} rows`)
-    }
-  }
 }

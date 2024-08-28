@@ -807,7 +807,7 @@ export class Operation {
 
       for (let retry = 0; retry < 3; retry++) {
         this.reset()
-        this.db = await dbp.connect(this)
+        await dbp.connect(this)
         const [st, detail] = await this.db.doTransaction() // Fait un appel à transac
         if (st === 0) break // transcation OK
         if (st === 1) { // DB lock / contention

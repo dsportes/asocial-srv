@@ -63,9 +63,9 @@ export class NsOrg {
 
   chRow (row) {
     if (this.ch) {
-      row.id = ID.long(row.id, this.ns)
-      if (row.ids !== undefined) row.ids = ID.long(row.ids, this.ns)
-      if (row.hk !== undefined) row.hk = ID.long(row.hk, this.ns)
+      row.id = ID.long(ID.court(row.id), this.ns)
+      if (row.ids !== undefined) row.ids = ID.long(ID.court(row.ids), this.ns)
+      if (row.hk !== undefined) row.hk = ID.long(ID.court(row.hk), this.ns)
       if (row.org !== undefined) row.org = this.org
     }
     return row
@@ -74,20 +74,22 @@ export class NsOrg {
 }
 
 export class GenDoc {
-  /* Descriptifs des collections et sous-collection */
+  /* Descriptifs des collections et sous-collection pour l'export*/
   static collsExp1 = ['espaces', 'syntheses']
 
-  static collsExp2 = ['fpurges', 'partitions', 'comptes', 'comptas', 'comptis', 'invits', 'avatars', 'groupes', 'versions']
+  static collsExp2 = ['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'avatars', 'groupes', 'versions']
 
-  static collsExpA = ['notes', 'transferts', 'sponsorings', 'chats', 'tickets']
+  static collsExpA = ['notes', 'sponsorings', 'chats', 'tickets']
 
-  static collsExpG = ['notes', 'transferts', 'membres', 'chatgrs']
+  static collsExpG = ['notes', 'membres', 'chatgrs']
+
+  static sousCollsExp = new Set(['notes', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
 
   // Gérés en Cache - Pour Firestore gère une propriété id_V (A REVOIR)
   static majeurs = new Set(['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'versions', 'avatars', 'groupes'])
 
   static sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
-  
+
   /* Liste des attributs des (sous)collections- sauf singletons */
   static _attrs = {
     espaces: ['id', 'org', 'v', '_data_'],

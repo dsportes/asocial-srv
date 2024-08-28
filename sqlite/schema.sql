@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS "singletons" (
   "v" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
-)
+);
 
 CREATE TABLE IF NOT EXISTS "taches" (
   "op" INTEGER,
