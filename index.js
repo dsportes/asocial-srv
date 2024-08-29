@@ -14,7 +14,7 @@ load3()
 load4()
 
 const db = await getDBProvider(config.run.db_provider, config.run.site)
-if (!db) exit(1)
+if (!db || db.ko) exit(1)
 
 const storage = await getStorageProvider(config.run.storage_provider)
 if (!storage) exit(1)
