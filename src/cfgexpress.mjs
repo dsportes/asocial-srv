@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 import express from 'express'
 import { encode, decode } from '@msgpack/msgpack'
+import path from 'path'
 
 import { config } from './config.mjs'
 import { decode3, getHP } from './util.mjs'
@@ -31,7 +32,6 @@ export function appExpress(dbp, storage) {
     next();
   })
 
-  /*
   if (config.pathapp) {
     const ap = path.resolve(config.pathapp)
     config.logger.info('PATH_APP= [' + ap + ']')
@@ -43,7 +43,6 @@ export function appExpress(dbp, storage) {
     config.logger.info('PATH_WWW= [' + ap + ']')
     app.use(config.prefixwww, express.static(ap))
   }
-  */
 
   // OPTIONS est toujours envoyé pour tester les appels cross origin
   app.use('/', (req, res, next) => {

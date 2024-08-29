@@ -1,14 +1,15 @@
 /*
 Exemple export-db:
-node src/export.mjs export-db --in 1,doda,sqlite_a,A --out 2,coltes,sqlite_b,A
-node src/export.mjs export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
-node src/export.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
+node src/tools.mjs export-db --in 1,doda,sqlite_a,A --out 2,coltes,sqlite_b,B
+node src/tools.mjs export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
+node src/tools.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
 
 Exemple export-st:
-node src/export.mjs export-db --in doda,fs_a --out doda,gc_a
+node src/tools.mjs export-db --in doda,fs_a --out doda,gc_a
 
 Exemple purge-db
-node src/export.mjs purge-db --in 1,coltes,firebase-b,A
+node src/tools.mjs purge-db --in 2,coltes,firebase_b,A
+node src/tools.mjs purge-db --in 2,coltes,sqlite_b,B
 
 */
 import { exit } from 'process'
@@ -17,13 +18,15 @@ import { stdin, stdout } from 'node:process'
 import { createInterface } from 'readline'
 
 import path from 'path'
-import { existsSync, writeFileSync, readFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
+// import { existsSync, readFileSync } from 'node:fs'
 
 import { getStorageProvider, getDBProvider } from './util.mjs'
 import { config } from './config.mjs'
 import { app_keys } from './keys.mjs'
 import { AMJ, ID, Cles } from './api.mjs'
 import { GenDoc, NsOrg } from './gendoc.mjs'
+import { genVapidKeys } from './notif.mjs'
 
 const cmdargs = parseArgs({
   allowPositionals: true,
@@ -93,8 +96,12 @@ export class Outils {
         await this.purgeSt()
         break
       }
+      case 'vapid' : {
+        await this.genVapidKeys()
+        break
+      }
       default : {
-        throw 'Premier argument attendu: export-db export-st test-db test-st. Trouvé [' + this.outil + ']'
+        throw 'Premier argument attendu: export-db export-st vapid. Trouvé [' + this.outil + ']'
       }
       }
       return [0, this.outil + ' OK']
@@ -224,7 +231,7 @@ export class Outils {
     }
     this.log2(`export ${scollIds.length} détails: OK`)
     const lg = []
-    GenDoc.sousColls.forEach(nom => { lg.push(nom + ':' + stats[nom]) })
+    GenDoc.sousCollsExp.forEach(nom => { lg.push(nom + ':' + stats[nom]) })
     this.log(`\nexport ${scollIds.length} Versions: ${n} ` + lg.join('  '))
   }
 
@@ -304,6 +311,18 @@ export class Outils {
     }
   }
 
+  async genVapidKeys() {
+    const msg = 'generate vpid keys dans ./vapid.json'
+    const resp = await prompt(msg + '\nValider (o/N) ?')
+    if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
+    const t = genVapidKeys().replace(',', ',\n').replace('{', '{\n').replace('}', '\n}\n')
+    const pout = path.resolve('./vapid.json')
+    writeFileSync(pout, t)
+    this.log('OK')
+    this.log(t) 
+  }
+
+  /*
   async genMjs () {
     const pin = path.resolve(this.cfg.in)
     const pout = path.resolve(this.cfg.out)
@@ -321,6 +340,7 @@ export class Outils {
       this.log('\nKO : fichier non trouvé')
     }
   }
+  */
 
 }
 

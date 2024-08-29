@@ -9,6 +9,15 @@ import { fromByteArray } from './base64.mjs'
 
 import { HBINSECONDS, isAppExc, AppExc, E_SRV } from './api.mjs'
 
+export function genVapidKeys() {
+  const k = webPush.generateVAPIDKeys()
+  const x = {
+    vapid_private_key: k.privateKey,
+    vapid_public_key: k.publicKey
+  }
+  return JSON.stringify(x)
+}
+
 export function pubsubStart (appKey, pubsubURL, vpub, vpriv, logger, NOPURGESESSIONS) {
   webPush.setVapidDetails('https://example.com/', vpub, vpriv)
 

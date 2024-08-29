@@ -44,6 +44,14 @@ export const config = {
   pathlogs: './logs',
   pathkeys: './keys',
 
+  // Si SRV sert de CDN pour l'application
+  prefixapp: '/app',
+  pathapp: './app',
+
+  // Si SRV sert de web statique documentaire
+  prefixwww: '/www',
+  pathwww: './www',
+
   run: { // Configuration du "serveur"
     origins: new Set(['http://localhost:8080']),
     pubsubMode: 'http', // 'http' 'https' 'gae' 'passenger'
@@ -58,10 +66,10 @@ export const config = {
     port: 8443, // Port d'écoute, utilisé par server.js
 
     // Provider DB
-    storage_provider: 'fs_a',
+    storage_provider: 'fs_b',
     // storage_provider: 'gc_a',
     // Provider Storage
-    db_provider: 'sqlite_a',
+    db_provider: 'sqlite_b',
     // db_provider: 'firestore_a',
 
     // Running dans GAE
@@ -69,7 +77,7 @@ export const config = {
   
     projectId: 'asocial-test1', // Si utilisation d'un provider Google
 
-    site: 'A',
+    site: 'B',
 
     /* ZONE réservée à un serveur NON GAE **************************/
 

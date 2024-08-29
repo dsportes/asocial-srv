@@ -37,16 +37,16 @@ export function compile (row) {
   return d.compile()
 }
 
-export async function decryptRow (appKey, row) {
+export function decryptRow (appKey, row) {
   if (!row || ROWSENCLAIR.has(row._nom)) return row
   const d = row._data_
   if (!d || d.length < 4) return row
-  const dc = await decrypterSrv(appKey, d)
+  const dc = decrypterSrv(appKey, d)
   row._data_ = new Uint8Array(dc)
   return row
 }
 
-export async function prepRow (appKey, row) {
+export function prepRow (appKey, row) {
   const r = { ...row }
   if (!ROWSENCLAIR.has(row._nom)) 
     r._data_ = crypterSrv(appKey, row._data_)
@@ -54,11 +54,14 @@ export async function prepRow (appKey, row) {
   return r
 }
 
+/* Pour transcoder les rows dans un export-db */
 export class NsOrg {
   constructor (cin, cout) {
     this.ns = cout.ns
     this.org = cout.org
     this.ch = cin.ns !== this.ns || cin.org !== this.org
+    this.kin = cin.dbp.appKey
+    this.kout = cout.dbp.appKey
   }
 
   chRow (row) {
@@ -68,11 +71,17 @@ export class NsOrg {
       if (row.hk !== undefined) row.hk = ID.long(ID.court(row.hk), this.ns)
       if (row.org !== undefined) row.org = this.org
     }
+    if (row._nom === 'espaces') {
+      const r = compile(row)
+      r.org = this.org
+      row = r.toRow(this) // this ne sert qu'à récupérer ns
+    }
     return row
   }
 
 }
 
+/* Classe GenDoc **************************************************/
 export class GenDoc {
   /* Descriptifs des collections et sous-collection pour l'export*/
   static collsExp1 = ['espaces', 'syntheses']
