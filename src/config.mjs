@@ -66,10 +66,10 @@ export const config = {
     port: 8443, // Port d'écoute, utilisé par server.js
 
     // Provider DB
-    storage_provider: 'fs_b',
+    storage_provider: 'fs_a',
     // storage_provider: 'gc_a',
     // Provider Storage
-    db_provider: 'sqlite_b',
+    db_provider: 'sqlite_a',
     // db_provider: 'firestore_a',
 
     // Running dans GAE
@@ -77,7 +77,7 @@ export const config = {
   
     projectId: 'asocial-test1', // Si utilisation d'un provider Google
 
-    site: 'B',
+    site: 'A',
 
     /* ZONE réservée à un serveur NON GAE **************************/
 

@@ -8,3 +8,5 @@ logs
 vapid.json
 app
 .yarn
+*.db3-shm
+*.db3-wal

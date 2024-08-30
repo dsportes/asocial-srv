@@ -4,7 +4,7 @@
   "description": "",
   "mainX": "src/server.js",
   "mainY": "index.js",
-  "typeX": "module",
+  "type": "module",
   "scripts": {
     "run": "node src/server.js",
     "debug": "node --inspect node_modules/.bin/functions-framework --port=8443 --target=asocialGCF",
