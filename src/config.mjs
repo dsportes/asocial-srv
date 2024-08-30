@@ -39,8 +39,6 @@ export const config = {
   firestore_a: { },
 
   // Pour HTTP server seulement: configuration des paths des URL
-  prefixop: '/op',
-  prefixpubsub: '/pubsub',
   pathlogs: './logs',
   pathkeys: './keys',
 
@@ -53,9 +51,8 @@ export const config = {
   pathwww: './www',
 
   run: { // Configuration du "serveur"
+    site: 'A',
     origins: new Set(['http://localhost:8080']),
-    pubsubMode: 'http', // 'http' 'https' 'gae' 'passenger'
-    pubsubPort: 8444, // Utilisé par pubsub.js
 
     nom: 'test asocial-sql',
     pubsubURL: null,
@@ -71,13 +68,8 @@ export const config = {
     // Provider Storage
     db_provider: 'sqlite_a',
     // db_provider: 'firestore_a',
-
-    // Running dans GAE
-    gae: !(!env['GAE_DEPLOYMENT_ID']),
   
     projectId: 'asocial-test1', // Si utilisation d'un provider Google
-
-    site: 'A',
 
     /* ZONE réservée à un serveur NON GAE **************************/
 

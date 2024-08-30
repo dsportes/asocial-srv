@@ -96,7 +96,7 @@ export function appExpress(dbp, storage) {
   })
 
   //**** appels des opérations ****
-  app.use(config.prefixop + '/:operation', async (req, res) => {
+  app.use('/op/:operation', async (req, res) => {
     if (!req.rawBody) {
       const body = [];
       req.on('data', (chunk) => {
@@ -110,7 +110,7 @@ export function appExpress(dbp, storage) {
   })
 
   //**** appels des services PUBSUB ****
-  app.use(config.prefixpubsub + '/:operation', async (req, res) => {
+  app.use('/pubsub/:operation', async (req, res) => {
     if (!req.rawBody) {
       const body = [];
       req.on('data', (chunk) => {

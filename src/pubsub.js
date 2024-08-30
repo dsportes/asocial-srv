@@ -17,7 +17,7 @@ try {
   config.logger.info('Logs configurés' + (config.mondebug ? ' : MONDEBUG' : ''))
   config.logger.info('SITE= [' + config.run.site + ']')
   config.logger.info('PUBSUBURL= [' + (config.run.pubsubURL || '(none)') + ']')
-  const port = env.PORT || config.run.pubsubPort
+  const port = env.PORT || config.run.port
   config.logger.info('PORT= [' + port + ']')
 
   for (const nf of keys) {
@@ -87,7 +87,7 @@ try {
   }
 
   case 'https' : {
-    const port = config.run.pubsubPort
+    const port = config.run.port
     server = https.createServer({key: config.run.privkey, cert: config.run.fullchain}, app).listen(port, () => {
       config.logger.info('HTTPS écoute [' + port + ']')
       try {
@@ -101,7 +101,7 @@ try {
   }
 
   case 'http' : {
-    const port = config.run.pubsubPort
+    const port = config.run.port
     server = http.createServer(app).listen(port, () => {
       config.logger.info('HTTP écoute [' + port + ']')
       try {

@@ -8,7 +8,7 @@ const BUGGOOGLEWINSTON = true
 // Setup Logging ***********************************************
 export function setLogger () {
 
-  if (!BUGGOOGLEWINSTON && config.run.gae) {
+  if (!BUGGOOGLEWINSTON && config.run.mode === 'gae') {
     // Imports the Google Cloud client library for Winston
     const loggingWinston = null // new LoggingWinston()
     // Logs will be written to: "projects/YOUR_PROJECT_ID/logs/winston_log"
