@@ -8,45 +8,42 @@ export const config = {
   NOPURGESESSIONS: true, // En test ne pas purger les sessions dans notif
 
   // Paramètres fonctionnels
-  tarifs: [
-    { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
-  ],
   allocComptable: [8, 2, 8],
   allocPrimitive: [256, 256, 256],
   heuregc: [3, 30], // Heure du jour des tâches GC
   retrytache: 60, // Nombre de minutes avant le retry d'une tâche
 
-  // paramètres ayant à se retrouver en variables d'environnement
+  // Variables d'environnement déclarées en interne
   env: {
     // NORMALEMENT on n'utilise pas env pour ça:
     // GOOGLE_CLOUD_PROJECT: 'asocial-test1',
     // GOOGLE_APPLICATION_CREDENTIALS: './keys/service_account.json', // NORMALEMENT on n'utilise pas un json et env
 
-    // EMULATOR
+    // On utilise env pour EMULATOR
     // STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
     // FIRESTORE_EMULATOR_HOST: 'localhost:8080'
   },
 
-  // Configuation nommées des providers db et storage
-  s3_a: { bucket: 'asocial' },
-  fs_a: { rootpath: './fsstorage' },
-  fs_b: { rootpath: './fsstorageb' },
-  gc_a: { bucket: 'asocial-test1.appspot.com', /* fixé pour emulator ? */ },
+  // Configuations nommées des providers db
   sqlite_a: { path: './sqlite/test.db3' },
   sqlite_b: { path: './sqlite/testb.db3' },
   firestore_a: { },
 
-  // Pour HTTP server seulement: configuration des paths des URL
+  // Configuations nommées des providers storage
+  s3_a: { bucket: 'asocial' },
+  fs_a: { rootpath: './fsstorage' },
+  fs_b: { rootpath: './fsstorageb' },
+  gc_a: { bucket: 'asocial-test1.appspot.com', /* fixé pour emulator ? */ },
+
+  // Pour les "serveurs" seulement: configuration des paths des URL
   pathlogs: './logs',
   pathkeys: './keys',
 
-  // Si SRV sert de CDN pour l'application
+  // En "serveur" (OP+PUBSUB), SI aussi CDN pour l'application
   prefixapp: '/app',
   pathapp: './app',
 
-  // Si SRV sert de web statique documentaire
+  // En "serveur" (OP+PUBSUB), SI aussi web statique documentaire
   prefixwww: '/www',
   pathwww: './www',
 
@@ -55,38 +52,33 @@ export const config = {
     origins: new Set(['http://localhost:8080']),
 
     nom: 'test asocial-sql',
-    pubsubURL: null,
-    // pubsubURL: 'https://test.sportes.fr/pubsub/',
+    pubsubURL: null, // Si serveur OP+PUBSUB
+    // pubsubURL: 'https://test.sportes.fr/pubsub/', // dans les autres cas
     // pubsubURL: 'http://localhost:8444/pubsub/',
 
-    mode: 'http', // 'http' 'https' 'gae' 'passenger'
-    port: 8443, // Port d'écoute, utilisé par server.js
+    mode: 'http', // Si "serveur": 'http' 'https' 'gae' 'passenger'
+    port: 8443, // Si "serveur": port d'écoute
 
-    // Provider DB
-    storage_provider: 'fs_a',
-    // storage_provider: 'gc_a',
-    // Provider Storage
-    db_provider: 'sqlite_a',
-    // db_provider: 'firestore_a',
+    // Provider DB : service OP
+    db_proider: 'sqlite_a', // 'firestore_a',
   
-    projectId: 'asocial-test1', // Si utilisation d'un provider Google
+    // Provider Storage : service OP
+    storage_provider: 'fs_a', // 'gc_a',
+    // URL externe d'appel du serveur: SI storage fs OU gc en mode EMULATOR
+    rooturl: 'http://test.sportes.fr:8443',
 
-    /* ZONE réservée à un serveur NON GAE **************************/
-
-    croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
-
-    /* URL externe d'appel du serveur
-    Ne sert qu'à un provider de storage qui doit utiliser le serveur pour 
-    délivrer une URL get / put file.
-    - storageFS / storageGC en mode emulator
-    */
-    rooturl: 'http://test.sportes.fr:8443'
-
+    // Si utilisation d'un provider Google
+    projectId: 'asocial-test1',
   }
-
 }
+// croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
 
-Tarif.init(config.tarifs)
+const tarifs = [
+  { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
+  { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
+  { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
+]
+Tarif.init(tarifs)
 
 for (const n in config.env) env[n] = config.env[n]
 
@@ -97,7 +89,6 @@ class Logger {
   
   debug (m) { console.log(m) }
 }
-
 config.logger = new Logger()
 
 export function appKeyBin (site) { return Buffer.from(app_keys.sites[site], 'base64') }

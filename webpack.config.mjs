@@ -1,11 +1,11 @@
 import path from 'path'
 export default {
-  entry: './src/server.js', // pubsub.js
+  entry: './src/tools.mjs', // server.js pubsub.js tools.mjs
   target: 'node',
   mode: 'production', // 'development' ou 'production'
   output: {
-    filename: 'srv.js', // pubsub.js
-    path: path.resolve('dist/srv') // dist/pubsub
+    filename: 'tools.js', // op.js pubsub.js srv.js tools.js
+    path: path.resolve('dist/tools') // dist/srv dist/op dist/pubsub dist/tools
   }
 }
 
