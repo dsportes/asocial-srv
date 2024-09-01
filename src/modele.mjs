@@ -98,6 +98,12 @@ export class Esp {
     return l
   }
 
+  static inactifs () {
+    const l = []
+    Esp.map.forEach(e => { if (e.notif && e.notif.nr === 2) l.push(e.ns) })
+    return l
+  }
+
   static async getEsp (op, ns, lazy, assert) {
     if (!lazy || (Date.now() - Esp.dh > ESPTO * 60000)) await Esp.load(op.db)
     if (!ns) { if (!assert) return null; assertKO(assert, 1, [op.ns]) }
@@ -623,7 +629,7 @@ class GD {
 
   async majdoc (d) {
     if (d._suppr) { 
-      if (d.ids) { // pour membres, notes, chats, sponsorings, iickets
+      if (d.ids) { // pour membres, notes, chats, sponsorings, tickets
         await this.majV(d.id)
         this.op.delete({ _nom: d._nom, id: ID.long(d.id, this.op.ns), ids: ID.long(d.ids, this.op.ns) })
       } else { // pour groupes, avatars, comptes, comptas, invits, comptis

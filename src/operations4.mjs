@@ -1464,7 +1464,7 @@ operations.RadierMembre = class RadierMembre extends Operation {
       mb.retourContact(this.auj)
     } else {
       gr.radiation(im, args.rad === 3, moi)
-      this.delete({_nom: 'membres', id: args.id, ids: im})
+      mb.setZombi()
     }
     const stmap = gr.st[im] // statut APRES radiation
     if (stm < 4) { // est actuellement dans invits

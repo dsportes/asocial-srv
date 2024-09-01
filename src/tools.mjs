@@ -200,17 +200,19 @@ export class Outils {
 
     for (const nom of GenDoc.collsExp1) {
       const row = await opin.db.getNV(nom, cin.ns)
-      if (!this.simu) await opout.db.insertRows([ch.chRow(row)])
+      if (!this.simu) await opout.db.batchIinsertRows([ch.chRow(row)])
       this.log(`export ${nom}`)
     }
 
     for (const nom of GenDoc.collsExp2) {
       const v = nom === 'versions'
       const rows = await opin.db.collNs(nom, cin.ns)
+      const lstRows = []
       for (const row of rows) {
         if (v) scollIds.push(row.id)
-        if (!this.simu) await opout.db.insertRows([ch.chRow(row)])
+        lstRows.push(ch.chRow(row))
       }
+      if (!this.simu) await opout.db.batchInsertRows(lstRows)
       this.log(`export ${nom} - ${rows.length}`)
     }
 
@@ -222,10 +224,12 @@ export class Outils {
       const sc = ID.estGroupe(ID.court(id)) ? GenDoc.collsExpG : GenDoc.collsExpA
       for (const nom of sc) {
         const rows = await opin.db.scoll(nom, id, 0)
+        const lstRows = []
         for (const row of rows) {
           stats[nom]++
-          if (!this.simu) await opout.db.insertRows([ch.chRow(row)])
+          lstRows.push(ch.chRow(row))
         }
+        if (!this.simu) await opout.db.batchInsertRows(lstRows)
       }
       this.log2(`export ${id} ${scollIds.length} / ${n}`)
     }

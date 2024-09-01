@@ -164,14 +164,15 @@ operations.StartDemon = class StartDemon extends Operation {
   async run() {
     try {
       Taches.demon = true
-      const lns = Esp.actifs()
+      const lnsac = Esp.actifs()
+      const lnsinac = Esp.actifs()
       const dh = Taches.dh(Date.now())
       // eslint-disable-next-line no-constant-condition
       while (true) {
-        let proch = await this.db.prochTache(dh, lns)
+        let proch = await this.db.prochTache(dh, lnsac, lnsinac)
         if (!proch) {
           await sleep(500)
-          proch = await this.db.prochTache(dh, lns)
+          proch = await this.db.prochTache(dh, lnsac, lnsinac)
           if (!proch) break
         }
         await new Taches(proch).doit(this.db, this.storage)

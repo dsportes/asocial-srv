@@ -37,12 +37,12 @@ export class SqliteProvider {
 class Connx {
 
   // Méthode PUBLIQUE de coonexion: retourne l'objet de connexion à la base
-  async connect (op, dbp) {
+  async connect (op, provider) {
     this.op = op
-    this.provider = dbp
+    this.provider = provider
     this.lastSql = []
     this.cachestmt = { }
-    this.appKey = dbp.appKey
+    this.appKey = provider.appKey
     this.options = {
       verbose: (msg) => {
         if (config.debugsql) config.logger.debug(msg)
@@ -50,14 +50,14 @@ class Connx {
         if (this.lastSql.length > 3) this.lastSql.length = 3
       } 
     }
-    this.sql = new Database(dbp.path, this.options);
-    this.sql.pragma(dbp.pragma)
+    this.sql = new Database(provider.path, this.options);
+    this.sql.pragma(provider.pragma)
     this.op.db = this
     return this
   }
 
   // Méthode PUBLIQUE de déconnexion, impérative et sans exception
-  disconnect () {
+  async disconnect () {
     try { this.close() } catch (e2) { /* */ }
   }
 
@@ -80,11 +80,11 @@ class Connx {
       if (this.op.toUpdate.length) await this.updateRows(this.op.toUpdate)
       if (this.op.toDelete.length) await this.deleteRows(this.op.toDelete)
       this._stmt('commit', 'COMMIT').run()
-      this.disconnect()
+      await this.disconnect()
       return [0, '']
     } catch (e) {
       try { this._stmt('rollback', 'ROLLBACK').run() } catch (e2) { /* */ }
-      this.disconnect()
+      await this.disconnect()
       return this.trap(e)
     }
   }
@@ -145,82 +145,8 @@ class Connx {
     }
   }
 
-  deleteRows (rows) {
-    for (const row of rows) {
-      const code = 'DEL' + row._nom
-      const st = this._stmt(code, this._delStmt(row._nom))
-      st.run(row) // row contient id et ids
-    }
-  }
-
-  async insertRows (rows) {
-    for (const row of rows) {
-      const r = await prepRow(this.appKey, row)
-      const code = 'INS' + row._nom
-      const st = this._stmt(code, this._insStmt(row._nom))
-      st.run(r)
-    }
-  }
-
-  async updateRows (rows) {
-    for (const row of rows) {
-      const code = 'UPD' + row._nom
-      const st = this._stmt(code, this._updStmt(row._nom))
-      const r = await prepRow(this.appKey, row)
-      st.run(r)
-    }
-  }
-    
-  /** PRIVATE : retourne le prepare SQL du statement et le garde en cache avec un code 
-  L'argument SQL n'est pas requis si on est certain que le code donné a bien été enregistré
-  */
-  _stmt (code, sql) {
-    let s = this.cachestmt[code]
-    if (!s) {
-      if (!sql) return null
-      s = this.sql.prepare(sql)
-      this.cachestmt[code] = s
-    }
-    return s
-  }
-
-  /* PRIVATE : retourne un insert statement SQL 
-   Syntaxe : INSERT INTO matable (c1, c2) VALUES (@c1, @c2)
-  */
-  _insStmt (nom) {
-    const x = ['INSERT INTO ' + nom + ' (']
-    const la = GenDoc._attrs[nom]
-    x.push(la.join(', '))
-    x.push(') VALUES (')
-    const vals = []
-    for(const c of la) vals.push('@' + c)
-    x.push(vals.join(', '))
-    x.push(')')
-    return x.join('')
-  }
-
-  /* PRIVATE : retourne un update statement SQL 
-   Syntaxe : UPDATE matable SET c1 = @c1, c2 = @c2 WHERE id = @id
-  */
-  _updStmt (nom) {
-    const vals = []
-    const x = ['UPDATE ' + nom + ' SET ']
-    const la = GenDoc._attrs[nom]
-    for(const c of la) if (c !== 'id' && c!== 'ids') vals.push(c + ' = @' + c)
-    x.push(vals.join(', '))
-    x.push(' WHERE id = @id ')
-    if (la.indexOf('ids') !== -1) x.push(' AND ids = @ids')
-    return x.join('')
-  }
-
-  /* PRIVATE : retourne un delete statement SQL 
-   Syntaxe : DELETE FROM matable WHERE id = @id
-  */
-  _delStmt (nom) {
-    const x = ['DELETE FROM ' + nom + ' WHERE id = @id ']
-    const la = GenDoc._attrs[nom]
-    if (la.indexOf('ids') !== -1) x.push(' AND ids = @ids')
-    return x.join('')
+  async batchInsertRows (rows) {
+    await this.insertRows(rows)
   }
 
   /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
@@ -257,7 +183,7 @@ class Connx {
     return st.all({ ns })
   }
 
-  async getRowEspaces(v) {
+  async getRowEspaces (v) {
     const code = 'SELESP'
     const st = this._stmt(code, 'SELECT * FROM espaces WHERE v > @v')
     const rows = st.all({ v })
@@ -272,7 +198,7 @@ class Connx {
 
   /* Retourne le row d'une collection de nom / id si sa version est postérieure à v
   */
-  async getV(nom, id, v) {
+  async getV (nom, id, v) {
     const code = 'SELV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND v > @v')
     const row = st.get({ id : id, v: v })
@@ -286,7 +212,7 @@ class Connx {
   
   /* Retourne le row d'une collection de nom / id (sans version))
   */
-  async getNV(nom, id) {
+  async getNV (nom, id) {
     const code = 'SELNV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id')
     const row = st.get({ id : id})
@@ -299,7 +225,7 @@ class Connx {
   }
     
   /* Retourne le row d'un objet d'une sous-collection nom / id / ids */
-  async get(nom, id, ids) {
+  async get (nom, id, ids) {
     const code = 'SEL' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND ids = @ids')
     const row = st.get({ id : id, ids: ids })
@@ -313,7 +239,7 @@ class Connx {
 
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   */
-  async getAvatarVCV(id, vcv) {
+  async getAvatarVCV (id, vcv) {
     const st = this._stmt('SELCV', 'SELECT * FROM avatars WHERE id = @id AND vcv > @vcv')
     const row = st.get({ id : id, vcv: vcv })
     if (row) {
@@ -326,19 +252,7 @@ class Connx {
     return null
   }
 
-  /* Retourne LE row ticket si sa version est plus récente que celle détenue en session (de version v)
-  async getRowTicketV(op, id, ids, v) {
-    const st = this._stmt('SELTKV', 'SELECT * FROM tickets WHERE id = @id AND ids = @ids AND v > @v')
-    const row = st.get({ id : id, ids: ids, v: v })
-    if (row) {
-      row._nom = 'tickets'
-      op.nl++
-      return await decryptRow(op, row)
-    }
-    return null
-  }
-  */
-  async getCompteHk(hk) {
+  async getCompteHk (hk) {
     const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hk = @hk')
     const row = st.get({ hk })
     if (row) {
@@ -349,7 +263,7 @@ class Connx {
     return null
   }
   
-  async getAvatarHk(hk) {
+  async getAvatarHk (hk) {
     const st = this._stmt('SELHPC', 'SELECT * FROM avatars WHERE hk = @hk')
     const row = st.get({ hk })
     if (row) {
@@ -360,7 +274,7 @@ class Connx {
     return null
   }
   
-  async getSponsoringIds(ids) {
+  async getSponsoringIds (ids) {
     const st = this._stmt('SELSPIDS', 'SELECT * FROM sponsorings WHERE ids = @ids')
     const row = st.get({ ids })
     if (row) {
@@ -373,7 +287,7 @@ class Connx {
   
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
   est inférieure à dfh */
-  async getGroupesDfh(dfh) {
+  async getGroupesDfh (dfh) {
     const st = this._stmt('SELGDFH', 'SELECT id FROM groupes WHERE dfh > 0 AND dfh < @dfh')
     const rows = st.all({ dfh })
     const r = []
@@ -382,7 +296,7 @@ class Connx {
   }
   
   /* Retourne l'array des id des comptes ayant passé leur dlv */
-  async getComptesDlv(dlvmax) {
+  async getComptesDlv (dlvmax) {
     const st = this._stmt('SELCDLV', 'SELECT id FROM comptes WHERE dlv < @dlvmax')
     const rows = st.all({ dlvmax })
     const r = []
@@ -391,14 +305,14 @@ class Connx {
   }
 
   /* Retourne l'array des id des comptes du ns donné dont la dlv est:
-  - bridée par la dlvat actuelle
-  - ou supérieure à la dlvat future
-  Plus complexe en FIrestore ?
+  - dla: bridée par la dlvat actuelle de l'espace
+  - dlf: ou supérieure à la dlvat future
   */
-  async getComptesDlvat(ns, dla, dlf) {
+  async getComptesDlvat (ns, dla, dlf) {
     const ns1 = ns
     const ns2 = ns + '{'
-    const st = this._stmt('SELCDLVAT', 'SELECT id FROM comptes WHERE id >= @ns1 AND id < @ns2 AND (dlv > @dlf OR dlv = @dla)')
+    const st = this._stmt('SELCDLVAT', 
+      'SELECT id FROM comptes WHERE id >= @ns1 AND id < @ns2 AND (dlv > @dlf OR dlv = @dla)')
     const rows = st.all({ dla, dlf, ns1, ns2 })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})
@@ -506,14 +420,14 @@ class Connx {
   }
 
   /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
-  async listeFpurges (op) {
+  async listeFpurges () {
     const r = []
     const st = this._stmt('SELFPURGES', 'SELECT _data_ FROM fpurges')
     const rows = st.all({ })
     if (rows) rows.forEach(row => {
       r.push(decode(row._data_))
     })
-    op.nl += r.length
+    this.op.nl += r.length
     return r
   }
 
@@ -523,15 +437,15 @@ class Connx {
     const st = this._stmt('SELTRADLV', 'SELECT * FROM transferts WHERE dlv <= @dlv')
     const rows = st.all({ dlv })
     if (rows) rows.forEach(row => {
-      r.push([row.id, row.idf])
+      r.push([row.id, row.ids])
     })
     this.op.nl += r.length
     return r
   }
 
-  async purgeTransferts (id, idf) {
+  async purgeTransferts (id, ids) {
     const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND idf = @idf')
-    st.run({ id, idf })
+    st.run({ id, ids })
     this.op.ne++
   }
 
@@ -549,6 +463,85 @@ class Connx {
     const n = info.changes
     this.op.ne += n
     return n
+  }
+
+  // PRIVATE /////////////////////////////////////////// 
+  deleteRows (rows) {
+    for (const row of rows) {
+      const code = 'DEL' + row._nom
+      const st = this._stmt(code, this._delStmt(row._nom))
+      st.run(row) // row contient id et ids
+    }
+  }
+
+  async insertRows (rows) {
+    for (const row of rows) {
+      const r = await prepRow(this.appKey, row)
+      const code = 'INS' + row._nom
+      const st = this._stmt(code, this._insStmt(row._nom))
+      st.run(r)
+    }
+  }
+
+  async updateRows (rows) {
+    for (const row of rows) {
+      const code = 'UPD' + row._nom
+      const st = this._stmt(code, this._updStmt(row._nom))
+      const r = await prepRow(this.appKey, row)
+      st.run(r)
+    }
+  }
+    
+  /** PRIVATE : retourne le prepare SQL du statement et le garde en cache avec un code 
+  L'argument SQL n'est pas requis si on est certain que le code donné a bien été enregistré
+  */
+  _stmt (code, sql) {
+    let s = this.cachestmt[code]
+    if (!s) {
+      if (!sql) return null
+      s = this.sql.prepare(sql)
+      this.cachestmt[code] = s
+    }
+    return s
+  }
+
+  /* PRIVATE : retourne un insert statement SQL 
+   Syntaxe : INSERT INTO matable (c1, c2) VALUES (@c1, @c2)
+  */
+  _insStmt (nom) {
+    const x = ['INSERT INTO ' + nom + ' (']
+    const la = GenDoc._attrs[nom]
+    x.push(la.join(', '))
+    x.push(') VALUES (')
+    const vals = []
+    for(const c of la) vals.push('@' + c)
+    x.push(vals.join(', '))
+    x.push(')')
+    return x.join('')
+  }
+
+  /* PRIVATE : retourne un update statement SQL 
+   Syntaxe : UPDATE matable SET c1 = @c1, c2 = @c2 WHERE id = @id
+  */
+  _updStmt (nom) {
+    const vals = []
+    const x = ['UPDATE ' + nom + ' SET ']
+    const la = GenDoc._attrs[nom]
+    for(const c of la) if (c !== 'id' && c!== 'ids') vals.push(c + ' = @' + c)
+    x.push(vals.join(', '))
+    x.push(' WHERE id = @id ')
+    if (la.indexOf('ids') !== -1) x.push(' AND ids = @ids')
+    return x.join('')
+  }
+
+  /* PRIVATE : retourne un delete statement SQL 
+   Syntaxe : DELETE FROM matable WHERE id = @id
+  */
+  _delStmt (nom) {
+    const x = ['DELETE FROM ' + nom + ' WHERE id = @id ']
+    const la = GenDoc._attrs[nom]
+    if (la.indexOf('ids') !== -1) x.push(' AND ids = @ids')
+    return x.join('')
   }
 
 }
