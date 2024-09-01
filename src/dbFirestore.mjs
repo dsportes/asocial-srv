@@ -167,7 +167,7 @@ class Connx {
 
   async prochTache (dh, x, lns) { // ns inactifs
     const q = this.fs.collection('taches')
-      .where('ds', '<', dh)
+      .where('dh', '<', dh)
       .where('ns', 'not-in', lns)
       .orderBy('dh')
       .limit(1)
