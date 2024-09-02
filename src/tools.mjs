@@ -200,7 +200,7 @@ export class Outils {
 
     for (const nom of GenDoc.collsExp1) {
       const row = await opin.db.getNV(nom, cin.ns)
-      if (!this.simu) await opout.db.batchIinsertRows([ch.chRow(row)])
+      if (!this.simu) await opout.db.batchInsertRows([ch.chRow(row)])
       this.log(`export ${nom}`)
     }
 

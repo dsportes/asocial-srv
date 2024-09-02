@@ -474,8 +474,10 @@ operations.Sync = class Sync extends Operation {
     const row = await this.db.getV('avatars', ID.long(ida, this.ns), x.vs)
     if (row) this.addRes('rowAvatars', compile(row).toShortRow(this))
 
-    for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.vs))
-      this.addRes('rowNotes', compile(row).toShortRow(this))
+    for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.vs)) {
+      const x = compile(row)
+      this.addRes('rowNotes', x.toShortRow(this))
+    }
     for (const row of await this.db.scoll('chats', ID.long(ida, this.ns), x.vs))
       this.addRes('rowChats', compile(row).toShortRow(this))
     for (const row of await this.db.scoll('sponsorings', ID.long(ida, this.ns), x.vs))

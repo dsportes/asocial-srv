@@ -20,8 +20,8 @@ export const config = {
     // GOOGLE_APPLICATION_CREDENTIALS: './keys/service_account.json', // NORMALEMENT on n'utilise pas un json et env
 
     // On utilise env pour EMULATOR
-    // STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-    // FIRESTORE_EMULATOR_HOST: 'localhost:8080'
+    STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
+    FIRESTORE_EMULATOR_HOST: 'localhost:8080'
   },
 
   // Configuations nommées des providers db
@@ -49,7 +49,7 @@ export const config = {
 
   run: { // Configuration du "serveur"
     site: 'A',
-    origins: new Set(['http://localhost:8080']),
+    // origins: new Set(['http://localhost:8080']),
 
     nom: 'test asocial-sql',
     pubsubURL: null, // Si serveur OP+PUBSUB
@@ -60,7 +60,7 @@ export const config = {
     port: 8443, // Si "serveur": port d'écoute
 
     // Provider DB : service OP
-    db_proider: 'sqlite_a', // 'firestore_a',
+    db_provider: 'firestore_a', // 'firestore_a' 'sqlite_a'
   
     // Provider Storage : service OP
     storage_provider: 'fs_a', // 'gc_a',

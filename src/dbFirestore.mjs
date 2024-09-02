@@ -59,10 +59,9 @@ class Connx {
         if (this.op.toInsert.length) await this.insertRows(this.op.toInsert)
         if (this.op.toUpdate.length) await this.updateRows(this.op.toUpdate)
         if (this.op.toDelete.length) await this.deleteRows(this.op.toDelete)
-        this._stmt('commit', 'COMMIT').run()
-        await this.disconnect()
-        return [0, '']
       })
+      await this.disconnect()
+      return [0, '']
     } catch (e) {
       await this.disconnect()
       return this.trap(e)
@@ -484,7 +483,7 @@ class Connx {
     for (const qds of qs.docs) { 
       const x = qds.data()
       x._nom = nom
-      r.push(x)
+      r.push(await decryptRow(this.appKey, x))
     }
     this.op.nl += r.length
     return r

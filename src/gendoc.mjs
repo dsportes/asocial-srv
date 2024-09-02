@@ -51,6 +51,7 @@ export function prepRow (appKey, row) {
   if (!ROWSENCLAIR.has(row._nom)) 
     r._data_ = crypterSrv(appKey, row._data_)
   delete r._nom
+  delete r._vav
   return r
 }
 
