@@ -94,6 +94,9 @@ class Connx {
   }
 
   /** PUBLIQUES POUR EXPORT / PURGE ******************************************/
+  /* Purge d'un ns
+  Sur collsExp2 ['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'avatars', 'groupes', 'versions']: index sur id
+  */
   async deleteNS(log, ns) {
     const min = ns
     const max = ns + '{'
@@ -165,6 +168,9 @@ class Connx {
       await this.fs.doc(p).delete()
   }
 
+  /* Obtention de la prochaine tâche
+  Sur taches: index composite sur dh / ns
+  */
   async prochTache (dh, x, lns) { // ns inactifs
     const q = this.fs.collection('taches')
       .where('dh', '<', dh)
@@ -175,6 +181,9 @@ class Connx {
     return !qs.empty ? qs.docs[0].data() : null
   }
 
+  /* Obtention des taches d'un ns
+  Sur taches: index sur ns
+  */
   async nsTaches (ns) {
     const q = this.fs.collection('taches').where('ns', '==', ns)
     const qs = await q.get()
@@ -183,6 +192,9 @@ class Connx {
     return rows
   }
 
+  /* Obtention des espaces modifiés après v
+  Sur espaces: index sur v
+  */
   async getRowEspaces(v) {
     const q = this.fs.collection('espaces').where('v', '>', v)
     const qs = await q.get()
@@ -197,6 +209,8 @@ class Connx {
   }
   
   /* Retourne le row d'une collection de nom / id si sa version est postérieure à v
+  Sur majeurs ['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'versions', 'avatars', 'groupes']
+  index composite id / v
   */
   async getV (nom, id, v) {
     let row = null
@@ -230,13 +244,13 @@ class Connx {
 
   /* Retourne LE row de la collection nom / id (sans version)
   */
-  async getNV (op, nom, id) {
+  async getNV (nom, id) {
     let row = null
     const p = FirestoreProvider._path(nom, id)
     const dr = this.fs.doc(p) // dr: DocumentReference
     // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
     let ds
-    if (!op.fake && op.transaction) {
+    if (this.transaction) {
       ds = await this.transaction.get(dr)
     } else {
       ds = await dr.get()
@@ -272,9 +286,11 @@ class Connx {
   }
 
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
+  Sur avatars: index sur vcv
   */
   async getAvatarVCV (id, vcv) {
-    const q = this.fs.collection('avatars').where('id', '==', id).where('vcv', '<', vcv)
+    const p = FirestoreProvider._path('avatars', id)
+    const q = this.fs.collection(p).where('vcv', '<', vcv)
     let qs; if (this.transaction) qs = await this.transaction.get(q); else qs = await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()
@@ -282,6 +298,9 @@ class Connx {
     return compile(await decryptRow(this.appKey, row))
   }
 
+  /* Obtention d'un compte par sa hk
+  Sur comptes: index sur hk
+  */
   async getCompteHk (hk) {
     const p = FirestoreProvider._collPath('comptes')
     // INDEX simple sur comptas hps1
@@ -297,6 +316,9 @@ class Connx {
     return await decryptRow(this.appKey, row)
   }
 
+  /* Obtention d'un avatar par sa hk
+  Sur avatars: index sur hk
+  */
   async getAvatarHk (hk) {
     const p = FirestoreProvider._collPath('avatars')
     // INDEX simple sur avatars hpc
@@ -310,8 +332,10 @@ class Connx {
     return await decryptRow(this.appKey, row)
   }
 
+  /* Obtention d'un sponsorings par son ids
+  Sur sponsorings: index COLLECTION_GROUP sur ids
+  */
   async getSponsoringIds (ids) {
-    // INDEX COLLECTION_GROUP sur sponsorings ids
     const q = this.fs.collectionGroup('sponsorings').where('ids', '==', ids)
     let qs; if (this.transaction) qs = await this.transaction.get(q); else qs = await q.get()
     let row = null
@@ -323,7 +347,9 @@ class Connx {
   }
 
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
-  est inférieure à dfh */
+  est inférieure à dfh 
+  Sur groupes: index sur dfh
+  */
   async getGroupesDfh (dfh) {
     const p = FirestoreProvider._collPath('groupes')
     // INDEX simple sur groupes dfh
@@ -335,7 +361,9 @@ class Connx {
     return r
   }
 
-  /* Retourne l'array des id des comptes ayant passé leur dlv */
+  /* Retourne l'array des id des comptes ayant passé leur dlv 
+  Sur comptes: index sur dlv
+  */
   async getComptesDlv (dlvmax) {
     const p = FirestoreProvider._collPath('comptes')
     // INDEX simple sur comptes dlv
@@ -350,8 +378,32 @@ class Connx {
   /* Retourne l'array des id des comptes du ns donné dont la dlv est:
   - dla: bridée par la dlvat actuelle
   - dlf: ou supérieure à la dlvat future
+  Sur comptes : index composite ns / dlv
   */
   async getComptesDlvat (ns, dla, dlf) {
+    const ns1 = ns
+    const ns2 = ns + '{'
+    const r = []
+    const p = FirestoreProvider._collPath('comptes')
+    {
+      const q = this.fs.collection(p)
+        .where('id', '>=', ns1)
+        .where('id', '<', ns2)
+        .where(
+          Filter.or(
+            Filter.where('dlv', '==', dla),
+            Filter.where('dlv', '>', dlf)
+          )
+        )
+      let qs; if (this.transaction) qs = await this.transaction.get(q); else qs = await q.get()
+      if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id')) })
+      this.op.nl += r.length
+    }
+    return r
+  }
+
+  // Versions si restriction de query sur inégalité sur un seul champ
+  async getComptesDlvat2 (ns, dla, dlf) {
     const ns1 = ns
     const ns2 = ns + '{'
     const r = []
@@ -366,8 +418,7 @@ class Connx {
       this.op.nl += r.length
     }
     {
-      const q = this.fs.collection(p)
-        .where('dlv', '>', dlf)
+      const q = this.fs.collection(p).where('dlv', '>', dlf)
       let qs; if (this.transaction) qs = await this.transaction.get(q); else qs = await q.get()
       if (!qs.empty) qs.forEach(qds => { 
         const id = qds.get('id')
@@ -398,6 +449,7 @@ class Connx {
   SI la fonction "fnprocess" est présente 
   elle est invoquée à chaque row pour traiter son _data_
   plutôt que d'accumuler les rows.
+  Sur collsExp2 ['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'avatars', 'groupes', 'versions']: index sur id
   */
   async collNs (nom, ns, fnprocess) {
     const ns1 = ns
@@ -405,7 +457,7 @@ class Connx {
     const p = FirestoreProvider._collPath(nom)
     // INDEX simple sur les collections id (avatars, groupes, versions ...) ! PAS les sous-collections
     const q = this.fs.collection(p).where('id', '>=', ns1).where('id', '<', ns2) 
-    let qs; if (this.transaction) qs = await this.op.transaction.get(q); else qs = await q.get()
+    let qs; if (this.transaction) qs = await this.transaction.get(q); else qs = await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
@@ -420,6 +472,7 @@ class Connx {
 
   /* Retourne la sous-collection de 'nom' du document majeur id
   Si v est donnée, uniquement les documents de version supérieurs à v.
+  Sur sousColls ['notes', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets']: index sur v
   */
   async scoll (nom, id, v) {
     const p = FirestoreProvider._collPath(nom, id)
@@ -438,6 +491,7 @@ class Connx {
   }
 
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
+  Sur tickets: index sur ids
   */
   async selTickets (id, ns, aamm, fnprocess) {
     const mx = ns + (aamm % 10000) + '9999999999'
@@ -517,11 +571,13 @@ class Connx {
     return r
   }
 
-  /* Retourne une liste de couples [id, ids] PAS de rows */
+  /* Retourne une liste de couples [id, ids] PAS de rows 
+  Sur transferts: index COLLECTION_GROUP sur dlv
+  */
   async listeTransfertsDlv (dlv) {
     const r = []
     const p = FirestoreProvider._collPath('transferts')
-    const q = this.fs.collection(p).where('dlv', '<=', dlv)
+    const q = this.fs.collectionGroup(p).where('dlv', '<=', dlv)
     let qs; if (this.transaction) qs = await this.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const qds of qs.docs) { 
@@ -542,9 +598,12 @@ class Connx {
     this.op.ne++
   }
 
+  /* Purge des versions sur dlv
+  Sur versions: index sur dlv
+  */
   async purgeVER (suppr) { // nom: sponsorings, versions
     let n = 0
-    const q = this.fs.collection('versions').where('suppr', '>', 0).where('suppr', '<', suppr)
+    const q = this.fs.collection('versions').where('dlv', '>', 0).where('dlv', '<', suppr)
     let qs; if (this.transaction) qs = await this.transaction.get(q); else qs = await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
@@ -553,6 +612,9 @@ class Connx {
     return n
   }
 
+  /* Purge des sponsorings sur dlv
+  Sur sponsorings: index COLLECTION_GROUP sur dlv
+  */
   async purgeSPO (dlv) { // nom: sponsorings, versions
     let n = 0
     const p = FirestoreProvider._collPath('sponsorings')

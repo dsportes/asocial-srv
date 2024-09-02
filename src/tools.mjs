@@ -218,7 +218,7 @@ export class Outils {
 
     let n = 0
     const stats = {}
-    GenDoc.sousCollsExp.forEach(nom => { stats[nom] = 0 })
+    GenDoc.sousColls.forEach(nom => { stats[nom] = 0 })
     for (const id of scollIds) {
       n++
       const sc = ID.estGroupe(ID.court(id)) ? GenDoc.collsExpG : GenDoc.collsExpA
@@ -235,7 +235,7 @@ export class Outils {
     }
     this.log2(`export ${scollIds.length} détails: OK`)
     const lg = []
-    GenDoc.sousCollsExp.forEach(nom => { lg.push(nom + ':' + stats[nom]) })
+    GenDoc.sousColls.forEach(nom => { lg.push(nom + ':' + stats[nom]) })
     this.log(`\nexport ${scollIds.length} Versions: ${n} ` + lg.join('  '))
   }
 

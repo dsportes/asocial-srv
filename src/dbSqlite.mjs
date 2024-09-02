@@ -131,7 +131,7 @@ class Connx {
       dels[nom] = this.sql.prepare(
         `DELETE FROM ${nom} WHERE id >= '${min}' AND id < '${max}';`)
     })
-    GenDoc.sousCollsExp.forEach(nom => {
+    GenDoc.sousColls.forEach(nom => {
       dels[nom] = this.sql.prepare(
         `DELETE FROM ${nom} WHERE id >= '${min}' AND id < '${max}';`)
     })

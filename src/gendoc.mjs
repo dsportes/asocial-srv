@@ -92,12 +92,10 @@ export class GenDoc {
 
   static collsExpG = ['notes', 'membres', 'chatgrs']
 
-  static sousCollsExp = new Set(['notes', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
-
   // Gérés en Cache - Pour Firestore gère une propriété id_V (A REVOIR)
   static majeurs = new Set(['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'versions', 'avatars', 'groupes'])
 
-  static sousColls = new Set(['notes', 'transferts', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
+  static sousColls = new Set(['notes', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
 
   /* Liste des attributs des (sous)collections- sauf singletons */
   static _attrs = {
