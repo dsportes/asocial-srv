@@ -1,20 +1,5 @@
 {
   "indexes": [
-    {
-      "collectionGroup": "sponsorings",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [ { "fieldPath": "ids", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "sponsorings",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [ { "fieldPath": "dlv", "order": "ASCENDING" } ]
-    },
-    {
-      "collectionGroup": "transferts",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [ { "fieldPath": "dlv", "order": "ASCENDING" } ]
-    },
     { "collectionGroup": "taches", "queryScope": "COLLECTION",
       "fields": [ { "fieldPath": "dh", "order": "ASCENDING" }, { "fieldPath": "ns", "order": "ASCENDING" } ] },
     { "collectionGroup": "partitions", "queryScope": "COLLECTION",
@@ -110,13 +95,16 @@
 
     { "collectionGroup": "transferts", "fieldPath": "id", "indexes": [] },
     { "collectionGroup": "transferts", "fieldPath": "ids",  "indexes": [] },
-    { "collectionGroup": "transferts", "fieldPath": "dlv",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
+    { "collectionGroup": "transferts", "fieldPath": "dlv", "queryScope": "COLLECTION_GROUP",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "transferts", "fieldPath": "_data_", "indexes": [] },
 
     { "collectionGroup": "sponsorings", "fieldPath": "id", "indexes": [] },
-    { "collectionGroup": "sponsorings", "fieldPath": "ids",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
+    { "collectionGroup": "sponsorings", "fieldPath": "ids", "queryScope": "COLLECTION_GROUP",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "sponsorings", "fieldPath": "v",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
-    { "collectionGroup": "sponsorings", "fieldPath": "dlv",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
+    { "collectionGroup": "sponsorings", "fieldPath": "dlv", "queryScope": "COLLECTION_GROUP",
+      "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "sponsorings", "fieldPath": "_data_", "indexes": [] },
 
     { "collectionGroup": "groupes", "fieldPath": "id", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },

@@ -1,39 +1,137 @@
 {
   "indexes": [
     {
-      "collectionGroup": "chats",
+      "collectionGroup": "avatars",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ids",
+          "fieldPath": "id",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "vcv",
+          "fieldPath": "v",
           "order": "ASCENDING"
         }
       ]
     },
     {
-      "collectionGroup": "membres",
+      "collectionGroup": "comptas",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ids",
+          "fieldPath": "id",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "vcv",
+          "fieldPath": "v",
           "order": "ASCENDING"
         }
       ]
     },
     {
-      "collectionGroup": "tickets",
+      "collectionGroup": "comptes",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "ids",
+          "fieldPath": "id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dlv",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "v",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptis",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "v",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "groupes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "v",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "invits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "v",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "partitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "v",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "taches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "dh",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ns",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "versions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "id",
           "order": "ASCENDING"
         },
         {
@@ -52,7 +150,7 @@
     },
     {
       "collectionGroup": "avatars",
-      "fieldPath": "hpc",
+      "fieldPath": "hk",
       "ttl": false,
       "indexes": [
         {
@@ -74,37 +172,25 @@
     },
     {
       "collectionGroup": "avatars",
-      "fieldPath": "id_v",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "avatars",
-      "fieldPath": "id_vcv",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "avatars",
       "fieldPath": "v",
       "ttl": false,
-      "indexes": []
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "avatars",
       "fieldPath": "vcv",
       "ttl": false,
-      "indexes": []
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "chatgrs",
@@ -175,17 +261,6 @@
       ]
     },
     {
-      "collectionGroup": "chats",
-      "fieldPath": "vcv",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
       "collectionGroup": "comptas",
       "fieldPath": "_data_",
       "ttl": false,
@@ -193,29 +268,7 @@
     },
     {
       "collectionGroup": "comptas",
-      "fieldPath": "hps1",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "comptas",
       "fieldPath": "id",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "comptas",
-      "fieldPath": "id_v",
       "ttl": false,
       "indexes": [
         {
@@ -228,7 +281,90 @@
       "collectionGroup": "comptas",
       "fieldPath": "v",
       "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptes",
+      "fieldPath": "_data_",
+      "ttl": false,
       "indexes": []
+    },
+    {
+      "collectionGroup": "comptes",
+      "fieldPath": "dlv",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptes",
+      "fieldPath": "hk",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptes",
+      "fieldPath": "id",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptes",
+      "fieldPath": "v",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptis",
+      "fieldPath": "_data_",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "comptis",
+      "fieldPath": "id",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "comptis",
+      "fieldPath": "v",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "espaces",
@@ -241,22 +377,17 @@
       "fieldPath": "id",
       "ttl": false,
       "indexes": []
-    },
-    {
-      "collectionGroup": "espaces",
-      "fieldPath": "id_v",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
     },
     {
       "collectionGroup": "espaces",
       "fieldPath": "org",
       "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "espaces",
+      "fieldPath": "v",
+      "ttl": false,
       "indexes": [
         {
           "order": "ASCENDING",
@@ -274,29 +405,7 @@
       "collectionGroup": "fpurges",
       "fieldPath": "id",
       "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "gcvols",
-      "fieldPath": "_data_",
-      "ttl": false,
       "indexes": []
-    },
-    {
-      "collectionGroup": "gcvols",
-      "fieldPath": "id",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
     },
     {
       "collectionGroup": "groupes",
@@ -328,7 +437,7 @@
     },
     {
       "collectionGroup": "groupes",
-      "fieldPath": "id_v",
+      "fieldPath": "v",
       "ttl": false,
       "indexes": [
         {
@@ -338,27 +447,38 @@
       ]
     },
     {
-      "collectionGroup": "groupes",
-      "fieldPath": "v",
+      "collectionGroup": "invits",
+      "fieldPath": "_data_",
       "ttl": false,
       "indexes": []
+    },
+    {
+      "collectionGroup": "invits",
+      "fieldPath": "id",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "invits",
+      "fieldPath": "v",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
     },
     {
       "collectionGroup": "membres",
       "fieldPath": "_data_",
       "ttl": false,
       "indexes": []
-    },
-    {
-      "collectionGroup": "membres",
-      "fieldPath": "dlv",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
-        }
-      ]
     },
     {
       "collectionGroup": "membres",
@@ -389,17 +509,6 @@
       ]
     },
     {
-      "collectionGroup": "membres",
-      "fieldPath": "vcv",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
       "collectionGroup": "notes",
       "fieldPath": "_data_",
       "ttl": false,
@@ -424,6 +533,34 @@
     },
     {
       "collectionGroup": "notes",
+      "fieldPath": "v",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "partitions",
+      "fieldPath": "_data_",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "partitions",
+      "fieldPath": "id",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "partitions",
       "fieldPath": "v",
       "ttl": false,
       "indexes": [
@@ -449,12 +586,7 @@
       "collectionGroup": "singletons",
       "fieldPath": "v",
       "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
+      "indexes": []
     },
     {
       "collectionGroup": "sponsorings",
@@ -515,7 +647,13 @@
     },
     {
       "collectionGroup": "syntheses",
-      "fieldPath": "id_v",
+      "fieldPath": "v",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "taches",
+      "fieldPath": "dh",
       "ttl": false,
       "indexes": [
         {
@@ -525,8 +663,37 @@
       ]
     },
     {
-      "collectionGroup": "syntheses",
-      "fieldPath": "v",
+      "collectionGroup": "taches",
+      "fieldPath": "exc",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "taches",
+      "fieldPath": "id",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "taches",
+      "fieldPath": "ids",
+      "ttl": false,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "taches",
+      "fieldPath": "ns",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "taches",
+      "fieldPath": "op",
       "ttl": false,
       "indexes": []
     },
@@ -591,45 +758,6 @@
       "collectionGroup": "transferts",
       "fieldPath": "ids",
       "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tribus",
-      "fieldPath": "_data_",
-      "ttl": false,
-      "indexes": []
-    },
-    {
-      "collectionGroup": "tribus",
-      "fieldPath": "id",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tribus",
-      "fieldPath": "id_v",
-      "ttl": false,
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "tribus",
-      "fieldPath": "v",
-      "ttl": false,
       "indexes": []
     },
     {
@@ -662,7 +790,7 @@
     },
     {
       "collectionGroup": "versions",
-      "fieldPath": "id_v",
+      "fieldPath": "v",
       "ttl": false,
       "indexes": [
         {
@@ -670,12 +798,6 @@
           "queryScope": "COLLECTION"
         }
       ]
-    },
-    {
-      "collectionGroup": "versions",
-      "fieldPath": "v",
-      "ttl": false,
-      "indexes": []
     }
   ]
 }
