@@ -1,4 +1,4 @@
-import { Firestore } from '@google-cloud/firestore'
+import { Firestore, Filter } from '@google-cloud/firestore'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { app_keys, service_account } from './keys.mjs'
@@ -258,7 +258,7 @@ class Connx {
       row = ds.data()
       row._nom = nom
       this.op.nl++
-      return await decryptRow(op, row)
+      return await decryptRow(this.appKey, row)
     }
     return null
   }
