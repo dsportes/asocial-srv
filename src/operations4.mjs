@@ -1889,7 +1889,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     await this.checkNoteId()
     const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
     if (ID.estGroupe(args.id)) {
-      const e = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(F_SRV, 313)
       if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
     }
@@ -1932,7 +1932,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     let compta
 
     if (ID.estGroupe(args.id)) {
-      const e = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(F_SRV, 313)
       if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
       note.setAut(e.im)
@@ -1995,7 +1995,7 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
     let compta
 
     if (ID.estGroupe(args.id)) {
-      const e = this.auts.get(args.aut) // idm, { im, am, de, anim }
+      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(F_SRV, 313)
       if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
       note.setAut(e.im)

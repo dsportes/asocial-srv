@@ -60,10 +60,10 @@ export const config = {
     port: 8443, // Si "serveur": port d'écoute
 
     // Provider DB : service OP
-    db_provider: 'firestore_a', // 'firestore_a' 'sqlite_a'
+    db_provider: 'sqlite_a', // 'firestore_a' 'sqlite_a'
   
     // Provider Storage : service OP
-    storage_provider: 'fs_a', // 'gc_a',
+    storage_provider: 'fs_a', // 'gc_a', 'fs_a'
     // URL externe d'appel du serveur: SI storage fs OU gc en mode EMULATOR
     rooturl: 'http://test.sportes.fr:8443',
 

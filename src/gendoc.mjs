@@ -1378,9 +1378,9 @@ export class Notes extends GenDoc {
   }
 
   setAut (im) {
-    if (this.aut[0] === im) return
-    const a = [im]; this.aut.forEach(i => { if (i !== im) a.push(i)})
-    this.aut = a
+    if (this.l[0] === im) return
+    const a = [im]; this.l.forEach(i => { if (i !== im) a.push(i)})
+    this.l = a
     this._maj = true
   }
 

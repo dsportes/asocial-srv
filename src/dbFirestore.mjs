@@ -258,7 +258,7 @@ class Connx {
       row = ds.data()
       row._nom = nom
       this.op.nl++
-      return await decryptRow(op, row)
+      return await decryptRow(this.appKey, row)
     }
     return null
   }

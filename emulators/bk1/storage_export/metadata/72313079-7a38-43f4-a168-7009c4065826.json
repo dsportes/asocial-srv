@@ -1,0 +1,17 @@
+{
+  "name": "ping.txt",
+  "bucket": "asocial-test1.appspot.com",
+  "metageneration": 2,
+  "generation": 1725605000716,
+  "contentType": "text/plain",
+  "storageClass": "STANDARD",
+  "downloadTokens": [
+    "e69f26bd-ece5-4c51-82f5-a65f206306f6"
+  ],
+  "etag": "UPXLXn1LOpfqcmrYtynT+ufe5iE",
+  "timeCreated": "2024-09-06T06:43:20.716Z",
+  "updated": "2024-09-06T06:44:09.186Z",
+  "size": 24,
+  "md5Hash": "aBsH30NAERGUt3G05sTvgQ==",
+  "crc32c": "809135996"
+}

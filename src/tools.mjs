@@ -250,8 +250,8 @@ export class Outils {
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
-    const pin = cin.prov
-    const pout = cout.prov
+    const pin = cin.storage
+    const pout = cout.storage
     const ids = await pin.listIds(cin.org)
     if (!ids.length) {
       this.log('Terminé : aucun fichier à exporter')
