@@ -1,4 +1,4 @@
-import { Firestore } from '@google-cloud/firestore'
+import { Firestore, Filter } from '@google-cloud/firestore'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { app_keys, service_account } from './keys.mjs'
