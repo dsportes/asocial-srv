@@ -128,10 +128,13 @@ class Session {
   // Traitement des notifications aux sessions sur fin d'une opération de maj
   notif (sid, log) { // log: { vcpt, vesp, lag, lp } - sid null (admin, GC)
     // lag : [[id, v] ...]
-    // lp : [[compteId, {v, p}] ... (vpe, périmètre}
+    // lp : [[compteId, {v, vpe, p}]]
     const dlv = Date.now()
     const perimetres = new Map()
     if (log.lp) log.lp.forEach(x => { perimetres.set(x[0], x[1]) })
+
+    // préparation des notications à pousser ()
+    const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, lag }
 
     let s = null
     let nhbav = -1
@@ -146,13 +149,18 @@ class Session {
     }
 
     // Maj des périmètres modifiés des comptes
-    for (const [cid, p] of perimetres) {
+    for (const [cid, x] of perimetres) { // x: { v, vpe, p}
       const c = this.comptes.get(cid)
-      if (c) this.majPerimetreC(c, p.v, p.p)
+      if (c) { 
+        if (x.p) this.majPerimetreC(c, x.vpe, x.p)
+        c.sessions.forEach(rnd => {
+          const s = this.sessions.get(rnd)
+          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) {
+            this.setTrlog(trlogs, s, null, 0, sid, cid, x.v, 0)
+          }
+        })
+      }
     }
-
-    // préparation des notications à pousser ()
-    const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, lag }
 
     if (vesp) {
       this.sessions.forEach(s => {

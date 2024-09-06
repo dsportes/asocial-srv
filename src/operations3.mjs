@@ -648,7 +648,7 @@ operations.GetNotifC = class GetNotifC extends Operation {
     if (!c.idp) throw new AppExc(F_SRV, 230)
     if (c.notif) this.setRes('notif', c.notif)
     if (this.estComptable) return
-    const part = await this.gd.getPA(ID.long(c.idp, this.ns), 'GetNotifC-2')
+    const part = await this.gd.getPA(c.idp, 'GetNotifC-2')
     if (!part.estDel(this.id)) throw new AppExc(F_SRV, 231)
   }
 }

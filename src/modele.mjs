@@ -271,7 +271,7 @@ class TrLog {
   setCpt (cpt, p) {
     if (!this.op.SYS) {
       this._maj = true
-      if (p) this.perimetres.set(cpt.id, { v: cpt.v, p: p})
+      this.perimetres.set(cpt.id, { v: cpt.v, vpe: p ? cpt.v : 0, p: p})
     }
   }
 
