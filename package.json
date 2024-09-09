@@ -51,6 +51,6 @@
     "last 5 Opera versions"
   ],
   "engines": {
-    "node": "20.x.x"
+    "node": "^20.0.0"
   }
 }
