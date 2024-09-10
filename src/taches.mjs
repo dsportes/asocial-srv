@@ -394,7 +394,6 @@ operations.ESP = class ESP extends Operation {
 
   async phase2(args) {
     this.ns = args.tache.ns
-    this.id = args.tache.id
     this.dla = args.tache.ids
     if (!args.lst) {
       let esp
