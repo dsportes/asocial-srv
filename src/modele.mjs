@@ -1048,7 +1048,7 @@ export class Operation {
 
   async setEspaceNs (ns, fige) {
     const espace = await Esp.getEsp(this, ns, false, this.nomop + '-checkEspace') // set this.ns
-    espace.excFerme()
+    if (!this.estAdmin) espace.excFerme()
     if (fige) espace.excFerme()
     this.gd.setEspace(espace)
     this.ns = ns

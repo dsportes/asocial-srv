@@ -443,7 +443,7 @@ export class Partitions extends GenDoc {
     const m = {}
     for(const idx in this.mcpt) {
       const e = this.mcpt[idx]
-      if (e.del) m[idx] = {  del: true, nr: 0, qv: Partitions.qz, cleAP: e.cleAP }
+      if (e.del) m[idx] = {  del: true, nr: 0, q: Partitions.qz, cleAP: e.cleAP }
     }
     this.mcpt = m
     const row = this.toRow(op)._data_
