@@ -94,13 +94,13 @@ export class Esp {
 
   static actifs () {
     const l = []
-    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.ns) })
+    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.id) })
     return l
   }
 
   static inactifs () {
     const l = []
-    Esp.map.forEach(e => { if (e.notif && e.notif.nr === 2) l.push(e.ns) })
+    Esp.map.forEach(e => { if (e.notif && e.notif.nr === 2) l.push(e.id) })
     return l
   }
 
@@ -723,7 +723,9 @@ class GD {
   }
 
   async majpart (p) {
-    if (p._maj) {
+    if (p._suppr) {
+      this.op.delete({ _nom: 'partitions', id: ID.long(p.id, this.op.ns) })
+    } else if (p._maj) {
       p._vav = p.v
       p.v++
       if (p.v === 1) this.op.insert(p.toRow(this.op)); else this.op.update(p.toRow(this.op))
@@ -808,6 +810,7 @@ export class Operation {
   async run (args, dbp, storage) {
     try {
       this.args = args
+      this.dbp = dbp
       this.storage = storage
       await this.phase1(this.args)
 
@@ -852,7 +855,7 @@ export class Operation {
       }
       if (nhb !== undefined) this.setRes('nhb', nhb)
 
-      if (this.aTaches) Taches.startDemon()
+      if (this.aTaches) Taches.startDemon(this)
 
       if (this.setR.has(R.RAL1)) await sleep(500)
       if (this.setR.has(R.RAL2)) await sleep(500)

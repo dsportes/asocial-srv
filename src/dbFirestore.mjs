@@ -191,6 +191,14 @@ class Connx {
     return rows
   }
 
+  async toutesTaches (ns) {
+    const q = this.fs.collection('taches')
+    const qs = await q.get()
+    const rows = []
+    if (!qs.empty) for (const qds of qs.docs) { rows.push(qds.data()) }
+    return rows
+  }
+
   /* Obtention des espaces modifiés après v
   Sur espaces: index sur v
   */

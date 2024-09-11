@@ -51,11 +51,8 @@ export class Taches {
   }
 
   static dh (t) {
-    const d = new Date(t)
-    const x = ((d.getUTCFullYear() % 100) * 10000) + ((d.getUTCMonth() + 1) * 100) + d.getUTCDate()
-    const h = (d.getUTCHours() * 10000) + (d.getUTCMinutes() * 100) + d.getUTCSeconds()
-    const c = Math.floor(d.getUTCMilliseconds() / 10)
-    return c + (h * 100) + (x * 100000000)
+    // const x = new Date(t).toISOString()
+    return t
   }
 
   /* Pour une tâche non GC, c'est dans config.retrytache minutes
@@ -114,11 +111,23 @@ export class Taches {
         }
       } catch (e) { // Opération sortie en exception
         // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
-        this.exc = e.toString()
+        this.exc = e.message + (e.stack ? '\n' + e.stack : '')
         await db.setTache(this)
         break
       }
     }
+  }
+
+  static startDemon (opOrig) {
+    if (Taches.demon) return
+    setTimeout(async () => { 
+      try {
+        const op = new operations.StartDemon('StartDemon') 
+        await op.run({}, opOrig.dbp, opOrig.storage)
+      } catch (e) {
+        config.logger.error('StartDemon: ' + e.toString())
+      }
+    }, 1)
   }
 
 }
@@ -136,7 +145,7 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2() {
-    const rows = await this.db.nsTaches(0)
+    const rows = await this.db.nsTaches('')
     const s = new Set()
     Taches.OPSGC.forEach(t => { s.add(t)})
     rows.forEach(r => { s.delete(r.op) })
@@ -149,6 +158,54 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
   }
 }
 
+
+/*****************************************
+GetTaches : retourne la liste des tâches en cours
+args.token: éléments d'authentification du compte.
+args.ns : 
+  - null: toutes
+  - '' : GC
+  - 'x' : du ns x
+*/
+operations.GetTaches = class GetTaches extends Operation {
+  constructor (nom) { super(nom, 3); this.SYS = true }
+
+  async phase2 (args) {
+    let taches
+    if (args.ns === '*') taches = await this.db.toutesTaches()
+    else taches = await this.db.nsTaches(args.ns)
+    this.setRes('taches', taches)
+  }
+}
+
+/*****************************************
+DelTache : suppression d'une tâche
+args.token: éléments d'authentification du compte.
+args.op ns id ids : 
+*/
+operations.DelTache = class DelTache extends Operation {
+  constructor (nom) { super(nom, 3); this.SYS = true }
+
+  async phase2(args) {
+    await this.db.delTache(args.op, args.ns, args.id, args.ids)
+  }
+}
+
+/*****************************************
+GoTache : lancement immédiat d'une tâche
+args.token: éléments d'authentification du compte.
+args.op ns id ids : 
+*/
+operations.GoTache = class GoTache extends Operation {
+  constructor (nom) { super(nom, 3); this.SYS = true }
+
+  async phase2(args) {
+    this.ns = args.ns
+    await this.db.delTache(args.op, args.ns, args.id, args.ids)
+    await Taches.nouvelle(this, args.op, args.id, args.ids)
+  }
+}
+
 /* OP_StartDemon: 'Lancement immédiat du démon',
 - token : jeton d'authentification de l'administrateur
 Retour:
@@ -158,12 +215,13 @@ operations.StartDemon = class StartDemon extends Operation {
 
   async phase2() {
     if (Taches.demon) return
-    setTimeout(async () => { await this.run() }, 1)
+    setTimeout(async () => { await this.runit() }, 1)
   }
 
-  async run() {
+  async runit() {
     try {
       Taches.demon = true
+      await Esp.load(this.db)
       const lnsac = Esp.actifs()
       const lnsinac = Esp.actifs()
       const dh = Taches.dh(Date.now())
@@ -188,7 +246,7 @@ operations.StartDemon = class StartDemon extends Operation {
 
 // détection d'une fin d'hébergement
 operations.DFH = class DFH extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
@@ -203,7 +261,7 @@ operations.DFH = class DFH extends Operation {
 
 // détection d'une résiliation de compte
 operations.DLV = class DLV extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer

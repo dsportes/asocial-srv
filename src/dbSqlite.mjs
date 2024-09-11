@@ -92,7 +92,7 @@ class Connx {
   // PRIVATE
   trap (e) {
     if (e.constructor.name !== 'SqliteError') throw e
-    const s = (e.code || '???') + '\n' + this.lastSql.join('\n')
+    const s = (e.code || '???') + '\n' + (e.message || '') + '\n' + this.lastSql.join('\n')
     if (e.code && e.code.startsWith('SQLITE_BUSY')) return [1, s]
     return [2, s]
   }
@@ -152,7 +152,7 @@ class Connx {
   /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, ns, id, ids, dh, exc) VALUES (@op, @ns, @id, @ids, @dh, @exc) ON CONFLICT (op, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
+      'INSERT INTO taches (op, ns, id, ids, dh, exc) VALUES (@op, @ns, @id, @ids, @dh, @exc) ON CONFLICT (op, ns, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
     st.run({ 
       op: t.op,
       ns: t.ns, 
@@ -162,18 +162,17 @@ class Connx {
       exc: t.exc })
   }
 
-  async delTache (top, ns, id, ids) {
+  async delTache (op, ns, id, ids) {
     const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
-    st.run({ op: top, ns, id, ids })
+    st.run({ op, ns, id, ids })
   }
 
   async prochTache (dh, lst) {
-    const lst2 = new Array(lst.length + 1)
-    lst2[0] = ''
-    lst.forEach((x, n) => { lst2[n + 1] = '\'' + x + '\''})
-    const lns = lst.join(',')
+    const lst2 = []
+    lst.forEach(x => { lst2.push('\'' + x + '\'') } )
+    const lns = '\'\'' + (lst2.length ? ',' + lst2.join(',') : '')
     const st = this._stmt('PROCHTACHE' + lns, 
-      'SELECT * FROM taches WHERE dh < @dh AND ns IN (' + lns + ') ORDER BY dh ASC LIMIT 1')
+      'SELECT * FROM taches WHERE dh < @dh AND ns IN (' + lns + ') ORDER BY dh DESC LIMIT 1')
     const rows = st.all({ dh })
     return !rows.length ? null : rows[0]
   }
@@ -181,6 +180,11 @@ class Connx {
   async nsTaches (ns) {
     const st = this._stmt('NSTACHES', 'SELECT * FROM taches WHERE ns = @ns')
     return st.all({ ns })
+  }
+
+  async toutesTaches (ns) {
+    const st = this._stmt('TOUTESTACHES', 'SELECT * FROM taches')
+    return st.all()
   }
 
   async getRowEspaces (v) {

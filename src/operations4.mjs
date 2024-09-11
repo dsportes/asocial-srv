@@ -562,8 +562,6 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
   async phase2 (args) {
     await this.gd.nouvPA(args.idp, args.quotas)
     this.compte.ajoutPartition(args.idp, args.itemK)
-    const espace = await this.gd.getEspace()
-    espace.setPartition(args.idp)
   }
 }
 
@@ -574,23 +572,24 @@ Dans Comptes : **Comptable seulement:**
   - `code` : code / commentaire court de convenance attribué par le Comptable
 
 - token: éléments d'authentification du compte.
-- n : numéro de partition
+- idp : id de la partition
 Retour:
 */
 operations.SupprPartition = class SupprPartition extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
-    const p = await this.gd.getPA(args.n, 'SupprPartition-1')
+    const p = await this.gd.getPA(args.idp, 'SupprPartition-1')
     let vide = true
     // eslint-disable-next-line no-unused-vars
     for(const id in p.mcpt) vide = false
     if (!vide) throw new AppExc(F_SRV, 271)
-    this.compte.supprPartition(args.n)
+      p.setZombi()
+    this.compte.supprPartition(args.idp)
     const espace = await this.gd.getEspace()
-    espace.supprPartition(args.n)
+    espace.supprPartition(args.idp)
     const s = await this.gd.getSY(this.ns)
-    s.supprPartition(args.n)
+    s.supprPartition(args.idp)
   }
 }
 

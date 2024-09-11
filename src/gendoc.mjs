@@ -237,6 +237,10 @@ export class Espaces extends GenDoc {
     })
   }
 
+  compile () {
+    return this
+  }
+
   cloneCourt () {
     return new Espaces().init({
       id: '',
@@ -264,8 +268,8 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
-  setPartition (id) {
-    this.tnotifP[id] = null
+  setPartition (p) {
+    this.tnotifP[p.id] = null
     this._maj = true
   }
 
@@ -451,7 +455,12 @@ export class Partitions extends GenDoc {
     return row
   }
 
-  majQC(idc, qv, c2m) {
+  setZombi () {
+    this._suppr = true
+    this._maj = true
+  }
+
+  majQC (idc, qv, c2m) {
     const e = this.mcpt[idc]
     if (e) {
       e.q = { ...qv }
