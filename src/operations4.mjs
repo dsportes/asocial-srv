@@ -160,8 +160,27 @@ operations.GetCompta = class GetCompta extends Operation {
       const e = partition.mcpt[id]
       if (!e) throw new AppExc(F_SRV, 219)
     }
+    const compte = await this.gd.getCO(id, 'GetCompta-3')
     const compta = await this.gd.getCA(id, 'GetCompta-1')
-    this.setRes('rowCompta', compta.toShortRow(this))
+    this.setRes('rowCompta', compta.toShortRow(this, compte.idp))
+  }
+}
+
+/* GetComptaQv : retourne les compteurs qv de la compta d'un compte
+- `token` : jeton d'authentification du compte
+- `id` : du compte
+Retour: rowCompta
+*/
+operations.GetComptaQv = class GetComptaQv extends Operation {
+  constructor (nom) { super(nom, 1)}
+
+  async phase2 (args) {
+    const id = args.id || this.id
+    if (id !== this.id && !this.estComptable) {
+      if (!this.compte.del) throw new AppExc(F_SRV, 218)
+    }
+    const compta = await this.gd.getCA(id, 'GetCompta-1')
+    this.setRes('comptaQv', compta.qv)
   }
 }
 
@@ -626,7 +645,7 @@ operations.SetCodePart = class SetCodePart extends Operation {
 - token: éléments d'authentification du compte.
 Retour:
 */
-operations.MuterCompteA = class MuterCompteA extends Operation {
+operations.MuterCompteA1 = class MuterCompteA1 extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 () {
@@ -643,37 +662,21 @@ operations.MuterCompteA = class MuterCompteA extends Operation {
   }
 }
 
-/*  OP_MuterCompteO: 'Mutation d\'un compte A en compte O' ************
-- token: éléments d'authentification du compte.
-- id : id du compte devenant O
-- quotas: { qc, qn, qv }
-- cleAP : clé A du compte cryptée par la clé P de la partition
-- clePK : clé de la nouvelle partition cryptée par la clé publique du compte
-- ids : ids du chat du compte demandeur (Comptable / Délégué)
-- t : texte (crypté) de l'item à ajouter au chat
-Retour:
-*/
-operations.MuterCompteO = class MuterCompteO extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+operations.MuterCompte = class MuterCompte extends Operation {
+  constructor (nom) { super(nom, 1, 2) }
 
-  async phase2 (args) {
+  async check (args) {
     const ec = this.estComptable
     const ed = !ec && this.compte.del
     if (!ec && !ed) throw new AppExc(F_SRV, 287)
-    const idp = this.compte.idp
 
-    const cpt = await this.gd.getCO(args.id, 'MuterCompteO-2')
-    if (cpt.idp) throw new AppExc(F_SRV, 288)
-    const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
-    compta.quotas(args.quotas)
-    compta.reinitSoldeO()
+    const av = compile(await this.db.getAvatarHk(ID.long(args.hZR, this.ns)))
+    if (!av) throw new AppExc(F_SRV, 317)
+    const avatar = await this.gd.getAV(av.id, 'GetAvatarPC')
+    if (!avatar || avatar.hZC !== args.hZC) throw new AppExc(F_SRV, 317)
+  }
 
-    const part = await this.gd.getPA(idp, 'MuterCompteO-4')
-    part.ajoutCompte(compta, args.cleAP, false)
-
-    // Maj du compte
-    cpt.chgPart(idp, args.clePK, null)
-
+  async setChat (args) {
     const chI = await this.gd.getCAV(this.id, args.ids, 'MuterCompteO-5')
     const chE = await this.gd.getCAV(chI.idE, chI.idsE)
     if (!chE) { // pas de chatE: pas de mise à jour de chat I
@@ -696,6 +699,75 @@ operations.MuterCompteO = class MuterCompteO extends Operation {
     if (chI.stI === 0) this.compta.ncPlus(1) // I était passif, redevient actif
     chI.actifI()
     chE.actifE()
+  }
+}
+
+/*  OP_MuterCompteA: 'Mutation du compte O en compte A' ************
+- token: éléments d'authentification du compte.
+- id : id du compte devenant A
+- hZR: hash de sa phrase de contact réduite
+- hZC: hash de sa phrase de contact complète
+- ids : ids du chat du compte demandeur (Comptable / Délégué)
+- t : texte (crypté) de l'item à ajouter au chat
+Retour:
+*/
+operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    const compte = await this.gd.getCO(args.id, 'MuterCompteA-2')
+    if (!compte.idp) throw new AppExc(F_SRV, 288)
+    
+    await this.check(args)
+  
+    const compta = await this.gd.getCA(args.id, 'MuterCompteA-3')
+    const q = compta.qv
+    compta.quotas({ qc: 0, qn: q.qn, qv: q.qv })
+    compta.reinitSoldeA()
+
+    const part = await this.gd.getPA(compte.idp, 'MuterCompteA-4')
+    part.retraitCompte(args.id)
+
+    // Maj du compte
+    compte.chgPart(null)
+
+    await this.setChat(args)
+  }
+}
+
+/*  OP_MuterCompteO: 'Mutation d\'un compte A en compte O' ************
+- token: éléments d'authentification du compte.
+- id : id du compte devenant O
+- hZR: hash de sa phrase de contact réduite
+- hZC: hash de sa phrase de contact complète
+- quotas: { qc, qn, qv }
+- cleAP : clé A du compte cryptée par la clé P de la partition
+- clePK : clé de la nouvelle partition cryptée par la clé publique du compte
+- ids : ids du chat du compte demandeur (Comptable / Délégué)
+- t : texte (crypté) de l'item à ajouter au chat
+Retour:
+*/
+operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    await this.check(args)
+  
+    const idp = this.compte.idp
+
+    const cpt = await this.gd.getCO(args.id, 'MuterCompteO-2')
+    if (cpt.idp) throw new AppExc(F_SRV, 288)
+    const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
+    compta.quotas(args.quotas)
+    compta.reinitSoldeO()
+
+    const part = await this.gd.getPA(idp, 'MuterCompteO-4')
+    part.ajoutCompte(compta, args.cleAP, false)
+
+    // Maj du compte
+    cpt.chgPart(idp, args.clePK, null)
+
+    await this.setChat(args)
   }
 }
 

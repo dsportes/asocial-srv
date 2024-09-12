@@ -718,7 +718,7 @@ export class Comptes extends GenDoc {
       this.notif = notif || null
     } else {
       this.clePK = null
-      this.idp = 0
+      this.idp = null
       this.notif = null
     }
     this._maj = true
@@ -1094,7 +1094,12 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op)._data_ }
+  toShortRow (op, idp) { 
+    if (idp) this.idp = idp
+    const x = this.toRow(op)._data_ 
+    delete this.idp
+    return x
+  }
 
   majcpt (c) {
     this._estA = c.estA 
