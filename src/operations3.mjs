@@ -328,6 +328,9 @@ operations.SyncSp = class SyncSp extends Operation {
       comptaE.ncPlus(1)
     }
 
+    const comptiSp = await this.gd.getCI(args.idsp, 'McMemo-2')
+    comptiSp.setMc(args.id, sp.htK, sp.txK)
+
     // Mise à jour des abonnements aux versions
     if (this.sync) this.sync.setAboRds(ds.setLongsRds(this.ns), this.dh)
   }

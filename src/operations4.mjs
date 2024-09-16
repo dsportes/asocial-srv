@@ -77,6 +77,8 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
 - `cvA` : { id, v, ph, tx } du sponsor, (ph, tx) cryptés par sa cle A.
 - `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
 
+- `htK txK` : hashtag et texte attribué par le sponsor au sponsorisé
+
 - `quotas` : `{qc, qn, qv}` pour un compte O, quotas attribués par le sponsor.
   - pour un compte "A" `[0, 1, 1]`. Un tel compte n'a pas de `qc` et peut changer à loisir
    `[qn, qv]` qui sont des protections pour lui-même (et fixe le coût de l'abonnement).
@@ -644,7 +646,7 @@ operations.SetCodePart = class SetCodePart extends Operation {
 /*  OP_MuterCompteA: 'Mutation du compte O en compte A' ************
 - token: éléments d'authentification du compte.
 Retour:
-*/
+
 operations.MuterCompteA1 = class MuterCompteA1 extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
@@ -661,6 +663,7 @@ operations.MuterCompteA1 = class MuterCompteA1 extends Operation {
     this.compte.chgPart(0)
   }
 }
+  */
 
 operations.MuterCompte = class MuterCompte extends Operation {
   constructor (nom) { super(nom, 1, 2) }
@@ -765,7 +768,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     part.ajoutCompte(compta, args.cleAP, false)
 
     // Maj du compte
-    cpt.chgPart(idp, args.clePK, null)
+    cpt.chgPart(idp, args.clePK, null, true)
 
     await this.setChat(args)
   }

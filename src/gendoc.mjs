@@ -711,12 +711,14 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
-  chgPart (idp, clePK, notif) {
+  chgPart (idp, clePK, notif, razdel) {
     if (idp) {
+      if (razdel) this.del = false
       this.clePK = clePK
       this.idp = idp
       this.notif = notif || null
     } else {
+      this.del = false
       this.clePK = null
       this.idp = null
       this.notif = null
@@ -1496,6 +1498,8 @@ export class Sponsorings extends GenDoc {
     sp.nomYC = args.nomYC
     sp.cvA = args.cvA
     sp.ardYC = args.ardYC
+    sp.htK = args.htK
+    sp.txK = args.txK
     sp.dconf = args.dconf || false
     if (!args.partitionId) { // compte A
       sp.don = args.don
