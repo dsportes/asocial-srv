@@ -1,6 +1,5 @@
 import crypto from 'crypto'
 import { encode, decode } from '@msgpack/msgpack'
-// import { deflateSync, inflateSync } from 'zlib'
 
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { AppExc, A_SRV } from './api.mjs'
@@ -15,6 +14,19 @@ export function u8ToB64 (u8, url) {
   const s = fromByteArray(u8)
   if (!url) return s
   return s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+const kx = new Uint8Array(32)
+for (let j = 0; j < 32; j++) kx[j] = j
+
+export function obj2B64(obj) {
+  const b = encode(obj)
+  return u8ToB64(crypter(Buffer.from(kx), b), 22), true
+}
+
+export function b642Obj(b64) {
+  const b = Buffer.from(b64ToU8(b64))
+  return decode(decrypter(Buffer.from(kx), b, 22))
 }
 
 const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])

@@ -1,7 +1,7 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
-import { app_keys } from './keys.mjs'
+// import { app_keys } from './keys.mjs'
 import { sleep, b64ToU8, crypter, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
@@ -909,6 +909,7 @@ export class Operation {
         - espace.notif.nr == 2
   */
   async auth() {
+    const app_keys = config.keys.app_keys
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
 
     const t = this.args.token

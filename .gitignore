@@ -3,6 +3,7 @@ dist
 *.log
 config
 keys.mjs
+keys.json
 keys
 logs
 vapid.json

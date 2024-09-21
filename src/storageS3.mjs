@@ -5,7 +5,7 @@ import { Hash } from '@aws-sdk/hash-node'
 import { formatUrl } from '@aws-sdk/util-format-url'
 
 import { config } from './config.mjs'
-import { s3_config } from './keys.mjs'
+// import { s3_config } from './keys.mjs'
 
 function stream2buffer(stream) {
   return new Promise((resolve, reject) => {
@@ -19,7 +19,7 @@ function stream2buffer(stream) {
 /* S3Provider ********************************************************************/
 export class S3Provider {
   constructor (codeProvider) {
-    this.config = s3_config
+    this.config = config.keys.s3_config
     this.config.sha256 = Hash.bind(null, 'sha256')
     this.s3 = new S3Client(this.config)
     this.signer = new S3RequestPresigner(this.config)

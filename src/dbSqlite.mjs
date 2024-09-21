@@ -11,11 +11,12 @@ import path from 'path'
 import { existsSync } from 'node:fs'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
-import { app_keys } from './keys.mjs'
+// import { app_keys } from './keys.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 
 export class SqliteProvider {
   constructor (site, code) {
+    const app_keys = config.keys.app_keys
     this.type = 'sqlite'
     this.code = code
     this.appKey = Buffer.from(app_keys.sites[site], 'base64')

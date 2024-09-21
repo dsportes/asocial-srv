@@ -18,12 +18,11 @@ import { stdin, stdout } from 'node:process'
 import { createInterface } from 'readline'
 
 import path from 'path'
-import { writeFileSync } from 'node:fs'
-// import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
-import { getStorageProvider, getDBProvider } from './util.mjs'
+import { getStorageProvider, getDBProvider, obj2B64 } from './util.mjs'
 import { config } from './config.mjs'
-import { app_keys } from './keys.mjs'
+// import { app_keys } from './keys.mjs'
 import { AMJ, ID, Cles } from './api.mjs'
 import { GenDoc, NsOrg } from './gendoc.mjs'
 import { genVapidKeys } from './notif.mjs'
@@ -100,6 +99,10 @@ export class Outils {
         await this.genVapidKeys()
         break
       }
+      case 'icon' : {
+        await this.buildIconMjs()
+        break
+      }
       default : {
         throw 'Premier argument attendu: export-db export-st vapid. Trouvé [' + this.outil + ']'
       }
@@ -125,6 +128,7 @@ export class Outils {
   }
 
   async setCfgDb (io) {
+    const app_keys = config.keys.app_keys
     const e = {}
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
@@ -326,25 +330,27 @@ export class Outils {
     this.log(t) 
   }
 
-  /*
-  async genMjs () {
-    const pin = path.resolve(this.cfg.in)
-    const pout = path.resolve(this.cfg.out)
-    if (existsSync(pin)) {
-      const msg = 'Conversion de "'+ pin + '" en "' + pout + '"'
-      const resp = await prompt(msg + '\nValider (o/N) ?')
-      if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
-      const bin = readFileSync(pin)
-      const t = bin.toString('base64')
-      const h = 'export default Buffer.from(\'' + t + '\', \'base64\')'
-      const bout = Buffer.from(h, 'utf-8')
-      writeFileSync(pout, bout)
-      this.log('OK')   
-    } else {
-      this.log('\nKO : fichier non trouvé')
+  async buildIconMjs () {
+    const pjson = path.resolve('./keys.json')
+    if (!existsSync(pjson)) {
+      this.log('fichier ./keys.json non trouvé')
+      return
     }
+    let js
+    try {
+      const x = readFileSync(pjson)
+      js = JSON.parse(x)
+    } catch (e) {
+      this.log('fichier ./keys.json mal formé. ' + e.message)
+      return
+    }
+    const t = obj2B64(js)
+    const t2 = 'export const icon = \'' + t + '\'\n'
+    const bout = Buffer.from(t2, 'utf-8')
+    const pmjs = path.resolve('./src/icon.mjs')
+    writeFileSync(pmjs, bout)
+    this.log('OK')
   }
-  */
 
 }
 

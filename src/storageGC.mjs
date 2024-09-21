@@ -1,7 +1,7 @@
 import { Storage } from '@google-cloud/storage'
 import { encode3 } from './util.mjs'
 import { config } from './config.mjs'
-import { service_account } from './keys.mjs'
+// import { service_account } from './keys.mjs'
 
 const cors = {
   origin: ['*'],
@@ -13,6 +13,7 @@ const cors = {
 /* GcProvider ********************************************************************/
 export class GcProvider {
   constructor (codeProvider) {
+    const service_account = config.keys.service_account
     const cfg = config[codeProvider]
     this.emulator = config.env.STORAGE_EMULATOR_HOST
 
