@@ -1387,7 +1387,7 @@ export class Operation {
       mois,
       (data) => { 
         const d = decode(data)
-        const ids = d.ids
+        const ids = '"' + d.ids + '"'
         const tkt = quotes(idTkToL6(d.ids))
         const dg = d.dg
         const dr = d.dr
