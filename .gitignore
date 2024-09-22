@@ -1,7 +1,7 @@
 node_modules
 dist
 *.log
-src/icon.mjs
+icon.mjs
 keys.json
 vapid.json
 keys
