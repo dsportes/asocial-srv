@@ -11,22 +11,15 @@ import { SqliteProvider } from './dbSqlite.mjs'
 import { FirestoreProvider } from './dbFirestore.mjs'
 
 export function u8ToB64 (u8, url) {
+  if (!u8 || !u8.length) return ''
   const s = fromByteArray(u8)
-  if (!url) return s
-  return s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  return !url ? s : s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 }
 
-const kx = new Uint8Array(32)
-for (let j = 0; j < 32; j++) kx[j] = j
-
-export function obj2B64(obj) {
-  const b = encode(obj)
-  return u8ToB64(crypter(Buffer.from(kx), b), 22), true
-}
-
-export function b642Obj(b64) {
-  const b = Buffer.from(b64ToU8(b64))
-  return decode(decrypter(Buffer.from(kx), b, 22))
+export function b64ToU8 (s) {
+  if (!s || !s.length) return new Uint8Array(0)
+  const pad = '===='.substring(0, 4 - (s.length % 4))
+  return Buffer.from(toByteArray((s + pad).replace(/-/g, '+').replace(/_/g, '/')))
 }
 
 const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
@@ -140,26 +133,6 @@ export function quotes (v) {
 }
 
 export function random (n) { return crypto.randomBytes(n) }
-
-/*
-const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1, (256 ** 6) - 1, (256 ** 7) - 1]
-export function rnd6 () {
-  const u8 = crypto.randomBytes(6)
-  let r = u8[0]
-  for (let i = 5; i > 0; i--) r += u8[i] * (p2[i - 1] + 1)
-  return r
-}
-*/
-
-export function b64ToU8 (s) {
-  const diff = s.length % 4
-  let x = s
-  if (diff) {
-    const pad = '===='.substring(0, 4 - diff)
-    x = s + pad
-  }
-  return toByteArray(x.replace(/-/g, '+').replace(/_/g, '/'))
-}
 
 export function crypter (cle, u8, idxIV) { // u8: Buffer
   try {

@@ -1,13 +1,11 @@
 node_modules
 dist
 *.log
-config
-keys.mjs
+src/icon.mjs
 keys.json
+vapid.json
 keys
 logs
-vapid.json
-app
 .yarn
 *.db3
 *.db3-shm

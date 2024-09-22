@@ -1,6 +1,6 @@
 import { env } from 'process'
 import { icon } from './icon.mjs'
-import { b642Obj } from './util.mjs'
+import { b642Obj } from './genicon.mjs'
 import { Tarif } from './api.mjs'
 
 export const config = {
