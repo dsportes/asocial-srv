@@ -1691,6 +1691,11 @@ export class Groupes extends GenDoc {
     })
   }
 
+  get taille () {
+    let n = 0; this.st.forEach(st => { if (st > 1) n++})
+    return n
+  }
+
   setZombi () {
     this._suppr = true
     this._maj = true

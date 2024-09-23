@@ -83,6 +83,7 @@ export const IDBOBSGC = 19 * 30
 
 export const UNITEN = 250 // nombre de notes + chats + groupes
 export const UNITEV = 100 * 1000 * 1000 // volume de fichiers
+export const MAXTAILLEGROUPE = 100
 
 export const interdits = '< > : " / \\ | ? *'
 // eslint-disable-next-line no-control-regex

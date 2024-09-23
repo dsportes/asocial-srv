@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, ID, FLAGS, AMJ } from './api.mjs'
+import { AppExc, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
@@ -1238,6 +1238,8 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
 
     if (gr.lnc.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 260)
     if (gr.lng.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 261)
+
+    if (gr.taille >= MAXTAILLEGROUPE) throw new AppExc(F_SRV, 318)
 
     const cinvit = await this.gd.getIN(avatar.idc, 'InvitationGroupe-2b')
 

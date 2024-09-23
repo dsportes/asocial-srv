@@ -18,8 +18,9 @@ export function u8ToB64 (u8, url) {
 
 export function b64ToU8 (s) {
   if (!s || !s.length) return new Uint8Array(0)
-  const pad = '===='.substring(0, 4 - (s.length % 4))
-  return Buffer.from(toByteArray((s + pad).replace(/-/g, '+').replace(/_/g, '/')))
+  const diff = s.length % 4
+  const x = !diff ? s : s + '===='.substring(0, 4 - diff)
+  return Buffer.from(toByteArray(x.replace(/-/g, '+').replace(/_/g, '/')))
 }
 
 const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 35, 225, 40, 220])
