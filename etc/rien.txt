@@ -1,1 +1,5 @@
-udesk 2
+node src/tools.mjs export-db --in 1,doda,sqlite_a,A --out 1,doda,firestore_a,A
+
+node src/tools.mjs export-st --in doda,fs_a --out doda,s3_a
+
+node src/tools.mjs export-st --in doda,s3_a --out doda,fs_b

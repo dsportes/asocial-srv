@@ -121,10 +121,10 @@ CREATE TABLE IF NOT EXISTS "tickets" (
 CREATE INDEX "tickets_id_v" ON "tickets" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "transferts" (
   "id" TEXT,
-  "ids" TEXT,
+  "idf" TEXT,
   "dlv" INTEGER,
   "_data_"	BLOB,
-  PRIMARY KEY("id", "ids")
+  PRIMARY KEY("id", "idf")
 );
 CREATE INDEX "transferts_dlv" ON "transferts" ( "dlv" );
 CREATE TABLE IF NOT EXISTS "sponsorings" (

@@ -94,7 +94,7 @@
     { "collectionGroup": "tickets", "fieldPath": "_data_", "indexes": [] },
 
     { "collectionGroup": "transferts", "fieldPath": "id", "indexes": [] },
-    { "collectionGroup": "transferts", "fieldPath": "ids",  "indexes": [] },
+    { "collectionGroup": "transferts", "fieldPath": "idf",  "indexes": [] },
     { "collectionGroup": "transferts", "fieldPath": "dlv", "queryScope": "COLLECTION_GROUP",
       "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "transferts", "fieldPath": "_data_", "indexes": [] },

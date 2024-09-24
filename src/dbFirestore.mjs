@@ -5,10 +5,12 @@ import { config } from './config.mjs'
 import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 
 export class FirestoreProvider {
-  constructor (site, code) {
+  constructor (site, codeProvider) {
+    const cfg = config[codeProvider]
+    const kn = cfg.key
+    this.service_account = config[kn]
     const app_keys = config.app_keys
     this.type = 'firestore'
-    this.code = code
     this.appKey = Buffer.from(app_keys.sites[site], 'base64')
     this.emulator = config.env.FIRESTORE_EMULATOR_HOST
   }
@@ -36,13 +38,13 @@ class Connx {
 
   // Méthode PUBLIQUE de coonexion: retourne l'objet de connexion à la base
   async connect (op, provider) {
-    const service_account = config.service_account
     this.op = op
     this.provider = provider
+    const sa = this.provider.service_account
     this.appKey = provider.appKey
     this.fs = new Firestore({ 
-      projectId : config.run.projectId,
-      credentials: service_account 
+      projectId : sa.project_id,
+      credentials: sa
     })
     this.op.db = this
     return this
@@ -598,8 +600,8 @@ class Connx {
     return r
   }
 
-  async purgeTransferts (id, ids) {
-    const p = FirestoreProvider._path('transferts', id, ids)
+  async purgeTransferts (id, idf) {
+    const p = FirestoreProvider._path('transferts', id, idf)
     if (this.transaction)
       await this.transaction.delete(this.fs.doc(p))
     else

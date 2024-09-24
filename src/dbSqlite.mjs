@@ -448,9 +448,9 @@ class Connx {
     return r
   }
 
-  async purgeTransferts (id, ids) {
-    const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND ids = @ids')
-    st.run({ id, ids })
+  async purgeTransferts (id, idf) {
+    const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND idf = @idf')
+    st.run({ id, idf })
     this.op.ne++
   }
 

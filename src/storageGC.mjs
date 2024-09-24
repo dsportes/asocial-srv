@@ -13,8 +13,10 @@ const cors = {
 /* GcProvider ********************************************************************/
 export class GcProvider {
   constructor (codeProvider) {
-    const service_account = config.service_account
+    // const service_account = config.service_account
     const cfg = config[codeProvider]
+    const kn = cfg.key
+    const service_account = config[kn]
     this.emulator = config.env.STORAGE_EMULATOR_HOST
 
     // Imports the Google Cloud client library
@@ -22,7 +24,7 @@ export class GcProvider {
     // For more information on ways to initialize Storage, please see
     // https://googleapis.dev/nodejs/storage/latest/Storage.html
 
-    const opt = { projectId: config.run.projectId, credentials: service_account }
+    const opt = { projectId: service_account.project_id, credentials: service_account }
     this.bucket = new Storage(opt).bucket(cfg.bucket)
     // this.bucket = new Storage().bucket(cfg.bucket) // Par env
 

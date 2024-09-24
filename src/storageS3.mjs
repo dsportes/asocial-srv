@@ -19,7 +19,9 @@ function stream2buffer(stream) {
 /* S3Provider ********************************************************************/
 export class S3Provider {
   constructor (codeProvider) {
-    this.config = config.s3_config
+    // this.config = config.s3_config
+    const kn = config[codeProvider].key
+    this.config = config[kn]
     this.config.sha256 = Hash.bind(null, 'sha256')
     this.s3 = new S3Client(this.config)
     this.signer = new S3RequestPresigner(this.config)
@@ -122,9 +124,7 @@ export class S3Provider {
     while (truncated) {
       const response = await this.s3.send(new ListObjectsCommand(bucketParams))
       if (response.Contents) response.Contents.forEach((item) => {
-        const s = item.Key
-        const s2 = s.substring(l, s.length - 1)
-        lst.push(s2)
+        lst.push(item.Key.substring(l))
       })
       truncated = response.IsTruncated
       if (truncated) bucketParams.Marker = response.NextMarker

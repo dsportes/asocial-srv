@@ -24,6 +24,7 @@ export function compile (row) {
     d._zombi = true
     d.id = ID.court(row.id)
     if (row.ids !== undefined) d.ids = ID.court(row.ids)
+    if (row.idf !== undefined) d.idf = row.idf
     if (row.hk !== undefined) d.hk = ID.court(row.hk)
     if (row.v !== undefined) d.v = row.v
     if (row.vcv !== undefined) d.vcv = row.vcv
@@ -69,6 +70,7 @@ export class NsOrg {
     if (this.ch) {
       row.id = ID.long(ID.court(row.id), this.ns)
       if (row.ids !== undefined) row.ids = ID.long(ID.court(row.ids), this.ns)
+      if (row.idf !== undefined) row.idf = row.idf
       if (row.hk !== undefined) row.hk = ID.long(ID.court(row.hk), this.ns)
       if (row.org !== undefined) row.org = this.org
     }
@@ -168,6 +170,7 @@ export class GenDoc {
     const row = { _nom: this._nom, _vav: this._vav }
     row.id = ID.long(this.id, op.ns)
     if (this.ids !== undefined) row.ids = ID.long(this.ids, op.ns)
+    if (this.idf !== undefined) row.idf = this.idf
     if (this.hk !== undefined) row.hk = ID.long(this.hk, op.ns)
     if (this.v !== undefined) row.v = this.v
     if (this.vcv !== undefined) row.vcv = this.vcv

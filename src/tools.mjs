@@ -5,7 +5,7 @@ node src/tools.mjs export-db --in 32,doda,sqlite_a,A --out 32,doda,firestore_a,A
 node src/tools.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
 
 Exemple export-st:
-node src/tools.mjs export-db --in doda,fs_a --out doda,gc_a
+node src/tools.mjs export-st --in doda,fs_a --out doda,gc_a
 
 Exemple purge-db
 node src/tools.mjs purge-db --in 2,coltes,firebase_b,A
@@ -18,9 +18,9 @@ import { stdin, stdout } from 'node:process'
 import { createInterface } from 'readline'
 
 import path from 'path'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 
-import { getStorageProvider, getDBProvider, obj2B64 } from './util.mjs'
+import { getStorageProvider, getDBProvider } from './util.mjs'
 import { config } from './config.mjs'
 // import { app_keys } from './keys.mjs'
 import { AMJ, ID, Cles } from './api.mjs'
@@ -152,7 +152,7 @@ export class Outils {
 
     e.pname = x[2]
     e.dbp = await getDBProvider(e.pname, e.site)
-    if (e.dbp.ko)
+    if (!e.dbp || e.dbp.ko)
       throw 'Argument --' + io + ' : Attendu: N,org,provider,site : provider [' + e.pname + ']: non trouvé'
 
     this.cfg[io] = e
@@ -328,28 +328,6 @@ export class Outils {
     writeFileSync(pout, t)
     this.log('OK')
     this.log(t) 
-  }
-
-  async buildIconMjs () {
-    const pjson = path.resolve('./keys.json')
-    if (!existsSync(pjson)) {
-      this.log('fichier ./keys.json non trouvé')
-      return
-    }
-    let js
-    try {
-      const x = readFileSync(pjson)
-      js = JSON.parse(x)
-    } catch (e) {
-      this.log('fichier ./keys.json mal formé. ' + e.message)
-      return
-    }
-    const t = obj2B64(js)
-    const t2 = 'export const icon = \'' + t + '\'\n'
-    const bout = Buffer.from(t2, 'utf-8')
-    const pmjs = path.resolve('./src/icon.mjs')
-    writeFileSync(pmjs, bout)
-    this.log('OK')
   }
 
 }
