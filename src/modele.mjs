@@ -909,7 +909,7 @@ export class Operation {
         - espace.notif.nr == 2
   */
   async auth() {
-    const app_keys = config.keys.app_keys
+    const app_keys = config.app_keys
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
 
     const t = this.args.token

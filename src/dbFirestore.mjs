@@ -6,7 +6,7 @@ import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 
 export class FirestoreProvider {
   constructor (site, code) {
-    const app_keys = config.keys.app_keys
+    const app_keys = config.app_keys
     this.type = 'firestore'
     this.code = code
     this.appKey = Buffer.from(app_keys.sites[site], 'base64')
@@ -36,7 +36,7 @@ class Connx {
 
   // Méthode PUBLIQUE de coonexion: retourne l'objet de connexion à la base
   async connect (op, provider) {
-    const service_account = config.keys.service_account
+    const service_account = config.service_account
     this.op = op
     this.provider = provider
     this.appKey = provider.appKey

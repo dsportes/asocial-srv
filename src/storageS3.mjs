@@ -19,7 +19,7 @@ function stream2buffer(stream) {
 /* S3Provider ********************************************************************/
 export class S3Provider {
   constructor (codeProvider) {
-    this.config = config.keys.s3_config
+    this.config = config.s3_config
     this.config.sha256 = Hash.bind(null, 'sha256')
     this.s3 = new S3Client(this.config)
     this.signer = new S3RequestPresigner(this.config)

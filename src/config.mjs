@@ -75,8 +75,7 @@ export const config = {
 // croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
 
 const obj = b642Obj(icon)
-config.keys = []
-for(let k in obj) config.keys[k] = obj[k]
+for(let k in obj) config[k] = obj[k]
 
 const tarifs = [
   { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
@@ -96,4 +95,4 @@ class Logger {
 }
 config.logger = new Logger()
 
-export function appKeyBin (site) { return Buffer.from(config.keys.app_keys.sites[site], 'base64') }
+export function appKeyBin (site) { return Buffer.from(config.app_keys.sites[site], 'base64') }

@@ -16,7 +16,7 @@ import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 
 export class SqliteProvider {
   constructor (site, code) {
-    const app_keys = config.keys.app_keys
+    const app_keys = config.app_keys
     this.type = 'sqlite'
     this.code = code
     this.appKey = Buffer.from(app_keys.sites[site], 'base64')

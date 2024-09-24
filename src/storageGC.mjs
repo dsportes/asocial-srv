@@ -13,7 +13,7 @@ const cors = {
 /* GcProvider ********************************************************************/
 export class GcProvider {
   constructor (codeProvider) {
-    const service_account = config.keys.service_account
+    const service_account = config.service_account
     const cfg = config[codeProvider]
     this.emulator = config.env.STORAGE_EMULATOR_HOST
 

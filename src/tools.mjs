@@ -128,7 +128,7 @@ export class Outils {
   }
 
   async setCfgDb (io) {
-    const app_keys = config.keys.app_keys
+    const app_keys = config.app_keys
     const e = {}
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
