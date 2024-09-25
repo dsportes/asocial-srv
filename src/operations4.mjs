@@ -549,7 +549,7 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
   }
 }
 
-/* OP_SetQuotas: 'Fixation des quotas d'un compte dans sa partition'
+/* OP_SetQuotas: 'Fixation des quotas d'un compte dans sa partition ou comme compte A'
 - token: éléments d'authentification du compte.
 - idp : id de la partition
 - idc: id du compte
@@ -561,7 +561,14 @@ operations.SetQuotas = class SetQuotas extends Operation {
 
   async phase2 (args) {
     const compta = (args.idc === this.id) ? this.compta : await this.gd.getCA(args.idc, 'SetQuotas-1')
-    compta.quotas(args.q)
+    if (!args.idp) { // compte A
+      const synth = await this.gD.getSY()
+      synth.updQuotas(compta.qv, args.q) // peut lever une Exc si insuffisance de quotas
+    } else { // compte P
+      const part = await this.gD.getPA(args.idc, 'SetQuotas-2')
+      part.checkUpdateQ(args.idc, args.q) // peut lever une Exc si insuffisance de quotas
+    }
+    compta.quotas(args.q) // répercutera in fine dans partition et synthese (si compte O)
   }
 }
 
@@ -624,8 +631,62 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
   constructor (nom) { super(nom, 2, 2) }
 
   async phase2 (args) {
+    /*
+      espace.quotas : quotas de l'espace fixés par l'AT
+      synth.qa : quotas réservés aux comptes A
+      qpt : synth.tsp['0'].q : somme des quotas des partitions
+      q: synth.tsp[idp].q quotas actuellement attribués à la partition
+    */
     const partition = await this.gd.getPA(args.idp)
-    partition.setQuotas(args.quotas)
+    const synth = await this.gD.getSY()
+    const e = synth.tsp[args.idp]
+    const q = e ? e.q : {qc: 0, qn:0, qv: 0}
+    const qe = await this.gD.getEspace().quotas
+    const qpt = synth.tsp['0'].q
+    const rqn = qe.qn - qpt.qn + q.qn
+    const maxn = rqn < 0 ? q.qn : rqn
+    const rqv = qe.qv - qpt.qv + q.qv
+    const maxv = rqv < 0 ? q.qv : rqv
+    const rqc = qe.qc - qpt.qc + q.qc
+    const maxc = rqc < 0 ? q.qc : rqc
+    const qap = args.quotas
+    if (qap.qn > maxn) throw new AppExc(F_SRV, 331)
+    if (qap.qv > maxv) throw new AppExc(F_SRV, 332)
+    if (qap.qc > maxc) throw new AppExc(F_SRV, 333)
+    partition.setQuotas(qap)
+  }
+}
+
+/* OP_SetQuotasA: 'Mise à jour des quotas pour les comptes A'
+- token: éléments d'authentification du compte.
+- quotas: {qc, qn, qv}
+Retour:
+*/
+operations.SetQuotasA = class SetQuotasA extends Operation {
+  constructor (nom) { super(nom, 2, 2) }
+
+  async phase2 (args) {
+    /*
+      espace.quotas : quotas de l'espace fixés par l'AT
+      synth.qa : quotas réservés aux comptes A
+      qpt : synth.tsp['0'].q : somme des quotas des partitions
+      q: synth.tsp[idp].q quotas actuellement attribués à la partition
+    */
+    const synth = await this.gD.getSY()
+    const q = sytnth.qa // quotas actuels
+    const qe = await this.gD.getEspace().quotas
+    const qpt = synth.tsp['0'].q
+    const rqn = qe.qn - qpt.qn + q.qn
+    const maxn = rqn < 0 ? q.qn : rqn
+    const rqv = qe.qv - qpt.qv + q.qv
+    const maxv = rqv < 0 ? q.qv : rqv
+    const rqc = qe.qc - qpt.qc + q.qc
+    const maxc = rqc < 0 ? q.qc : rqc
+    const qap = args.quotas
+    if (qap.qn > maxn) throw new AppExc(F_SRV, 331)
+    if (qap.qv > maxv) throw new AppExc(F_SRV, 332)
+    if (qap.qc > maxc) throw new AppExc(F_SRV, 333)
+    synth.setQA(qap)
   }
 }
 
@@ -642,28 +703,6 @@ operations.SetCodePart = class SetCodePart extends Operation {
     if (!this.compte.setCodePart(args.idp, args.etpk)) throw new AppExc(F_SRV, 229)
   }
 }
-
-/*  OP_MuterCompteA: 'Mutation du compte O en compte A' ************
-- token: éléments d'authentification du compte.
-Retour:
-
-operations.MuterCompteA1 = class MuterCompteA1 extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
-
-  async phase2 () {
-    if (!this.compte.idp) throw new AppExc(F_SRV, 289)
-    const q = this.compta.qv
-    this.compta.quotas({ qc: 0, qn: q.qn, qv: q.qv })
-    this.compta.reinitSoldeA()
-
-    const part = await this.gd.getPA(this.compte.idp, 'MuterCompteA-4')
-    part.retraitCompte(this.id)
-
-    // Maj du compte
-    this.compte.chgPart(0)
-  }
-}
-  */
 
 operations.MuterCompte = class MuterCompte extends Operation {
   constructor (nom) { super(nom, 1, 2) }
@@ -712,6 +751,12 @@ operations.MuterCompte = class MuterCompte extends Operation {
 - hZC: hash de sa phrase de contact complète
 - ids : ids du chat du compte demandeur (Comptable / Délégué)
 - t : texte (crypté) de l'item à ajouter au chat
+
+Mutation d'un compte `c` O de la partition `p` en compte A
+- augmente `syntheses.qtA`.
+- diminue `partition[p].mcpt[c].q` ce qui se répercute sur `syntheses.tsp[p].qt`.
+- bloqué si l'augmentation de `syntheses.qtA` fait dépasser `syntheses.qA`.
+
 Retour:
 */
 operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
@@ -725,8 +770,11 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
   
     const compta = await this.gd.getCA(args.id, 'MuterCompteA-3')
     const q = compta.qv
-    compta.quotas({ qc: 0, qn: q.qn, qv: q.qv })
-    compta.reinitSoldeA()
+    compta.quotas({ qc: q.qc, qn: q.qn, qv: q.qv })
+    compta.reinitSoldeA(2)
+
+    const synth = await this.gD.getSY()
+    synth.ajoutCompteA(compte.qv) // peut lever Exwc de blocage
 
     const part = await this.gd.getPA(compte.idp, 'MuterCompteA-4')
     part.retraitCompte(args.id)
@@ -748,6 +796,12 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
 - clePK : clé de la nouvelle partition cryptée par la clé publique du compte
 - ids : ids du chat du compte demandeur (Comptable / Délégué)
 - t : texte (crypté) de l'item à ajouter au chat
+
+Mutation d'un compte `c` A en compte O de la partition `p`
+- diminue `syntheses.qtA`
+- augmente `partition[p].mcpt[c].q` (si c'est possible) ce qui se répercute sur `syntheses.tsp[p].qt`
+- blocage si les quotas de la partition ne supportent pas les quotas du compte muté.
+
 Retour:
 */
 operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
@@ -760,17 +814,32 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
 
     const cpt = await this.gd.getCO(args.id, 'MuterCompteO-2')
     if (cpt.idp) throw new AppExc(F_SRV, 288)
+    cpt.chgPart(idp, args.clePK, null, true)
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
+    compta.estA(false)
     compta.quotas(args.quotas)
     compta.reinitSoldeO()
 
-    const part = await this.gd.getPA(idp, 'MuterCompteO-4')
-    part.ajoutCompte(compta, args.cleAP, false)
+    const synth = await this.gD.getSY()
+    synth.retraitCompteA(cpt.qv)
 
-    // Maj du compte
-    cpt.chgPart(idp, args.clePK, null, true)
+    const part = await this.gd.getPA(idp, 'MuterCompteO-4')
+    part.ajoutCompte(compta, args.cleAP, false) // Peut lever Exc de quotas
 
     await this.setChat(args)
+  }
+}
+
+/* OP_FixerQuotasA: 'Attribution par le Comptable de quotas globaux pour les comptes A'
+- token: éléments d'authentification du compte.
+- quotas: { qc qn qv }
+*/
+operations.FixerQuotasA = class FixerQuotasA extends Operations {
+  constructor (nom) { super(nom, 1, 2) }
+
+  async phase2 (args) {
+    const synth = await this.gD.getSY()
+    synth.setQA(args.quotas)
   }
 }
 

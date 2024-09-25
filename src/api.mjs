@@ -597,13 +597,6 @@ export class Compteurs {
       this.shift(t)
       if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
       if (conso) this.majConso(conso)
-      /*
-      if (this.dec) {
-        if (this.dhdec + (MSPARJOUR * this.nbj) < t) {
-          this.dhdec = 0; this.dec = 0; this.njdec = 0
-        }
-      }
-      */
     } else { // création - Les quotas sont initialisés, les consommations et montants monétaires nuls
       this.dh0 = t
       this.dh = t
@@ -619,6 +612,8 @@ export class Compteurs {
       // this.dec = 0
     }
   }
+
+  setA (estA) { this.estA = estA }
 
   get serial() {
     const x = {}; Compteurs.lp.forEach(p => { x[p] = this[p]})
@@ -693,8 +688,6 @@ export class Compteurs {
     const r = [x, t, Math.floor((this.now - t) / MSPARJOUR)]
     return r
   }
-
-  get estA () { return this.qv.qc === 0 }
 
   get cumulAbo () { 
     return this.aboma + this.vd[0][Compteurs.CA]

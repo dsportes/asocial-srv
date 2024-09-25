@@ -350,6 +350,7 @@ class GD {
     const c = Comptes.nouveau(args, sp)
     this.comptes.set(c.id, c)
     const compta = Comptas.nouveau(c.id, quotas, don || 0)
+    compta.setA(c.estA)
     this.comptas.set(c.id, compta)
     const compti = Comptis.nouveau(c.id)
     this.comptis.set(compti.id, compti)

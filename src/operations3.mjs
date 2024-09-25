@@ -600,20 +600,20 @@ operations.Sync = class Sync extends Operation {
 * Opérations AVEC connexion ADMINISTRATEUR EXCLUSIVEMENT
 *******************************************************************************/
 
-/*`SetEspaceNprof` : déclaration du profil de volume de l'espace par l'administrateur
+/* OP_SetEspaceQuotas` : 'Déclaration des quotas globaux de l'espace par l'administrateur technique',
 - `token` : jeton d'authentification du compte de **l'administrateur**
 - `ns` : id de l'espace notifié.
-- `nprof` : numéro de profil de 0 à N. Liste spécifiée dans config.mjs de l'application.
+- `quotas` : quotas globaux
 
 Retour: rien
 */
-operations.SetEspaceNprof = class SetEspaceNprof extends Operation {
+operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   constructor (nom) { super(nom, 3) }
 
   async phase2 (args) {
     const espace = await this.setEspaceNs(args.ns, true)
 
-    espace.setNprof(args.nprof)
+    espace.setQuotas(args.quotas)
   }
 }
 
