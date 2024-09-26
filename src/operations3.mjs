@@ -261,8 +261,10 @@ operations.SyncSp = class SyncSp extends Operation {
     // créé compte compta compti invit
     const {compte, compta, compti, invit} = this.gd.nouvCO(args, sp, sp.quotas, sp.don)
     // pas de setRes pour le row compte qui VA ETRE MIS A JOUR après la phase 2 - Sera fait en phase 3
+    compta.setA(sp.partitionId ? false : true)
     this.compte = compte
     this.compta = compta
+    await compte.reportDeCompta(compta, this.gd)
     this.setRes('rowCompti', compti.toShortRow(this))
     this.setRes('rowInvit', invit.toShortRow(this))
 
@@ -279,15 +281,14 @@ operations.SyncSp = class SyncSp extends Operation {
     this.setRes('dataSync', ds.serial(this.ns))
 
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
-    const pid = sp.partitionId || 0
+    const pid = sp.partitionId || ''
     if (pid) {
       const partition = await this.gd.getPA(pid) // assert si n'existe pas
-      const s = partition.getSynthese()
-      // restants à attribuer suffisant pour satisfaire les quotas ?
-      const q = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv }
-      if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.qv - s.qt.qv))
-        throw new AppExc(F_SRV, 211, [pid, args.id])
+      partition.checkUpdateQ(pid, sp.quotas) // peut lever une Exc si insuffisance de quotas
       partition.ajoutCompte(compta, args.cleAP, sp.del)
+    } else {
+      const synth = await this.gd.getSY()
+      synth.updQuotas({ qn: 0, qv: 0, qc: 0 }, sp.quotas) // peut lever une Exc si insuffisance de quotas
     }
     
     /* Création chat */
@@ -763,13 +764,11 @@ operations.CreationComptable = class CreationComptable extends Operation {
     
     args.id = ID.duComptable()
 
-    const apr = config.allocPrimitive
-    const qc = { qc: apr[0], qn: apr[1], qv: apr[2] } 
+    const qc = { qc: 1, qn: 1, qv: 1 } 
     const partition = await this.gd.nouvPA(args.idp, qc)
 
     // Compte Comptable
-    const aco = config.allocComptable
-    const quotas = { qc: aco[0], qn: aco[1], qv: aco[2] }
+    const quotas = { qc: 1, qn: 1, qv: 1 }
     const {compte, compta} = this.gd.nouvCO(args, null, quotas, 0)
     this.compte = compte
 

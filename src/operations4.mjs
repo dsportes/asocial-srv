@@ -99,6 +99,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     if (await this.db.getSponsoringIds(ID.long(args.hYR, this.ns))) 
       throw new AppExc(F_SRV, 207)
 
+    const q = args.quotas
     if (args.partitionId) { // compte O
       const partition = await this.gd.getPA(args.partitionId, 'AjoutSponsoring')
       if (!this.estComptable) {
@@ -109,11 +110,14 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
           throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
       }
       const s = partition.getSynthese()
-      const q = args.quotas
-      // restants à attribuer suffisant pour satisfaire les quotas ?
-      if (q.qc > (s.q.qc - s.qt.qc) || q.qn > (s.q.qn - s.qt.qn) || q.qv > (s.q.sv - s.qt.qv))
-        throw new AppExc(F_SRV, 211, [args.partitionId, this.compte.id])
+      if (q.qc > (s.q.qc - s.qt.qc)) throw new AppExc(F_SRV, 319, [s.q.qc - s.qt.qc, q.qc])
+      if (q.qn > (s.q.qn - s.qt.qn)) throw new AppExc(F_SRV, 320, [s.q.qn - s.qt.qn, q.qn])
+      if (q.qv > (s.q.qv - s.qt.qv)) throw new AppExc(F_SRV, 321, [s.q.qv - s.qt.qv, q.qv])
     } else {
+      const s = await this.gd.getSY()
+      if (q.qc > (s.qA.qc - s.qtA.qc)) throw new AppExc(F_SRV, 325, [s.qA.qc - s.qtA.qc, q.qc])
+      if (q.qn > (s.qA.qn - s.qtA.qn)) throw new AppExc(F_SRV, 323, [s.qA.qn - s.qtA.qn, q.qn])
+      if (q.qv > (s.qA.qv - s.qtA.qv)) throw new AppExc(F_SRV, 324, [s.qA.qv - s.qtA.qv, q.qv])
       if (this.estComptable || !this.compte._estA) args.don = 2
       else {
         if (this.compta.solde <= args.don + 2)
@@ -562,10 +566,10 @@ operations.SetQuotas = class SetQuotas extends Operation {
   async phase2 (args) {
     const compta = (args.idc === this.id) ? this.compta : await this.gd.getCA(args.idc, 'SetQuotas-1')
     if (!args.idp) { // compte A
-      const synth = await this.gD.getSY()
+      const synth = await this.gd.getSY()
       synth.updQuotas(compta.qv, args.q) // peut lever une Exc si insuffisance de quotas
     } else { // compte P
-      const part = await this.gD.getPA(args.idc, 'SetQuotas-2')
+      const part = await this.gd.getPA(args.idc, 'SetQuotas-2')
       part.checkUpdateQ(args.idc, args.q) // peut lever une Exc si insuffisance de quotas
     }
     compta.quotas(args.q) // répercutera in fine dans partition et synthese (si compte O)
@@ -638,10 +642,11 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
       q: synth.tsp[idp].q quotas actuellement attribués à la partition
     */
     const partition = await this.gd.getPA(args.idp)
-    const synth = await this.gD.getSY()
+    const synth = await this.gd.getSY()
     const e = synth.tsp[args.idp]
     const q = e ? e.q : {qc: 0, qn:0, qv: 0}
-    const qe = await this.gD.getEspace().quotas
+    const esp = await this.gd.getEspace()
+    const qe = esp.quotas
     const qpt = synth.tsp['0'].q
     const rqn = qe.qn - qpt.qn + q.qn
     const maxn = rqn < 0 ? q.qn : rqn
@@ -650,9 +655,9 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
     const rqc = qe.qc - qpt.qc + q.qc
     const maxc = rqc < 0 ? q.qc : rqc
     const qap = args.quotas
-    if (qap.qn > maxn) throw new AppExc(F_SRV, 331)
-    if (qap.qv > maxv) throw new AppExc(F_SRV, 332)
-    if (qap.qc > maxc) throw new AppExc(F_SRV, 333)
+    if (qap.qn > maxn) throw new AppExc(F_SRV, 331, [maxn, qap.qn])
+    if (qap.qv > maxv) throw new AppExc(F_SRV, 332, [maxv, qap.qv])
+    if (qap.qc > maxc) throw new AppExc(F_SRV, 333, [maxc, qap.qc])
     partition.setQuotas(qap)
   }
 }
@@ -672,9 +677,10 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
       qpt : synth.tsp['0'].q : somme des quotas des partitions
       q: synth.tsp[idp].q quotas actuellement attribués à la partition
     */
-    const synth = await this.gD.getSY()
-    const q = sytnth.qa // quotas actuels
-    const qe = await this.gD.getEspace().quotas
+    const synth = await this.gd.getSY()
+    const q = synth.qA // quotas actuels
+    const esp = await this.gd.getEspace()
+    const qe = esp.quotas
     const qpt = synth.tsp['0'].q
     const rqn = qe.qn - qpt.qn + q.qn
     const maxn = rqn < 0 ? q.qn : rqn
@@ -773,7 +779,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     compta.quotas({ qc: q.qc, qn: q.qn, qv: q.qv })
     compta.reinitSoldeA(2)
 
-    const synth = await this.gD.getSY()
+    const synth = await this.gd.getSY()
     synth.ajoutCompteA(compte.qv) // peut lever Exwc de blocage
 
     const part = await this.gd.getPA(compte.idp, 'MuterCompteA-4')
@@ -820,7 +826,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     compta.quotas(args.quotas)
     compta.reinitSoldeO()
 
-    const synth = await this.gD.getSY()
+    const synth = await this.gd.getSY()
     synth.retraitCompteA(cpt.qv)
 
     const part = await this.gd.getPA(idp, 'MuterCompteO-4')
@@ -834,11 +840,11 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
 - token: éléments d'authentification du compte.
 - quotas: { qc qn qv }
 */
-operations.FixerQuotasA = class FixerQuotasA extends Operations {
+operations.FixerQuotasA = class FixerQuotasA extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
   async phase2 (args) {
-    const synth = await this.gD.getSY()
+    const synth = await this.gd.getSY()
     synth.setQA(args.quotas)
   }
 }

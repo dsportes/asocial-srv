@@ -15,8 +15,6 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   ],
 
   // Paramètres fonctionnels
-  allocComptable: [8, 2, 8],
-  allocPrimitive: [256, 256, 256],
   heuregc: [3, 30], // Heure du jour des tâches GC
   retrytache: 60, // Nombre de minutes avant le retry d'une tâche
 

@@ -545,7 +545,7 @@ export class Compteurs {
 
   static NBCD = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 + Compteurs.X4
 
-  static lp = ['dh0', 'dh', 'dhraz', 'qv', 'vd', 'mm', 'aboma', 'consoma', 'dec', 'dhdec', 'njdec']
+  static lp = ['dh0', 'dh', 'dhraz', 'estA', 'qv', 'vd', 'mm', 'aboma', 'consoma', 'dec', 'dhdec', 'njdec']
   static lqv = ['qc', 'qn', 'qv', 'nn', 'nc', 'ng', 'v']
 
   /*
@@ -607,9 +607,6 @@ export class Compteurs {
       this.mm = new Array(Compteurs.NHM).fill(0)
       this.aboma = 0
       this.consoma = 0
-      // this.dhdec = 0
-      // this.njdec = 0
-      // this.dec = 0
     }
   }
 
@@ -756,12 +753,8 @@ export class Compteurs {
   max : max de pcc pcn pcv
   */
   get pourcents () {
-    let pcc = 0
-    if (this.qv.qc) {
-      // c'est un compte O
-      pcc = Math.round( (this.conso2M * 100) / this.qv.qc)
-      if (pcc > 999) pcc = 999  
-    }
+    const pcc = Math.round( (this.conso2M * 100) / this.qv.qc)
+    if (pcc > 999) pcc = 999  
     const pcn = Math.round(this.n * 100 / UNITEN / this.qv.qn)
     const pcv = Math.round(this.v * 100 / UNITEV / this.qv.qv)
     let max = pcc; if (pcn > max) max = pcn; if (pcv > max) max = pcv
