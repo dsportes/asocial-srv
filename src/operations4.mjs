@@ -569,7 +569,7 @@ operations.SetQuotas = class SetQuotas extends Operation {
       const synth = await this.gd.getSY()
       synth.updQuotas(compta.qv, args.q) // peut lever une Exc si insuffisance de quotas
     } else { // compte P
-      const part = await this.gd.getPA(args.idc, 'SetQuotas-2')
+      const part = await this.gd.getPA(args.idp, 'SetQuotas-2')
       part.checkUpdateQ(args.idc, args.q) // peut lever une Exc si insuffisance de quotas
     }
     compta.quotas(args.q) // répercutera in fine dans partition et synthese (si compte O)
