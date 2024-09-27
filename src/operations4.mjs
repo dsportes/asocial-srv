@@ -381,8 +381,8 @@ operations.MajChat = class MajChat extends OperationCh {
       this.chI.addChatItem(itemI)
       this.chE.addChatItem(itemE)
     } else if (args.dh) {
-      this.chI.razChatItem(args.dh)
-      this.chE.razChatItem(args.dh)
+      this.chI.razChatItem(args.dh, this.dh)
+      this.chE.razChatItem(args.dh, this.dh)
     }
 
     // Maj CVs

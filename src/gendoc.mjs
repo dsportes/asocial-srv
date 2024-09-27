@@ -1668,12 +1668,12 @@ export class Chats extends GenDoc {
     this._maj = true
   }
 
-  razChatItem (dh) { 
+  razChatItem (dh, dhop) { 
     // a : 0:écrit par I, 1: écrit par E
     const nl = []
     for (const it of this.items) {
       if (it.dh === dh) {
-        nl.push({a: it.a, dh, dhx: this.dh})
+        nl.push({a: it.a, dh, dhx: dhop})
       } else {
         nl.push(it)
       }
