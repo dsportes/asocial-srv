@@ -28,14 +28,15 @@ export function load4 () {
     compte espace (lazy)
 */
 
-/*`SetEspaceOptionA` : changement de l'option A, nbmi, dlvat par le Comptable
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `optionA` : 0 1 2.
-- nbmi:
-Retour: rien
-*/
+/* SetEspaceOptionA : changement de l'option A, nbmi, dlvat par le Comptable */
 operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
-  constructor (nom) { super(nom, 2, 2)}
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.targs = { 
+      optionA: { t: 'bool'}, // true si accepte le s compte A
+      nbmi: { t: 'int', min: 3, max: 18 } // nombre de mois d'inactivité avant suppression d'un compte
+    }
+  }
 
   async phase2 (args) {
     const espace = await this.setEspaceOrg(this.org)
@@ -43,14 +44,15 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   }
 }
 
-/*`SetEspaceDlvat` : changement de dlvat par l'administrateur
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- ns: 
-- dlvat: aaaammjj
-Retour: rien
-*/
+/* SetEspaceDlvat : changement de dlvat par l'administrateur */
 operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
-  constructor (nom) { super(nom, 1, 0)}
+  constructor (nom) { 
+    super(nom, 1, 0)
+    this.targs = { 
+      ns: { t: 'ns'}, // ns de l'espace concerné
+      dlvat: { t: 'date' } // aaaammjj : date limite fixée par l'administrateur technique
+    }
+  }
 
   async phase2 (args) {
     const espace = await this.setEspaceNs(args.ns, true)
@@ -60,35 +62,31 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
   }
 }
 
-/** Ajout d\'un sponsoring ****************************************************
-- `token` : éléments d'authentification du comptable / compte délégué de la partition.
-- id : id du sponsor
-- hYR : hash du PNKFD de la phrase de sponsoring réduite (SANS ns)
-- `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
-- `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
-- `hYC` : hash du PBKFD de la phrase de sponsoring,
-- `hYR` : hash du PBKFD de la phrase réduite de sponsoring,
-- `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
-- `partitionId`: id de la partition si compte 0    
-- `cleAP` : clé A du COMPTE sponsor crypté par la clé P de la partition.
-- `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD 
-  de la phrase complète de sponsoring (donne l'id de la partition).
-- `nomYC` : nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
-- `cvA` : { id, v, ph, tx } du sponsor, (ph, tx) cryptés par sa cle A.
-- `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
-
-- `htK txK` : hashtag et texte attribué par le sponsor au sponsorisé
-
-- `quotas` : `{qc, qn, qv}` pour un compte O, quotas attribués par le sponsor.
-  - pour un compte "A" `[0, 1, 1]`. Un tel compte n'a pas de `qc` et peut changer à loisir
-   `[qn, qv]` qui sont des protections pour lui-même (et fixe le coût de l'abonnement).
-- don: montant du don pour un compte autonome sponsorisé par un compte autonome
-- dconf: true, si le sponsor demande la confidentialité (pas de chat à l'avcceptation)
-- del: true si le compte est délégué de la partition
-Retour:
-*/
+/* Ajout d\'un sponsoring */
 operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = { 
+      id: { t: 'ida' }, // id du sponsor
+      hYR: { t: 'u8' }, // hash du PBKFD de la phrase réduite de sponsoring,
+      psK: { t: 'u8' }, // texte de la phrase de sponsoring cryptée par la clé K du sponsor.
+      YCK: { t: 'u8' }, // PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
+      hYC: { t: 'u8' }, // hash du PBKFD de la phrase de sponsoring
+      cleAYC: { t: 'u8' }, // clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring
+      partitionId: { t: '*idp' }, // id de la partition si compte "O" 
+      cleAP: { t: 'u8' }, // clé A du COMPTE sponsor crypté par la clé P de la partition.
+      clePYC: { t: 'u8' }, // clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD de la phrase complète de sponsoring (donne l'id de la partition).
+      nomYC: { t: 'u8' }, // nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
+      cvA: { t: 'cv' }, // CV { id, v, ph, tx } du sponsor, (ph, tx) cryptés par sa cle A
+      ardYC: { t: 'u8' }, // ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
+      htK: { t: 'u8' }, // hashtag attribué par le sponsor au sponsorisé (crypté cmlé K)
+      txK: { t: 'u8' }, // texte attribué par le sponsor au sponsorisé (crypté cmlé K)
+      quotas: { t: 'q' }, // quotas {qc, qn, qv} attribués par le sponsor
+      don: { t: '*int', p: [1, 1000] }, // montant du don pour un compte autonome sponsorisé par un compte autonome
+      dconf: { t: 'bool' }, // true, si le sponsor demande la confidentialité (pas de chat à l'avcceptation)
+      del: { t: '*bool' }, // true si le compte est délégué de la partition
+    }
+  }
 
   async phase2 (args) {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
@@ -129,17 +127,16 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
   }
 }
 
-/* `ProlongerSponsoring` : prolongation d'un sponsoring existant
-Change la date limite de validité du sponsoring pour une date plus lointaine. Ne fais rien si le sponsoring n'est pas _actif_ (hors limite, déjà accepté ou refusé).
-POST:
-- `token` : éléments d'authentification du comptable / compte sponsor de sa tribu.
-- `id ids` : identifiant du sponsoring.
-- `dlv` : nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
-
-Retour: 
-*/
+/* ProlongerSponsoring : prolongation d'un sponsoring existant */
 operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida'}, // identifiant de l'avatar du du sponsoring
+      ids: { t: 'ids' }, // identifiant du sponsoring
+      dlv: { t: '*date' } // nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
+    }
+  }
 
   async phase2(args) {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
@@ -150,13 +147,14 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   }
 }
 
-/* GetCompta : retourne la compta d'un compte
-- `token` : jeton d'authentification du compte
-- `id` : du compte
-Retour: rowCompta
-*/
+/* GetCompta : retourne la compta d'un compte */
 operations.GetCompta = class GetCompta extends Operation {
-  constructor (nom) { super(nom, 1)}
+  constructor (nom) { 
+    super(nom, 1)
+    this.targs = {
+      id: { t: 'ida' } // id du compte
+    }
+  }
 
   async phase2 (args) {
     const id = args.id || this.id
@@ -173,12 +171,16 @@ operations.GetCompta = class GetCompta extends Operation {
 }
 
 /* GetComptaQv : retourne les compteurs qv de la compta d'un compte
-- `token` : jeton d'authentification du compte
-- `id` : du compte
-Retour: rowCompta
+Retour: 
+- comptaQV: rowCompta
 */
 operations.GetComptaQv = class GetComptaQv extends Operation {
-  constructor (nom) { super(nom, 1)}
+  constructor (nom) { 
+    super(nom, 1)
+    this.targs = {
+      id: { t: 'ida' } // id du compte
+    } 
+  }
 
   async phase2 (args) {
     const id = args.id || this.id
@@ -190,32 +192,34 @@ operations.GetComptaQv = class GetComptaQv extends Operation {
   }
 }
 
-/* `SetDhvuCompte` : enregistrement de la date-heure de _vue_ des notifications dans une session
-POST: 
-- `token` : éléments d'authentification du compte.
-- `dhvu` : date-heure cryptée par la clé K.
-
-Assertion sur l'existence du row `Comptas` du compte.
-*/
+/* SetDhvuCompte : enregistrement de la date-heure de _vue_ des notifications dans une session */
 operations.SetDhvuCompte = class SetDhvuCompte extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      dhvu: { t: 'u8' } // date-heure cryptée par la clé K.
+    } 
+  }
 
   async phase2 (args) {
     this.compte.setDhvu(args.dhvu)
   }
 }
 
-/** Récupération d\'un avatar par sa phrase de contact *******
-- token: éléments d'authentification du compte.
-- hZR: hash de la phrase de contact réduite
-- hZC: hash de la phrase de contact complète
+/* GetAvatarPC: Récupération d\'un avatar par sa phrase de contact
 Retour:
 - cleAZC : clé A cryptée par ZC (PBKFD de la phrase de contact complète)
 - cvA: carte de visite cryptée par sa clé A
 - collision: true si la phrase courte pointe sur un  autre avatar
 */
 operations.GetAvatarPC = class GetAvatarPC extends Operation {
-  constructor (nom) { super(nom, 1) }
+  constructor (nom) { 
+    super(nom, 1)
+    this.targs = {
+      hZR: { t: 'u8' }, // hash de la phrase de contact réduite
+      hZC: { t: 'u8' } // hash de la phrase de contact complète
+    }
+  }
 
   async phase2 (args) {
     const av = compile(await this.db.getAvatarHk(ID.long(args.hZR, this.ns)))
@@ -260,27 +264,29 @@ class OperationCh extends Operation {
   }
 }
 
-/* OP_NouveauChat: 'Création d\'un nouveau chat' *********************************
-- token: éléments d'authentification du compte.
-- idI
-- idE
-- mode 
-  - 0: par phrase de contact - hZC en est le hash
-  - 1: idE est délégué de la partition de idI
-  - idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
-- hZC : hash du PBKFD de la phrase de contact compléte pour le mode 0
-- ch: { cck, ccP, cleE1C, cleE2C, t1c }
-  - ccK: clé C du chat cryptée par la clé K du compte de idI
-  - ccP: clé C du chat cryptée par la clé publique de idE
-  - cleE1C: clé A de l'avatar E (idI) cryptée par la clé du chat.
-  - cleE2C: clé A de l'avatar E (idE) cryptée par la clé du chat.
-  - txt: item crypté par la clé C
-
+/* NouveauChat: 'Création d\'un nouveau chat' *********************************
 Retour:
-- `rowChat` : row du chat I.
+- rowChat : row du chat I.
 */
 operations.NouveauChat = class NouveauChat extends OperationCh {
-  constructor (nom) { super(nom, 1) }
+  constructor (nom) { 
+    super(nom, 1)
+    this.targs = {
+      idI: { t: 'ida' }, // id de l'vatar du chat "interne"
+      idE: { t: 'ida' }, // id de l'vatar du chat "externe"
+      mode: { t: 'modech' }, 
+      // 0: par phrase de contact (hZC en est le hash),  
+      // 1: idE est délégué de la partition de idI, 
+      // idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
+      hZC : { t: '*u8' }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
+      ch: { t: 'ch' }, // { cck, ccP, cleE1C, cleE2C, t1c }
+      // ccK: clé C du chat cryptée par la clé K du compte de idI
+      // ccP: clé C du chat cryptée par la clé publique de idE
+      // cleE1C: clé A de l'avatar E (idI) cryptée par la clé du chat.
+      // cleE2C: clé A de l'avatar E (idE) cryptée par la clé du chat.
+      // txt: item crypté par la clé C
+    }
+  }
 
   async phase2 (args) {
     if (this.compte.mav[args.idE]) throw new AppExc(F_SRV, 226)
@@ -344,17 +350,21 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
   }
 }
 
-/* Ajout ou suppression d\'un item à un chat ***************************************
-- `token` : éléments d'authentification du compte auteur
-- id, ids: id du chat
-- t: texte gzippé crypté par la clé C du chat (null si suppression)
-- dh : 0 ou date-heure de l'item du chat à supprimer
-- don : montant du don de I à E
+/* MajChat: Ajout ou suppression d\'un item à un chat ***********
 Retour:
 - disp: true si E a disparu (pas de maj faite)
 */
 operations.MajChat = class MajChat extends OperationCh {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'ida' }, // id de l'avatar du chat
+      ids: { t: 'ids' },  // ids du chat
+      t: { t: 'u8' }, // texte gzippé crypté par la clé C du chat (null si suppression)
+      dh: { t: '*int' }, // 0 ou date-heure de l'item du chat à supprimer
+      don: { t: 'int', min: 0, max: 1000 } // montant du don de I à E
+    }
+  }
 
   async phase2 (args) {
     if (!await this.intro2(args)) { 
@@ -395,16 +405,18 @@ operations.MajChat = class MajChat extends OperationCh {
   }
 }
 
-/* `PassifChat` : rend le chat passif, nombre de chat - 1, items vidé
-Mise en état "passif" d\'un chat
-Nombre de chat - 1, items vidé
-- token : éléments d'authentification du compte.
-- id ids : id du chat
+/* PassifChat : déclare le chat indésirable
 Retour
-- disp: true si E a disparu
+- suppr: true si E a disparu
 */
 operations.PassifChat = class PassifChat extends OperationCh {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id de l'avatar du chat
+      ids: { t: 'ids' }  // ids du chat
+    }
+  }
 
   async phase2 (args) { 
     if (!await this.intro2()) { // E disparu. I voulait être passif, devient détruit
@@ -427,18 +439,21 @@ operations.PassifChat = class PassifChat extends OperationCh {
   }
 }
 
-/* OP_ChangementPC: 'Changement de la phrase de contact d\'un avatar' *************************
-token: éléments d'authentification du compte.
-- `id`: de l'avatar
-- `hZR`: hash de la phrase de contact réduite (SUPPRESSION si null)
-- `cleAZC` : clé A cryptée par ZC (PBKFD de la phrase de contact complète).
-- `pcK` : phrase de contact complète cryptée par la clé K du compte.
-- `hZC` : hash du PBKFD de la phrase de contact complète.
+/* ChangementPC: Changement de la phrase de contact d\'un avatar ***********
 Exceptions:
 F_SRV, 26: Phrase de contact trop proche d\'une phrase existante.
 */
 operations.ChangementPC = class ChangementPC extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'ida' }, // id de l'avatar
+      hZR: { t: 'u8' }, // hash de la phrase de contact réduite (SUPPRESSION si null)
+      cleAZC: { t: 'u8' }, //  clé A cryptée par ZC (PBKFD de la phrase de contact complète).
+      pcK: { t: 'u8' }, //  phrase de contact complète cryptée par la clé K du compte.
+      hZC: { t: 'u8' } // hash du PBKFD de la phrase de contact complète.
+    }
+  }
 
   async phase2 (args) { 
     if (args.hZR && await this.db.getAvatarHk(ID.long(args.hZR, this.ns))) 
@@ -451,38 +466,42 @@ operations.ChangementPC = class ChangementPC extends Operation {
   }
 }
 
-/* OP_StatutAvatar: 'Vérification que le bénéficiaire envisagé d\'un don est bien un compte autonome'
-indique si l'avatar donné en argument est 
-un avatar principal ou non, d'un compte autonome ou non
-- token : jeton d'authentification du compte de **l'administrateur**
-- id : id de l'avatar
+/* StatutAvatar: Vérification que le bénéficiaire envisagé d\'un don est bien un compte autonome
 Retour: [idc, idp]
-- `idc`: id du compte
-- `idp`: numéro de tranche de quota si compte "0", 0 si compte "A"
+- idc: id du compte
+- idp: id de la partition si compte "0", '' si compte "A"
 */
 operations.StatutAvatar = class StatutAvatar extends Operation {
-  constructor (nom) { super(nom, 1) }
+  constructor (nom) { 
+    super(nom, 1)
+    this.targs = {
+      id: { t: 'ida' } // id de l'avatar
+    }
+  }
 
   async phase2(args) {
     const avatar = await this.gd.getAV(args.id, 'StatutAvatar-1')
     const c = await this.gd.getCO(avatar.idc)
-    this.setRes('idcidp', [c.id, c.idp || 0])
+    this.setRes('idcidp', [c.id, c.idp || ''])
   }
 }
 
-/* OP_RafraichirCvsAv: 'Rafraichissement des CVs des membres / chats de l\'avatar'
-- token : jeton d'authentification du compte de **l'administrateur**
-- id : id de l'avatar
-- lch : liste des chats. { ids, idE, vcv }
-- lmb : liste des membres: { id, im, ida, vcv}
+/* RafraichirCvsAv: Rafraichissement des CVs des membres / chats de l\'avatar
 Retour: [nc, nv]
-- `nc`: nombre de CV mises à jour
-- `nv` : nombre de chats existants
+- nc: nombre de CV mises à jour
+- nv: nombre de chats existants
 Exception générique:
 - 8001: avatar disparu
 */
 operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id de l'avatar
+      lch: { t: 'array' }, // liste des chats: [{ ids, idE, vcv } ...]
+      lmb: { t: 'array' } // liste des membres: [{ id, im, ida, vcv} ...]
+    }
+  }
 
   async phase2(args) {
     /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
@@ -518,18 +537,21 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
   }
 }
 
-/* OP_RafraichirCvsGr: 'Rafraichissement des CVs des membres d\'un grouper'
-- token : jeton d'authentification du compte de **l'administrateur**
-- idg : id du groupe
-- lmb : liste des membres: { id, im, ida, vcv}
+/* RafraichirCvsGr: Rafraichissement des CVs des membres d\'un groupe
 Retour: [nc, nv]
-- `nc`: nombre de CV mises à jour
-- `nv` : nombre de chats existants
+- nc: nombre de CV mises à jour
+- nv : nombre de chats existants
 Exception générique:
 - 8002: groupe disparu
 */
 operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      lmb: { t: 'array' } // liste des membres: [{ id, im, ida, vcv} ...]
+    }
+  }
 
   async phase2(args) {
     /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
@@ -553,15 +575,16 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
   }
 }
 
-/* OP_SetQuotas: 'Fixation des quotas d'un compte dans sa partition ou comme compte A'
-- token: éléments d'authentification du compte.
-- idp : id de la partition
-- idc: id du compte
-- q: {qc, qn, qv}
-Retour:
-*/
+/* SetQuotas: 'Fixation des quotas d'un compte dans sa partition ou comme compte A */
 operations.SetQuotas = class SetQuotas extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.rargs = {
+      idp: { t: 'idp' }, // id de la partition
+      idc: { t: 'idc' }, // id du compte
+      q: { t: 'q' } // quotas: {qc, qn, qv}
+    }
+  }
 
   async phase2 (args) {
     const compta = (args.idc === this.id) ? this.compta : await this.gd.getCA(args.idc, 'SetQuotas-1')
@@ -576,39 +599,36 @@ operations.SetQuotas = class SetQuotas extends Operation {
   }
 }
 
-/* OP_NouvellePartition: 'Création d\'une nouvelle partition' *******
-Dans Comptes : **Comptable seulement:**
-- `tpK` : map des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
-  - `cleP` : clé P de la partition.
-  - `code` : code / commentaire court de convenance attribué par le Comptable
-
-- token: éléments d'authentification du compte.
-- idp : ID de la partition
-- itemK: {cleP, code} crypté par la clé K du Comptable.
-- quotas: { qc, qn, qv }
-Retour:
-*/
+/* NouvellePartition: Création d\'une nouvelle partition */
 operations.NouvellePartition = class NouvellePartition extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.rargs = {
+      idp: { t: 'idp' }, // id de la partition
+      itemK: { t: 'u8' }, //  {cleP, code} crypté par la clé K du Comptable.
+      quotas: { t: 'q' } // quotas: {qc, qn, qv}
+    }
+  }
 
+  /* Rappel - Dans Comptes : **Comptable seulement:**
+  - `tpK` : map des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Sa clé est l'id de la partition.
+    - `cleP` : clé P de la partition.
+    - `code` : code / commentaire court de convenance attribué par le Comptable
+  */
   async phase2 (args) {
     await this.gd.nouvPA(args.idp, args.quotas)
     this.compte.ajoutPartition(args.idp, args.itemK)
   }
 }
 
-/* OP_SupprPartition: 'Création d\'une nouvelle partition' *******
-Dans Comptes : **Comptable seulement:**
-- `tpK` : table des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
-  - `cleP` : clé P de la partition.
-  - `code` : code / commentaire court de convenance attribué par le Comptable
-
-- token: éléments d'authentification du compte.
-- idp : id de la partition
-Retour:
-*/
+/* SupprPartition: Suppression d\'une partition */
 operations.SupprPartition = class SupprPartition extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.rargs = {
+      idp: { t: 'idp' } // id de la partition
+    }
+  }
 
   async phase2 (args) {
     const p = await this.gd.getPA(args.idp, 'SupprPartition-1')
@@ -625,14 +645,15 @@ operations.SupprPartition = class SupprPartition extends Operation {
   }
 }
 
-/* OP_SetQuotasPart: 'Mise à jour des quotas d\'une partition'
-- token: éléments d'authentification du compte.
-- idp : id de la partition
-- quotas: {qc, qn, qv}
-Retour:
-*/
+/* SetQuotasPart: Mise à jour des quotas d\'une partition */
 operations.SetQuotasPart = class SetQuotasPart extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.rargs = {
+      idp: { t: 'idp' }, // id de la partition
+      quotas: { t: 'q' } // quotas: {qc, qn, qv}
+    }
+  }
 
   async phase2 (args) {
     /*
@@ -662,13 +683,14 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
   }
 }
 
-/* OP_SetQuotasA: 'Mise à jour des quotas pour les comptes A'
-- token: éléments d'authentification du compte.
-- quotas: {qc, qn, qv}
-Retour:
-*/
+/* SetQuotasA: Mise à jour des quotas pour les comptes A */
 operations.SetQuotasA = class SetQuotasA extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2) 
+    this.rargs = {
+      quotas: { t: 'q' } // quotas: {qc, qn, qv}
+    }
+  }
 
   async phase2 (args) {
     /*
@@ -696,14 +718,15 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
   }
 }
 
-/* OP_SetCodePart: 'Mise à jour du code d\'une partition'
-- token: éléments d'authentification du compte.
-- idp : id de la partition
-- etpk: {codeP, code} crypté par la clé K du Comptable
-Retour:
-*/
+/* SetCodePart: Mise à jour du code d\'une partition */
 operations.SetCodePart = class SetCodePart extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.rargs = {
+      idp: { t: 'idp' }, // id de la partition
+      etpk: { t: 'u8' } // {codeP, code} crypté par la clé K du Comptable
+    }
+  }
 
   async phase2 (args) {
     if (!this.compte.setCodePart(args.idp, args.etpk)) throw new AppExc(F_SRV, 229)
@@ -750,23 +773,23 @@ operations.MuterCompte = class MuterCompte extends Operation {
   }
 }
 
-/*  OP_MuterCompteA: 'Mutation du compte O en compte A' ************
-- token: éléments d'authentification du compte.
-- id : id du compte devenant A
-- hZR: hash de sa phrase de contact réduite
-- hZC: hash de sa phrase de contact complète
-- ids : ids du chat du compte demandeur (Comptable / Délégué)
-- t : texte (crypté) de l'item à ajouter au chat
-
+/*  MuterCompteA: Mutation du compte O en compte A
 Mutation d'un compte `c` O de la partition `p` en compte A
 - augmente `syntheses.qtA`.
 - diminue `partition[p].mcpt[c].q` ce qui se répercute sur `syntheses.tsp[p].qt`.
 - bloqué si l'augmentation de `syntheses.qtA` fait dépasser `syntheses.qA`.
-
-Retour:
 */
 operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id du compte devenant A
+      hZR: { t: 'u8' }, // hash de sa phrase de contact réduite
+      hZC: { t: 'u8' }, // hash de sa phrase de contact complète      
+      ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
+      t: { t: 'u8' } // texte (crypté) de l'item à ajouter au chat
+    }
+  }
 
   async phase2 (args) {
     const compte = await this.gd.getCO(args.id, 'MuterCompteA-2')
@@ -793,25 +816,25 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
 }
 
 /*  OP_MuterCompteO: 'Mutation d\'un compte A en compte O' ************
-- token: éléments d'authentification du compte.
-- id : id du compte devenant O
-- hZR: hash de sa phrase de contact réduite
-- hZC: hash de sa phrase de contact complète
-- quotas: { qc, qn, qv }
-- cleAP : clé A du compte cryptée par la clé P de la partition
-- clePK : clé de la nouvelle partition cryptée par la clé publique du compte
-- ids : ids du chat du compte demandeur (Comptable / Délégué)
-- t : texte (crypté) de l'item à ajouter au chat
-
 Mutation d'un compte `c` A en compte O de la partition `p`
 - diminue `syntheses.qtA`
 - augmente `partition[p].mcpt[c].q` (si c'est possible) ce qui se répercute sur `syntheses.tsp[p].qt`
 - blocage si les quotas de la partition ne supportent pas les quotas du compte muté.
-
-Retour:
 */
 operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id du compte devenant O
+      hZR: { t: 'u8' }, // hash de sa phrase de contact réduite
+      hZC: { t: 'u8' }, // hash de sa phrase de contact complète   
+      quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
+      cleAP: { t: 'u8' }, // clé A du compte cryptée par la clé P de la partition
+      clePK: { t: 'u8' }, // clé de la nouvelle partition cryptée par la clé publique du compte
+      ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
+      t: { t: 'u8' } // texte (crypté) de l'item à ajouter au chat
+    }
+  }
 
   async phase2 (args) {
     await this.check(args)
@@ -836,12 +859,14 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
   }
 }
 
-/* OP_FixerQuotasA: 'Attribution par le Comptable de quotas globaux pour les comptes A'
-- token: éléments d'authentification du compte.
-- quotas: { qc qn qv }
-*/
+/* FixerQuotasA: Attribution par le Comptable de quotas globaux pour les comptes A */
 operations.FixerQuotasA = class FixerQuotasA extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    thgis.targs = {
+      quotas: { t: 'q' } // quotas: { qc, qn, qv }   
+    }
+  }
 
   async phase2 (args) {
     const synth = await this.gd.getSY()
@@ -849,17 +874,19 @@ operations.FixerQuotasA = class FixerQuotasA extends Operation {
   }
 }
 
-/*  OP_ChangerPartition: 'Transfert d\'un compte O dans une autre partition' ************
-- token: éléments d'authentification du compte.
-- id : id du compte qui change de partition
-- idp : id de la nouvelle partition
-- cleAP : clé A du compte cryptée par la clé P de la nouvelle partition
-- clePK : clé de la nouvelle partition cryptée par la clé publique du compte
-- notif: notification du compte cryptée par la clé P de la nouvelle partition
-Retour:
-*/
+/*  ChangerPartition: Transfert d\'un compte O dans une autre partition */
 operations.ChangerPartition = class ChangerPartition extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id du compte qui change de partition
+      idp: { t: 'idp' }, // id de la nouvelle partition
+      hZC: { t: 'u8' }, // hash de sa phrase de contact complète   
+      cleAP: { t: 'u8' }, // clé A du compte cryptée par la clé P de la nouvelle partition
+      clePK: { t: 'u8' }, // clé de la nouvelle partition cryptée par la clé publique du compte
+      notif: { t: 'u8' } // ids du chat du compte demandeur (Comptable / Délégué)
+    }
+  }
 
   async phase2 (args) {
     if (this.id === args.id) throw new AppExc(F_SRV, 234)
@@ -880,14 +907,15 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
   }
 }
 
-/*  OP_DeleguePartition: 'Changement de statut délégué d\'un compte dans sa partition' ************
-- token: éléments d'authentification du compte.
-- id : id du compte qui change de statut
-- del: true / false, statut délégué
-Retour:
-*/
+/*  DeleguePartition: Changement de statut délégué d\'un compte dans sa partition */
 operations.DeleguePartition = class DeleguePartition extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id du compte qui change de statut
+      del: { t: 'bool' } // true / false, statut délégué
+    }
+  }
 
   async phase2 (args) {
     if (this.id === args.id) throw new AppExc(F_SRV, 234)
