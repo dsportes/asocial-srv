@@ -48,13 +48,19 @@ operations.EchoTexte = class EchoTexte extends Operation {
   }
 }
 
-/** Erreur fonctionnelle simulée du texte envoyé ***************************************
-args.to : délai en secondes avant retour de la réponse
-args.texte : détail de l'erreur fonctionnelle testée
-Exception
+/** Erreur fonctionnelle simulée du texte envoyé
+Exception: F_SRV, 10
 */
 operations.ErreurFonc = class ErreurFonc extends Operation {
-  constructor (nom) { super(nom, 0); this.SYS = true }
+  constructor (nom) { 
+    super(nom, 0)
+    this.SYS = true
+    this.targs = {
+      to: { t: 'int', min: 0, max: 10 },
+      texte: { t: 'string' },
+      x: { t: 'ns' }
+    }
+  }
 
   async phase2(args) {
     if (args.to) await sleep(args.to * 1000)

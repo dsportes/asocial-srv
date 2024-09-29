@@ -1,7 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
+import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
-// import { app_keys } from './keys.mjs'
 import { sleep, b64ToU8, crypter, quotes } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
@@ -788,6 +787,7 @@ export class Operation {
     this.nomop = nomop
     this.authMode = authMode
     this.excFige = excFige || 1
+    this.dh = Date.now()
   }
 
   reset () {
@@ -864,12 +864,69 @@ export class Operation {
       return this.result
     } catch (e) {
       if (config.mondebug) 
-        config.logger.debug(this.opName + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
+        config.logger.debug(this.nomop + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
       throw e
     }
   }
 
-  async phase1 () { return }
+  async phase1 ( args) { 
+    args.x = '$'
+    const op = this.nomop
+    function ko (n) { throw new AppExc(F_SRV, 13, [op, n]) }
+    if (this.targs) for (const n in this.targs) {
+      const e = this.targs[n]
+      const v = args[n]
+      if (e.n && !v) continue
+      switch (e.t) {
+        case 'ida' : {
+          if (ID.type(v) !== 3) ko(n)
+          break
+        }
+        case 'idp' : {
+          if (ID.type(v) !== 2) ko(n)
+          break  
+        }
+        case 'ids' : {
+          if (!ID.estID(v)) ko(n)
+          break
+        }
+        case 'u8' : {
+          if (v instanceof Uint8Array && v.length > 0) break
+          ko(n)
+        }
+        case 'string' : {
+          if (typeof(v) !== 'string') ko(n)
+          break
+        }
+        case 'int' : {
+          if (typeof(v) !== 'number' || !Number.isInteger(v)) ko(n)
+          if (e.min !== undefined && v < e.min) ko(n)
+          if (e.max !== undefined && v > e.max) ko(n)
+          break
+        }
+        case 'bool' : {
+          if (typeof(v) !== 'boolean') ko(n)
+          break            
+        }
+        case 'q' : {
+          if (typeof v !== 'object') ko(n)
+          if (!Number.isInteger(v.qc) || v.qc < 0) ko(n)
+          if (!Number.isInteger(v.qn) || v.qn < 0) ko(n)
+          if (!Number.isInteger(v.qv) || v.qv < 0) ko(n)
+          break
+        }
+        case 'array' : {
+          if (v instanceof Array) break
+          ko(n)
+        }
+        case 'ns' : {
+          if (typeof(v) !== 'string' || v.length !== 1) ko(n)
+          if (Cles.nsToInt(v) === -1) ko(n)
+          break
+        }
+      }
+    }
+  }
 
   async phase2 () { return }
 

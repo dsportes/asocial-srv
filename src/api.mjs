@@ -19,7 +19,7 @@ export class Cles {
 
   static ns = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-  static nsToInt (ns) { return ns.indexOf(ns)}
+  static nsToInt (ns) { return Cles.ns.indexOf(ns)}
 
   static espace() { const rnd = random(32); rnd[0] = 1; return rnd }
   static partition () { const rnd = random(32); rnd[0] = 2; return rnd }
@@ -44,7 +44,17 @@ export class Cles {
 
 /** ID **********************************************************************/
 export class ID {
-  static type (id) { return parseInt(id.charAt(0))}
+  static regid = new RegExp('^[0-9a-zA-Z]*$')
+
+  static estID (id) { 
+    if (typeof id !== 'string' || id.length !== 12) return false
+    return ID.regid.test(id)
+  }
+
+  static type (id) { 
+    return ID.estID(id) ? parseInt(id.charAt(0)) : -1
+  }
+
   static duComptable () { return '300000000000' }
   static estPartition (id) { return id.charAt(0) === '2' }
   static estComptable (id) { return id === '300000000000' }
@@ -69,6 +79,9 @@ export class ID {
   static noteLoc () { return '7' + ID.rnd().substring(1) }
   static fic () { return '8' + ID.rnd().substring(1) }
 }
+
+console.log(ID.type('3azertyi00AZ'))
+console.log(ID.type('3aéertyi00AZ'))
 
 export const HBINSECONDS = 20 // 120
 export const ESPTO = 3 // en minutes : rechargement de la cache des espaces

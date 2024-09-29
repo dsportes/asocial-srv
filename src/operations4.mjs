@@ -73,7 +73,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       YCK: { t: 'u8' }, // PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
       hYC: { t: 'u8' }, // hash du PBKFD de la phrase de sponsoring
       cleAYC: { t: 'u8' }, // clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring
-      partitionId: { t: '*idp' }, // id de la partition si compte "O" 
+      partitionId: { t: 'idp', n: true }, // id de la partition si compte "O" 
       cleAP: { t: 'u8' }, // clé A du COMPTE sponsor crypté par la clé P de la partition.
       clePYC: { t: 'u8' }, // clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD de la phrase complète de sponsoring (donne l'id de la partition).
       nomYC: { t: 'u8' }, // nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
@@ -82,9 +82,9 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       htK: { t: 'u8' }, // hashtag attribué par le sponsor au sponsorisé (crypté cmlé K)
       txK: { t: 'u8' }, // texte attribué par le sponsor au sponsorisé (crypté cmlé K)
       quotas: { t: 'q' }, // quotas {qc, qn, qv} attribués par le sponsor
-      don: { t: '*int', p: [1, 1000] }, // montant du don pour un compte autonome sponsorisé par un compte autonome
+      don: { t: 'int', min: 1, max: 1000, n: true }, // montant du don pour un compte autonome sponsorisé par un compte autonome
       dconf: { t: 'bool' }, // true, si le sponsor demande la confidentialité (pas de chat à l'avcceptation)
-      del: { t: '*bool' }, // true si le compte est délégué de la partition
+      del: { t: 'bool', n: true }, // true si le compte est délégué de la partition
     }
   }
 
@@ -134,7 +134,7 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
     this.targs = {
       id: { t: 'ida'}, // identifiant de l'avatar du du sponsoring
       ids: { t: 'ids' }, // identifiant du sponsoring
-      dlv: { t: '*date' } // nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
+      dlv: { t: 'date', n: true } // nouvelle date limite de validité `aaaammjj`ou 0 pour une  annulation.
     }
   }
 
@@ -278,7 +278,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       // 0: par phrase de contact (hZC en est le hash),  
       // 1: idE est délégué de la partition de idI, 
       // idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
-      hZC : { t: '*u8' }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
+      hZC : { t: 'u8', n: true }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
       ch: { t: 'ch' }, // { cck, ccP, cleE1C, cleE2C, t1c }
       // ccK: clé C du chat cryptée par la clé K du compte de idI
       // ccP: clé C du chat cryptée par la clé publique de idE
@@ -361,7 +361,7 @@ operations.MajChat = class MajChat extends OperationCh {
       id: { t: 'ida' }, // id de l'avatar du chat
       ids: { t: 'ids' },  // ids du chat
       t: { t: 'u8' }, // texte gzippé crypté par la clé C du chat (null si suppression)
-      dh: { t: '*int' }, // 0 ou date-heure de l'item du chat à supprimer
+      dh: { t: 'dh', n: true }, // 0 ou date-heure de l'item du chat à supprimer
       don: { t: 'int', min: 0, max: 1000 } // montant du don de I à E
     }
   }
