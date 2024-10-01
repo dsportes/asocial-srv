@@ -205,16 +205,15 @@ operations.GoTache = class GoTache extends Operation {
   }
 }
 
-/* StartDemon: 'Lancement immédiat du démon',
-- code : code d'habilitation
-Retour:
-*/
+/* StartDemon: 'Lancement immédiat du démon'*/
 operations.StartDemon = class StartDemon extends Operation {
   constructor (nom, interne) { 
     super(nom, 0)
     this.interne = interne
     this.SYS = true
-    this.targs = { code: { t: 'x' }}
+    this.targs = { 
+      code: { t: 'x' } // code d'habilitation
+    }
   }
 
   async phase2(args) {

@@ -1450,6 +1450,11 @@ _data_:
 - `texte` : texte (gzippé) crypté par la clé de la note.
 - `mfa` : map des fichiers attachés.
 - `pid pids` : identifiant de sa note _parent_:
+
+Map des fichiers attachés
+- _clé_ `idf`: identifiant aléatoire généré à la création. L'identifiant _externe_ est `id` du groupe / avatar, `idf`. En pratique `idf` est un identifiant absolu.
+- _valeur_ : `{ idf, lg, ficN }`
+  - `ficN` : `{ nom, info, dh, type, gz, lg, sha }` crypté par la clé de la note
 */
 export class Notes extends GenDoc { 
   constructor() { super('notes') } 
@@ -1539,7 +1544,7 @@ export class Notes extends GenDoc {
     this._maj = true
   }
 
-  setFic (fic) {
+  setFic (fic) { // fic: { idf, lg, ficK }
     this.mfa[fic.idf] = fic
     this._maj = true
   }

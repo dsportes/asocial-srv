@@ -780,6 +780,9 @@ class GD {
 
 /** Operation *****************************************************/
 export class Operation {
+  static mindh = new Date('2024-01-01').getTime()
+  static maxdh = new Date('2099-12-31').getTime()
+
   /* Initialisé APRES constructor() dans l'invocation d'une opération
     this... isGet, db, storage, args, dh
   */
@@ -882,12 +885,28 @@ export class Operation {
           if (ID.type(v) !== 3) ko(n)
           break
         }
+        case 'idg' : {
+          if (ID.type(v) !== 4) ko(n)
+          break
+        }
+        case 'idag' : {
+          if (ID.type(v) !== 3 && ID.type(v) !== 4) ko(n)
+          break
+        }
         case 'idp' : {
           if (ID.type(v) !== 2) ko(n)
           break  
         }
+        case 'idf' : {
+          if (ID.type(v) !== 8) ko(n)
+          break  
+        }
         case 'ids' : {
           if (!ID.estID(v)) ko(n)
+          break
+        }
+        case 'org' : {
+          if (typeof(v) !== 'string' || v.length <4 || v.length > 16) ko(n)
           break
         }
         case 'u8' : {
@@ -904,6 +923,11 @@ export class Operation {
           if (e.max !== undefined && v > e.max) ko(n)
           break
         }
+        case 'dh' : {
+          if (typeof(v) !== 'number' || !Number.isInteger(v)) ko(n)
+          if (v < Operation.mindh || v > Operation.maxdh) ko(n)
+          break
+        }
         case 'bool' : {
           if (typeof(v) !== 'boolean') ko(n)
           break            
@@ -915,6 +939,53 @@ export class Operation {
           if (!Number.isInteger(v.qv) || v.qv < 0) ko(n)
           break
         }
+        case 'q2' : {
+          if (typeof v !== 'object') ko(n)
+          if (!Number.isInteger(v.qn) || v.qn < 0) ko(n)
+          if (!Number.isInteger(v.qv) || v.qv < 0) ko(n)
+          break
+        }
+        case 'cv' : {
+          if (typeof v !== 'object') ko(n)
+          if (ID.type(v.id) !== 3 && ID.type(v.id) !== 4) ko(n)
+          if (v.ph && !(v.ph instanceof Uint8Array || v.ph.length > 0)) ko(n)
+          if (!v.tx || !(v.tx instanceof Uint8Array || v.tx.length > 0)) ko(n)
+          break
+        }
+        case 'fic' : { // { idf, lg, ficN }
+          if (typeof v !== 'object') ko(n)
+          if (!v.idf || ID.type(v.idf) !== 8) ko(n)
+          if (!v.lg || (!Number.isInteger(v.lg) || v.lg <= 0)) ko(n)
+          if (v.ficN || !(v.ficN instanceof Uint8Array)) ko(n)
+          break
+        }
+        case 'ntf' : { // { nr, dh, texte }
+          if (typeof v !== 'object') ko(n)
+          if (typeof(v.dh) !== 'number' || !Number.isInteger(v.dh)) ko(n)
+          if (v.dh < Operation.mindh || v.dh > Operation.maxdh) ko(n)
+          if (!v.nr || !Number.isInteger(v.nr) || v.nr < 1 || v.nr > 3) ko(n)
+          if (v.texte && !(v.texte instanceof Uint8Array)) ko(n)
+          break
+        }
+        case 'lidf' : {
+          if (typeof v !== 'array') ko(n)
+          let b = true
+          v.forEach(id => { if (ID.type(id) !== 8) b = false } )
+          if (!b) ko(n)
+          break
+        }
+        case 'lids' : {
+          if (typeof v !== 'array') ko(n)
+          let b = true
+          v.forEach(id => { if (ID.type(id) !== 3 || ID.type(id) !== 4) b = false } )
+          if (!b) ko(n)
+          break
+        }
+        case 'ch' : {
+          if (typeof v !== 'array' || v.length !== 2) ko(n)
+          if (ID.type(v[0]) !== 3) ko(n)
+          if (!ID.estID(v[1])) ko(n)
+        }
         case 'array' : {
           if (v instanceof Array) break
           ko(n)
@@ -922,6 +993,16 @@ export class Operation {
         case 'ns' : {
           if (typeof(v) !== 'string' || v.length !== 1) ko(n)
           if (Cles.nsToInt(v) === -1) ko(n)
+          break
+        }
+        case 'chsp' : { // chsp: { cck, ccP, cleE1C, cleE2C, t1c, t2c }
+          if (typeof v !== 'object') ko(n)
+          if (!v.cck || !(v.cck instanceof Uint8Array)) ko(n)
+          if (!v.ccP || !(v.ccP instanceof Uint8Array)) ko(n)
+          if (!v.cleE1C || !(v.cleE1C instanceof Uint8Array)) ko(n)
+          if (!v.cleE2C || !(v.cleE2C instanceof Uint8Array)) ko(n)
+          if (!v.t1c || !(v.t1c instanceof Uint8Array)) ko(n)
+          if (!v.t2c || !(v.t2c instanceof Uint8Array)) ko(n)
           break
         }
       }

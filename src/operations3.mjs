@@ -40,7 +40,14 @@ Retour:
 - echo : texte d'entrée retourné
 */
 operations.EchoTexte = class EchoTexte extends Operation {
-  constructor (nom) { super(nom, 0); this.SYS = true }
+  constructor (nom) { 
+    super(nom, 0)
+    this.SYS = true 
+    this.targs = {
+      to: { t: 'int', min: 0, max: 10 },
+      texte: { t: 'string' }
+    }
+  }
 
   async phase2(args) {
     if (args.to) await sleep(args.to * 1000)
@@ -57,8 +64,7 @@ operations.ErreurFonc = class ErreurFonc extends Operation {
     this.SYS = true
     this.targs = {
       to: { t: 'int', min: 0, max: 10 },
-      texte: { t: 'string' },
-      x: { t: 'ns' }
+      texte: { t: 'string' }
     }
   }
 
@@ -73,7 +79,10 @@ GET
 Retourne les date-heures de derniers ping (le précédent et celui posé)
 */
 operations.PingDB = class PingDB extends Operation {
-  constructor (nom) { super(nom, 0); this.SYS = true }
+  constructor (nom) { 
+    super(nom, 0)
+    this.SYS = true 
+  }
 
   async phase2() {
     this.result.type = 'text/plain'
@@ -82,19 +91,19 @@ operations.PingDB = class PingDB extends Operation {
 }
 
 /* GetEspaces : pour admin seulement, retourne tous les rows espaces
-- `token` : éléments d'authentification du compte.
 Retour:
 - espaces : array de row espaces
 */
 operations.GetEspaces = class GetEspaces extends Operation {
-  constructor (nom) { super(nom, 3, 0) }
+  constructor (nom) { 
+    super(nom, 3, 0) 
+  }
 
   async phase2() {
     await Esp.load(this.db)
     const espaces = []
     for(const [ns, row] of Esp.map) {
       const esp = compile(row)
-      // esp.ns = ns
       espaces.push(esp.toShortRow(this, ns))
     }
     this.setRes('espaces', espaces)
@@ -106,11 +115,14 @@ operations.GetEspaces = class GetEspaces extends Operation {
 * Lectures non synchronisées
 *******************************************************************************/
 
-/* GetPub: retourne la clé RSA publique d'un avatar
-- id : id de l'avatar
-*/
+/* GetPub: retourne la clé RSA publique d'un avatar */
 operations.GetPub = class GetPub extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { 
+    super(nom, 1, 1)
+    this.targs = {
+      id: { t: 'ida' }
+    }
+  }
 
   async phase2 (args) {
     const avatar = await this.gd.getAV(args.id, 'getPub')
@@ -118,12 +130,15 @@ operations.GetPub = class GetPub extends Operation {
   }
 }
 
-/* GetPub: retourne la clé RSA publique d'un avatar
-- org : code de l'organisation
-- id : id de l'avatar
-*/
+/* GetPubOrg: retourne la clé RSA publique d'un avatar NON authentifié) */
 operations.GetPubOrg = class GetPubOrg extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { 
+    super(nom, 0)
+    this.targs = {
+      org: { t: 'org'},
+      id: { t: 'ida' }
+    } 
+  }
 
   async phase2 (args) {
     await this.checkEspaceOrg(args.org)
@@ -133,16 +148,19 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
   }
 }
 
-/* Get Sponsoring **************************************************
-- token: éléments d'authentification du compte.
-- org : organisation
-- hps1 : hash du PBKFD de la phrase de contact réduite SANS ns
-- hTC: hash de la phrase de sponoring complète
+/* GetSponsoring : obtention d'un sponsoring par le hash de sa pharse
 Retour:
 - rowSponsoring s'il existe
 */
 operations.GetSponsoring = class GetSponsoring extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { 
+    super(nom, 0)
+    this.targs = {
+      org: { t: 'org'},
+      hps1: { t: 'ids' }, // hash9 du PBKFD de la phrase de contact réduite
+      hTC: { t: 'u8' } // hash de la phrase de sponoring complète
+    }
+  } 
 
   async phase2 (args) {
     const espace = await this.setEspaceOrg(args.org)
@@ -158,15 +176,18 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   }
 }
 
-/* Recherche hash de phrase de connexion ***************************************
-Pour Acceptation Sponsoring
-args.org : code de l'organisation
-args.hps1 : hps1 de la phrase de contact / de connexion
+/* ExistePhrase1: Recherche hash de phrase de connexion 
 Retour:
 - existe : true si le hash de la phrase existe
 */
 operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { 
+    super(nom, 0) 
+    this.targs = {
+      org: { t: 'org'},
+      hps1: { t: 'ids' } // hash9 du PBKFD de la phrase de contact réduite
+    }
+  }
 
   async phase2 (args) {
     await this.checkEspaceOrg(args.org)
@@ -175,16 +196,20 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   }
 }
 
-/* Recherche hash de phrase **********************************
-args.hps1 : hps1 de la phrase de contact / de connexion
-args.t :
-  - 2 : phrase de sponsoring (ids)
-  - 3 : phrase de contact (hpc d'avatar)
+/* ExistePhrase: Recherche hash de phrase 
 Retour:
 - existe : true si le hash de la phrase existe
 */
 operations.ExistePhrase = class ExistePhrase extends Operation {
-  constructor (nom) { super(nom, 1, 1)  }
+  constructor (nom) { 
+    super(nom, 1, 1)  
+    this.targs = {
+      t: { t: 'int', min: 2, max: 3 },
+      // 2 : phrase de sponsoring (ids)
+      // 3 : phrase de contact (hpc d'avatar)
+      hps1: { t: 'ids' } // hash9 du PBKFD de la phrase de contact réduite
+    }
+  }
 
   async phase2 (args) {
     if (args.t === 2) {
@@ -202,34 +227,6 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 }
 
 /* SyncSp - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
-- token : éléments d'authentification du compte à créer
-- subJSON: subscription de la session
-
-- idsp idssp : identifiant du sponsoring
-- id : id du compte sponsorisé à créer
-- hXR: hash du PBKD de sa phrase secrète réduite
-- hXC: hash du PBKD de sa phrase secrète complète
-- hYC: hash du PNKFD de la phrase de sponsoring
-- cleKXC: clé K du nouveau compte cryptée par le PBKFD de sa phrase secrète complète
-- cleAK: clé A de son avatar principal cryptée par la clé K du compte
-- ardYC: ardoise du sponsoring
-- dconf: du sponsorisé
-- pub: clé RSA publique de l'avatar
-- privK: clé privée RSA de l(avatar cryptée par la clé K du compte
-- cvA: CV de l'avatar cryptée par sa clé A
-
-- clePK: clé P de sa partition cryptée par la clé K du nouveau compte
-- cleAP: clé A de son avatar principâl cryptée par la clé P de sa partition
-- clePA: cle P de la partition cryptée par la clé A du nouveau compte
-
-- ch: { cck, ccP, t1c, t2c }
-  - ccK: clé C du chat cryptée par la clé K du compte
-  - ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
-  - cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
-  - cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
-  - t1c: mot du sponsor crypté par la clé C
-  - t2c: mot du sponsorisé crypté par la clé C
-
 Retour: 
 - rowEspace
 - rowCompte
@@ -238,7 +235,35 @@ Retour:
 - rowChat si la confidentialité n'a pas été requise
 */
 operations.SyncSp = class SyncSp extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { 
+    super(nom, 0)
+    this.targs = {
+      subJSON: { t: 'string' }, // subscription de la session
+      idsp: { t: 'ida' }, // identifiant du sponsor
+      idssp: { t: 'ids' }, // identifiant du sponsoring
+      id: { t: 'ida' }, // id du compte sponsorisé à créer
+      hXR: { t: 'ids' }, // hash du PBKD de sa phrase secrète réduite
+      hXC: { t: 'ids' }, // hash du PBKD de sa phrase secrète complète
+      hYC:  { t: 'ids' }, // hash du PNKFD de la phrase de sponsoring
+      cleKXC: { t: 'u8' }, // clé K du nouveau compte cryptée par le PBKFD de sa phrase secrète complète
+      cleAK: { t: 'u8' }, // clé A de son avatar principal cryptée par la clé K du compte
+      ardYC: { t: 'u8' }, // ardoise du sponsoring
+      dconf: { t: 'bool' }, // dconf du sponsorisé
+      pub: { t: 'u8' }, // clé RSA publique de l'avatar
+      privK: { t: 'u8' }, // clé privée RSA de l(avatar cryptée par la clé K du compte
+      cvA: { t: 'u8' }, // CV de l'avatar cryptée par sa clé A
+      clePK: { t: 'u8' }, // clé P de sa partition cryptée par la clé K du nouveau compte
+      cleAP: { t: 'u8' }, // clé A de son avatar principâl cryptée par la clé P de sa partition
+      clePA: { t: 'u8' }, // cle P de la partition cryptée par la clé A du nouveau compte
+      ch: { t: 'chsp' } // { cck, ccP, cleE1C, cleE2C, t1c, t2c }
+        // ccK: clé C du chat cryptée par la clé K du compte
+        // ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
+        // cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
+        // cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
+        // t1c: mot du sponsor crypté par la clé C
+        // t2c: mot du sponsorisé crypté par la clé C
+    }
+  }
 
   async phase2 (args) {
     this.subJSON = args.subJSON || null
@@ -349,14 +374,18 @@ operations.SyncSp = class SyncSp extends Operation {
   }
 }
 
-/* OP_RefusSponsoring: 'Rejet d\'une proposition de sponsoring'
-- org: organisation,
-- id ids : identifiant du sponsoring
-- ardYC : réponse du filleul
-- hYC: hash du PBKFD de la phrase de sponsoring
-*/
+/* RefusSponsoring: Rejet d'une proposition de sponsoring */
 operations.RefusSponsoring = class RefusSponsoring extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { 
+    super(nom, 0)
+    this.targs = {
+      org: { t: 'org'},
+      id: { t: 'ida' }, // identifiant du sponsor
+      ids: { t: 'ids' }, // identifiant du sponsoring
+      ardYC: { t:'u8' }, // réponse du filleul
+      hYC: { t: 'ids' } // hash9 du PBKFD de la phrase de contact réduite
+    }
+  }
 
   async phase2(args) {
     await this.setEspaceOrg(args.org)
@@ -378,14 +407,17 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
 * Lectures SANS restriction, pouvant être utilisées pour les actions d'URGENCE
 *******************************************************************************/
 
-/* `GetSynthese` : retourne la synthèse de l'espace ns ou courant.
-- `token` : éléments d'authentification du compte.
-- `ns` : id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
+/* GetSynthese : retourne la synthèse de l'espace ns ou courant
 Retour:
-- `rowSynthese`
+- rowSynthese
 */
 operations.GetSynthese = class GetSynthese extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { 
+    super(nom, 1, 1)
+    this.targs = {
+      ns: { t: 'ns', n: true } // id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
+    }
+  }
 
   async phase2 (args) {
     if (this.estAdmin) this.ns = args.ns
@@ -394,12 +426,14 @@ operations.GetSynthese = class GetSynthese extends Operation {
   }
 }
 
-/* GetPartition : retourne une partition *********************************
-- token : éléments d'authentification du compte.
-- id : id de la partition
-*/
+/* GetPartition : retourne une partition */
 operations.GetPartition = class GetPartition extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { 
+    super(nom, 1, 1)
+    this.targs = {
+      id: { t: 'idp', n: true } // id de la partition
+    }
+  }
 
   async phase2 (args) {
     if (this.compte._estA) throw new AppExc(F_SRV, 220)
@@ -409,20 +443,24 @@ operations.GetPartition = class GetPartition extends Operation {
   }
 }
 
-/* Get Espace **************************************************
-- token: éléments d'authentification du compte.
-- ns : ns pour l'administrateur
-**Propriétés accessibles :**
-- administrateur technique : toutes de tous les espaces.
-- Comptable : toutes de _son_ espace.
-- autres : sauf moisStat moisStatT dlvat nbmi
+/* GetEspace : retourne certaines propriétés de l'espace
 Retour:
 - rowEspace s'il existe
 */
 operations.GetEspace = class GetEspace extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { 
+    super(nom, 1, 1) 
+    this.targs = {
+      ns: { t: 'ns', n: true } // id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
+    }
+  }
 
   async phase2 (args) {
+    /* **Propriétés accessibles :**
+    - administrateur technique : toutes de tous les espaces.
+    - Comptable : toutes de _son_ espace.
+    - autres : sauf moisStat moisStatT dlvat nbmi
+    */
     const ns = !this.isAdmin ? this.ns : args.ns
     const espace = await Esp.getEsp (this, ns, false)
     espace.excFerme()
@@ -437,17 +475,19 @@ operations.GetEspace = class GetEspace extends Operation {
 
 /* Sync : opération générique de synchronisation d'une session cliente
 LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / groupes tirés du compte
-- token: éléments d'authentification
-- subJSON: subscription de la session
-
-- dataSync: sérialisation de l'état de synchro de la session
-  - null : C'EST UNE PREMIERE CONNEXION - Création du DataSync
-  recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
-- lids: liste des ids des sous-arbres à recharger (dataSync n'est pas null)
-- full: si true, revérifie tout le périmètre
 */
 operations.Sync = class Sync extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { 
+    super(nom, 1, 1) 
+    this.targs = {
+      subJSOn: { t: 'string', n: true }, // subscription de la session
+      dataSync: { t: 'u8', n: true }, // sérialisation de l'état de synchro de la session
+      // null : C'EST UNE PREMIERE CONNEXION - Création du DataSync
+      // recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
+      lids: { t: 'lids', n: true }, // liste des ids des sous-arbres à recharger (dataSync n'est pas null)
+      full: { t: 'bool' } // si true, revérifie tout le périmètre
+    }
+  }
 
   // Obtient un groupe et le garde en cache locale de l'opération
   async getGr (idg) {
@@ -607,35 +647,35 @@ operations.Sync = class Sync extends Operation {
 * Opérations AVEC connexion ADMINISTRATEUR EXCLUSIVEMENT
 *******************************************************************************/
 
-/* OP_SetEspaceQuotas` : 'Déclaration des quotas globaux de l'espace par l'administrateur technique',
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié.
-- `quotas` : quotas globaux
-
-Retour: rien
-*/
+/* SetEspaceQuotas: Déclaration des quotas globaux de l'espace par l'administrateur technique */
 operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { 
+    super(nom, 3)
+    this.targs = {
+      ns: { t: 'ns' }, // id de l'espace modifié
+      quotas: { t: 'q' } // quotas globaux
+    }
+  }
 
   async phase2 (args) {
     const espace = await this.setEspaceNs(args.ns, true)
-
     espace.setQuotas(args.quotas)
   }
 }
 
-/* `SetNotifE` : déclaration d'une notification à un espace par l'administrateur
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `ns` : id de l'espace notifié
-- `ntf` : sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base.
-
-C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-Elle n'écrit QUE dans espaces.
-*/
+/* SetNotifE : déclaration d'une notification à un espace par l'administrateur */
 operations.SetNotifE = class SetNotifE extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { 
+    super(nom, 3) 
+    this.targs = {
+      ns: { t: 'ns' }, // id de l'espace notifié
+      ntf: { t: 'ntf' } // sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base
+    }
+  }
 
   async phase2 (args) {
+    // C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
+    // Elle n'écrit QUE dans espaces.
     const espace = await this.setEspaceNs(args.ns, false)
 
     if (args.ntf) args.ntf.dh = this.dh
@@ -643,15 +683,18 @@ operations.SetNotifE = class SetNotifE extends Operation {
   }
 }
 
-/* `GetNotifC` : obtention de la notification d'un compte
-- `token` : jeton d'authentification du compte de **l'administrateur**
-- `id` : id du compte dont on cherche la notification
+/* GetNotifC : obtention de la notification d'un compte
 Réservée au comptable et aux délégués de la partition du compte
 Retour:
 - notif
 */
 operations.GetNotifC = class GetNotifC extends Operation {
-  constructor (nom) { super(nom, 1, 1) }
+  constructor (nom) { 
+    super(nom, 1, 1)
+    this.targs = {
+      id: { t: 'ida' } // id du compte dont on cherche la notification
+    }
+  }
 
   async phase2 (args) {
     const c = await this.gd.getCO(args.id, 'GetNotifC-1')
@@ -663,15 +706,8 @@ operations.GetNotifC = class GetNotifC extends Operation {
   }
 }
 
-/* `CreationEspace` : création d'un nouvel espace
-- token : jeton d'authentification du compte de **l'administrateur**
-- ns : ID de l'espace [0-9][a-z][A-Z]
-- org : code de l'organisation
-- TC : PBKFD de la phrase de sponsoring du Comptable par l'AT
-- hTC : hash de TC
-Retour: rien
-
-Traitement ssi si: 
+/* CreationEspace : création d'un nouvel espace
+Traitement ssi: 
 - soit espace n'existe pas, 
 - soit espace existe et a un `hTC` : re-création avec une nouvelle phrase de sponsoring.
 
@@ -680,7 +716,15 @@ Création des rows espace, synthese
 - stocke dans l'espace: `hTC cleES cleET`. Il est _à demi_ créé, son Comptable n'a pas encore crée son compte.
 */
 operations.CreationEspace = class CreationEspace extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { 
+    super(nom, 3)
+    this.targs = {
+      ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
+      org: { t: 'org' }, // code de l'organisation
+      TC: { t: 'u8' }, // PBKFD de la phrase de sponsoring du Comptable par l'AT
+      hTC: { t: 'ids' } // hash de TC
+    }
+  }
 
   // eslint-disable-next-line no-useless-escape
   static reg = /^([a-z0-9\-]+)$/
@@ -713,16 +757,17 @@ operations.CreationEspace = class CreationEspace extends Operation {
   }
 }
 
-/* OP_MajSponsEspace : 'Changement de la phrase de contact du Comptable'
-- token : jeton d'authentification du compte de **l'administrateur**
-- ns : ID de l'espace
-- org : code de l'organisation
-- TC : PBKFD de la phrase de sponsoring du Comptable par l'AT
-- hTC : hash de TC
-Retour: rien
-*/
+/* MajSponsEspace : Changement de la phrase de contact du Comptable */
 operations.MajSponsEspace = class MajSponsEspace extends Operation {
-  constructor (nom) { super(nom, 3) }
+  constructor (nom) { 
+    super(nom, 3) 
+    this.targs = {
+      ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
+      org: { t: 'org' }, // code de l'organisation
+      TC: { t: 'u8' }, // PBKFD de la phrase de sponsoring du Comptable par l'AT
+      hTC: { t: 'ids' } // hash de TC
+    }
+  }
 
   async phase2(args) {
     const espace = await this.setEspaceNs(args.ns, false)
@@ -734,33 +779,33 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
   }
 }
 
-/* `CreationComptable` : création du comptable d'un nouvel espace
-- token : jeton d'authentification du compte à créer
-- org : code de l'organisation
-- idp : ID de la partition primitive
-- hTC : hash du PBKFD de la phrase de sponsoring du Comptable
-- hXR : hash du PBKFD de la phrase secrète réduite
-- hXC : hash du PBKFD de la phrase secrète complète
-- pub: clé RSA publique du Comptable
-- privK: clé RSA privée du Comptable cryptée par la clé K
-- clePK: clé P de la partition 1 cryptée par la clé K du Comptable
-- cleEK: clé E cryptée par la clé K
-- cleAP: clé A du Comptable cryptée par la clé de la partition
-- cleAK: clé A du Comptable cryptée par la clé K du Comptable
-- cleKXC: clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
-- clePA: cle P de la partition cryptée par la clé A du Comptable
-- ck: {cleP, code} cryptés par la clé K du Comptable. 
-  - `cleP` : clé P de la partition.
-  - `code` : code / commentaire court de convenance attribué par le Comptable
-
-Retour: rien
-
+/* CreationComptable : création du comptable d'un nouvel espace
 Création des rows:
 - partition : primitive, avec le Comptable comme premier participant et délégué
 - compte / compti / compta, avatar du Comptable
 */
 operations.CreationComptable = class CreationComptable extends Operation {
-  constructor (nom) { super(nom, 0) }
+  constructor (nom) { 
+    super(nom, 0) 
+    this.targs = {
+      org: { t: 'org' }, // code de l'organisation
+      idp: { t: 'idp' }, // ID de la partition primitive
+      hTC: { t: 'ids' }, // hash du PBKFD de la phrase de sponsoring du Comptable
+      hXR: { t: 'ids' }, // hash du PBKFD de la phrase secrète réduite
+      hXC: { t: 'ids' }, // hash du PBKFD de la phrase secrète complète
+      pub: { t: 'u8' }, // clé RSA publique du Comptable
+      privK: { t: 'u8' }, //  clé RSA privée du Comptable cryptée par la clé K
+      clePK: { t: 'u8' }, // clé P de la partition 1 cryptée par la clé K du Comptable
+      cleEK: { t: 'u8' }, // clé E cryptée par la clé K
+      cleAP: { t: 'u8' }, // clé A du Comptable cryptée par la clé de la partition
+      cleAK: { t: 'u8' }, // clé A du Comptable cryptée par la clé K du Comptable
+      cleKXC: { t: 'u8' }, //  clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
+      clePA: { t: 'u8' }, //  cle P de la partition cryptée par la clé A du Comptable
+      ck: { t: 'u8' } //  {cleP, code} cryptés par la clé K du Comptable. 
+        // cleP : clé P de la partition.
+        // code : code / commentaire court de convenance attribué par le Comptable
+    }
+  }
 
   async phase2(args) {
     const espace = await this.setEspaceOrg(args.org, false)

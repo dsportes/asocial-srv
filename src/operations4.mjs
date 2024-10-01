@@ -926,13 +926,15 @@ operations.DeleguePartition = class DeleguePartition extends Operation {
   }
 }
 
-/* `SetNotifP` : notification d'une partition
-- `token` : éléments d'authentification du compte.
-- `idp` : id de la partition
-- `notif` : notification cryptée par la clé de la partition.
-*/
+/* SetNotifP : notification d'une partition */
 operations.SetNotifP = class SetNotifP extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      idp: { t: 'idp' }, // id de la partition
+      notif: { t: 'u8' } // notification cryptée par la clé de la partition.
+    }
+  }
 
   async phase2 (args) {
     const ec = this.estComptable
@@ -951,13 +953,15 @@ operations.SetNotifP = class SetNotifP extends Operation {
   }
 }
 
-/* `SetNotifC` : notification d'un compte "O"
-- `token` : éléments d'authentification du compte.
-- `idc` : id du compte
-- `notif` : notification du compte cryptée par la clé de partition
-*/
+/* SetNotifC: notification d'un compte "O" */
 operations.SetNotifC = class SetNotifC extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idc: { t: 'ida' }, // id du compte
+      notif: { t: 'u8' } // notification du compte cryptée par la clé de partition
+    }
+  }
 
   async phase2 (args) {
     const compte = await this.gd.getCO(args.idc, 'SetNotifC-1')
@@ -978,17 +982,19 @@ operations.SetNotifC = class SetNotifC extends Operation {
   }
 }
 
-/* OP_PlusTicket: 'Génération d\'un ticket de crédit'
-et ajout du ticket au Comptable
-- token : jeton d'authentification du compte de **l'administrateur**
-- ma: montant attendu
-- refa: référence éventuelle du compte
-- ids: ids du ticket généré
+/* PlusTicket: Génération d'un ticket de crédit et ajout du ticket au Comptable
 Retour: 
 - rowCompta: du compte après insertion du ticket
 */
 operations.PlusTicket = class PlusTicket extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      ids: { t: 'ids' }, // ids du ticket généré
+      ma : { t:'int', min: 0, max: 100000 }, // montant du ticket
+      refa: { t: 'string', n: true } // référence éventuelle
+    }
+  }
 
   async phase2(args) {
     const rtk = await this.gd.getTKT(args.ids)
@@ -1003,15 +1009,17 @@ operations.PlusTicket = class PlusTicket extends Operation {
   }
 }
 
-/* `MoinsTicket` : retrait d'un ticket à un compte A
-et retrait d'un ticket au Comptable
-- token : jeton d'authentification du compte
-- ids : ticket à enlever
+/* MoinsTicket: retrait d'un ticket à un compte A et retrait d'un ticket au Comptable
 Retour: 
-- rowCompta
+- rowCompta : du compte
 */
 operations.MoinsTicket = class MoinsTicket extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      ids: { t: 'ids' } // ids du ticket à enlever
+    }
+  }
 
   async phase2(args) {
     const tk = await this.gd.getTKT(args.ids)
@@ -1025,18 +1033,18 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
   }
 }
 
-/* OP_ReceptionTicket: 'Réception d\'un ticket par le Comptable'
-- `token` : jeton d'authentification du compte
-- `ids` : du ticket
-- `mc` : montant reçu
-- `refc` : référence du Comptable
-Retour: rien
-*/
+/* ReceptionTicket: Réception d'un ticket par le Comptable */
 operations.ReceptionTicket = class ReceptionTicket extends Operation {
-  constructor (nom) { super(nom, 2, 2) }
+  constructor (nom) { 
+    super(nom, 2, 2)
+    this.targs = {
+      ids: { t: 'ids' }, // ids du ticket reçu
+      mc : { t:'int', min: 0, max: 100000 }, // montant du ticket reçu
+      refc: { t: 'string', n: true } // référence éventuelle du Comptable
+    }
+  }
 
   async phase2(args) {
-
     const tk = await this.gd.getTKT(args.ids)
     if (!tk) throw new AppExc(F_SRV, 240)
     if (tk.dr) throw new AppExc(F_SRV, 241)
@@ -1053,13 +1061,14 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
   }
 }
 
-/* MajCv : Mise à jour de la carte de visite d\'un avatar ******************************************
-- token : jeton d'authentification du compte
-- cv : carte de visite (photo / texte cryptés)
-Retour:
-*/
+/* MajCv : Mise à jour de la carte de visite d\'un avatar */
 operations.MajCv = class MajCv extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      cv: { t: 'cv' } // carte de visite (photo / texte cryptés)
+    }
+  }
 
   async phase2(args) {
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
@@ -1083,15 +1092,18 @@ operations.MajCv = class MajCv extends Operation {
   }
 }
 
-/* OP_GetCv : Obtention de la carte de visite d\'un avatar ******************************************
-- token : jeton d'authentification du compte
-- id : id du people
-- ch: [id, ids] id d'un chat d'un des avatars du compte avec le people
+/* GetCv : Obtention de la carte de visite d\'un avatar
 Retour:
 - cv: si trouvée
 */
 operations.GetCv = class GetCv extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id du people ou du groupe
+      ch: { t: 'ch', n: true } // [id, ids] id d'un chat d'un des avatars du compte avec le people
+    }
+  }
 
   async phase2(args) {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
@@ -1108,7 +1120,7 @@ operations.GetCv = class GetCv extends Operation {
       const avatar = await this.gd.getAV(args.id, 'MajCv-1')
       this.setRes('cv', avatar.cvA)
     } else {
-      const e = this.compte.mpg[args.cv.id]
+      const e = this.compte.mpg[args.id]
       if (!e) throw new AppExc(F_SRV, 243)
       const groupe = await this.gd.getGR(args.id, 'MajCv-3')
       let ok = false
@@ -1120,17 +1132,18 @@ operations.GetCv = class GetCv extends Operation {
   }
 }
 
-/*OP_NouvelAvatar: 'Création d\'un nouvel avatar du compte' **********************
-- token: éléments d'authentification du compte.
-- id: de l'avatar à créér
-- cleAK : sa clé A cryptée par la clé K
-- pub: sa clé RSA publique
-- priv: sa clé RSA privée cryptée par la clé K
-- cvA: sa CV cryptée par sa clé A
-Retour:
-*/
+/* NouvelAvatar: Création d'un nouvel avatar du compte */
 operations.NouvelAvatar = class NouvelAvatar extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida' }, // id de l'avatar à créér
+      cleAK: { t: 'u8' }, // sa clé A cryptée par la clé K
+      pub: { t: 'u8' }, // sa clé RSA publique
+      cleAK: { t: 'u8' }, // sa clé RSA privée cryptée par la clé K
+      cvA: { t: 'cv' } // sa carte de visite, texte et photocryptée par sa clé A
+    }
+  }
 
   async phase2(args) {
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
@@ -1144,14 +1157,16 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   }
 }
 
-/* OP_McMemo Changement des mots clés et mémo attachés à un contact ou groupe ********************************
-- token: éléments d'authentification du compte.
-- id: de l'avatar ou du groupe
-- htK : hashtags séparés par un espace et crypté par la clé K
-- txK : texte du mémo gzippé et crypté par la clé K
-*/
+/* McMemo: Changement des mots clés et mémo attachés à un contact ou groupe */
 operations.McMemo = class McMemo extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'idag' }, // id de l'avatar ou du groupe
+      htk: { t: 'u8' }, // hashtags séparés par un espace et crypté par la clé K
+      txk: { t: 'u8' } // texte du mémo gzippé et crypté par la clé K
+    }
+  }
 
   async phase2 (args) { 
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
@@ -1162,40 +1177,39 @@ operations.McMemo = class McMemo extends Operation {
   }
 }
 
-/* OP_ChangementPS: 'Changement de la phrase secrete de connexion du compte' ********************
-- token: éléments d'authentification du compte.
-- hps1: hash du PBKFD de la phrase secrète réduite du compte.
-- hXC: hash du PBKFD de la phrase secrète complète.
-- cleKXC: clé K cryptée par la phrase secrète
-*/
+/* ChangementPS: Changement de la phrase secrete de connexion du compte */
 operations.ChangementPS = class ChangementPS extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      hps1: { t: 'ids' }, // hash9 du PBKFD de la phrase secrète réduite du compte.
+      hXC: { t: 'u8' }, // hash du PBKFD de la phrase secrète complète
+      cleKXC: { t: 'u8' } // clé K cryptée par la phrase secrète
+    }
+  }
 
   async phase2 (args) { 
-    /*
-    - `hxr` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
-    - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
-    - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
-    */
     this.compte.chgPS(args)
   }
 }
 
-/* Nouveau groupe *****************************************************
-- token donne les éléments d'authentification du compte.
-- idg : du groupe
-- ida : de l'avatar fondateur
-- cleAG : clé A de l'avatar cryptée par la clé G
-- cleGK : clé du groupe cryptée par la clé K du compte
-- cvG: carte de visite du groupe crypté par la clé G du groupe
-- msu: true si mode simple
-- quotas: { qn, qv } maximum de nombre de notes et de volume fichiers
-Retour:
+/* Nouveau groupe 
 Exception:
 - 8001: avatar disparu
 */
 operations.NouveauGroupe = class NouveauGroupe extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      ida: { t: 'ida' }, // id de l'avatar fondateur
+      cleAG: { t: 'u8' }, // clé A de l'avatar cryptée par la clé G
+      cleGK: { t: 'ida' }, // clé du groupe cryptée par la clé K du compte
+      cvG: { t: 'cv' }, // carte de visite du groupe crypté par la clé G du groupe
+      msu: { t: 'bool' }, // true si mode simple
+      quotas: { t: 'q2' } // {qn, qv} maximum de nombre de notes et de volume fichiers
+    }
+  }
 
   async phase2 (args) { 
     const rg = await this.gd.getGR(args.idg)
@@ -1212,19 +1226,21 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
   }
 }
 
-/* Nouveau contact *****************************************************
-- token donne les éléments d'authentification du compte.
-- idg : du groupe
-- ida : de l'avatar contact
-- cleAG : clé A du contact cryptée par la clé G du groupe
-- cleGA : clé G du groupe cryptée par la clé A du contact
-Retour:
-EXC: 
+/* Nouveau contact 
+Exception: 
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.NouveauContact = class NouveauContact extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      ida: { t: 'ida' }, // id de l'avatar contact
+      cleAG: { t: 'u8' }, // clé A du contact cryptée par la clé G du groupe
+      cleGA: { t: 'u8' } // clé G du groupe cryptée par la clé A du contact
+    }
+  }
 
   async phase2 (args) { 
     const groupe = await this.gd.getGR(args.idg)
@@ -1261,19 +1277,21 @@ operations.NouveauContact = class NouveauContact extends Operation {
   }
 }
 
-/* OP_ModeSimple: 'Demande de retour au mode simple d\'invitation à un groupe' **********
-- token donne les éléments d'authentification du compte.
-- idg : id du groupe
-- ida : id de l'avatar demandant le retour au mode simple.
-- simple:
-  - true 'Je vote pour passer au mode "SIMPLE"'
-  - false: 'Annuler les votes et rester en mode UNANIME'
-Retour:
-EXC: 
+/* ModeSimple: 'Demande de retour au mode simple d\'invitation à un groupe
+Exception: 
 - 8002: groupe disparu
 */
 operations.ModeSimple = class ModeSimple extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      ida: { t: 'ida' }, // id de l'avatar demandant le retour au mode simple
+      simple: { t: 'bool' } 
+      // true 'Je vote pour passer au mode "SIMPLE"'
+      // false: 'Annuler les votes et rester en mode UNANIME'
+    }
+  }
 
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
@@ -1287,17 +1305,19 @@ operations.ModeSimple = class ModeSimple extends Operation {
   }
 }
 
-/* OP_AnnulerContact: 'Annulation du statut de contact d\'un groupe par un avatar' **********
-- token donne les éléments d'authentification du compte.
-- idg : id du groupe
-- ida : id de l'avatar demandant l'annulation.
-- ln : true Inscription en liste noire
-Retour:
-EXC: 
+/* AnnulerContact: Annulation du statut de contact d'un groupe par un avatar
+Exception: 
 - 8002: groupe disparu
 */
 operations.AnnulerContact = class AnnulerContact extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      ida: { t: 'ida' }, // id de l'avatar demandant l'annulation.
+      ln: { t: 'bool' }  // true Inscription en liste noire
+    }
+  }
 
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
@@ -1314,24 +1334,26 @@ operations.AnnulerContact = class AnnulerContact extends Operation {
   }
 }
 
-/* OP_InvitationGroupe: 'Invitation à un groupe' **********
-- token donne les éléments d'authentification du compte.
-- idg: id du groupe
-- idm: id du membre invité
-- rmsv: 0: inviter, 2: modifier, 3: supprimer, 4: voter pour
-- flags: flags d'invitation
-- msgG: message de bienvenue crypté par la clé G du groupe
-- idi: id de l'invitant pour le mode d'invitation simple 
-  (sinon tous les avatars du comptes animateurs du groupe)
-- suppr: 1-contact, 2:radié, 3-radié + LN
-- cleGA: clé G du groupe cryptée par la clé A de l'invité
-Retour:
-EXC: 
+/* InvitationGroupe: Invitation à un groupe'
+Exception: 
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.InvitationGroupe = class InvitationGroupe extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      idm: { t: 'ida' }, // id du membre invité
+      rsmv: { t: 'int', min: 0, max: 4 }, // 0: inviter, 2: modifier, 3: supprimer, 4: voter pour
+      flags: { t: 'int', min: 0, max: 255 }, // flags d'invitation
+      msgG: { t: 'u8' }, // message de bienvenue crypté par la clé G du groupe
+      idi: { t: 'ida', n: true }, // id de l'invitant pour le mode d'invitation simple
+      // sinon tous les avatars du comptes animateurs du groupe
+      suppr: { t: 'int', min: 1, max: 3 }, // 1-contact, 2:radié, 3-radié + LN
+      cleGA: { t: 'u8' } // clé G du groupe cryptée par la clé A de l'invité
+    }
+  }
 
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
@@ -1436,23 +1458,25 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
   }
 }
 
-/* OP_AcceptInvitation: 'Acceptation d\'une invitation à un groupe' *************
-- token donne les éléments d'authentification du compte.
-- idg : id du groupe
-- idm: id du membre invité
-- iam: accepte accès aux membres
-- ian: accepte l'accès aux notes
-- cleGK: cle du groupe cryptée par la clé K du compte
-- cas: 1:accepte 2:contact 3:radié 4:radié + LN
-- msgG: message de remerciement crypté par la cle G du groupe
-- txK: texte à attacher à compti/idg s'il n'y en a pas
-Retour:
-EXC: 
+/* AcceptInvitation: Acceptation d'une invitation à un groupe
+Eception: 
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.AcceptInvitation = class AcceptInvitation extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      idm: { t: 'ida' }, // id du membre invité
+      iam: { t: 'bool' }, // accepte accès aux membres
+      ian: { t: 'bool' }, // accepte l'accès aux notes
+      cleGK: { t: 'u8' }, // cle du groupe cryptée par la clé K du compte
+      cas: { t: 'int', min: 1, max: 4 }, // 1:accepte 2:contact 3:radié 4:radié + LN
+      msgG: { t: 'u8' }, // message de bienvenue crypté par la clé G du groupe
+      txK: { t: 'u8' } // texte à attacher à compti/idg s'il n'y en a pas
+    }
+  }
 
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
@@ -1508,18 +1532,20 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
   }
 }
 
-/* OP_ItemChatgr: 'Ajout ou effacement d\'un item au chat du groupe' *************
-- token donne les éléments d'authentification du compte.
-- idg : id du groupe
-- idaut: id du membre auteur du texte
-- dh: date-heure de l'item effacé
-- msgG: texte de l'item
-Retour:
-EXC: 
+/* ItemChatgr: Ajout ou effacement d'un item au chat du groupe
+Exception: 
 - 8002: groupe disparu
 */
 operations.ItemChatgr = class ItemChatgr extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      idaut: { t: 'ida' }, // id du membre auteur du texte
+      dh: { t: 'dh' }, // date-heure de l'item effacé
+      msgG: { t: 'u8' } // texte de l'item
+    }
+  }
 
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
@@ -1541,19 +1567,21 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
   }
 }
 
-/* OP_MajDroitsMembre: 'Mise à jour des droits d\'un membre sur un groupe' *******
-- token donne les éléments d'authentification du compte.
-- idg : id du groupe
-- idm : id du membre
-- nvflags : nouveau flags. Peuvent changer DM DN DE AM AN
-- anim: true si animateur
-Retour:
-EXC: 
+/* MajDroitsMembre: Mise à jour des droits d'un membre sur un groupe
+Exception: 
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      idm: { t: 'ida' }, // id du membre
+      nvflags: { t: 'int', min: 0, max: 255 }, // nouveau flags. Peuvent changer DM DN DE AM AN
+      anim: { t: 'bool' } // true si animateur
+    }
+  }
 
   async phase2 (args) {
     const gr = await this.gd.getGR(args.idg)
@@ -1599,19 +1627,21 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
   }
 }
 
-/* OP_RadierMembre: 'Radiation d\'un membre d\'un groupe' **************
-- token donne les éléments d'authentification du compte.
-- idg : id du groupe
-- idm : id du membre
-- cleGA: cle G du groupe cryptée par la clé du membre 
-- rad: 1-redevient contact, 2-radiation, 3-radiation + ln
-Retour:
-EXC: 
+/* RadierMembre: Radiation d'un membre d'un groupe
+Exception: 
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.RadierMembre = class RadierMembre extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      idm: { t: 'ida' }, // id du membre
+      rad: { t: 'int', min: 1, max: 3 }, // 1-redevient contact, 2-radiation, 3-radiation + ln
+      cleGA: { t: 'u8' } // cle G du groupe cryptée par la clé du membre
+    }
+  }
 
   async phase2 (args) { 
     const gr = await this.gd.getGR(args.idg)
@@ -1673,26 +1703,28 @@ operations.RadierMembre = class RadierMembre extends Operation {
   }
 }
 
-/* OP_HebGroupe: 'Gestion de l\'hébergement et des quotas d\'un grouper'
-- token : jeton d'authentification du compte de **l'administrateur**
-- idg : id du groupe
-- nvHeb: id de l'avatar nouvel hébergeur
-- action
-  AGac1: 'Je prends l\'hébergement à mon compte',
-  AGac2: 'Je cesse d\'héberger ce groupe',
-  AGac3: 'Je reprends l\'hébergement de ce groupe par un autre de mes avatars',
-  AGac4: 'Je met à jour les nombres de notes et volumes de fichiers maximum attribués au groupe',
-- qn : nombre maximum de notes
-- qv : volume maximum des fichiers
-Retour:
+/* HebGroupe: Gestion de l'hébergement et des quotas d'un grouper
 Exception générique:
 - 8001: avatar disparu
 - 8002: groupe disparu
 */
 operations.HebGroupe = class HebGroupe extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      nvHeb: { t: 'ida' }, // id de l'avatar nouvel hébergeur
+      action: { t: 'int', min: 1, max: 4 }, 
+      // 1: 'Je prends l\'hébergement à mon compte',
+      // 2: 'Je cesse d\'héberger ce groupe',
+      // 3: 'Je reprends l\'hébergement de ce groupe par un autre de mes avatars',
+      // 4: 'Je met à jour les nombres de notes et volumes de fichiers maximum attribués au groupe',
+      quotas: { t: 'q2' } // qn: nombre maximum de notes, qv : volume maximum des fichiers
+    }
+  }
 
-  async phase2 (args) { 
+  async phase2 (args) {
+    args.qn = args.quotas.qn; args.qv = quotas.qv
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     if (args.action === 1 || args.action === 3){
@@ -1733,15 +1765,17 @@ operations.HebGroupe = class HebGroupe extends Operation {
   }
 }
 
-/* OP_SupprAvatar: 'Suppression d\'un avatar'
-- token : jeton d'authentification du compte de **l'administrateur**
-- id : id de l'avatar
-Retour:
-Exception générique:
+/* SupprAvatar: Suppression d\'un avatar
+Exception:
 - 8001: avatar disparu
 */
 operations.SupprAvatar = class SupprAvatar extends Operation {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'ida' } // id de l'avatar
+    }
+  }
 
   async phase2 (args) {
     if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 1)
@@ -1752,10 +1786,8 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
   }
 }
 
-/* OP_SupprCompte: 'Suppression d\'un compte'
-- token : jeton d'authentification du compte de **l'administrateur**
-Retour:
-Exception générique:
+/* SupprCompte: Suppression du compte
+Exception:
 - 8001: avatar disparu
 */
 operations.SupprCompte = class SupprCompte extends Operation {
@@ -1829,17 +1861,19 @@ class OperationNo extends Operation {
   }
 }
 
-/* OP_NouvelleNote: 'Création d\'une nouvelle note' ***************
-- token: éléments d'authentification du compte
-- id : de la note
-- ida : pour une note de groupe, id de son avatar auteur
-- exclu : auteur est exclusif
-- pid, pids : identifiant du parent pour une note rattachée
-- t : texte crypté
-Retour: rien
-*/
+/* NouvelleNote: Création d\'une nouvelle note */
 operations.NouvelleNote = class NouvelleNote extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ida: { t: 'ida', n: true }, // pour une note de groupe, id de son avatar auteur
+      exclu: { t: 'bool', n: true }, // true si l'auteur est exclusif
+      pid: { t: 'idag', n: true }, // id de la note parente pour une note rattachée
+      pids: { t: 'ids', n: true}, // ids de la note parente pour une note rattachée
+      t: { t: 'u8' } // texte crypté
+    }
+  }
 
   async phase2 (args) { 
     await this.checkNoteId()
@@ -1865,14 +1899,17 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
   }
 }
 
-/* OP_RattNote: 'Gestion du rattachement d\'une note à une autre' ********
-- token: éléments d'authentification du compte.
-- id ids: identifiant de la note
-- pid, pids : identifiant du parent pour une note rattachée
-Retour: rien
-*/
+/* RattNote: Gestion du rattachement d\'une note à une autre */
 operations.RattNote = class RattNote extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      pid: { t: 'idag', n: true }, // id de la note parente pour une note rattachée
+      pids: { t: 'ids', n: true} // ids de la note parente pour une note rattachée
+    }
+  }
 
   async phase2 (args) { 
     if (!args.pid) throw new AppExc(F_SRV, 300)
@@ -1889,15 +1926,17 @@ operations.RattNote = class RattNote extends OperationNo {
   }
 }
 
-/* OP_MajNote: 'Mise à jour du texte d\'une note' ******
-- token: éléments d'authentification du compte.
-- id ids: identifiant de la note (dont celle du groupe pour un note de groupe)
-- t : nouveau texte encrypté
-- aut : im de l'auteur de la note pour un groupe
-Retour:
-*/
+/* MajNote: Mise à jour du texte d\'une note */
 operations.MajNote = class MajNote extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      aut: { t: 'int', min: 1, max: 1000, n: true }, // im de l'auteur de la note pour un groupe
+      t: { t: 'u8' } // texte crypté
+    }
+  }
 
   async phase2 (args) { 
     const note = await this.gd.getNOT(args.id, args.ids, 'MajNote-1')
@@ -1915,13 +1954,15 @@ operations.MajNote = class MajNote extends OperationNo {
   }
 }
 
-/* OP_SupprNote: 'Suppression d\'une note' ******
-- token: éléments d'authentification du compte.
-- id ids: identifiant de la note
-Retour: aucun
-*/
+/* SupprNote: Suppression d'une note */
 operations.SupprNote = class SupprNote extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' } // ids de la note
+    }
+  }
 
   async phase2 (args) { 
     const note = await this.gd.getNOT(args.id, args.ids)
@@ -1975,15 +2016,17 @@ operations.SupprNote = class SupprNote extends OperationNo {
   }
 }
 
-/* OP_HTNote: 'Changement des hashtags attachés à une note par un compte' ******
-- token: éléments d'authentification du compte.
-- id ids: identifiant de la note
-- htK : ht personels
-- htG : hashtags du groupe
-Retour: rien
-*/
+/* HTNote: Changement des hashtags attachés à une note par un compte */
 operations.HTNote = class HTNote extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      htK: { t: 'u8', n: true }, // ht personels
+      htG: { t: 'u8', n: true }, // hashtags du groupe
+    }
+  }
 
   async phase2 (args) { 
     const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
@@ -1996,17 +2039,21 @@ operations.HTNote = class HTNote extends OperationNo {
   }
 }
 
-/* OP_ExcluNote: 'Changement de l\'attribution de l\'exclusivité d\'écriture d\'une note'
-- token: éléments d'authentification du compte.
-- id ids: identifiant de la note
-- ida: id de l'avatar prenant l'exclusivité
-Retour: rien
-//   PNOpeut: 'Pour attribuer l\'exclusité d\'écriture d\'une note, il faut, a) soit être animateur, b) soit l\'avoir soi-même, c) soit que personne ne l\'ait déjà.',
-*/
+/* ExcluNote: Changement de l'attribution de l'exclusivité d'écriture d'une note */
 operations.ExcluNote = class ExcluNote extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      ida: { t: 'ida', n: true } // id de l'avatar prenant l'exclusivité
+    } 
+  }
 
-  async phase2 (args) { 
+  async phase2 (args) {
+    // Pour attribuer l\'exclusité d\'écriture d\'une note, il faut, 
+    // a) soit être animateur, 
+    // b) soit l\'avoir soi-même, c) soit que personne ne l\'ait déjà.'
     const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
     if (!ID.estGroupe(args.id)) throw new AppExc(F_SRV, 303)
     await this.checkNoteId()
@@ -2030,15 +2077,19 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
   }
 }
 
-/** OP_GetUrlNf : retourne l'URL de get d'un fichier d'une note
-- token: éléments d'authentification du compte.
-- id ids : id de la note.
-- idf : id du fichier.
+/* GetUrlNf : retourne l'URL de get d'un fichier d'une note
 Retour:
 - url : url de get
 */
 operations.GetUrlNf = class GetUrl extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      idf: { t: 'idf' } // id du fichier
+    } 
+  }
 
   async phase2 (args) {
     await this.checkNoteId()
@@ -2051,20 +2102,24 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
   }
 }
 
-/* OP_PutUrlNf : retourne l'URL de put d'un fichier d'une note ******
-- token: éléments d'authentification du compte.
-- id ids : id de la note
-- aut: pour une note de groupe, ida de l'auteur de l'enregistrement
+/* PutUrlNf : retourne l'URL de put d'un fichier d'une note
 Retour:
 - idf : identifiant du fichier
 - url : url à passer sur le PUT de son contenu
-Remarque: l'excès de volume pour un groupe et un compte, ainsi que le volume 
-descendant seront décomptés à la validation de l'upload
 */
 operations.PutUrlNf = class PutUrl extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      aut: { t: 'ida', n: null } // pour une note de groupe, id de l'auteur de l'enregistrement
+    } 
+  }
 
   async phase2 (args) {
+    // Remarque: l'excès de volume pour un groupe et un compte, ainsi que le volume 
+    // descendant seront décomptés à la validation de l'upload
     await this.checkNoteId()
     const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
     if (ID.estGroupe(args.id)) {
@@ -2084,16 +2139,18 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
   }
 }
 
-/* validerUpload ****************************************
-- token: éléments d'authentification du compte.
-- id, ids : de la note
-- fic : { idf, nom, info, type, lg, gz, sha}
-- aut: id de l'auteur (pour une note de groupe)
-- lidf : liste des idf fichiers de la note à supprimer
-Retour: aucun
-*/
+/* validerUpload */
 operations.ValiderUpload = class ValiderUpload extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      fic: { t: 'fic' }, // { idf, lg, ficN }
+      aut: { t: 'ida', n: true }, // id de l'auteur (pour une note de groupe)
+      lidf: { t: 'lidf', n: true } // liste des idf fichiers de la note à supprimer
+    }
+  }
 
   async phase2 (args) {
     await this.checkNoteId()
@@ -2150,15 +2207,17 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
 
 }
 
-/* OP_SupprFichier : 'Suppression d\'un fichier d\'une note', ****************************************
-- token: éléments d'authentification du compte.
-- id, ids : de la note
-- idf : id du fichier
-- aut: id de l'auteur (pour une note de groupe)
-Retour: aucun
-*/
+/* SupprFichier : Suppression d'un fichier d'une note */
 operations.SupprFichier = class SupprFichier extends OperationNo {
-  constructor (nom) { super(nom, 1, 2) }
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      id: { t: 'idag' }, // id de la note (avatar ou groupe)
+      ids: { t: 'ids' }, // ids de la note
+      idf: { t: 'idf' }, // id du fichier à supprimer
+      aut: { t: 'ida', n: true } // id de l'auteur (pour une note de groupe)
+    }
+  }
 
   async phase2 (args) {
     await this.checkNoteId()
