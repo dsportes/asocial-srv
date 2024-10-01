@@ -80,9 +80,6 @@ export class ID {
   static fic () { return '8' + ID.rnd().substring(1) }
 }
 
-console.log(ID.type('3azertyi00AZ'))
-console.log(ID.type('3aéertyi00AZ'))
-
 export const HBINSECONDS = 20 // 120
 export const ESPTO = 3 // en minutes : rechargement de la cache des espaces
 

@@ -480,12 +480,12 @@ operations.Sync = class Sync extends Operation {
   constructor (nom) { 
     super(nom, 1, 1) 
     this.targs = {
-      subJSOn: { t: 'string', n: true }, // subscription de la session
+      subJSON: { t: 'string', n: true }, // subscription de la session
       dataSync: { t: 'u8', n: true }, // sérialisation de l'état de synchro de la session
       // null : C'EST UNE PREMIERE CONNEXION - Création du DataSync
       // recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
       lids: { t: 'lids', n: true }, // liste des ids des sous-arbres à recharger (dataSync n'est pas null)
-      full: { t: 'bool' } // si true, revérifie tout le périmètre
+      full: { t: 'bool', n: true } // si true, revérifie tout le périmètre
     }
   }
 

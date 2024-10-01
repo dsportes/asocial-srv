@@ -872,14 +872,17 @@ export class Operation {
     }
   }
 
-  async phase1 ( args) { 
+  async phase1 (args) { 
     args.x = '$'
     const op = this.nomop
-    function ko (n) { throw new AppExc(F_SRV, 13, [op, n]) }
+    function ko (n) { 
+      throw new AppExc(F_SRV, 13, [op, n]) 
+    }
     if (this.targs) for (const n in this.targs) {
       const e = this.targs[n]
       const v = args[n]
       if (e.n && !v) continue
+      const tof = Array.isArray(v) ? 'array' : (typeof v)
       switch (e.t) {
         case 'ida' : {
           if (ID.type(v) !== 3) ko(n)
@@ -906,7 +909,7 @@ export class Operation {
           break
         }
         case 'org' : {
-          if (typeof(v) !== 'string' || v.length <4 || v.length > 16) ko(n)
+          if (tof !== 'string' || v.length <4 || v.length > 16) ko(n)
           break
         }
         case 'u8' : {
@@ -914,75 +917,75 @@ export class Operation {
           ko(n)
         }
         case 'string' : {
-          if (typeof(v) !== 'string') ko(n)
+          if (tof !== 'string') ko(n)
           break
         }
         case 'int' : {
-          if (typeof(v) !== 'number' || !Number.isInteger(v)) ko(n)
+          if (tof !== 'number' || !Number.isInteger(v)) ko(n)
           if (e.min !== undefined && v < e.min) ko(n)
           if (e.max !== undefined && v > e.max) ko(n)
           break
         }
         case 'dh' : {
-          if (typeof(v) !== 'number' || !Number.isInteger(v)) ko(n)
+          if (tof !== 'number' || !Number.isInteger(v)) ko(n)
           if (v < Operation.mindh || v > Operation.maxdh) ko(n)
           break
         }
         case 'bool' : {
-          if (typeof(v) !== 'boolean') ko(n)
+          if (tof !== 'boolean') ko(n)
           break            
         }
         case 'q' : {
-          if (typeof v !== 'object') ko(n)
+          if (tof !== 'object') ko(n)
           if (!Number.isInteger(v.qc) || v.qc < 0) ko(n)
           if (!Number.isInteger(v.qn) || v.qn < 0) ko(n)
           if (!Number.isInteger(v.qv) || v.qv < 0) ko(n)
           break
         }
         case 'q2' : {
-          if (typeof v !== 'object') ko(n)
+          if (tof !== 'object') ko(n)
           if (!Number.isInteger(v.qn) || v.qn < 0) ko(n)
           if (!Number.isInteger(v.qv) || v.qv < 0) ko(n)
           break
         }
         case 'cv' : {
-          if (typeof v !== 'object') ko(n)
+          if (tof !== 'object') ko(n)
           if (ID.type(v.id) !== 3 && ID.type(v.id) !== 4) ko(n)
           if (v.ph && !(v.ph instanceof Uint8Array || v.ph.length > 0)) ko(n)
           if (!v.tx || !(v.tx instanceof Uint8Array || v.tx.length > 0)) ko(n)
           break
         }
         case 'fic' : { // { idf, lg, ficN }
-          if (typeof v !== 'object') ko(n)
+          if (tof !== 'object') ko(n)
           if (!v.idf || ID.type(v.idf) !== 8) ko(n)
           if (!v.lg || (!Number.isInteger(v.lg) || v.lg <= 0)) ko(n)
           if (v.ficN || !(v.ficN instanceof Uint8Array)) ko(n)
           break
         }
         case 'ntf' : { // { nr, dh, texte }
-          if (typeof v !== 'object') ko(n)
-          if (typeof(v.dh) !== 'number' || !Number.isInteger(v.dh)) ko(n)
+          if (tof !== 'object') ko(n)
+          if (typeof v.dh !== 'number' || !Number.isInteger(v.dh)) ko(n)
           if (v.dh < Operation.mindh || v.dh > Operation.maxdh) ko(n)
           if (!v.nr || !Number.isInteger(v.nr) || v.nr < 1 || v.nr > 3) ko(n)
           if (v.texte && !(v.texte instanceof Uint8Array)) ko(n)
           break
         }
         case 'lidf' : {
-          if (typeof v !== 'array') ko(n)
+          if (tof !== 'array') ko(n)
           let b = true
           v.forEach(id => { if (ID.type(id) !== 8) b = false } )
           if (!b) ko(n)
           break
         }
         case 'lids' : {
-          if (typeof v !== 'array') ko(n)
+          if (tof !== 'array') ko(n)
           let b = true
           v.forEach(id => { if (ID.type(id) !== 3 || ID.type(id) !== 4) b = false } )
           if (!b) ko(n)
           break
         }
         case 'ch' : {
-          if (typeof v !== 'array' || v.length !== 2) ko(n)
+          if (tof !== 'array' || v.length !== 2) ko(n)
           if (ID.type(v[0]) !== 3) ko(n)
           if (!ID.estID(v[1])) ko(n)
         }
@@ -991,12 +994,12 @@ export class Operation {
           ko(n)
         }
         case 'ns' : {
-          if (typeof(v) !== 'string' || v.length !== 1) ko(n)
+          if (tof !== 'string' || v.length !== 1) ko(n)
           if (Cles.nsToInt(v) === -1) ko(n)
           break
         }
         case 'chsp' : { // chsp: { cck, ccP, cleE1C, cleE2C, t1c, t2c }
-          if (typeof v !== 'object') ko(n)
+          if (tof !== 'object') ko(n)
           if (!v.cck || !(v.cck instanceof Uint8Array)) ko(n)
           if (!v.ccP || !(v.ccP instanceof Uint8Array)) ko(n)
           if (!v.cleE1C || !(v.cleE1C instanceof Uint8Array)) ko(n)
