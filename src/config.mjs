@@ -14,7 +14,8 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
   ],
 
-  // Paramètres fonctionnels
+  // Paramètres fonctionnel
+  gccode: '1234azerty', // Code d'habilitation du lancement du GC
   heuregc: [3, 30], // Heure du jour des tâches GC
   retrytache: 60, // Nombre de minutes avant le retry d'une tâche
 

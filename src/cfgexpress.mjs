@@ -158,21 +158,17 @@ async function operation(req, res, dbp, storage) {
   try {
     const isGet = req.method === 'GET'
 
-    /*
-    if (opName === 'yo'){
+    /* if (opName === 'yo'){
       setRes(res, 200, 'text/plain').send('yo ' + new Date().toISOString())
       return
-    }
-      */
+    } */
 
     if (config.run.origins) checkOrigin(req)
 
-    /*
-    if (opName === 'yoyo'){
+    /* if (opName === 'yoyo'){
       setRes(res, 200, 'text/plain').send('yoyo ' + new Date().toISOString())
       return
-    }
-    */
+    } */
   
     // récupétration de la fonction de ce module traitant l'opération
     const opClass = operations[opName]

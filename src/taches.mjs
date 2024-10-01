@@ -2,7 +2,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, Esp, trace } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
+import { AMJ, ID, E_SRV, AppExc, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
 import { sleep, decrypterSrv } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -122,7 +122,7 @@ export class Taches {
     if (Taches.demon) return
     setTimeout(async () => { 
       try {
-        const op = new operations.StartDemon('StartDemon') 
+        const op = new operations.StartDemon('StartDemon', true) 
         await op.run({}, opOrig.dbp, opOrig.storage)
       } catch (e) {
         config.logger.error('StartDemon: ' + e.toString())
@@ -157,7 +157,6 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
     this.setRes('nxnc', [Taches.OPSGC.size - s.size, s.size])
   }
 }
-
 
 /*****************************************
 GetTaches : retourne la liste des tâches en cours
@@ -206,15 +205,24 @@ operations.GoTache = class GoTache extends Operation {
   }
 }
 
-/* OP_StartDemon: 'Lancement immédiat du démon',
-- token : jeton d'authentification de l'administrateur
+/* StartDemon: 'Lancement immédiat du démon',
+- code : code d'habilitation
 Retour:
 */
 operations.StartDemon = class StartDemon extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+  constructor (nom, interne) { 
+    super(nom, 0)
+    this.interne = interne
+    this.SYS = true
+    this.targs = { code: { t: 'x' }}
+  }
 
-  async phase2() {
+  async phase2(args) {
     if (Taches.demon) return
+    if (!this.interne) {
+      if (args.code !== config.gccode) throw new AppExc(E_SRV, 12)
+      this.result = { type: 'text/plain', bytes: Buffer.from('OK - ' + new Date().toISOString())}
+    }
     setTimeout(async () => { await this.runit() }, 1)
   }
 

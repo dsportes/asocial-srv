@@ -224,8 +224,8 @@ Une opération de GC non notifiée n'enregistra pas de trLog.
 */
 class TrLog {
   constructor (op) {
+    this.op = op
     if (!op.SYS) {
-      this.op = op
       this._maj = false
       this.vcpt = 0 // compte pas mis à jour
       this.vesp = 0 // espace du ns pas mis à jour
