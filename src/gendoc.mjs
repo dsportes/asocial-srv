@@ -593,6 +593,7 @@ export class Syntheses extends GenDoc {
       qt: { qc: 0, qn: 0, qv: 0, c2m: 0, n: 0, v: 0 }
     }
     for (const id in this.tsp) {
+      if (id === '0') continue
       const r = this.tsp[id]
       a.nbc += r.nbc
       a.nbd += r.nbd
@@ -1393,6 +1394,7 @@ export class Avatars extends GenDoc {
     return new Avatars().init({ 
       _maj: true, v: 0,
       id: args.id,
+      alias: ID.rnd(),
       pub: args.pub,
       privK: args.privK,
       vcv: 1,
@@ -1781,6 +1783,7 @@ export class Groupes extends GenDoc {
     return new Groupes().init({
       _maj: true, v: 0,
       id: args.idg, // id du groupe
+      alias: ID.rnd(),
       tid: [null, args.ida], // id de l'avatar fondateur
       msu: args.msu, // mode simple (true) / unanime
       qn: args.quotas.qn,  // quotas.qn

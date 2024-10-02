@@ -952,7 +952,11 @@ export class Operation {
           if (tof !== 'object') ko(n)
           if (ID.type(v.id) !== 3 && ID.type(v.id) !== 4) ko(n)
           if (v.ph && !(v.ph instanceof Uint8Array || v.ph.length > 0)) ko(n)
-          if (!v.tx || !(v.tx instanceof Uint8Array || v.tx.length > 0)) ko(n)
+          if (ID.estComptable(v.id)) {
+            if (v.tx) ko(n)
+          } else {
+            if (!v.tx || !(v.tx instanceof Uint8Array || v.tx.length > 0)) ko(n)
+          }
           break
         }
         case 'fic' : { // { idf, lg, ficN }
@@ -980,7 +984,7 @@ export class Operation {
         case 'lids' : {
           if (tof !== 'array') ko(n)
           let b = true
-          v.forEach(id => { if (ID.type(id) !== 3 || ID.type(id) !== 4) b = false } )
+          v.forEach(id => { if (ID.type(id) !== 3 && ID.type(id) !== 4) b = false } )
           if (!b) ko(n)
           break
         }
@@ -998,9 +1002,9 @@ export class Operation {
           if (Cles.nsToInt(v) === -1) ko(n)
           break
         }
-        case 'chsp' : { // chsp: { cck, ccP, cleE1C, cleE2C, t1c, t2c }
+        case 'chsp' : { // chsp: { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
           if (tof !== 'object') ko(n)
-          if (!v.cck || !(v.cck instanceof Uint8Array)) ko(n)
+          if (!v.ccK || !(v.ccK instanceof Uint8Array)) ko(n)
           if (!v.ccP || !(v.ccP instanceof Uint8Array)) ko(n)
           if (!v.cleE1C || !(v.cleE1C instanceof Uint8Array)) ko(n)
           if (!v.cleE2C || !(v.cleE2C instanceof Uint8Array)) ko(n)

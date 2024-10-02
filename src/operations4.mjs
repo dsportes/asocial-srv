@@ -33,8 +33,8 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { 
     super(nom, 2, 2)
     this.targs = { 
-      optionA: { t: 'bool'}, // true si accepte le s compte A
-      nbmi: { t: 'int', min: 3, max: 18 } // nombre de mois d'inactivité avant suppression d'un compte
+      optionA: { t: 'int', min: 0, max: 1, n: true}, // true si accepte le s compte A
+      nbmi: { t: 'int', min: 3, max: 18, n: true } // nombre de mois d'inactivité avant suppression d'un compte
     }
   }
 
@@ -68,14 +68,14 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     super(nom, 1, 2) 
     this.targs = { 
       id: { t: 'ida' }, // id du sponsor
-      hYR: { t: 'u8' }, // hash du PBKFD de la phrase réduite de sponsoring,
+      hYR: { t: 'ids' }, // hash du PBKFD de la phrase réduite de sponsoring,
       psK: { t: 'u8' }, // texte de la phrase de sponsoring cryptée par la clé K du sponsor.
       YCK: { t: 'u8' }, // PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
-      hYC: { t: 'u8' }, // hash du PBKFD de la phrase de sponsoring
+      hYC: { t: 'ids' }, // hash du PBKFD de la phrase de sponsoring
       cleAYC: { t: 'u8' }, // clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring
       partitionId: { t: 'idp', n: true }, // id de la partition si compte "O" 
-      cleAP: { t: 'u8' }, // clé A du COMPTE sponsor crypté par la clé P de la partition.
-      clePYC: { t: 'u8' }, // clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD de la phrase complète de sponsoring (donne l'id de la partition).
+      cleAP: { t: 'u8', n: true }, // clé A du COMPTE sponsor crypté par la clé P de la partition.
+      clePYC: { t: 'u8', n: true }, // clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD de la phrase complète de sponsoring (donne l'id de la partition).
       nomYC: { t: 'u8' }, // nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
       cvA: { t: 'cv' }, // CV { id, v, ph, tx } du sponsor, (ph, tx) cryptés par sa cle A
       ardYC: { t: 'u8' }, // ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
@@ -2094,9 +2094,10 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
   async phase2 (args) {
     await this.checkNoteId()
     const note = await this.gd.getNOT(args.id, args.ids, 'GetUrlNf-1')
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     const f = note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
     if (!f) throw new AppExc(F_SRV, 307)
-    const url = await this.storage.getUrl(this.org, args.id, args.idf)
+    const url = await this.storage.getUrl(this.org, avgr.alias, args.idf)
     this.setRes('url', url)
     this.vd += f.lg // décompte du volume descendant
   }
@@ -2122,6 +2123,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     // descendant seront décomptés à la validation de l'upload
     await this.checkNoteId()
     const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     if (ID.estGroupe(args.id)) {
       const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(F_SRV, 313)
@@ -2129,12 +2131,12 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     }
 
     const idf = ID.fic()
-    const url = await this.storage.getUrl(this.org, args.id, idf)
+    const url = await this.storage.getUrl(this.org, avgr.alias, idf)
     this.setRes('url', url)
     this.setRes('idf', idf)
 
     const dlv = AMJ.amjUtcPlusNbj(this.auj, 1)
-    const tr = new Transferts().init({ id: args.id, idf, dlv })
+    const tr = new Transferts().init({ id: avgr.alias, idf, dlv })
     this.insert(tr.toRow(this))
   }
 }

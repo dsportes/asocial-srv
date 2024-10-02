@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS "taches" (
   "ids" TEXT,
   "dh" INTEGER,
   "exc"	TEXT,
+  "dhf" INTEGER,
+  "nb" INTEGER,
   PRIMARY KEY("op", "ns", "id", "ids")
 );
 CREATE INDEX "taches_dh" ON "taches" ( "dh" );

@@ -158,7 +158,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
     this.targs = {
       org: { t: 'org'},
       hps1: { t: 'ids' }, // hash9 du PBKFD de la phrase de contact réduite
-      hTC: { t: 'u8' } // hash de la phrase de sponoring complète
+      hTC: { t: 'ids' } // hash de la phrase de sponsoring complète
     }
   } 
 
@@ -251,11 +251,11 @@ operations.SyncSp = class SyncSp extends Operation {
       dconf: { t: 'bool' }, // dconf du sponsorisé
       pub: { t: 'u8' }, // clé RSA publique de l'avatar
       privK: { t: 'u8' }, // clé privée RSA de l(avatar cryptée par la clé K du compte
-      cvA: { t: 'u8' }, // CV de l'avatar cryptée par sa clé A
+      cvA: { t: 'cv' }, // CV de l'avatar cryptée par sa clé A
       clePK: { t: 'u8' }, // clé P de sa partition cryptée par la clé K du nouveau compte
       cleAP: { t: 'u8' }, // clé A de son avatar principâl cryptée par la clé P de sa partition
       clePA: { t: 'u8' }, // cle P de la partition cryptée par la clé A du nouveau compte
-      ch: { t: 'chsp' } // { cck, ccP, cleE1C, cleE2C, t1c, t2c }
+      ch: { t: 'chsp', n: true } // { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
         // ccK: clé C du chat cryptée par la clé K du compte
         // ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
         // cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
@@ -390,7 +390,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   async phase2(args) {
     await this.setEspaceOrg(args.org)
 
-    const avsponsor = await this.gd.getAV(args.ids)
+    const avsponsor = await this.gd.getAV(args.id)
     if (!avsponsor) throw new AppExc(F_SRV, 401)
   
     // Recherche du sponsorings

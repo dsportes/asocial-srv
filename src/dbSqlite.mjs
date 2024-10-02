@@ -153,7 +153,7 @@ class Connx {
   /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, ns, id, ids, dh, exc) VALUES (@op, @ns, @id, @ids, @dh, @exc) ON CONFLICT (op, ns, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
+      'INSERT INTO taches (op, ns, id, ids, dh, exc, dhf, nb) VALUES (@op, @ns, @id, @ids, @dh, @exc, 0, 0) ON CONFLICT (op, ns, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
     st.run({ 
       op: t.op,
       ns: t.ns, 
@@ -166,6 +166,11 @@ class Connx {
   async delTache (op, ns, id, ids) {
     const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
     st.run({ op, ns, id, ids })
+  }
+
+  async recTache (op, ns, id, ids, dhf, nb) {
+    const st = this._stmt('UPDTACHE', 'UPDATE taches SET dhf = @dhf, nb = @nb WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
+    st.run({ op, ns, id, ids, dhf, nb })
   }
 
   async prochTache (dh, lst) {

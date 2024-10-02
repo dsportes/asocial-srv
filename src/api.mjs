@@ -1084,6 +1084,7 @@ export function synthesesPartition (p) {
     nbd: 0
   }
   for(const idx in p.mcpt) {
+    if (idx === '0') continue
     const x = p.mcpt[idx]
     r.qt.qc += x.q.qc
     r.qt.qn += x.q.qn

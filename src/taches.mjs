@@ -106,7 +106,8 @@ export class Taches {
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!this.estGC) // La tache est supprimée
             await db.delTache(this.op, this.id, this.ids, this.ns)
-          // else : La tache est déjà inscrite pour sa prochaine exécution
+          else // La tache est déjà inscrite pour sa prochaine exécution
+            await db.recTache(this.op, this.id, this.ids, this.ns, Date.now(), args.nb || 0)
           break
         }
       } catch (e) { // Opération sortie en exception
@@ -257,7 +258,10 @@ operations.DFH = class DFH extends Operation {
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
-    if (!args.lst) args.lst = await this.db.getGroupesDfh(this.auj)
+    if (!args.lst) {
+      args.lst = await this.db.getGroupesDfh(this.auj)
+      args.nb = args.lst.length
+    }
     if (!args.lst.length) { args.fini = true; return }
 
     const idg = args.lst.pop()
@@ -272,7 +276,10 @@ operations.DLV = class DLV extends Operation {
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer
-    if (!args.lst) args.lst = await this.db.getComptesDlv(this.auj)
+    if (!args.lst) {
+      args.lst = await this.db.getComptesDlv(this.auj)
+      args.nb = args.lst.length
+    }
     if (!args.lst.length) { args.fini = true; return }
 
     const id = args.lst.pop()
@@ -287,7 +294,8 @@ operations.TRA = class TRA extends Operation {
 
   async phase2(args) {
     // Récupération des couples [id, idf] des transferts à solder
-    const lst = await this.db.listeTransfertsDlv(this.auj)  
+    const lst = await this.db.listeTransfertsDlv(this.auj) 
+    args.nb = lst.length
     for (const [id, idf] of lst) {
       if (id && idf) {
         const ns = ID.ns(id)
@@ -314,9 +322,11 @@ operations.FPU = class FPU extends Operation {
 
   async phase2(args) {
     /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
-    const lst = await this.db.listeFpurges(this)  
+    const lst = await this.db.listeFpurges(this)
+    args.nb = 0
     for (const fpurge of lst) {
       if (fpurge.id && fpurge.idag && fpurge.lidf) {
+        args.nb += fpurge.lidf.length
         const ns = ID.ns(fpurge.id)
         let esp
         try { esp = await this.setEspace(ns) } catch (e) { /* */ }
@@ -338,11 +348,10 @@ operations.VER = class VER extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
+    args.nb = 0
     const suppr = AMJ.amjUtcPlusNbj(this.auj, IDBOBSGC)
-    await this.db.purgeSPO(suppr)
-
-    await this.db.purgeVER(suppr)
-
+    args.nb += await this.db.purgeSPO(suppr)
+    args.nb += await this.db.purgeVER(suppr)
     args.fini = true
   }
 }
@@ -388,6 +397,7 @@ operations.STA = class STA extends Operation {
           }
         }
       }
+      args.nb = args.todo.length
     }
 
     // args.todo.forEach(s => {console.log(JSON.stringify(s))}); args.todo.length = 0
@@ -416,7 +426,7 @@ operations.GRM = class GRM extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    await this.db.delScoll('membres', args.tache.id)
+    args.nb = await this.db.delScoll('membres', args.tache.id)
     args.fini = true
   }
 }
@@ -428,7 +438,7 @@ operations.AGN = class AGN extends Operation {
   async phase2(args) {
     const id = args.tache.id
     this.ns = args.tache.ns
-    await this.db.delScoll('notes', ID.long(id, this.ns))
+    args.nb = await this.db.delScoll('notes', ID.long(id, this.ns))
     let esp
     try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }
     if (esp) await this.storage.delId(esp.org, id)
@@ -448,7 +458,7 @@ operations.AVC = class AVC extends Operation {
       const chE = await this.gd.getCAV(chI.idE, chI.idsE)
       if (chE) chE.chEdisp()
     }
-    await this.db.delScoll('chats', ID.long(ida, this.ns))
+    args.nb = await this.db.delScoll('chats', ID.long(ida, this.ns))
     args.fini = true
   }
 }
@@ -467,6 +477,7 @@ operations.ESP = class ESP extends Operation {
       args.e = { dlvat: esp.dlvat, nbmi: esp.nbmi }
       // Récupération de la liste des id des comptes à traiter
       args.lst = await this.db.getComptesDlvat(this.ns, this.dla, esp.dlvat)
+      args.nb = args.lst.length
       if (!args.lst.length) { args.fini = true; return }
     }
 
