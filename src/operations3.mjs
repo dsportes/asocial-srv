@@ -252,9 +252,9 @@ operations.SyncSp = class SyncSp extends Operation {
       pub: { t: 'u8' }, // clé RSA publique de l'avatar
       privK: { t: 'u8' }, // clé privée RSA de l(avatar cryptée par la clé K du compte
       cvA: { t: 'cv' }, // CV de l'avatar cryptée par sa clé A
-      clePK: { t: 'u8' }, // clé P de sa partition cryptée par la clé K du nouveau compte
-      cleAP: { t: 'u8' }, // clé A de son avatar principâl cryptée par la clé P de sa partition
-      clePA: { t: 'u8' }, // cle P de la partition cryptée par la clé A du nouveau compte
+      clePK: { t: 'u8', n: true }, // clé P de sa partition cryptée par la clé K du nouveau compte
+      cleAP: { t: 'u8', n: true }, // clé A de son avatar principâl cryptée par la clé P de sa partition
+      clePA: { t: 'u8', n: true }, // cle P de la partition cryptée par la clé A du nouveau compte
       ch: { t: 'chsp', n: true }, // { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
         // ccK: clé C du chat cryptée par la clé K du compte
         // ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
