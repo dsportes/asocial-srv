@@ -1163,8 +1163,8 @@ operations.McMemo = class McMemo extends Operation {
     super(nom, 1, 2) 
     this.targs = {
       id: { t: 'idag' }, // id de l'avatar ou du groupe
-      htk: { t: 'u8' }, // hashtags séparés par un espace et crypté par la clé K
-      txk: { t: 'u8' } // texte du mémo gzippé et crypté par la clé K
+      htK: { t: 'u8' }, // hashtags séparés par un espace et crypté par la clé K
+      txK: { t: 'u8' } // texte du mémo gzippé et crypté par la clé K
     }
   }
 

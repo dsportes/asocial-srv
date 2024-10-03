@@ -425,7 +425,7 @@ _data_:
 - `q`: `{ qc, qn, qv }` quotas globaux attribués à la partition par le Comptable.
 - `mcpt` : map des comptes attachés à la partition. 
   - _clé_: id du compte.
-  - _valeur_: `{ nr, cleAP, del, q }`
+  - _valeur_: `{ notif, cleAP, del, q }`
     - `notif`: notification du compte cryptée par la clé P de la partition (redonde celle dans compte).
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
@@ -454,13 +454,20 @@ export class Partitions extends GenDoc {
     return this
   }
 
-  toShortRow (op, del) {
-    if (del) return this.toRow(op)._data_
+  toShortRow (op, compte) {
+    if (ID.estComptable(compte.id)) return this.toRow(op)._data_
     const sv = this.mcpt
     const m = {}
     for(const idx in this.mcpt) {
       const e = this.mcpt[idx]
-      if (e.del) m[idx] = {  del: true, nr: 0, q: Partitions.qz, cleAP: e.cleAP }
+      const x = { del: e.del }
+      if (compte.del) {
+        x.notif = e.notif
+        x.q = e.q
+      } else {
+        x.q = Partitions.qz
+      }
+      m[idx] = x
     }
     this.mcpt = m
     const row = this.toRow(op)._data_

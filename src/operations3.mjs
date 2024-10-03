@@ -255,13 +255,15 @@ operations.SyncSp = class SyncSp extends Operation {
       clePK: { t: 'u8' }, // clé P de sa partition cryptée par la clé K du nouveau compte
       cleAP: { t: 'u8' }, // clé A de son avatar principâl cryptée par la clé P de sa partition
       clePA: { t: 'u8' }, // cle P de la partition cryptée par la clé A du nouveau compte
-      ch: { t: 'chsp', n: true } // { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
+      ch: { t: 'chsp', n: true }, // { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
         // ccK: clé C du chat cryptée par la clé K du compte
         // ccP: clé C du chat cryptée par la clé publique de l'avatar sponsor
         // cleE1C: clé A de l'avatar E (sponsor) cryptée par la clé du chat.
         // cleE2C: clé A de l'avatar E (sponsorisé) cryptée par la clé du chat.
         // t1c: mot du sponsor crypté par la clé C
         // t2c: mot du sponsorisé crypté par la clé C
+      htK: { t: 'u8' }, // hashtag relatif au sponsor
+      txK: { t: 'u8' } // texte relatif au sponsor
     }
   }
 
@@ -295,6 +297,7 @@ operations.SyncSp = class SyncSp extends Operation {
     compta.setA(sp.partitionId ? false : true)
     this.compte = compte
     this.compta = compta
+    compti.setMc(sp.id, args.htK, args.txK)
     await compte.reportDeCompta(compta, this.gd)
     this.setRes('rowCompti', compti.toShortRow(this))
     this.setRes('rowInvit', invit.toShortRow(this))
@@ -439,7 +442,7 @@ operations.GetPartition = class GetPartition extends Operation {
     if (this.compte._estA) throw new AppExc(F_SRV, 220)
     const id = !this.estComptable ? this.compte.idp : args.id
     const partition = compile(await this.getRowPartition(id, 'GetPartition'))
-    this.setRes('rowPartition', partition.toShortRow(this, this.compte.del))
+    this.setRes('rowPartition', partition.toShortRow(this, this.compte))
   }
 }
 
