@@ -42,6 +42,8 @@ export class Cles {
   static nom (cle) { return Cles.lnoms[cle[0]] }
 }
 
+const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1, (256 ** 6) - 1, (256 ** 7) - 1]
+
 /** ID **********************************************************************/
 export class ID {
   static regid = new RegExp('^[0-9a-zA-Z]*$')
@@ -53,6 +55,18 @@ export class ID {
 
   static type (id) { 
     return ID.estID(id) ? parseInt(id.charAt(0)) : -1
+  }
+
+  static rnd6 () {
+    const u8 = random(6)
+    let r = u8[0]
+    for (let i = 5; i > 0; i--) r += u8[i] * (p2[i - 1] + 1)
+    return r
+  }
+
+  static dunTicket (a, m) { /* Génère l'id d'un ticket: aa mm rrr rrr rrr*/
+    const x1 = (((a % 100) * 100) + m)
+    return '' + ((ID.rnd6() % d8) + (x1 * d8))
   }
 
   static duComptable () { return '300000000000' }
@@ -82,6 +96,7 @@ export class ID {
 
 export const HBINSECONDS = 20 // 120
 export const ESPTO = 3 // en minutes : rechargement de la cache des espaces
+export const DONCOMPTEO = 0
 
 export const MSPARJOUR = 86400 * 1000
 export const MSPARAN = 365 * MSPARJOUR
@@ -163,13 +178,14 @@ Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 /* retourne un code à 6 lettres majuscules depuis l'id d'un ticket 
 id d'un ticket: aa mm rrr rrr rrr r 
 */
-export const d10 = 10000000000
-export function idTkToL6 (t) {
-  const am = Math.floor(t / d10)
+export const d8 = 100000000
+export function idTkToL6 (tk) {
+  const t = parseInt(tk)
+  const am = Math.floor(t / d8)
   const m = am % 100
   const a = Math.floor(am / 100)
   let x = String.fromCharCode(a % 2 === 0 ? 64 + m : 76 + m)
-  for (let i = 0, j = (t % d10); i < 5; i++) { x += String.fromCharCode(65 + (j % 26)); j = Math.floor(j / 26) }
+  for (let i = 0, j = (t % d8); i < 5; i++) { x += String.fromCharCode(65 + (j % 26)); j = Math.floor(j / 26) }
   return x
 }
 
@@ -623,6 +639,14 @@ export class Compteurs {
   setA (estA) { this.estA = estA }
 
   get serial() {
+    for (let i = 0; i < Compteurs.NHD; i++) {
+      const v = this.vd[i]
+      for (let j = 0; j < Compteurs.NBCD; j++) 
+        if (isNaN(v[j])) throw new AppExc(A_SRV, 17, [i, j])
+    }
+    this.vd = new Array(Compteurs.NHD)
+    for(let i = 0; i < Compteurs.NHD; i++) this.vd[i] = new Array(Compteurs.NBCD).fill(0)
+
     const x = {}; Compteurs.lp.forEach(p => { x[p] = this[p]})
     return new Uint8Array(encode(x))
   }

@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE } from './api.mjs'
+import { AppExc, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE, DONCOMPTEO } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
@@ -116,7 +116,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       if (q.qc > (s.qA.qc - s.qtA.qc)) throw new AppExc(F_SRV, 325, [s.qA.qc - s.qtA.qc, q.qc])
       if (q.qn > (s.qA.qn - s.qtA.qn)) throw new AppExc(F_SRV, 323, [s.qA.qn - s.qtA.qn, q.qn])
       if (q.qv > (s.qA.qv - s.qtA.qv)) throw new AppExc(F_SRV, 324, [s.qA.qv - s.qtA.qv, q.qv])
-      if (this.estComptable || !this.compte._estA) args.don = 2
+      if (this.estComptable || !this.compte._estA) args.don = DONCOMPTEO
       else {
         if (this.compta.solde <= args.don + 2)
           throw new AppExc(F_SRV, 212, [this.compta.solde, args.don])
@@ -279,7 +279,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       // 1: idE est délégué de la partition de idI, 
       // idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
       hZC : { t: 'u8', n: true }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
-      ch: { t: 'ch' }, // { cck, ccP, cleE1C, cleE2C, t1c }
+      ch: { t: 'nvch' }, // { cck, ccP, cleE1C, cleE2C, t1c }
       // ccK: clé C du chat cryptée par la clé K du compte de idI
       // ccP: clé C du chat cryptée par la clé publique de idE
       // cleE1C: clé A de l'avatar E (idI) cryptée par la clé du chat.
@@ -504,9 +504,9 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
   }
 
   async phase2(args) {
-    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
-    if (this.setR.has(R.MINI) && !this.estComptable) 
-      throw new AppExc(F_SRV, 802)
+    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable 
+    if (this.setR.has(R.MINI) && !this.estComptable) throw new AppExc(F_SRV, 802)
+    */
     if (!this.compte.mav[args.id])
       throw new AppExc(F_SRV, 227)
 
@@ -1101,7 +1101,7 @@ operations.GetCv = class GetCv extends Operation {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id du people ou du groupe
-      ch: { t: 'ch', n: true } // [id, ids] id d'un chat d'un des avatars du compte avec le people
+      ch: { t: 'idch', n: true } // [id, ids] id d'un chat d'un des avatars du compte avec le people
     }
   }
 

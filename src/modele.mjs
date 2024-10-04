@@ -988,7 +988,7 @@ export class Operation {
           if (!b) ko(n)
           break
         }
-        case 'ch' : {
+        case 'idch' : {
           if (tof !== 'array' || v.length !== 2) ko(n)
           if (ID.type(v[0]) !== 3) ko(n)
           if (!ID.estID(v[1])) ko(n)
@@ -1000,6 +1000,14 @@ export class Operation {
         case 'ns' : {
           if (tof !== 'string' || v.length !== 1) ko(n)
           if (Cles.nsToInt(v) === -1) ko(n)
+          break
+        }
+        case 'nvch' : { // chsp: { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
+          if (tof !== 'object') ko(n)
+          if (!v.ccK || !(v.ccK instanceof Uint8Array)) ko(n)
+          if (!v.ccP || !(v.ccP instanceof Uint8Array)) ko(n)
+          if (!v.cleE1C || !(v.cleE1C instanceof Uint8Array)) ko(n)
+          if (!v.cleE2C || !(v.cleE2C instanceof Uint8Array)) ko(n)
           break
         }
         case 'chsp' : { // chsp: { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
