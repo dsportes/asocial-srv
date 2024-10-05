@@ -959,7 +959,7 @@ operations.SetNotifC = class SetNotifC extends Operation {
     super(nom, 1, 2)
     this.targs = {
       idc: { t: 'ida' }, // id du compte
-      notif: { t: 'u8' } // notification du compte cryptée par la clé de partition
+      notif: { t: 'ntf', n: true } // notification du compte cryptée par la clé de partition
     }
   }
 
@@ -1163,8 +1163,8 @@ operations.McMemo = class McMemo extends Operation {
     super(nom, 1, 2) 
     this.targs = {
       id: { t: 'idag' }, // id de l'avatar ou du groupe
-      htK: { t: 'u8' }, // hashtags séparés par un espace et crypté par la clé K
-      txK: { t: 'u8' } // texte du mémo gzippé et crypté par la clé K
+      htK: { t: 'u8', n: true }, // hashtags séparés par un espace et crypté par la clé K
+      txK: { t: 'u8', n: true } // texte du mémo gzippé et crypté par la clé K
     }
   }
 
@@ -1204,7 +1204,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
       idg: { t: 'idg' }, // id du groupe
       ida: { t: 'ida' }, // id de l'avatar fondateur
       cleAG: { t: 'u8' }, // clé A de l'avatar cryptée par la clé G
-      cleGK: { t: 'ida' }, // clé du groupe cryptée par la clé K du compte
+      cleGK: { t: 'u8' }, // clé du groupe cryptée par la clé K du compte
       cvG: { t: 'cv' }, // carte de visite du groupe crypté par la clé G du groupe
       msu: { t: 'bool' }, // true si mode simple
       quotas: { t: 'q2' } // {qn, qv} maximum de nombre de notes et de volume fichiers
