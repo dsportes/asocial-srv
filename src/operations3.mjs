@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, ID } from './api.mjs'
+import { AppExc, A_SRV, F_SRV, ID } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypter, crypterSrv, decrypterSrv } from './util.mjs'
@@ -70,7 +70,7 @@ operations.ErreurFonc = class ErreurFonc extends Operation {
 
   async phase2(args) {
     if (args.to) await sleep(args.to * 1000)
-    throw new AppExc(F_SRV, 10, [args.texte])
+    throw new AppExc(A_SRV, 10, [args.texte])
   }
 }
 
@@ -729,15 +729,7 @@ operations.CreationEspace = class CreationEspace extends Operation {
     }
   }
 
-  // eslint-disable-next-line no-useless-escape
-  static reg = /^([a-z0-9\-]+)$/
-
   async phase2(args) {
-    if (Cles.nsToInt(args.ns) === -1) 
-      throw new AppExc(F_SRV, 202, [args.ns])
-    if ((args.org.length < 4) || (args.org.length > 8) || (!args.org.match(CreationEspace.reg))) 
-      throw new AppExc(F_SRV, 201, [args.org])
-
     let espace
     try { espace = await this.setEspaceNs(args.ns, false) } catch (e) { /* */ }
     if (espace && !espace.cleET) 

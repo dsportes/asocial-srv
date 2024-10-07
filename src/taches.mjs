@@ -3,7 +3,7 @@ import { operations } from './cfgexpress.mjs'
 import { Operation, Esp, trace } from './modele.mjs'
 import { compile } from './gendoc.mjs'
 import { AMJ, ID, E_SRV, AppExc, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
-import { sleep, decrypterSrv } from './util.mjs'
+import { sleep, decrypterSrv, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches () {
@@ -100,8 +100,9 @@ export class Taches {
     - fini: true quand l'opération a épuisé ce qu'elle avait à faire
     */
     while(!args.fini) {
+      const nom = Taches.OPNOMS[this.op]
+      const op = new cl(nom)
       try {
-        const op = new cl(Taches.OPNOMS[this.op])
         await op.run(args, db.provider, storage)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!this.estGC) // La tache est supprimée
@@ -114,6 +115,12 @@ export class Taches {
         // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
         this.exc = e.message + (e.stack ? '\n' + e.stack : '')
         await db.setTache(this)
+        const al = config.alertes
+        if (al) {
+          const al1 = al['admin']
+          if (al1)
+            await sendAlMail(config.run.site, op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
+        }
         break
       }
     }

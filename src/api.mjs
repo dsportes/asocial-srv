@@ -47,6 +47,7 @@ const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1,
 /** ID **********************************************************************/
 export class ID {
   static regid = new RegExp('^[0-9a-zA-Z]*$')
+  static regorg = new RegExp('^([a-z0-9\-]+)$')
 
   static estID (id) { 
     if (typeof id !== 'string' || id.length !== 12) return false

@@ -1,7 +1,7 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
-import { sleep, b64ToU8, crypter, quotes } from './util.mjs'
+import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
@@ -816,6 +816,7 @@ export class Operation {
       this.args = args
       this.dbp = dbp
       this.storage = storage
+      await this.auth1()
       await this.phase1(this.args)
 
       for (let retry = 0; retry < 3; retry++) {
@@ -876,7 +877,7 @@ export class Operation {
     args.x = '$'
     const op = this.nomop
     function ko (n) { 
-      throw new AppExc(F_SRV, 13, [op, n]) 
+      throw new AppExc(A_SRV, 13, [op, n]) 
     }
     if (this.targs) for (const n in this.targs) {
       const e = this.targs[n]
@@ -909,7 +910,8 @@ export class Operation {
           break
         }
         case 'org' : {
-          if (tof !== 'string' || v.length <4 || v.length > 16) ko(n)
+          if (tof !== 'string' || v.length <4 || v.length > 8
+            || !v.match(ID.regorg) ) ko(n)
           break
         }
         case 'u8' : {
@@ -1029,7 +1031,7 @@ export class Operation {
   async phase3 () { return }
 
   async transac () { // Appelé par this.db.doTransaction
-    if (!this.SYS) await this.auth() // this.compta est accessible (si authentifié)
+    if (!this.SYS) await this.auth2() // this.compta est accessible (si authentifié)
     if (this.phase2) await this.phase2(this.args)
     if (this.setR.has(R.FIGE)) return
     await this.gd.maj()
@@ -1062,7 +1064,7 @@ export class Operation {
       `9-FIGE` : Espace figé en lecture
         - espace.notif.nr == 2
   */
-  async auth() {
+  async auth1 () {
     const app_keys = config.app_keys
     if (this.authMode < 0 || this.authmode > 3) throw new AppExc(A_SRV, 19, [this.authMode]) 
 
@@ -1095,7 +1097,9 @@ export class Operation {
     if (this.estAdmin || this.authMode === 0) return
 
     if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) }
+  }
 
+  async auth2 () {
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     const espace = await Esp.getEspOrg (this, this.org, true)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 996) }
@@ -1148,6 +1152,14 @@ export class Operation {
 
     // Facilité
     this.compta = await this.gd.getCA(this.id)
+  }
+
+  async alerte (sub) {
+    const al = config.alertes
+    if (!al) return
+    const al1 = sub === 'chat' ? al[this.org] : al['admin']
+    if (!al1) return
+    await sendAlMail(config.run.site, this.org || 'admin', al1, sub)
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/

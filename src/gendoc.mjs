@@ -505,19 +505,19 @@ export class Partitions extends GenDoc {
     const avqc = e ? e.q.qn : 0
     const avqv = e ? e.q.qv : 0
     if (ap.qn > avqn && (this.q.qn - this.qt.qn + avqn < ap.qn))
-      throw new AppExc(F_SRV, 329, [this.q.qn - this.qt.qn + avqn, ap.qn])
+      throw new AppExc(A_SRV, 329, [this.q.qn - this.qt.qn + avqn, ap.qn])
     if (ap.qv > avqv && (this.q.qv - this.qt.qv + avqv < ap.qv))
-      throw new AppExc(F_SRV, 330, [this.q.qv - this.qt.qv + avqv, ap.qv])
+      throw new AppExc(A_SRV, 330, [this.q.qv - this.qt.qv + avqv, ap.qv])
     if (ap.qc > avqc && (this.q.qc - this.qt.qc + avqc < ap.qc))
-      throw new AppExc(F_SRV, 328, [this.q.qc - this.qt.qc + avqc, ap.qc])
+      throw new AppExc(A_SRV, 328, [this.q.qc - this.qt.qc + avqc, ap.qc])
   }
 
   ajoutCompte (compta, cleAP, del, notif) { // id de compta, q: copie de qv de compta
     compta.compile()
     const q = { ...compta.qv }
-    if (q.qc + this.qt.qc > this.q.qc) throw new AppExc(F_SRV, 319, [q.qc + this.qt.qc, this.q.qc])
-    if (q.qn + this.qt.qn > this.q.qn) throw new AppExc(F_SRV, 320, [q.qn + this.qt.qn, this.q.qn])
-    if (q.qv + this.qt.qv > this.q.qv) throw new AppExc(F_SRV, 321, [q.qv + this.qt.qv, this.q.qv])
+    if (q.qc + this.qt.qc > this.q.qc) throw new AppExc(A_SRV, 319, [q.qc + this.qt.qc, this.q.qc])
+    if (q.qn + this.qt.qn > this.q.qn) throw new AppExc(A_SRV, 320, [q.qn + this.qt.qn, this.q.qn])
+    if (q.qv + this.qt.qv > this.q.qv) throw new AppExc(A_SRV, 321, [q.qv + this.qt.qv, this.q.qv])
     const r = { cleAP, nr: 0, q}
     if (del) r.del = true
     if (notif) r.notif = notif
@@ -620,22 +620,22 @@ export class Syntheses extends GenDoc {
 
   updQuotas(av, ap) {
     if ((av.qn < ap.qn) && (this.qA.qn - this.qtA.qn - av.qn < ap.qn))
-      throw new AppExc(F_SRV, 326, [this.qA.qn - this.qtA.qn - av.qv, ap.qn])
+      throw new AppExc(A_SRV, 326, [this.qA.qn - this.qtA.qn - av.qv, ap.qn])
     else this.qtA.qn = this.qtA.qn - av.qn + ap.qn
     if ((av.qv < ap.qv) && (this.qA.qv - this.qtA.qv - av.qv < ap.qv))
-      throw new AppExc(F_SRV, 327, [this.qA.qv - this.qtA.qv - av.qv, ap.qv])
+      throw new AppExc(A_SRV, 327, [this.qA.qv - this.qtA.qv - av.qv, ap.qv])
     else this.qtA.qv = this.qtA.qv - av.qv + ap.qv
     if ((av.qc < ap.qc) && (this.qA.qc - this.qtA.qc - av.qc < ap.qc))
-      throw new AppExc(F_SRV, 325, [this.qA.qc - this.qtA.qc - av.qc, ap.qc])
+      throw new AppExc(A_SRV, 325, [this.qA.qc - this.qtA.qc - av.qc, ap.qc])
     else this.qtA.qc = this.qtA.qc - av.qc + ap.qc
     this._maj = true
   }
 
   ajoutCompteA (q) {
     this.qtA.qc += q.qc; this.qtA.qn +=q.qn; this.qtA.qv += q.qv
-    if (this.qtA.qc > this.qA.qc) throw new AppExc(F_SRV, 322, [this.qA.qc, this.qtA.qc])
-    if (this.qtA.qn > this.qA.qn) throw new AppExc(F_SRV, 323, [this.qA.qn, this.qtA.qn])
-    if (this.qtA.qv > this.qA.qv) throw new AppExc(F_SRV, 324, [this.qA.qv, this.qtA.qv])
+    if (this.qtA.qc > this.qA.qc) throw new AppExc(A_SRV, 322, [this.qA.qc, this.qtA.qc])
+    if (this.qtA.qn > this.qA.qn) throw new AppExc(A_SRV, 323, [this.qA.qn, this.qtA.qn])
+    if (this.qtA.qv > this.qA.qv) throw new AppExc(A_SRV, 324, [this.qA.qv, this.qtA.qv])
     this._maj = true
   }
 
@@ -1291,8 +1291,8 @@ export class Comptas extends GenDoc {
   debHeb (nn, vf) {
     this.qv.nn += nn
     this.qv.v += vf
-    if ((this.qv.nn + this.qv.ng + this.qv.nc) > (this.qv.qn * UNITEN)) throw new AppExc(F_SRV, 281)
-    if (this.qv.v > (this.qv.qv * UNITEV)) throw new AppExc(F_SRV, 282)
+    if ((this.qv.nn + this.qv.ng + this.qv.nc) > (this.qv.qn * UNITEN)) throw new AppExc(A_SRV, 281)
+    if (this.qv.v > (this.qv.qv * UNITEV)) throw new AppExc(A_SRV, 282)
     const c = new Compteurs(this.compteurs, this.qv)
     this.compteurs = c.serial
     this.majcpt(c)
@@ -1340,7 +1340,7 @@ export class Comptas extends GenDoc {
   }
 
   don (dh, m, iddb) {
-    if (m < 0 && this.solde + m < 2) throw new AppExc(F_SRV, 215, [-m, this.total])
+    if (m < 0 && this.solde + m < 2) throw new AppExc(A_SRV, 215, [-m, this.total])
     this.majSolde(m)
     if (!this.dons) this.dons = []
     this.dons.push({dh, m, iddb})
@@ -1566,7 +1566,7 @@ export class Notes extends GenDoc {
   setVF () {
     let v = 0
     for (const idf in this.mfa) v += this.mfa[idf].lg 
-    if (v > (this.qv * UNITEV)) throw new AppExc(F_SRV, 311)
+    if (v > (this.qv * UNITEV)) throw new AppExc(A_SRV, 311)
     this.vf = v
     this._maj = true
   }
@@ -1995,7 +1995,7 @@ export class Groupes extends GenDoc {
     const iamav = fl & FLAGS.AM
     const ianav = fl & FLAGS.AN
     if (iam !== iamav || ian !== ianav) {
-      if (!this.compte.estAvc(idm)) throw new AppExc(F_SRV, 265)
+      if (!this.compte.estAvc(idm)) throw new AppExc(A_SRV, 265)
       if (iam) nvfl |= FLAGS.AM; else nvfl &= ~FLAGS.AM
       if (ian) nvfl |= FLAGS.AN; else nvfl &= ~FLAGS.AN
     }
@@ -2004,7 +2004,7 @@ export class Groupes extends GenDoc {
     const ideav = fl & FLAGS.DE
     const chgFl = idm !== idmav || idn !== idnav || ide !== ideav
     if (chgFl) {
-      if (!anc.size) throw new AppExc(F_SRV, 266)
+      if (!anc.size) throw new AppExc(A_SRV, 266)
       if (idm) nvfl |= FLAGS.DM; else nvfl &= ~FLAGS.DM
       if (idn) nvfl |= FLAGS.DN; else nvfl &= ~FLAGS.DN
       if (ide) nvfl |= FLAGS.DE; else nvfl &= ~FLAGS.DE

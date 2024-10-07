@@ -164,6 +164,20 @@ export function decrypter (cle, u8) { // u8: Buffer
   }
 }
 
+export async function sendAlMail (site, org, to, sub) {
+  let url = config.alertes._url
+  if (!url) return
+  url += site + '/' + org + '/' + to + '/' + sub
+  try {
+    const response = await fetch(url)
+    const t = await response.text()
+    config.logger.info('sendAlMail: [' + url + '] -  ' + t)
+  } catch (e) {
+    config.logger.error('sendAlMail: [' + url + '] -  ' + e.toString())
+    return 0
+  }
+}
+
 /*
 export function sha256 (buffer) {
   return crypto.createHash('sha256').update(buffer).digest()

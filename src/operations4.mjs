@@ -1,4 +1,4 @@
-import { AppExc, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE, DONCOMPTEO } from './api.mjs'
+import { AppExc, A_SRV, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE, DONCOMPTEO } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
@@ -92,7 +92,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
     if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
 
-    if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 308)
+    if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 308)
 
     if (await this.db.getSponsoringIds(ID.long(args.hYR, this.ns))) 
       throw new AppExc(F_SRV, 207)
@@ -289,27 +289,27 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
   }
 
   async phase2 (args) {
-    if (this.compte.mav[args.idE]) throw new AppExc(F_SRV, 226)
+    if (this.compte.mav[args.idE]) throw new AppExc(A_SRV, 226)
 
     const avI = await this.gd.getAV(args.idI, 'NouveauChat-1')
     const avE = await this.gd.getAV(args.idE, 'NouveauChat-2')
 
     if (!args.mode) {
-      if (avE.hZC !== args.hZC) throw new AppExc(F_SRV, 221)
+      if (avE.hZC !== args.hZC) throw new AppExc(A_SRV, 221)
     } else if (args.mode === 1) {
-      if (!ID.estComptable(args.idE)) throw new AppExc(F_SRV, 225)
+      if (!ID.estComptable(args.idE)) throw new AppExc(A_SRV, 225)
     } else if (args.mode === 2) {
       const partition = await this.gd.getPA(this.compte.idp)
-      if (!partition || !partition.estDel(args.idE)) throw new AppExc(F_SRV, 222)
+      if (!partition || !partition.estDel(args.idE)) throw new AppExc(A_SRV, 222)
     } else {
       const groupe = await this.gd.getGR(args.mode)
-      if (!groupe) throw new AppExc(F_SRV, 223)
+      if (!groupe) throw new AppExc(A_SRV, 223)
       const imI = groupe.mmb.get(args.idI)
       const imE = groupe.mmb.get(args.idE)
-      if (!imI || !imE) throw new AppExc(F_SRV, 223)
+      if (!imI || !imE) throw new AppExc(A_SRV, 223)
       const fI = groupe.flags[imI]
-      if (!(fI & FLAGS.AC) && (fI & FLAGS.AM) && (fI & FLAGS.DM)) throw new AppExc(F_SRV, 223)
-      if (!(fI & FLAGS.AC)) throw new AppExc(F_SRV, 223)
+      if (!(fI & FLAGS.AC) && (fI & FLAGS.AM) && (fI & FLAGS.DM)) throw new AppExc(A_SRV, 223)
+      if (!(fI & FLAGS.AC)) throw new AppExc(A_SRV, 223)
     }
 
     await this.intro1()
@@ -362,6 +362,7 @@ operations.MajChat = class MajChat extends OperationCh {
       ids: { t: 'ids' },  // ids du chat
       t: { t: 'u8' }, // texte gzippé crypté par la clé C du chat (null si suppression)
       dh: { t: 'dh', n: true }, // 0 ou date-heure de l'item du chat à supprimer
+      urgence: { t: 'bool', n: true }, // chat d'urgence
       don: { t: 'int', min: 0, max: 1000 } // montant du don de I à E
     }
   }
@@ -402,6 +403,9 @@ operations.MajChat = class MajChat extends OperationCh {
     if (this.chI.stI === 0) this.compta.ncPlus(1) // I était passif, redevient actif
     this.chI.actifI()
     this.chE.actifE()
+
+    if (this.estComptable && args.urgence) 
+        await this.alerte('chat')
   }
 }
 
@@ -459,7 +463,7 @@ operations.ChangementPC = class ChangementPC extends Operation {
     if (args.hZR && await this.db.getAvatarHk(ID.long(args.hZR, this.ns))) 
       throw new AppExc(F_SRV, 26) // trop proche existante
 
-    if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 224)
+    if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 224)
 
     const avatar = await this.gd.getAV(args.id, 'ChangementPC-1')
     avatar.setPC(args)
@@ -508,7 +512,7 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
     if (this.setR.has(R.MINI) && !this.estComptable) throw new AppExc(F_SRV, 802)
     */
     if (!this.compte.mav[args.id])
-      throw new AppExc(F_SRV, 227)
+      throw new AppExc(A_SRV, 227)
 
     const avatar = await this.gd.getAV(args.id) //
     if (!avatar) throw new AppExc(F_SRV, 1)
@@ -557,7 +561,7 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
     /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
     if (this.setR.has(R.MINI) && !this.estComptable) 
       throw new AppExc(F_SRV, 802)
-    if (!this.compte.mpg[args.idg]) throw new AppExc(F_SRV, 275)
+    if (!this.compte.mpg[args.idg]) throw new AppExc(A_SRV, 275)
 
     const groupe = await this.gd.getGR(args.idg)
     if (!groupe) throw new AppExc(F_SRV, 2)
@@ -635,7 +639,7 @@ operations.SupprPartition = class SupprPartition extends Operation {
     let vide = true
     // eslint-disable-next-line no-unused-vars
     for(const id in p.mcpt) vide = false
-    if (!vide) throw new AppExc(F_SRV, 271)
+    if (!vide) throw new AppExc(A_SRV, 271)
       p.setZombi()
     this.compte.supprPartition(args.idp)
     const espace = await this.gd.getEspace()
@@ -729,7 +733,7 @@ operations.SetCodePart = class SetCodePart extends Operation {
   }
 
   async phase2 (args) {
-    if (!this.compte.setCodePart(args.idp, args.etpk)) throw new AppExc(F_SRV, 229)
+    if (!this.compte.setCodePart(args.idp, args.etpk)) throw new AppExc(A_SRV, 229)
   }
 }
 
@@ -739,12 +743,12 @@ operations.MuterCompte = class MuterCompte extends Operation {
   async check (args) {
     const ec = this.estComptable
     const ed = !ec && this.compte.del
-    if (!ec && !ed) throw new AppExc(F_SRV, 287)
+    if (!ec && !ed) throw new AppExc(A_SRV, 287)
 
     const av = compile(await this.db.getAvatarHk(ID.long(args.hZR, this.ns)))
-    if (!av) throw new AppExc(F_SRV, 317)
+    if (!av) throw new AppExc(A_SRV, 317)
     const avatar = await this.gd.getAV(av.id, 'GetAvatarPC')
-    if (!avatar || avatar.hZC !== args.hZC) throw new AppExc(F_SRV, 317)
+    if (!avatar || avatar.hZC !== args.hZC) throw new AppExc(A_SRV, 317)
   }
 
   async setChat (args) {
@@ -793,7 +797,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
 
   async phase2 (args) {
     const compte = await this.gd.getCO(args.id, 'MuterCompteA-2')
-    if (!compte.idp) throw new AppExc(F_SRV, 288)
+    if (!compte.idp) throw new AppExc(A_SRV, 289)
     
     await this.check(args)
   
@@ -842,7 +846,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     const idp = this.compte.idp
 
     const cpt = await this.gd.getCO(args.id, 'MuterCompteO-2')
-    if (cpt.idp) throw new AppExc(F_SRV, 288)
+    if (cpt.idp) throw new AppExc(A_SRV, 288)
     cpt.chgPart(idp, args.clePK, null, true)
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
     compta.estA(false)
@@ -894,10 +898,10 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
     const compta = await this.gd.getCA(args.id)
     const partav = await this.gd.getPA(cpt.idp, 'ChangerPartition-2')
     const epav = partav.mcpt[args.id]
-    if (!epav) throw new AppExc(F_SRV, 232)
+    if (!epav) throw new AppExc(A_SRV, 232)
     const partap = await this.gd.getPA(args.idp, 'ChangerPartition-3')
     const epap = partap.mcpt[args.id]
-    if (epap) throw new AppExc(F_SRV, 233)
+    if (epap) throw new AppExc(A_SRV, 233)
 
     partav.retraitCompte(args.id)
     partap.ajoutCompte(compta, args.cleAP, false, args.notif || null)
@@ -918,7 +922,7 @@ operations.DeleguePartition = class DeleguePartition extends Operation {
   }
 
   async phase2 (args) {
-    if (this.id === args.id) throw new AppExc(F_SRV, 234)
+    if (this.id === args.id) throw new AppExc(A_SRV, 234)
     const cpt = await this.gd.getCO(args.id, 'DeleguePartition-1')
     const part = await this.gd.getPA(cpt.idp, 'DeleguePartition-2')
     cpt.setDel(args.del)
@@ -939,12 +943,12 @@ operations.SetNotifP = class SetNotifP extends Operation {
   async phase2 (args) {
     const ec = this.estComptable
     const ed = !ec && this.compte.del
-    if ((!ec && !ed) || (ed && this.compte.idp !== args.idp)) throw new AppExc(F_SRV, 235)
+    if ((!ec && !ed) || (ed && this.compte.idp !== args.idp)) throw new AppExc(A_SRV, 235)
     
     const espace = await this.gd.getEspace()
     const ntf = espace.tnotifP[args.idp]
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
-    if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
+    if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
     if (args.notif) args.notif.idDel = this.id
     espace.setNotifP(args.notif, args.idp)
 
@@ -968,11 +972,11 @@ operations.SetNotifC = class SetNotifC extends Operation {
 
     const ec = this.estComptable
     const ed = !ec && this.compte.del
-    if ((!ec && !ed) || (ed && this.compte.idp !== compte.idp)) throw new AppExc(F_SRV, 238)
+    if ((!ec && !ed) || (ed && this.compte.idp !== compte.idp)) throw new AppExc(A_SRV, 238)
 
     const ntf = compte.notif
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
-    if (aut && ed && ID.estComptable(aut)) throw new AppExc(F_SRV, 237)
+    if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
     if (args.notif) args.notif.idDel = this.id
 
     compte.setNotif(args.notif || null)
@@ -998,7 +1002,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
 
   async phase2(args) {
     const rtk = await this.gd.getTKT(args.ids)
-    if (rtk) throw new AppExc(F_SRV, 239)
+    if (rtk) throw new AppExc(A_SRV, 239)
 
     const tk = await this.gd.nouvTKT(this.id, args)
     this.compta.plusTk(tk)
@@ -1023,7 +1027,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
 
   async phase2(args) {
     const tk = await this.gd.getTKT(args.ids)
-    if (!tk) throw new AppExc(F_SRV, 240)
+    if (!tk) throw new AppExc(A_SRV, 240)
     tk.setZombi()
     this.compta.moinsTk(tk)
   }
@@ -1046,8 +1050,8 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
 
   async phase2(args) {
     const tk = await this.gd.getTKT(args.ids)
-    if (!tk) throw new AppExc(F_SRV, 240)
-    if (tk.dr) throw new AppExc(F_SRV, 241)
+    if (!tk) throw new AppExc(A_SRV, 240)
+    if (tk.dr) throw new AppExc(A_SRV, 241)
 
     const compte = await this.gd.getCO(tk.idc)
     const compta = await this.gd.getCA(tk.idc)
@@ -1075,18 +1079,18 @@ operations.MajCv = class MajCv extends Operation {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     if (!ID.estGroupe(args.cv.id)) {
-      if (!this.compte.mav[args.cv.id]) throw new AppExc(F_SRV, 242)
+      if (!this.compte.mav[args.cv.id]) throw new AppExc(A_SRV, 242)
       const avatar = await this.gd.getAV(args.cv.id, 'MajCv-1')
       avatar.setCv(args.cv)
     } else {
       const e = this.compte.mpg[args.cv.id]
-      if (!e) throw new AppExc(F_SRV, 243)
+      if (!e) throw new AppExc(A_SRV, 243)
       const groupe = await this.gd.getGR(args.cv.id, 'MajCv-3')
       const anims = groupe.anims
       let ok = false
       for(const ida of e.lav) 
         if (anims.has(groupe.mmb.get(ida))) ok = true
-      if (!ok) throw new AppExc(F_SRV, 243)
+      if (!ok) throw new AppExc(A_SRV, 243)
       groupe.setCv(args.cv)
     }
   }
@@ -1112,8 +1116,8 @@ operations.GetCv = class GetCv extends Operation {
       if (args.ch) {
         if (this.compte.mav[args.ch[0]]) {
           const chat = await this.getRowChat(args.ch[0], args.ch[1])
-          if (!chat) throw new AppExc(F_SRV, 244)
-        } else throw new AppExc(F_SRV, 244)
+          if (!chat) throw new AppExc(A_SRV, 244)
+        } else throw new AppExc(A_SRV, 244)
       } else {
         if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 242)
       }
@@ -1121,12 +1125,12 @@ operations.GetCv = class GetCv extends Operation {
       this.setRes('cv', avatar.cvA)
     } else {
       const e = this.compte.mpg[args.id]
-      if (!e) throw new AppExc(F_SRV, 243)
+      if (!e) throw new AppExc(A_SRV, 243)
       const groupe = await this.gd.getGR(args.id, 'MajCv-3')
       let ok = false
       for(const ida of e.lav)
         if (groupe.mmb.get(ida)) ok = true
-      if (!ok) throw new AppExc(F_SRV, 243)
+      if (!ok) throw new AppExc(A_SRV, 243)
       this.setRes('cv', groupe.cvG)
     }
   }
@@ -1151,7 +1155,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
 
     if (this.compte.mav[args.id]) return // création déjà faite pour le compte
     const a = await this.gd.getAV(args.id)
-    if (a) throw new AppExc(F_SRV, 245)
+    if (a) throw new AppExc(A_SRV, 245)
 
     this.gd.nouvAV(args, args.cvA)
   }
@@ -1213,7 +1217,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
 
   async phase2 (args) { 
     const rg = await this.gd.getGR(args.idg)
-    if (rg) throw new AppExc(F_SRV, 246)
+    if (rg) throw new AppExc(A_SRV, 246)
 
     const avatar = await this.gd.getAV(args.ida)
     if (!avatar) throw new AppExc(F_SRV, 1)
@@ -1255,10 +1259,10 @@ operations.NouveauContact = class NouveauContact extends Operation {
       const f = groupe.flags[im]
       if (im && groupe.st[im] >= 4 && (f & FLAGS.AM) && (f & FLAGS.DM) ) { ok = true; break }
     }
-    if (!ok) throw new AppExc(F_SRV, 247)
-    if (groupe.mmb.get(args.ida)) throw new AppExc(F_SRV, 248)
-    if (groupe.lnc.indexOf(args.ida) !== -1) throw new AppExc(F_SRV, 260)
-    if (groupe.lng.indexOf(args.ida) !== -1) throw new AppExc(F_SRV, 261)
+    if (!ok) throw new AppExc(A_SRV, 247)
+    if (groupe.mmb.get(args.ida)) throw new AppExc(A_SRV, 248)
+    if (groupe.lnc.indexOf(args.ida) !== -1) throw new AppExc(A_SRV, 260)
+    if (groupe.lng.indexOf(args.ida) !== -1) throw new AppExc(A_SRV, 261)
     
     const im = groupe.nvContact(args.ida)
     const dx = { dpc: this.auj}
@@ -1297,9 +1301,9 @@ operations.ModeSimple = class ModeSimple extends Operation {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
 
-    if (!this.compte.mav[args.ida]) throw new AppExc(F_SRV, 249)
+    if (!this.compte.mav[args.ida]) throw new AppExc(A_SRV, 249)
     const im = gr.mmb.get(args.ida)
-    if (!im || gr.st[im] !== 5) throw new AppExc(F_SRV, 250)
+    if (!im || gr.st[im] !== 5) throw new AppExc(A_SRV, 250)
     
     gr.setMsu(args.simple, im)
   }
@@ -1323,9 +1327,9 @@ operations.AnnulerContact = class AnnulerContact extends Operation {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
 
-    if (!this.compte.mav[args.ida]) throw new AppExc(F_SRV, 249)
+    if (!this.compte.mav[args.ida]) throw new AppExc(A_SRV, 249)
     const im = gr.mmb.get(args.ida)
-    if (!im || gr.st[im] !== 1) throw new AppExc(F_SRV, 272)
+    if (!im || gr.st[im] !== 1) throw new AppExc(A_SRV, 272)
     gr.anContact(im, args.ln)
     const mb = await this.gd.getMBR(args.idg, im, 'AnnulerContact-1')
     mb.setZombi()
@@ -1361,21 +1365,21 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     const avatar = await this.gd.getAV(args.idm)
     if (!avatar) throw new AppExc(F_SRV, 1)
 
-    if (gr.lnc.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 260)
-    if (gr.lng.indexOf(args.idm) !== -1) throw new AppExc(F_SRV, 261)
+    if (gr.lnc.indexOf(args.idm) !== -1) throw new AppExc(A_SRV, 260)
+    if (gr.lng.indexOf(args.idm) !== -1) throw new AppExc(A_SRV, 261)
 
-    if (gr.taille >= MAXTAILLEGROUPE) throw new AppExc(F_SRV, 318)
+    if (gr.taille >= MAXTAILLEGROUPE) throw new AppExc(A_SRV, 318)
 
     const cinvit = await this.gd.getIN(avatar.idc, 'InvitationGroupe-2b')
 
     const im = gr.mmb.get(args.idm)
-    if (!im) throw new AppExc(F_SRV, 251)
+    if (!im) throw new AppExc(A_SRV, 251)
     const membre = await this.gd.getMBR(args.idg, im, 'InvitationGroupe-3')
 
     const s = gr.st[im]
     
     if (args.suppr) { // suppression de l'invitation
-      if (s < 2 || s > 3) throw new AppExc(F_SRV, 252)
+      if (s < 2 || s > 3) throw new AppExc(A_SRV, 252)
       gr.supprInvit(im, args.suppr)
       cinvit.retourContact(args.idg, args.idm)
       membre.supprRad(args.suppr)
@@ -1383,21 +1387,21 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     } 
     
     // Création 0 / modification 2 / vote pour 4
-    if (args.rmsv === 0 && s !== 1) throw new AppExc(F_SRV, 256) // création mais pas contact
+    if (args.rmsv === 0 && s !== 1) throw new AppExc(A_SRV, 256) // création mais pas contact
     if ((args.rmsv === 2 || args.rmsv === 4) && (s < 2 || s > 3)) 
-      throw new AppExc(F_SRV, 257) // modification ou vote mais pas déjà (pré) invité
-    if (!gr.msu && args.rmsv === 4) throw new AppExc(F_SRV, 258) // vote mais pas en mode unanime
-    if (!gr.msu && !args.idi) throw new AppExc(F_SRV, 255) // mode simple et absence d'avatar invitant
+      throw new AppExc(A_SRV, 257) // modification ou vote mais pas déjà (pré) invité
+    if (!gr.msu && args.rmsv === 4) throw new AppExc(A_SRV, 258) // vote mais pas en mode unanime
+    if (!gr.msu && !args.idi) throw new AppExc(A_SRV, 255) // mode simple et absence d'avatar invitant
 
     // construction de l'item invit dans groupe
     let aInviter = false // inviter effectivement (sinon laisser en pré-invité)
     const invit = { fl: args.flags, li: [] }
     if (args.idi) {
       if (!this.compte.mav[args.idi]) 
-        throw new AppExc(F_SRV, 249) // invitant non membre du groupe
+        throw new AppExc(A_SRV, 249) // invitant non membre du groupe
       const imi = gr.mmb.get(args.idi)
       if (!imi || gr.st[imi] !== 5) 
-        throw new AppExc(F_SRV, 254) // invitant non animateur
+        throw new AppExc(A_SRV, 254) // invitant non animateur
       invit.li.push(imi)
       aInviter = true
     } else {
@@ -1487,8 +1491,8 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     const invit = await this.gd.getIN(avatar.idc, 'AcceptInvitation-2b')
 
     const im = gr.mmb.get(args.idm)
-    if (!im) throw new AppExc(F_SRV, 251)
-    if (gr.st[im] !== 3) throw new AppExc(F_SRV, 259)
+    if (!im) throw new AppExc(A_SRV, 251)
+    if (gr.st[im] !== 3) throw new AppExc(A_SRV, 259)
     
     const membre = await this.gd.getMBR(args.idg, im, 'AcceptInvitation-3')
 
@@ -1552,15 +1556,15 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
     if (!gr) throw new AppExc(F_SRV, 2)
     
     if (args.idaut) {
-      if (!this.compte.mav[args.idaut]) throw new AppExc(F_SRV, 249)
+      if (!this.compte.mav[args.idaut]) throw new AppExc(A_SRV, 249)
       const im = gr.mmb.get(args.idaut)
-      if (!im || gr.st[im] < 4 || !gr.am(im)) throw new AppExc(F_SRV, 273)
+      if (!im || gr.st[im] < 4 || !gr.am(im)) throw new AppExc(A_SRV, 273)
       // écriture du chat
       const ch = await this.gd.getCGR(args.idg, 'ItemChatgr')
       ch.addItem(im, this.dh, args.msgG)
     } else {
       const s = this.compte.idMbGr(args.idg)
-      if (!gr.estAnim(s)) throw new AppExc(F_SRV, 274)
+      if (!gr.estAnim(s)) throw new AppExc(A_SRV, 274)
       const ch = await this.gd.getCGR(args.idg, 'ItemChatgr')
       ch.supprItem(args.dh, this.dh)
     }
@@ -1590,9 +1594,9 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
     if (!avatar) throw new AppExc(F_SRV, 1)
 
     const im = gr.mmb.get(args.idm)
-    if (!im) throw new AppExc(F_SRV, 251)
+    if (!im) throw new AppExc(A_SRV, 251)
     const stm = gr.st[im] 
-    if (stm < 4) throw new AppExc(F_SRV, 262)
+    if (stm < 4) throw new AppExc(A_SRV, 262)
     
     // Set des im des avatars du compte étant animateur */
     const anc = this.compte.imAnimsDeGr(gr)
@@ -1600,12 +1604,12 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
     let fst = 0
     if (args.anim && stm === 4) {
       // passer le membre en animateur
-      if (!anc.size) throw new AppExc(F_SRV, 263)
+      if (!anc.size) throw new AppExc(A_SRV, 263)
       fst = 5
     }
     if (!args.anim && stm === 5) {
       // supprimer le statut d'animateur du membre - Possible pour soi-même seulement
-      if (!anc.has(im)) throw new AppExc(F_SRV, 264)
+      if (!anc.has(im)) throw new AppExc(A_SRV, 264)
       fst = 4
     }
 
@@ -1652,18 +1656,18 @@ operations.RadierMembre = class RadierMembre extends Operation {
     const moi = compte.estAvc(args.idm)
 
     const im = gr.mmb.get(args.idm)
-    if (!im) throw new AppExc(F_SRV, 251)
+    if (!im) throw new AppExc(A_SRV, 251)
     const stm = gr.st[im] // statut AVANT radiation
     const anc = this.compte.imAnimsDeGr(gr) // avatars du compte étant animateur
 
     if (!moi) {
       // radiation d'un autre : exige qu'un de ses avatars soit animateur
-      if (!anc.size) throw new AppExc(F_SRV, 267)
+      if (!anc.size) throw new AppExc(A_SRV, 267)
       // mais pas un animateur : ne peut pas radier un animateur
-      if (stm === 5) throw new AppExc(F_SRV, 269)
+      if (stm === 5) throw new AppExc(A_SRV, 269)
       // et à condition d'avoir accès aux membres
       const [am, ] = gr.amAn(anc)
-      if (!am) throw new AppExc(F_SRV, 268)
+      if (!am) throw new AppExc(A_SRV, 268)
     }
 
     const mb = await this.gd.getMBR(args.idg, im, 'RadierMembre-3')
@@ -1733,32 +1737,32 @@ operations.HebGroupe = class HebGroupe extends Operation {
     }
 
     if (args.action === 2) { // fin d'hébergement
-      if (gr.idh !== this.id) throw new AppExc(F_SRV, 276)
+      if (gr.idh !== this.id) throw new AppExc(A_SRV, 276)
       gr.finHeb(this.auj)
       this.compta.finHeb(gr.nn, gr.vf)
       return
     }
 
     if (args.action === 1) { // Je reprends l\'hébergement à mon compte
-      // if (!gr.idh) throw new AppExc(F_SRV, 277)
-      if (gr.idh === this.id) throw new AppExc(F_SRV, 278)
+      // if (!gr.idh) throw new AppExc(A_SRV, 277)
+      if (gr.idh === this.id) throw new AppExc(A_SRV, 278)
       const im = gr.mmb.get(args.nvHeb)
-      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(F_SRV, 279)
-      if (gr.st[gr.imh] === 5 && gr.st[im] !== 5) throw new AppExc(F_SRV, 280)
+      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(A_SRV, 279)
+      if (gr.st[gr.imh] === 5 && gr.st[im] !== 5) throw new AppExc(A_SRV, 280)
       this.compta.debHeb(gr.nn, gr.vf)
       gr.majHeb(args.qn, args.qv, this.id, im)
       return
     }
 
     if (args.action === 3) { // Je reprends l\'hébergement de ce groupe par un autre de mes avatars
-      if (gr.idh !== this.id) throw new AppExc(F_SRV, 283)
+      if (gr.idh !== this.id) throw new AppExc(A_SRV, 283)
       const im = gr.mmb.get(args.nvHeb)
-      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(F_SRV, 284)
+      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(A_SRV, 284)
       gr.majHeb(args.qn, args.qv, this.id, im)
     }
 
     if (args.action === 4) { // Je met à jour les nombres de notes et volumes de fichiers maximum attribués au groupe
-      if (gr.idh !== this.id) throw new AppExc(F_SRV, 285)
+      if (gr.idh !== this.id) throw new AppExc(A_SRV, 285)
       gr.majHeb(args.qn, args.qv, gr.idh, gr.imh)
     }
 
@@ -1781,7 +1785,7 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 1)
     const avatar = await this.gd.getAV(args.id)
     if (!avatar) throw new AppExc(F_SRV, 1)
-    if (args.id === this.id ) throw new AppExc(F_SRV, 286)
+    if (args.id === this.id ) throw new AppExc(A_SRV, 286)
     await this.resilAvatar(avatar)
   }
 }
@@ -1807,7 +1811,7 @@ class OperationNo extends Operation {
     const id = this.args.id
     if (ID.estGroupe(id)) {
       const e = this.compte.mpg[id] 
-      if (!e) throw new AppExc(F_SRV, 290)
+      if (!e) throw new AppExc(A_SRV, 290)
       this.mavc = new Map()
       this.groupe = await this.gd.getGR(id, 'OperationNo-1')
       this.anim = false
@@ -1823,10 +1827,10 @@ class OperationNo extends Operation {
         if (an && (f & FLAGS.DE)) de = true
         if (an) this.mavc.set(idm, { im, am, de, anim })
       }
-      if (!this.mavc.size) throw new AppExc(F_SRV, 291)
+      if (!this.mavc.size) throw new AppExc(A_SRV, 291)
       this.aut = this.args.ida ? this.mavc.get(this.args.ida) : null
     } else {
-      if (!this.compte.mav[id]) throw new AppExc(F_SRV, 292)
+      if (!this.compte.mav[id]) throw new AppExc(A_SRV, 292)
     }
   }
 
@@ -1835,23 +1839,23 @@ class OperationNo extends Operation {
     let notep, id = this.args.pid, ids = this.args.pids || null
     if (!ids) { // rattachée à une racine
       if (id !== this.args.id) {
-        if (g) throw new AppExc(F_SRV, 298)
-        else if (!ID.estGroupe(id)) throw new AppExc(F_SRV, 299)
+        if (g) throw new AppExc(A_SRV, 298)
+        else if (!ID.estGroupe(id)) throw new AppExc(A_SRV, 299)
       }
     } else { // rattachée
       const cycle = [this.args.ids]
       // eslint-disable-next-line no-constant-condition
       while (true) {
         notep = await this.gd.getNOT(id, ids)
-        if (!notep && cycle.length === 1) throw new AppExc(F_SRV, 294)
+        if (!notep && cycle.length === 1) throw new AppExc(A_SRV, 294)
         if (!notep) break
         cycle.push(notep.ids)
-        if (notep.ids === this.args.ids) throw new AppExc(F_SRV, 295, [cycle.join(' ')])
+        if (notep.ids === this.args.ids) throw new AppExc(A_SRV, 295, [cycle.join(' ')])
         if (g) {
-          if (notep.id !== this.args.id) throw new AppExc(F_SRV, 297)
+          if (notep.id !== this.args.id) throw new AppExc(A_SRV, 297)
         } else {
           if (ID.estGroupe(notep.id)) break
-          if (notep.id !== this.args.id) throw new AppExc(F_SRV, 296)  
+          if (notep.id !== this.args.id) throw new AppExc(A_SRV, 296)  
         }
         if (!notep.pid || !notep.pids) break
         id = notep.pid
@@ -1884,7 +1888,7 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
       this.compta.nnPlus(1)
       this.compta.exN()
     } else {
-      if (!this.aut || !this.aut.de) throw new AppExc(F_SRV, 293)
+      if (!this.aut || !this.aut.de) throw new AppExc(A_SRV, 293)
       if (args.exclu) im = this.aut.im
       aut = this.aut.im
       if (args.ref) await this.checkRatt(true)
@@ -1912,7 +1916,7 @@ operations.RattNote = class RattNote extends OperationNo {
   }
 
   async phase2 (args) { 
-    if (!args.pid) throw new AppExc(F_SRV, 300)
+    if (!args.pid) throw new AppExc(A_SRV, 300)
     const note = await this.gd.getNOT(args.id, args.ids, 'RattNote-1')
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
@@ -1920,7 +1924,7 @@ operations.RattNote = class RattNote extends OperationNo {
     if (ng) for(const [, e] of this.mavc ) { // idm, { im, am, de, anim }
       if (e.de && (!note.im || (note.im === e.im) || e.anim)) ok = true
     }
-    if (!ok) throw new AppExc(F_SRV, 301)
+    if (!ok) throw new AppExc(A_SRV, 301)
     await this.checkRatt(ng)
     note.setRef(args.pid, args.pids)
   }
@@ -1945,8 +1949,8 @@ operations.MajNote = class MajNote extends OperationNo {
     let im = 0
     if (ng) {
       const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
-      if (!e || !e.de) throw new AppExc(F_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
+      if (!e || !e.de) throw new AppExc(A_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
       note.setAut(e.im)
       im = e.im    
     }
@@ -1976,7 +1980,7 @@ operations.SupprNote = class SupprNote extends OperationNo {
           if (e.de && (!note.im || note.im === e.im)) ok = true
         }
       } else ok = true
-      if (!ok) throw new AppExc(F_SRV, 315)
+      if (!ok) throw new AppExc(A_SRV, 315)
     }
     const dv = -note.vf
 
@@ -2055,7 +2059,7 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
     // a) soit être animateur, 
     // b) soit l\'avoir soi-même, c) soit que personne ne l\'ait déjà.'
     const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
-    if (!ID.estGroupe(args.id)) throw new AppExc(F_SRV, 303)
+    if (!ID.estGroupe(args.id)) throw new AppExc(A_SRV, 303)
     await this.checkNoteId()
     let aExclu = false
     for(const [, e] of this.mavc) 
@@ -2063,15 +2067,15 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
 
     let im = 0
     if (!args.ida) {
-      if (!aExclu && !this.anim) throw new AppExc(F_SRV, 306)
+      if (!aExclu && !this.anim) throw new AppExc(A_SRV, 306)
     } else {
       const peut = this.anim || aExclu || !note.im
-      if (!peut) throw new AppExc(F_SRV, 304)
+      if (!peut) throw new AppExc(A_SRV, 304)
       im = this.groupe.mmb.get(args.ida)
-      if (!im) throw new AppExc(F_SRV, 305)
+      if (!im) throw new AppExc(A_SRV, 305)
       const f = this.groupe.flags[im]
       const ok = (f & FLAGS.AN) && (f & FLAGS.DN) && (f & FLAGS.DE)
-      if (!ok) throw new AppExc(F_SRV, 305)
+      if (!ok) throw new AppExc(A_SRV, 305)
     }
     note.setExclu(im)
   }
@@ -2096,7 +2100,7 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
     const note = await this.gd.getNOT(args.id, args.ids, 'GetUrlNf-1')
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     const f = note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
-    if (!f) throw new AppExc(F_SRV, 307)
+    if (!f) throw new AppExc(A_SRV, 307)
     const url = await this.storage.getUrl(this.org, avgr.alias, args.idf)
     this.setRes('url', url)
     this.vd += f.lg // décompte du volume descendant
@@ -2114,21 +2118,47 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
-      aut: { t: 'ida', n: null } // pour une note de groupe, id de l'auteur de l'enregistrement
+      lg: {t: 'int', min: 0, max: 500000000}, // taille du fichier
+      aut: { t: 'ida', n: null }, // pour une note de groupe, id de l'auteur de l'enregistrement
+      lidf: { t: 'lidf', n: true } // liste des idf fichiers de la note à supprimer
     } 
   }
 
   async phase2 (args) {
-    // Remarque: l'excès de volume pour un groupe et un compte, ainsi que le volume 
-    // descendant seront décomptés à la validation de l'upload
     await this.checkNoteId()
     const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     if (ID.estGroupe(args.id)) {
       const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
-      if (!e || !e.de) throw new AppExc(F_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
+      if (!e || !e.de) throw new AppExc(A_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
     }
+
+    if (note.mfa[args.fic.idf]) throw new AppExc(A_SRV, 310)
+    let nv = args.lg
+    const s = new Set()
+    if (args.lidf && args.lidf.length) args.lidf.forEach(idf => { s.add(idf) })
+    for (const idf in note.mfa) {
+      if (!s.has(idf)) nv += note.mfa[idf].lg
+    }
+
+    if (ID.estGroupe(args.id)) {
+      // Dépassement du quota donné par l'hébergeur ?
+      if (this.groupe.idh) {
+        if (this.groupe.vf - note.vf + nv > this.groupe.qv * UNITEV) 
+          throw new AppExc(F_SRV, 66, [this.vf, this.qv * UNITEV])
+        compta = this.groupe.idh === this.id ? this.compta : 
+          await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
+      } else { // Pas d'hébergeur, le volume doit baisser
+        if (nv > note.vf) throw new AppExc(A_SRV, 312)
+      }
+    } else {
+      compta = this.compta
+    }
+    // dépassement du quota comptable du compte ou de l'hébergeur
+    const x = compta.qv.v + nv - note.vf
+    if (x > compta.qv.qv * UNITEV) 
+      throw new AppExc(F_SRV, 56, [x, compta.qv.qn * UNITEV])
 
     const idf = ID.fic()
     const url = await this.storage.getUrl(this.org, avgr.alias, idf)
@@ -2159,7 +2189,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     await this.gd.getNOT(args.id, args.ids, 'ValiderUpload-1')
     const note = await this.gd.getNOT(args.id, args.ids, 'ValiderUpload-2')
     const f = note.mfa[args.fic.idf]
-    if (f) throw new AppExc(F_SRV, 310)
+    if (f) throw new AppExc(A_SRV, 310)
     let dv = note.vf
     note.setFic(args.fic)
     if (args.lidf && args.lidf.length) 
@@ -2171,8 +2201,8 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
 
     if (ID.estGroupe(args.id)) {
       const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
-      if (!e || !e.de) throw new AppExc(F_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
+      if (!e || !e.de) throw new AppExc(A_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
       note.setAut(e.im)
       if (this.groupe.idh) {
         this.groupe.setNV(0, dv)
@@ -2180,7 +2210,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
         compta = this.groupe.idh === this.id ? this.compta : 
           await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
       } else {
-        if (dv > 0) throw new AppExc(F_SRV, 312)
+        if (dv > 0) throw new AppExc(A_SRV, 312)
         this.groupe.setNV(0, dv)
       }
     } else {
@@ -2236,8 +2266,8 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
 
     if (ID.estGroupe(args.id)) {
       const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
-      if (!e || !e.de) throw new AppExc(F_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(F_SRV, 314)
+      if (!e || !e.de) throw new AppExc(A_SRV, 313)
+      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
       note.setAut(e.im)
       if (this.groupe.idh) {
         this.groupe.setNV(0, dv)

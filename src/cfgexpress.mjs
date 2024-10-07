@@ -4,7 +4,7 @@ import { encode, decode } from '@msgpack/msgpack'
 import path from 'path'
 
 import { config } from './config.mjs'
-import { decode3, getHP } from './util.mjs'
+import { decode3, getHP, sendAlMail } from './util.mjs'
 import { AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
 import { pubsub } from './notif.mjs'
 
@@ -155,6 +155,7 @@ function checkOrigin(req) {
 async function operation(req, res, dbp, storage) {
   operations.auj = AMJ.amjUtc()
   const opName = req.params.operation
+  let op = null
   try {
     const isGet = req.method === 'GET'
 
@@ -197,7 +198,7 @@ async function operation(req, res, dbp, storage) {
     else {
       args = decode(req.rawBody)
     }
-    const op = new opClass(opName)
+    op = new opClass(opName)
     if (isGet) op.isGet = true
     const result = await op.run(args, dbp, storage)
     if (op.isGet) {
@@ -216,6 +217,13 @@ async function operation(req, res, dbp, storage) {
       httpst = e.majeur *1000 === F_SRV ? 400 : (e.majeur * 1000 === A_SRV ? 401 : 402)
       delete e.stack
       s = e.toString() // JSON
+      if (op && e.code > 9000 && e.code < 9999) {
+        const al = config.alertes
+        if (!al) return
+        const al1 = al['admin']
+        if (!al1) return
+        await sendAlMail(config.run.site, op.org || 'admin', al1, 'assert-' + e.code)
+      }
     } else {
       // erreur non trappée : mise en forme en AppExc
       httpst = 403
