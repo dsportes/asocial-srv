@@ -9,6 +9,7 @@ import { GcProvider } from './storageGC.mjs'
 import { S3Provider } from './storageS3.mjs'
 import { SqliteProvider } from './dbSqlite.mjs'
 import { FirestoreProvider } from './dbFirestore.mjs'
+import { smSendgrid } from './sendgrid.mjs'
 
 export function u8ToB64 (u8, url) {
   if (!u8 || !u8.length) return ''
@@ -165,10 +166,15 @@ export function decrypter (cle, u8) { // u8: Buffer
 }
 
 export async function sendAlMail (site, org, to, sub) {
+  const s = 'AsocialApp - [' + site + '] '  + org + ' : ' + sub
+  if (config.alertes._sendgrid_api_key) {
+    await smSendgrid(to, s, '')
+    return
+  }
   let url = config.alertes._url
   if (!url) return
   url += '?' + new URLSearchParams({
-    sub: 'AsocialApp - [' + site + '] '  + org + ' : ' + sub,
+    sub: s,
     to: to
     // txt: 'du texte'
   })
@@ -181,7 +187,6 @@ export async function sendAlMail (site, org, to, sub) {
       config.logger.error('sendAlMail: [' + url + '] -  ' + t)
   } catch (e) {
     config.logger.error('sendAlMail: [' + url + '] -  ' + e.toString())
-    return 0
   }
 }
 

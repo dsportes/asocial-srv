@@ -16,25 +16,37 @@ const salt = new Uint8Array(16)
 for (let j = 0; j < 16; j++) salt[j] = j + 47
 
 function crypter (u8) { // u8: Buffer
-  const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(kx), Buffer.from(salt))
-  return Buffer.concat([cipher.update(Buffer.from(u8)), cipher.final()])
+  const x1 = Buffer.from(kx)
+  const x2 = Buffer.from(salt)
+  const cipher = crypto.createCipheriv('aes-256-cbc', x1, x2)
+  const b1 = cipher.update(Buffer.from(u8))
+  const b2 = cipher.final()
+  return Buffer.concat([b1, b2])
 }
 
 function decrypter (u8) { // u8: Buffer
-  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(kx), Buffer.from(salt))
-  return Buffer.concat([decipher.update(Buffer.from(u8)), decipher.final()])
+  const x1 = Buffer.from(kx)
+  const x2 = Buffer.from(salt)
+  const decipher = crypto.createDecipheriv('aes-256-cbc', x1, x2)
+  const b1 = decipher.update(Buffer.from(u8))
+  const b2 = decipher.final()
+  return Buffer.concat([b1, b2])
 }
 
 export function obj2B64(obj) {
   const b = encode(obj)
-  const s = fromByteArray(crypter(b))
-  return s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const cb = crypter(b)
+  const s = fromByteArray(cb)
+  const s2 = s.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  return s2
 }
 
 export function b642Obj(b64) {
-  const pad = '===='.substring(0, 4 - (b64.length % 4))
+  const l = b64.length % 4
+  const pad = l ? '===='.substring(0, 4 - l) : ''
   const b = Buffer.from(toByteArray((b64 + pad).replace(/-/g, '+').replace(/_/g, '/')))
-  return decode(decrypter(b))
+  const cb = decrypter(b)
+  return decode(cb)
 }
 
 const x = argv[1]
