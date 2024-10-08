@@ -167,11 +167,18 @@ export function decrypter (cle, u8) { // u8: Buffer
 export async function sendAlMail (site, org, to, sub) {
   let url = config.alertes._url
   if (!url) return
-  url += site + '/' + org + '/' + to + '/' + sub
+  url += '?' + new URLSearchParams({
+    sub: 'AsocialApp - [' + site + '] '  + org + ' : ' + sub,
+    to: to
+    // txt: 'du texte'
+  })
   try {
     const response = await fetch(url)
     const t = await response.text()
-    config.logger.info('sendAlMail: [' + url + '] -  ' + t)
+    if (t.startsWith('OK'))
+      config.logger.info('sendAlMail: [' + url + '] -  ' + t)
+    else
+      config.logger.error('sendAlMail: [' + url + '] -  ' + t)
   } catch (e) {
     config.logger.error('sendAlMail: [' + url + '] -  ' + e.toString())
     return 0

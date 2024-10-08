@@ -791,6 +791,8 @@ export class Operation {
     this.authMode = authMode
     this.excFige = excFige || 1
     this.dh = Date.now()
+    this.ns = 0
+    this.org = ''
   }
 
   reset () {
@@ -804,8 +806,6 @@ export class Operation {
     this.toInsert = []
     this.toUpdate = []
     this.toDelete = []
-    this.ns = 0
-    this.org = ''
     this.compte = null
     this.gd = new GD(this)
   }
@@ -1073,22 +1073,22 @@ export class Operation {
       await sleep(3000)
       throw new AppExc(F_SRV, 205) 
     } 
-    let authData = null
+    this.authData = null
     this.estAdmin = false
     if (t) 
       try { 
-        authData = decode(b64ToU8(t))
-        this.sessionId = authData.sessionId || ''
-        if (authData.shax) {
+        this.authData = decode(b64ToU8(t))
+        this.sessionId = this.authData.sessionId || ''
+        if (this.authData.shax) {
           try {
-            const shax64 = Buffer.from(authData.shax).toString('base64')
+            const shax64 = Buffer.from(this.authData.shax).toString('base64')
             if (app_keys.admin.indexOf(shax64) !== -1) {
               this.estAdmin = true
               this.ns = ''
             }
           } catch (e) { /* */ }
         }
-        this.org = authData.org
+        this.org = this.authData.org
       } catch (e) { 
         await sleep(3000)
         throw new AppExc(F_SRV, 206, [e.message])
@@ -1107,8 +1107,8 @@ export class Operation {
     if (this.excFige === 2) espace.excFige()
     
     /* Compte */
-    this.compte = await this.gd.getCO(0, null, authData.hXR)
-    if (!this.compte || this.compte.hXC !== authData.hXC) { 
+    this.compte = await this.gd.getCO(0, null, this.authData.hXR)
+    if (!this.compte || this.compte.hXC !== this.authData.hXC) { 
       await sleep(3000); throw new AppExc(F_SRV, 998) 
     }
     if (this.compte.dlv < this.auj) { 

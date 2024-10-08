@@ -274,6 +274,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     this.targs = {
       idI: { t: 'ida' }, // id de l'vatar du chat "interne"
       idE: { t: 'ida' }, // id de l'vatar du chat "externe"
+      urgence: { t: 'bool', n: true }, // chats ouvert d'urgence
       mode: { t: 'modech' }, 
       // 0: par phrase de contact (hZC en est le hash),  
       // 1: idE est délégué de la partition de idI, 
@@ -347,6 +348,9 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     })
     const comptaE = await this.gd.getCA(args.idE, 'NouveauChat-3')
     comptaE.ncPlus(1)
+
+    if (ID.estComptable(this.chE.id) && args.urgence) 
+      await this.alerte('chat')
   }
 }
 
@@ -404,7 +408,7 @@ operations.MajChat = class MajChat extends OperationCh {
     this.chI.actifI()
     this.chE.actifE()
 
-    if (this.estComptable && args.urgence) 
+    if (ID.estComptable(this.chE.id) && args.urgence) 
         await this.alerte('chat')
   }
 }

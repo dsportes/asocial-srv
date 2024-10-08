@@ -36,9 +36,8 @@ try {
 
 //***************************************************************************
 {
-  const app_keys = config.app_keys
-  const vpub = app_keys.vapid_public_key
-  const vpriv = app_keys.vapid_private_key
+  const vpub = config.vapid_public_key
+  const vpriv = config.vapid_private_key
   const appKey = appKeyBin(config.run.site)
   const pubsubURL = config.run.pubsubURL
   pubsubStart(appKey, pubsubURL, vpub, vpriv, config.logger, config.NOPURGESESSIONS)
