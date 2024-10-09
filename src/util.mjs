@@ -171,15 +171,19 @@ export async function sendAlMail (site, org, to, sub) {
     await smSendgrid(to, s, '')
     return
   }
-  let url = config.alertes._url
-  if (!url) return
-  url += '?' + new URLSearchParams({
-    sub: s,
-    to: to
-    // txt: 'du texte'
-  })
+
+  const url = config.alertes._url
+  const pwd = config.alertes._pwd
+  if (!url || !pwd) return  
+
   try {
-    const response = await fetch(url)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers:{
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },    
+      body: new URLSearchParams({ pwd, sub: s, to, txt: '-' })
+    })
     const t = await response.text()
     if (t.startsWith('OK'))
       config.logger.info('sendAlMail: [' + url + '] -  ' + t)

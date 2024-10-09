@@ -33,9 +33,7 @@ export function load3 () {
 * Opérations SANS connexion NI contrôle de l'espace
 *******************************************************************************/
 
-/** Echo du texte envoyé ***************************************
-args.to : délai en secondes avant retour de la réponse
-args.texte : texte à renvoyer en écho OU en détail de l'erreur fonctionnelle testée
+/** EchoTexte: Echo du texte envoyé ***************************************
 Retour:
 - echo : texte d'entrée retourné
 */
@@ -55,7 +53,7 @@ operations.EchoTexte = class EchoTexte extends Operation {
   }
 }
 
-/** Erreur fonctionnelle simulée du texte envoyé
+/** ErreurFonc: Erreur fonctionnelle simulée du texte envoyé
 Exception: F_SRV, 10
 */
 operations.ErreurFonc = class ErreurFonc extends Operation {
@@ -74,9 +72,10 @@ operations.ErreurFonc = class ErreurFonc extends Operation {
   }
 }
 
-/** Test d'accès à la base ***************************************
-GET
-Retourne les date-heures de derniers ping (le précédent et celui posé)
+/** PingDB: Test d'accès à la base - GET
+Insère un item de ping dans la table singletons/1
+Retour:
+- un string avec les date-heures de ping (le précédent et celui posé)
 */
 operations.PingDB = class PingDB extends Operation {
   constructor (nom) { 
@@ -115,12 +114,15 @@ operations.GetEspaces = class GetEspaces extends Operation {
 * Lectures non synchronisées
 *******************************************************************************/
 
-/* GetPub: retourne la clé RSA publique d'un avatar */
+/* GetPub: retourne la clé RSA publique d'un avatar
+Retour:
+- pub: clé RSA
+*/
 operations.GetPub = class GetPub extends Operation {
   constructor (nom) { 
     super(nom, 1, 1)
     this.targs = {
-      id: { t: 'ida' }
+      id: { t: 'ida' } // id de l'avatar
     }
   }
 
@@ -130,13 +132,16 @@ operations.GetPub = class GetPub extends Operation {
   }
 }
 
-/* GetPubOrg: retourne la clé RSA publique d'un avatar NON authentifié) */
+/* GetPubOrg: retourne la clé RSA publique d'un avatar NON authentifié
+Retour:
+- pub: clé RSA
+*/
 operations.GetPubOrg = class GetPubOrg extends Operation {
   constructor (nom) { 
     super(nom, 0)
     this.targs = {
-      org: { t: 'org'},
-      id: { t: 'ida' }
+      org: { t: 'org'}, // code de l'organisation
+      id: { t: 'ida' }  // id de l'avatar
     } 
   }
 
@@ -148,7 +153,7 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
   }
 }
 
-/* GetSponsoring : obtention d'un sponsoring par le hash de sa pharse
+/* GetSponsoring : obtention d'un sponsoring par le hash de sa phrase
 Retour:
 - rowSponsoring s'il existe
 */
@@ -377,7 +382,8 @@ operations.SyncSp = class SyncSp extends Operation {
   }
 }
 
-/* RefusSponsoring: Rejet d'une proposition de sponsoring */
+/* RefusSponsoring: Rejet d'une proposition de sponsoring 
+*/
 operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { 
     super(nom, 0)
@@ -429,7 +435,10 @@ operations.GetSynthese = class GetSynthese extends Operation {
   }
 }
 
-/* GetPartition : retourne une partition */
+/* GetPartition : retourne une partition 
+Retour:
+- rowPartition
+*/
 operations.GetPartition = class GetPartition extends Operation {
   constructor (nom) { 
     super(nom, 1, 1)
@@ -650,7 +659,8 @@ operations.Sync = class Sync extends Operation {
 * Opérations AVEC connexion ADMINISTRATEUR EXCLUSIVEMENT
 *******************************************************************************/
 
-/* SetEspaceQuotas: Déclaration des quotas globaux de l'espace par l'administrateur technique */
+/* SetEspaceQuotas: Déclaration des quotas globaux de l'espace par l'administrateur technique
+*/
 operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   constructor (nom) { 
     super(nom, 3)
@@ -666,7 +676,8 @@ operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   }
 }
 
-/* SetNotifE : déclaration d'une notification à un espace par l'administrateur */
+/* SetNotifE : déclaration d'une notification à un espace par l'administrateur
+*/
 operations.SetNotifE = class SetNotifE extends Operation {
   constructor (nom) { 
     super(nom, 3) 

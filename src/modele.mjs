@@ -816,7 +816,7 @@ export class Operation {
       this.args = args
       this.dbp = dbp
       this.storage = storage
-      await this.auth1()
+      if (!this.SYS) await this.auth1()
       await this.phase1(this.args)
 
       for (let retry = 0; retry < 3; retry++) {
@@ -1031,7 +1031,8 @@ export class Operation {
   async phase3 () { return }
 
   async transac () { // Appelé par this.db.doTransaction
-    if (!this.SYS) await this.auth2() // this.compta est accessible (si authentifié)
+    if (!this.SYS && !this.estAdmin && this.authMode !== 0)
+      await this.auth2() // this.compta est accessible (si authentifié)
     if (this.phase2) await this.phase2(this.args)
     if (this.setR.has(R.FIGE)) return
     await this.gd.maj()
@@ -1075,28 +1076,27 @@ export class Operation {
     } 
     this.authData = null
     this.estAdmin = false
-    if (t) 
-      try { 
-        this.authData = decode(b64ToU8(t))
-        this.sessionId = this.authData.sessionId || ''
-        if (this.authData.shax) {
-          try {
-            const shax64 = Buffer.from(this.authData.shax).toString('base64')
-            if (app_keys.admin.indexOf(shax64) !== -1) {
-              this.estAdmin = true
-              this.ns = ''
-            }
-          } catch (e) { /* */ }
-        }
-        this.org = this.authData.org
-      } catch (e) { 
-        await sleep(3000)
-        throw new AppExc(F_SRV, 206, [e.message])
+    if (!t) {
+      if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) }
+      return
+    }
+    try { 
+      this.authData = decode(b64ToU8(t))
+      this.sessionId = this.authData.sessionId || ''
+      if (this.authData.shax) {
+        try {
+          const shax64 = Buffer.from(this.authData.shax).toString('base64')
+          if (app_keys.admin.indexOf(shax64) !== -1) {
+            this.estAdmin = true
+            this.ns = ''
+          }
+        } catch (e) { /* */ }
       }
-
-    if (this.estAdmin || this.authMode === 0) return
-
-    if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) }
+      this.org = this.authData.org
+    } catch (e) { 
+      await sleep(3000)
+      throw new AppExc(F_SRV, 206, [e.message])
+    }
   }
 
   async auth2 () {
