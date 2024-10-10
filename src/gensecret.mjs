@@ -1,5 +1,5 @@
 /*
-Appel: node src/genicon.mjs
+Appel: node src/gensecret.mjs
 */
 
 import crypto from 'crypto'
@@ -50,7 +50,7 @@ export function b642Obj(b64) {
 }
 
 const x = argv[1]
-if (x.endsWith('genicon.mjs')) {
+if (x.endsWith('gensecret.mjs')) {
   const pjson = path.resolve('./keys.json')
   if (!existsSync(pjson)) {
     console.log('fichier ./keys.json non trouvé')
@@ -59,9 +59,9 @@ if (x.endsWith('genicon.mjs')) {
       const x = readFileSync(pjson)
       const js = JSON.parse(x)
       const t = obj2B64(js)
-      const t2 = 'export const icon = \'' + t + '\'\n'
+      const t2 = 'export const secret = \'' + t + '\'\n'
       const bout = Buffer.from(t2, 'utf-8')
-      const pmjs = path.resolve('./src/icon.mjs')
+      const pmjs = path.resolve('./src/secret.mjs')
       writeFileSync(pmjs, bout)
       console.log('OK')
     } catch (e) {

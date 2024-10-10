@@ -32,18 +32,6 @@ export function appExpress(dbp, storage) {
     next();
   })
 
-  if (config.pathapp) {
-    const ap = path.resolve(config.pathapp)
-    config.logger.info('PATH_APP= [' + ap + ']')
-    app.use(config.prefixapp, express.static(ap))
-  }
-
-  if (config.pathwww) {
-    const ap = path.resolve(config.pathwww)
-    config.logger.info('PATH_WWW= [' + ap + ']')
-    app.use(config.prefixwww, express.static(ap))
-  }
-
   // OPTIONS est toujours envoyé pour tester les appels cross origin
   app.use('/', (req, res, next) => {
     if (req.method === 'OPTIONS')

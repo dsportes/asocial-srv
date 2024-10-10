@@ -1,6 +1,6 @@
 import { env } from 'process'
-import { icon } from './icon.mjs'
-import { b642Obj } from './genicon.mjs'
+import { secret } from './secret.mjs'
+import { b642Obj } from './gensecret.mjs'
 import { Tarif } from './api.mjs'
 
 export const config = { // Valeurs par défaut et / ou obligatoires
@@ -37,17 +37,9 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   fs_b: { rootpath: './fsstorageb' },
   gc_a: { bucket: 'asocial-test1.appspot.com', key: 'service_account' /* fixé pour emulator ? */ },
 
-  // Pour les "serveurs" seulement: configuration des paths des URL
+  // Pour les "serveurs" seulement: configuration des paths locaux
   pathlogs: './logs',
   pathkeys: './keys',
-
-  // En "serveur" (OP+PUBSUB), SI aussi CDN pour l'application
-  prefixapp: '/app',
-  pathapp: './app',
-
-  // En "serveur" (OP+PUBSUB), SI aussi web statique documentaire
-  prefixwww: '/www',
-  pathwww: './www',
 
   run: { // Configuration du "serveur"
     site: 'A', // Donne sa clé de cryptage DB
@@ -72,8 +64,9 @@ export const config = { // Valeurs par défaut et / ou obligatoires
 }
 // croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
 
-const obj = b642Obj(icon)
+const obj = b642Obj(secret)
 for(let k in obj) config[k] = obj[k]
+
 Tarif.init(config.tarifs)
 
 for (const n in config.env) env[n] = config.env[n]
