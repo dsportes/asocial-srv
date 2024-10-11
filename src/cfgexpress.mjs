@@ -207,10 +207,11 @@ async function operation(req, res, dbp, storage) {
       s = e.toString() // JSON
       if (op && e.code > 9000 && e.code < 9999) {
         const al = config.alertes
-        if (!al) return
-        const al1 = al['admin']
-        if (!al1) return
-        await sendAlMail(config.run.site, op.org || 'admin', al1, 'assert-' + e.code)
+        if (al) {
+          const al1 = al['admin']
+          if (al1)
+            await sendAlMail(config.run.site, op.org || 'admin', al1, 'assert-' + e.code)
+        }
       }
     } else {
       // erreur non trappée : mise en forme en AppExc

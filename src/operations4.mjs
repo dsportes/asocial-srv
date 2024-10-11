@@ -6,6 +6,7 @@ import { eqU8 } from './util.mjs'
 import { Operation, R, trace } from './modele.mjs'
 import { compile, Transferts } from './gendoc.mjs'
 import { Taches } from './taches.mjs'
+import { UNITEV } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -2123,7 +2124,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
       lg: {t: 'int', min: 0, max: 500000000}, // taille du fichier
-      aut: { t: 'ida', n: null }, // pour une note de groupe, id de l'auteur de l'enregistrement
+      aut: { t: 'ida', n: true }, // pour une note de groupe, id de l'auteur de l'enregistrement
       lidf: { t: 'lidf', n: true } // liste des idf fichiers de la note à supprimer
     } 
   }
@@ -2138,7 +2139,6 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
     }
 
-    if (note.mfa[args.fic.idf]) throw new AppExc(A_SRV, 310)
     let nv = args.lg
     const s = new Set()
     if (args.lidf && args.lidf.length) args.lidf.forEach(idf => { s.add(idf) })
@@ -2146,6 +2146,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       if (!s.has(idf)) nv += note.mfa[idf].lg
     }
 
+    let compta
     if (ID.estGroupe(args.id)) {
       // Dépassement du quota donné par l'hébergeur ?
       if (this.groupe.idh) {

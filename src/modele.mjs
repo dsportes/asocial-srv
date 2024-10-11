@@ -817,7 +817,7 @@ export class Operation {
       this.dbp = dbp
       this.storage = storage
       if (!this.SYS) await this.auth1()
-      await this.phase1(this.args)
+      this.phase1(this.args)
 
       for (let retry = 0; retry < 3; retry++) {
         this.reset()
@@ -868,12 +868,12 @@ export class Operation {
       return this.result
     } catch (e) {
       if (config.mondebug) 
-        config.logger.debug(this.nomop + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
+        config.logger.error(this.nomop + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
       throw e
     }
   }
 
-  async phase1 (args) { 
+  phase1 (args) { 
     args.x = '$'
     const op = this.nomop
     function ko (n) { 
@@ -965,7 +965,7 @@ export class Operation {
           if (tof !== 'object') ko(n)
           if (!v.idf || ID.type(v.idf) !== 8) ko(n)
           if (!v.lg || (!Number.isInteger(v.lg) || v.lg <= 0)) ko(n)
-          if (v.ficN || !(v.ficN instanceof Uint8Array)) ko(n)
+          if (!v.ficN || !(v.ficN instanceof Uint8Array)) ko(n)
           break
         }
         case 'ntf' : { // { nr, dh, texte }

@@ -47,7 +47,6 @@ const p2 = [255, (256 ** 2) - 1, (256 ** 3) - 1, (256 ** 4) - 1, (256 ** 5) - 1,
 /** ID **********************************************************************/
 export class ID {
   static regid = new RegExp('^[0-9a-zA-Z]*$')
-  static regorg = new RegExp('^([a-z0-9\-]+)$')
 
   static estID (id) { 
     if (typeof id !== 'string' || id.length !== 12) return false
@@ -110,14 +109,6 @@ export const IDBOBSGC = 19 * 30
 export const UNITEN = 250 // nombre de notes + chats + groupes
 export const UNITEV = 100 * 1000 * 1000 // volume de fichiers
 export const MAXTAILLEGROUPE = 100
-
-export const interdits = '< > : " / \\ | ? *'
-// eslint-disable-next-line no-control-regex
-export const regInt = /[<>:"/\\|?*\x00-\x1F]/
-// eslint-disable-next-line no-control-regex
-export const regIntg = /[<>:"/\\|?*\x00-\x1F]/g
-// eslint-disable-next-line no-control-regex
-export const regInt2g = /[\u{0180}-\u{10FFFF}]/gu
 
 export const limitesjour = { 
   sponsoring: 14, // durée de vie d'un sponsoring
