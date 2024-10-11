@@ -1354,12 +1354,12 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
       idm: { t: 'ida' }, // id du membre invité
-      rsmv: { t: 'int', min: 0, max: 4 }, // 0: inviter, 2: modifier, 3: supprimer, 4: voter pour
+      rmsv: { t: 'int', min: 0, max: 4 }, // 0: inviter, 2: modifier, 3: supprimer, 4: voter pour
       flags: { t: 'int', min: 0, max: 255 }, // flags d'invitation
       msgG: { t: 'u8' }, // message de bienvenue crypté par la clé G du groupe
       idi: { t: 'ida', n: true }, // id de l'invitant pour le mode d'invitation simple
       // sinon tous les avatars du comptes animateurs du groupe
-      suppr: { t: 'int', min: 1, max: 3 }, // 1-contact, 2:radié, 3-radié + LN
+      suppr: { t: 'int', min: 0, max: 3 }, // 1-contact, 2:radié, 3-radié + LN
       cleGA: { t: 'u8' } // clé G du groupe cryptée par la clé A de l'invité
     }
   }
@@ -1483,7 +1483,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
       cleGK: { t: 'u8' }, // cle du groupe cryptée par la clé K du compte
       cas: { t: 'int', min: 1, max: 4 }, // 1:accepte 2:contact 3:radié 4:radié + LN
       msgG: { t: 'u8' }, // message de bienvenue crypté par la clé G du groupe
-      txK: { t: 'u8' } // texte à attacher à compti/idg s'il n'y en a pas
+      txK: { t: 'u8', n: true } // texte à attacher à compti/idg s'il n'y en a pas
     }
   }
 
