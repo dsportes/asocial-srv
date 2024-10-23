@@ -217,8 +217,8 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   constructor (nom) { 
     super(nom, 1)
     this.targs = {
-      hZR: { t: 'u8' }, // hash de la phrase de contact réduite
-      hZC: { t: 'u8' } // hash de la phrase de contact complète
+      hZR: { t: 'ids' }, // hash de la phrase de contact réduite
+      hZC: { t: 'ids' } // hash de la phrase de contact complète
     }
   }
 
@@ -457,10 +457,10 @@ operations.ChangementPC = class ChangementPC extends Operation {
     super(nom, 1, 2) 
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar
-      hZR: { t: 'u8' }, // hash de la phrase de contact réduite (SUPPRESSION si null)
-      cleAZC: { t: 'u8' }, //  clé A cryptée par ZC (PBKFD de la phrase de contact complète).
-      pcK: { t: 'u8' }, //  phrase de contact complète cryptée par la clé K du compte.
-      hZC: { t: 'u8' } // hash du PBKFD de la phrase de contact complète.
+      hZR: { t: 'ids', n: true }, // hash de la phrase de contact réduite (SUPPRESSION si null)
+      cleAZC: { t: 'u8', n: true }, //  clé A cryptée par ZC (PBKFD de la phrase de contact complète).
+      pcK: { t: 'u8', n: true }, //  phrase de contact complète cryptée par la clé K du compte.
+      hZC: { t: 'ids', n: true } // hash du PBKFD de la phrase de contact complète.
     }
   }
 
@@ -793,8 +793,8 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant A
-      hZR: { t: 'u8' }, // hash de sa phrase de contact réduite
-      hZC: { t: 'u8' }, // hash de sa phrase de contact complète      
+      hZR: { t: 'ids' }, // hash de sa phrase de contact réduite
+      hZC: { t: 'ids' }, // hash de sa phrase de contact complète      
       ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
       t: { t: 'u8' } // texte (crypté) de l'item à ajouter au chat
     }
@@ -835,8 +835,8 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant O
-      hZR: { t: 'u8' }, // hash de sa phrase de contact réduite
-      hZC: { t: 'u8' }, // hash de sa phrase de contact complète   
+      hZR: { t: 'ids' }, // hash de sa phrase de contact réduite
+      hZC: { t: 'ids' }, // hash de sa phrase de contact complète   
       quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
       cleAP: { t: 'u8' }, // clé A du compte cryptée par la clé P de la partition
       clePK: { t: 'u8' }, // clé de la nouvelle partition cryptée par la clé publique du compte
