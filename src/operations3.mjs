@@ -231,15 +231,9 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
   }
 }
 
-/* SyncSp - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
-Retour: 
-- rowEspace
-- rowCompte
-- rowCompti
-- rowAvater 
-- rowChat si la confidentialité n'a pas été requise
+/* AcceptationSponsoring - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
 */
-operations.SyncSp = class SyncSp extends Operation {
+operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation {
   constructor (nom) { 
     super(nom, 0)
     this.targs = {
@@ -275,8 +269,7 @@ operations.SyncSp = class SyncSp extends Operation {
   async phase2 (args) {
     this.subJSON = args.subJSON || null
 
-    const espace = await this.setEspaceOrg(args.org) // set this.ns et this.org
-    this.setRes('rowEspace', espace.toShortRow(this, this.ns))
+    await this.setEspaceOrg(args.org) // set this.ns et this.org
 
     const avsponsor = await this.gd.getAV(args.idsp)
     if (!avsponsor) throw new AppExc(F_SRV, 401)
@@ -304,20 +297,8 @@ operations.SyncSp = class SyncSp extends Operation {
     this.compta = compta
     compti.setMc(sp.id, args.htK, args.txK)
     await compte.reportDeCompta(compta, this.gd)
-    this.setRes('rowCompti', compti.toShortRow(this))
-    this.setRes('rowInvit', invit.toShortRow(this))
 
     const avatar = this.gd.nouvAV(args, args.cvA)
-    this.setRes('rowAvatar', avatar.toShortRow(this))
-
-    // création du dataSync
-    const ds = DataSync.deserial()
-    ds.compte.vb = 1
-    const a = { id: avatar.id, vs: 0, vb: 1 }
-    ds.avatars.set(a.id, a)
-
-    // Sérialisation et retour de dataSync
-    this.setRes('dataSync', ds.serial(this.ns))
 
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
     const pid = sp.partitionId || ''
@@ -350,7 +331,7 @@ operations.SyncSp = class SyncSp extends Operation {
         cleEC: args.ch.cleE1C,
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
       })
-      this.setRes('rowChat', chI.toShortRow(this))
+      // this.setRes('rowChat', chI.toShortRow(this))
       this.compta.ncPlus(1)
 
       await this.gd.nouvCAV({
@@ -370,15 +351,6 @@ operations.SyncSp = class SyncSp extends Operation {
 
     const comptiSp = await this.gd.getCI(args.idsp, 'McMemo-2')
     comptiSp.setMc(args.id, sp.htK, sp.txK)
-
-    // Mise à jour des abonnements aux versions
-    if (this.sync) this.sync.setAboRds(ds.setLongsRds(this.ns), this.dh)
-  }
-
-  async phase3 () {
-    /* Le row compte A ETE MIS A JOUR après la phase 2 */
-    this.setRes('rowCompte', this.compte.toShortRow(this))
-    this.setRes('tarifs', Tarif.tarifs)
   }
 }
 
