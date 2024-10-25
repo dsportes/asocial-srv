@@ -1551,7 +1551,7 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
       idaut: { t: 'ida' }, // id du membre auteur du texte
-      dh: { t: 'dh' }, // date-heure de l'item effacé
+      dh: { t: 'dh', n: true }, // date-heure de l'item effacé
       msgG: { t: 'u8' } // texte de l'item
     }
   }
