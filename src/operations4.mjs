@@ -807,9 +807,10 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     await this.check(args)
   
     const compta = await this.gd.getCA(args.id, 'MuterCompteA-3')
+    compta.setA(true)
     const q = compta.qv
     compta.quotas({ qc: q.qc, qn: q.qn, qv: q.qv })
-    compta.reinitSoldeA(2)
+    compta.reinitSoldeA(DONCOMPTEO)
 
     const synth = await this.gd.getSY()
     synth.ajoutCompteA(compte.qv) // peut lever Exwc de blocage

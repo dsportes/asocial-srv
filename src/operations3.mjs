@@ -237,7 +237,8 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   constructor (nom) { 
     super(nom, 0)
     this.targs = {
-      subJSON: { t: 'string' }, // subscription de la session
+      org: { t: 'org' }, // organisation
+      // subJSON: { t: 'string' }, // subscription de la session
       idsp: { t: 'ida' }, // identifiant du sponsor
       idssp: { t: 'ids' }, // identifiant du sponsoring
       id: { t: 'ida' }, // id du compte sponsorisé à créer
@@ -267,7 +268,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 
   async phase2 (args) {
-    this.subJSON = args.subJSON || null
+    // this.subJSON = args.subJSON || null
 
     await this.setEspaceOrg(args.org) // set this.ns et this.org
 

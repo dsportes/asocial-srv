@@ -96,7 +96,7 @@ export class ID {
 
 export const HBINSECONDS = 20 // 120
 export const ESPTO = 3 // en minutes : rechargement de la cache des espaces
-export const DONCOMPTEO = 0
+export const DONCOMPTEO = 1
 
 export const MSPARJOUR = 86400 * 1000
 export const MSPARAN = 365 * MSPARJOUR
