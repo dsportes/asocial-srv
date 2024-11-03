@@ -900,19 +900,21 @@ export class Comptes extends GenDoc {
   */
   async reportDeCompta (compta, gd) {
     compta.compile() // calcul _nbj _c2m _pc
-    let dlv, rep
+    let dlv, rep, diff
 
     const setR = gd.op.setR
     if (setR.has(5) || setR.has(6)) {
       dlv = this.dlv
-      rep = this._maj
+      diff = false
     } else {
       const e = await gd.getEspace()
       const [dlv1, diff1] = this.defDlv (e, gd.op.auj, compta)
       dlv = dlv1
-      rep = this._maj || diff1 || this.reporter(compta)
+      diff = diff1
     }
-    
+
+    rep = this._maj || diff || this.reporter(compta)
+
     if (rep) {
       this.dlv = dlv
       if (!this.estA) this.qv.pcc = compta._pc.pcc 

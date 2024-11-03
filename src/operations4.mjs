@@ -942,7 +942,7 @@ operations.SetNotifP = class SetNotifP extends Operation {
     super(nom, 1, 2) 
     this.targs = {
       idp: { t: 'idp' }, // id de la partition
-      notif: { t: 'u8' } // notification cryptée par la clé de la partition.
+      notif: { t: 'ntf', n: true } // notification cryptée par la clé de la partition.
     }
   }
 
