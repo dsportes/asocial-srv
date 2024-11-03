@@ -317,7 +317,6 @@ class Connx {
   /* Retourne l'array des id des comptes du ns donné dont la dlv est:
   - dla: bridée par la dlvat actuelle de l'espace
   - dlf: ou supérieure à la dlvat future
-  */
   async getComptesDlvat (ns, dla, dlf) {
     const ns1 = ns
     const ns2 = ns + '{'
@@ -328,6 +327,7 @@ class Connx {
     if (rows) rows.forEach(row => { r.push(row.id)})
     return r
   }
+  */
 
   /* Retourne la collection de nom 'nom' : pour avoir tous les espaces */
   async coll (nom) {

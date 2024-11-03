@@ -1,7 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, A_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
-import { config } from './config.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
 /* GenDoc **************************************************
@@ -321,8 +320,8 @@ export class Espaces extends GenDoc {
   **Propriétés accessibles :**
     - administrateur technique : toutes de tous les espaces.
     - Comptable : toutes de _son_ espace.
-    - Délégués : pas stats dlvat ...
-    - tous comptes: la notification de _leur_ partition sera seule lisible.
+    - Délégués : dlvat, nbmi, pas stats ...
+    - tous comptes: dlvat, nbmi et la notification de _leur_ partition sera seule lisible.
   */
   toShortRow (op, ns) {
     const cl = this.cloneCourt()
@@ -337,7 +336,8 @@ export class Espaces extends GenDoc {
       return cl.toRow(op)._data_
     }
 
-    delete cl.moisStat; delete cl.moisStatT; delete cl.dlvat; delete cl.nbmi
+    delete cl.moisStat
+    delete cl.moisStatT
 
     if (op.compte && op.compte.idp) {
       if (!op.compte.del) {
@@ -880,12 +880,10 @@ export class Comptes extends GenDoc {
   defDlv (e, auj, compta) {
     // DLV maximale : N mois depuis aujourd'hui
     const dlvmax = !e ? 0 : (AMJ.djMois(AMJ.amjUtcPlusNbj(auj, e.nbmi * 30)))
-    // DLV maximale pour les comptes 0: dlvmax OU dlv de l'espace si plus proche
-    const dlvmaxO = !e ? 0 :(e.dlvat && (dlvmax > e.dlvat) ? e.dlvat : dlvmax)
 
     let dlv
     if (this.idp) // Compte O
-      dlv = ID.estComptable(this.id) ? AMJ.max : dlvmaxO
+      dlv = ID.estComptable(this.id) ? AMJ.max : dlvmax
     else { // Compte A
       const d = AMJ.djMois(AMJ.amjUtcPlusNbj(auj, compta._nbj))
       dlv = dlvmax > d ? d : dlvmax
@@ -902,13 +900,21 @@ export class Comptes extends GenDoc {
   */
   async reportDeCompta (compta, gd) {
     compta.compile() // calcul _nbj _c2m _pc
+    let dlv, rep
 
-    const e = await gd.getEspace()
-    const [dlv, diff1] = this.defDlv (e, gd.op.auj, compta)
-
-    const rep = this._maj || diff1 || this.reporter(compta)
+    const setR = gd.op.setR
+    if (setR.has(5) || setR.has(6)) {
+      dlv = this.dlv
+      rep = this._maj
+    } else {
+      const e = await gd.getEspace()
+      const [dlv1, diff1] = this.defDlv (e, gd.op.auj, compta)
+      dlv = dlv1
+      rep = this._maj || diff1 || this.reporter(compta)
+    }
+    
     if (rep) {
-      this.dlv = !ID.estComptable(this.id) ? dlv : AMJ.max
+      this.dlv = dlv
       if (!this.estA) this.qv.pcc = compta._pc.pcc 
       else this.qv.nbj = compta._nbj
       this.qv.pcn = compta._pc.pcn

@@ -29,7 +29,7 @@ export function load4 () {
     compte espace (lazy)
 */
 
-/* SetEspaceOptionA : changement de l'option A, nbmi, dlvat par le Comptable */
+/* SetEspaceOptionA : changement de l'option A, nbmi, par le Comptable */
 operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   constructor (nom) { 
     super(nom, 2, 2)
@@ -57,9 +57,9 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
 
   async phase2 (args) {
     const espace = await this.setEspaceNs(args.ns, true)
-    const dla = espace.dlvat ? espace.dlvat : AMJ.max
     espace.setDlvat(args.dlvat)
-    await Taches.nouvelle(this, Taches.ESP, this.ns, dla)
+    // const dla = espace.dlvat ? espace.dlvat : AMJ.max
+    // await Taches.nouvelle(this, Taches.ESP, this.ns, dla)
   }
 }
 

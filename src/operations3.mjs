@@ -5,7 +5,7 @@ import { sleep, crypter, crypterSrv, decrypterSrv } from './util.mjs'
 
 import { Operation, Cache, Esp } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { DataSync, Cles, Tarif } from './api.mjs'
+import { DataSync, Cles, Tarif, AMJ } from './api.mjs'
 // import { Taches } from './taches.mjs'
 
 // Pour forcer l'importation des opérations
@@ -444,7 +444,7 @@ operations.GetEspace = class GetEspace extends Operation {
     /* **Propriétés accessibles :**
     - administrateur technique : toutes de tous les espaces.
     - Comptable : toutes de _son_ espace.
-    - autres : sauf moisStat moisStatT dlvat nbmi
+    - autres : sauf moisStat moisStatT nbmi
     */
     const ns = !this.isAdmin ? this.ns : args.ns
     const espace = await Esp.getEsp (this, ns, false)
@@ -552,6 +552,13 @@ operations.Sync = class Sync extends Operation {
   }
 
   async phase2(args) {
+    if (!args.datasync) {
+      const espace = await Esp.getEspOrg (this, this.org)
+      if (espace.dlvat && espace.dlvat < this.auj) {
+        new AppExc(F_SRV, 14, [AMJ.editDeAmj(espace.dlvat)])
+      }
+    }
+
     if (!args.dataSync) this.setRes('tarifs', Tarif.tarifs)
     this.subJSON = args.subJSON || null
 

@@ -390,7 +390,6 @@ class Connx {
   - dla: bridée par la dlvat actuelle
   - dlf: ou supérieure à la dlvat future
   Sur comptes : index composite ns / dlv
-  */
   async getComptesDlvat (ns, dla, dlf) {
     const ns1 = ns
     const ns2 = ns + '{'
@@ -412,6 +411,7 @@ class Connx {
     }
     return r
   }
+  */
 
   // Versions si restriction de query sur inégalité sur un seul champ
   async getComptesDlvat2 (ns, dla, dlf) {

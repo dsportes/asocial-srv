@@ -31,7 +31,7 @@ export class Taches {
 
   static AVC = 24 // gestion et purges des chats de l'avatar
 
-  static ESP = 25 // maj des dlv des comptes d'un espace dont la dlvat a changé
+  // static ESP = 25 // maj des dlv des comptes d'un espace dont la dlvat a changé
 
   static OPSGC = new Set([Taches.DFH, Taches.DLV, Taches.TRA, Taches.FPU, Taches.VER, Taches.STA])
 
@@ -46,8 +46,8 @@ export class Taches {
     7: 'FPU',
     21: 'GRM',
     22: 'AGN',
-    24: 'AVC',
-    25: 'ESP'
+    24: 'AVC'
+    // 25: 'ESP'
   }
 
   static dh (t) {
@@ -470,40 +470,6 @@ operations.AVC = class AVC extends Operation {
   }
 }
 
-// maj des dlv des comptes d'un espace dont la dlvat a changé
-operations.ESP = class ESP extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
-
-  async phase2(args) {
-    this.ns = args.tache.ns
-    this.dla = args.tache.ids
-    if (!args.lst) {
-      let esp
-      try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }
-      if (!esp) { args.fini = true; return }
-      args.e = { dlvat: esp.dlvat, nbmi: esp.nbmi }
-      // Récupération de la liste des id des comptes à traiter
-      args.lst = await this.db.getComptesDlvat(this.ns, this.dla, esp.dlvat)
-      args.nb = args.lst.length
-      if (!args.lst.length) { args.fini = true; return }
-    }
-
-    while (args.lst.length) {
-      const id = ID.court(args.lst.pop())
-      const compte = await this.gd.getCO(id)
-      if (!compte || compte._estA || compte._estComptable) continue
-      const compta = await this.gd.getCA(id)
-      if (!compta) continue
-      const [, diff1] = compte.defDlv(args.e, this.auj, compta)
-      if (!diff1) continue
-      await compte.reportDeCompta(compta, this.gd)
-      break // un seul compte réellement traité par transaction
-    }
-      
-    if (!args.lst.length) args.fini = true
-  }
-}
-
 /* OP_ComptaStat : 'Enregistre en storage la statistique de comptabilité'
 du mois M-1 ou M-2 ou M-3 pour l'organisation org.
 args.org: code de l'organisation
@@ -603,6 +569,5 @@ Taches.OPCLZ = {
   7: operations.FPU,
   21: operations.GRM,
   22: operations.AGN,
-  24: operations.AVC,
-  25: operations.ESP
+  24: operations.AVC
 }
