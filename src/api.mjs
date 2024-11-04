@@ -627,9 +627,6 @@ export class Compteurs {
       for (let j = 0; j < Compteurs.NBCD; j++) 
         if (isNaN(v[j])) throw new AppExc(A_SRV, 17, [i, j])
     }
-    this.vd = new Array(Compteurs.NHD)
-    for(let i = 0; i < Compteurs.NHD; i++) this.vd[i] = new Array(Compteurs.NBCD).fill(0)
-
     const x = {}; Compteurs.lp.forEach(p => { x[p] = this[p]})
     return new Uint8Array(encode(x))
   }
