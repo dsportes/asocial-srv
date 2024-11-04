@@ -599,17 +599,16 @@ export class Compteurs {
   - dh: normalement absent. Utilisé pour faire des tests indépendants de la date-heure courante.
   */
   constructor (serial, qv, conso, dh) {
-    this.now = Date.now()
-    const t = dh || this.now
+    this.now = dh || Date.now()
     if (serial) {
       const x = decode(serial)
       Compteurs.lp.forEach(p => { this[p] = x[p]})
-      this.shift(t)
+      this.shift(this.now)
       if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
       if (conso) this.majConso(conso)
     } else { // création - Les quotas sont initialisés, les consommations et montants monétaires nuls
-      this.dh0 = t
-      this.dh = t
+      this.dh0 = this.now
+      this.dh = this.now
       this.dhraz = 0
       this.qv = qv
       this.vd = new Array(Compteurs.NHD)
