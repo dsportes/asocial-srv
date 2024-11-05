@@ -419,7 +419,7 @@ export class AMJ {
     return ((a + 1) * 10000) + 100 + 1
   }
   
-  static am(t) { // retourne [aaaa, mm] d'une epoch
+  static am (t) { // retourne [aaaa, mm] d'une epoch
     const d = new Date(t); return [d.getUTCFullYear(), d.getUTCMonth() + 1]
   }
 
@@ -538,20 +538,20 @@ export class Compteurs {
   static X4 = 3 // nombre de compteurs techniques (ms ca cc)
 
   static CUCONSO = Compteurs.X1 - 1 // indice du premier CU de consommation
-  static QC = 0 // quota de consommation
-  static QN = 1 // quota du nombre total de notes / chats / groupes.
-  static QV = 2 // quota du volume des fichiers.
-  static NL = 0 // nombre de lectures cumulées sur le mois.
-  static NE = 1 // nombre d'écritures.
-  static VM = 2 // volume _montant_ vers le Storage (upload).
-  static VD = 3 // volume _descendant_ du Storage (download).
-  static NN = 0 // nombre de notes existantes.
-  static NC = 1 // nombre de chats existants.
-  static NG = 2 // nombre de participations aux groupes existantes.
-  static V = 3 // volume effectif total des fichiers.
-  static MS = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 // nombre de ms dans le mois - si 0, le compte n'était pas créé
-  static CA = Compteurs.MS + 1 // coût de l'abonnment pour le mois
-  static CC = Compteurs.MS + 2 // coût de la consommation pour le mois
+  static QC = 0 // 0 quota de consommation
+  static QN = 1 // 1 quota du nombre total de notes / chats / groupes.
+  static QV = 2 // 2 quota du volume des fichiers.
+  static NL = 0 // 3 nombre de lectures cumulées sur le mois.
+  static NE = 1 // 4 nombre d'écritures.
+  static VM = 2 // 5 volume _montant_ vers le Storage (upload).
+  static VD = 3 // 6 volume _descendant_ du Storage (download).
+  static NN = 0 // 7 nombre de notes existantes.
+  static NC = 1 // 8 nombre de chats existants.
+  static NG = 2 // 9 nombre de participations aux groupes existantes.
+  static V = 3 // 10 volume effectif total des fichiers.
+  static MS = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 // 11 : nombre de ms dans le mois - si 0, le compte n'était pas créé
+  static CA = Compteurs.MS + 1 // 12 : coût de l'abonnment pour le mois
+  static CC = Compteurs.MS + 2 // 13 : coût de la consommation pour le mois
 
   static NBCD = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 + Compteurs.X4
 
@@ -579,12 +579,12 @@ export class Compteurs {
     - X1 + NE : nb écritures cumulés sur le mois (E),
     - X1 + VM : total des transferts montants (B),
     - X1 + VD : total des transferts descendants (B).
-  - X2 compteurs de _consommation moyenne sur le mois_ qui n'ont qu'une utilité documentaire.
+  - X3 compteurs de _consommation moyenne sur le mois_ qui n'ont qu'une utilité documentaire.
     - X2 + NN : nombre moyen de notes existantes.
     - X2 + NC : nombre moyen de chats existants.
     - X2 + NG : nombre moyen de participations aux groupes existantes.
     - X2 + V : volume moyen effectif total des fichiers stockés.
-  - 3 compteurs spéciaux
+  - X4 compteurs spéciaux
     - MS : nombre de ms dans le mois - si 0, le compte n'était pas créé
     - CA : coût de l'abonnement pour le mois
     - CC : coût de la consommation pour le mois
@@ -600,15 +600,17 @@ export class Compteurs {
   */
   constructor (serial, qv, conso, dh) {
     this.now = dh || Date.now()
+    if (this.now % 86400000 === 0) this.now++
     if (serial) {
       const x = decode(serial)
       Compteurs.lp.forEach(p => { this[p] = x[p]})
-      this.shift(this.now)
+      this.shift(this.now) 
+      this.dh = this.now // this.dh: date-heure de dernier calcul
       if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
       if (conso) this.majConso(conso)
     } else { // création - Les quotas sont initialisés, les consommations et montants monétaires nuls
       this.dh0 = this.now
-      this.dh = this.now
+      this.dh = this.now // this.dh: date-heure de dernier calcul
       this.dhraz = 0
       this.qv = qv
       this.vd = new Array(Compteurs.NHD)
@@ -871,23 +873,21 @@ export class Compteurs {
   }
 
   shift (t) {
+    const [a, m, j] = AMJ.aaaammjj(AMJ.amjUtcDeT(t))
+    const [ac, mc, jc] = AMJ.aaaammjj(AMJ.amjUtcDeT(this.dh))
     const [t0, avx, apx] = AMJ.t0avap(this.dh)
-    if (t < t0 + avx + apx) {
-      const [ac, mc] = AMJ.am(this.dh)
-      // le mois courant n'est pas fini : il est prolongé.
+    if (a === ac && m === mc) { // le mois courant n'est pas fini
       const ap = t - this.dh // ap : temps restant entre dh et t
-      // Si l'instant t est dans le mois de création, le nombre de ms AVANT dans le mois est moindre qua avx
+      // Si l'instant t est dans le mois de création, le nombre de ms AVANT dans le mois est moindre que avx
       const av = this.dh0 > t0 ? (this.dh - this.dh0) : avx 
       const v = this.calculMC(av, ap, this.vd[0], Tarif.cu(ac, mc))  
       this.mm[0] = v[Compteurs.CA] + v[Compteurs.CC] // le cout total du mois courant a changé
       this.vd[0] = v // le détail du mois courant a changé
-      this.dh = t // la date-heure du dernier calcul a changé
       return
     }
+
     // le nouveau mois courant est un autre mois
     // on calcule les mois manquants entre l'ancien courant et le mois actuel
-    const [a, m] = AMJ.am(t)
-    const [ac, mc] = AMJ.am(this.dh)
     const n = this.deltam(ac, mc, a, m) // nombre de mois à créer et calculer (au moins 1, le futur courant)
     // init de la structure temporaire vd / mm
     const _vd = new Array(Compteurs.NHD)
