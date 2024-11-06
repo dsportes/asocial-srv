@@ -353,6 +353,10 @@ export async function pubsub (req, res) {
     const opName = req.params.operation
     let result
     switch (opName) {
+    case 'ping': {
+      result = 'OK'
+      break
+    }
     case 'heartbeat' : {
       const args = decode(req.rawBody)
       const ns = Session.orgs.get(args.org)
