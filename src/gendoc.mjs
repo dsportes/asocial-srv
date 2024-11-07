@@ -1202,6 +1202,8 @@ export class Comptas extends GenDoc {
     return x.compile()
   }
 
+  get resume () { return new Compteurs(this.compteurs).resume }
+
   setA (estA) {
     this.estA = estA
     const c = new Compteurs(this.compteurs)

@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, idTkToL6, AMJ } from './api.mjs'
+import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, R, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'
@@ -21,51 +21,6 @@ export function assertKO (src, code, args) {
   console.error(t + ' ' + msg)
   if (args) args.unshift(src)
   return new AppExc(A_SRV, code, !args ? [src || '???'] : args)
-}
-
-export class R { // Restrictions
-  static RAL1 = 1 // Ralentissement des opérations
-  // Comptes O : compte.qv.pcc > 80% / 90%
-  // Comptes A : compte.qv.nbj < 20 / 10
-
-  static RAL2 = 2 // Ralentissement des opérations
-  // Comptes O : compte.qv.pcc > 90% / 100%
-  // Comptes A : compte.qv.nbj < 10
-
-  static NRED = 3 // Nombre de notes / chats /groupes en réduction
-  // compte.qv.pcn > 100
-
-  static VRED = 4 // Volume de fichier en réduction
-  // compte.qv.pcv > 100
-
-  static LECT = 5 // Compte en lecture seule (sauf actions d'urgence)
-  // Comptes 0 : espace.notifP compte.notifC de nr == 2
-
-  static MINI = 6 // Accès minimal, actions d'urgence seulement
-  // Comptes O : espace.notifP compte.notifC de nr == 3
-  // Comptes O : compte.qv.pcc > 100%
-  // Comptes A : compte.qv.nbj < 0
-
-  static FIGE = 8 // Espace figé en lecture
-
-  static CLOS = 9 // Espace figé en lecture
-
-  static getRal (c) {
-    if (c.idp) {
-      if (c.qv.pcc >= 100) return 2
-      if (c.qv.pcc >= 90) return 1
-    } else {
-      if (c.qv.nbj <= 10) return 2
-      if (c.qv.nbj <= 20) return 1
-    }
-    return 0
-  }
-
-  // true si une des restrictions du set s est grave (>= 5)
-  static estGrave(s) {
-    for(const r in s) if (r >= 5) return true
-    return false
-  }
 }
 
 /* Cache ************************************************************************
@@ -1051,19 +1006,6 @@ export class Operation {
     - this.id this.ns this.estA
     - this.compte this.compta
     - this.setR : set des restictions
-      `1-RAL1  2-RAL2` : Ralentissement des opérations
-        - Comptes O : compte.qv.pcc > 90% / 100%
-        - Comptes A : compte.qv.nbj < 20 / 10
-      `3-NRED` : Nombre de notes / chats /groupes en réduction
-        - compte.qv.pcn > 100
-      `4-VRED` : Volume de fichier en réduction
-        - compte.qv.pcv > 100
-      `5-LECT` : Compte en lecture seule (sauf actions d'urgence)
-        - Comptes 0 : espace.notifP compte.notifC de nr == 2
-      `6-MINI` : Accès minimal, actions d'urgence seulement
-        - Comptes 0 : espace.notifP compte.notifC de nr == 3
-      `9-FIGE` : Espace figé en lecture
-        - espace.notif.nr == 2
   */
   async auth1 () {
     const app_keys = config.app_keys
@@ -1100,58 +1042,62 @@ export class Operation {
   }
 
   async auth2 () {
+    this.setR = new Set()
+
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     const espace = await Esp.getEspOrg (this, this.org, true)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 996) }
     espace.excFerme()
     if (this.excFige === 2) espace.excFige()
+    if (espace.fige) this.setR.add(R.FIGE)
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, this.authData.hXR)
     if (!this.compte || this.compte.hXC !== this.authData.hXC) { 
       await sleep(3000); throw new AppExc(F_SRV, 998) 
     }
+
+    /* La dlv a été calculée à la fin de l'opération précédente, potentiellement des mois avant
+    A cette date, elle a été fixée, d'après la date-heure de connexion et
+    pour un compte A à la ddsn (date de début de solde négatif). 
+    Celle-ci a été estimée en supposant aucune consommation, seulement sur l'impact
+    du coût journalier d'abonnement sur le solde.
+    Donc cette dlv (calculée peut-être il y a longtemps) est VALIDE maintenant.
+    */
     if (this.compte.dlv < this.auj) { 
       await sleep(3000); throw new AppExc(F_SRV, 997) 
     }
+
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
     this.estA = !this.compte.idp
+
     // Opération du seul Comptable
     if (this.authMode === 2 && !this.estComptable) { 
       await sleep(3000); throw new AppExc(F_SRV, 104) 
     }
-    // Recherche des restrictions
-    if (!this.estComptable) {
-      const ral = R.getRal(this.compte)
-      if (ral) this.setR.add(ral)
-      if (this.compte.qv.pcn >= 100) this.setR.add(R.NRED)
-      if (this.compte.qv.pcv >= 100) this.setR.add(R.VRED)
-      if (this.compte.idp) {
-        if (this.compte.qv.pcc > 80) {
-          if (this.compte.qv.pcc < 90) this.setR.add(R.RAL1)
-          else if (this.compte.qv.pcc < 100) this.setR.add(R.RAL2)
-          else this.setR.add(R.MINI)
-        }
-        const np = espace.tnotifP[this.compte.idp]
-        let x = np ? np.nr : 0
-        const nc = this.compte.notif
-        if (nc && nc.nr > x) x = nc.nr
-        if (x) {
-          if (x === 2) this.setR.add(R.LECT)
-          if (x === 3) this.setR.add(R.MINI)
-        }
-      } else {
-        if (this.compte.qv.nbj < 20) {
-          if (this.compte.qv.nbj <= 0) this.setR.add(R.MINI)
-          else if (this.compte.qv.nbj < 10) this.setR.add(R.RAL2)
-          else this.setR.add(R.RAL1)
-        }
+
+    // Recherche des restrictions dans compta
+    this.compta = await this.gd.getCA(this.id)
+    const r = this.compta.resume
+    let n = r.pcc
+    if (n >= 100) this.setR.add(R.RAL1)
+    else if (n >= 80) this.setR.add(R.RAL2)
+    if (r.pcn >= 100) this.setR.add(R.NRED)
+    if (r.pcv >= 100) this.setR.add(R.VRED)
+    if (r.solde < 0)  this.setR.add(R.RESTR)
+
+    // Recherche des restrictions dans compte
+    if (!this.estComptable && this.compte.idp) {
+      const np = espace.tnotifP[this.compte.idp]
+      let x = np ? np.nr : 0
+      const nc = this.compte.notif
+      if (nc && nc.nr > x) x = nc.nr
+      if (x) {
+        if (x === 2) this.setR.add(R.LECT)
+        if (x === 3) this.setR.add(R.RESTRN)
       }
     }
-
-    // Facilité
-    this.compta = await this.gd.getCA(this.id)
   }
 
   async alerte (sub) {

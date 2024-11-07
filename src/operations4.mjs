@@ -3,10 +3,9 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
-import { Operation, R, trace } from './modele.mjs'
+import { Operation, trace } from './modele.mjs'
 import { compile, Transferts } from './gendoc.mjs'
-import { Taches } from './taches.mjs'
-import { UNITEV } from './api.mjs'
+import { UNITEV, R } from './api.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {
@@ -91,7 +90,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
   async phase2 (args) {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
-    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) throw new AppExc(F_SRV, 802)
 
     if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 308)
 
@@ -141,7 +140,7 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
 
   async phase2(args) {
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
-    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) throw new AppExc(F_SRV, 802)
 
     const sp = await this.gd.getSPO(args.id, args.ids, 'ProlongerSponsoring')
     sp.prolonger(this.dh, args)
@@ -237,7 +236,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
 class OperationCh extends Operation {
 
   async intro1 () {
-    if (this.setR.has(R.MINI)) await this.checkR()
+    if (this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) await this.checkR()
   }
 
   // Vérification des restrictions, initialisations de :
@@ -245,7 +244,7 @@ class OperationCh extends Operation {
     this.chI = await this.gd.getCAV(this.args.id, this.args.ids, 'Chat-intro')
     this.chE = await this.gd.getCAV(this.chI.idE, this.chI.idsE)
     if (!this.chE) return false
-    if (this.setR.has(R.MINI)) await this.checkR()
+    if (this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) await this.checkR()
     return true
   }
 
@@ -514,7 +513,7 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
 
   async phase2(args) {
     /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable 
-    if (this.setR.has(R.MINI) && !this.estComptable) throw new AppExc(F_SRV, 802)
+    if ((this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) && !this.estComptable) throw new AppExc(F_SRV, 802)
     */
     if (!this.compte.mav[args.id])
       throw new AppExc(A_SRV, 227)
@@ -563,8 +562,8 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
   }
 
   async phase2(args) {
-    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable */
-    if (this.setR.has(R.MINI) && !this.estComptable) 
+    /* Restriction NE s'applique QUE si le compte n'est pas le comptable */
+    if ((this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) && !this.estComptable) 
       throw new AppExc(F_SRV, 802)
     if (!this.compte.mpg[args.idg]) throw new AppExc(A_SRV, 275)
 
@@ -1081,7 +1080,7 @@ operations.MajCv = class MajCv extends Operation {
   }
 
   async phase2(args) {
-    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) throw new AppExc(F_SRV, 802)
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     if (!ID.estGroupe(args.cv.id)) {
@@ -1156,7 +1155,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   }
 
   async phase2(args) {
-    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) throw new AppExc(F_SRV, 802)
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     if (this.compte.mav[args.id]) return // création déjà faite pour le compte
@@ -1179,7 +1178,7 @@ operations.McMemo = class McMemo extends Operation {
   }
 
   async phase2 (args) { 
-    if (this.setR.has(R.MINI)) throw new AppExc(F_SRV, 802)
+    if (this.setR.has(R.RESTR) || this.setR.has(R.RESTRN)) throw new AppExc(F_SRV, 802)
     if (this.setR.has(R.LECT)) throw new AppExc(F_SRV, 801)
 
     const compti = await this.gd.getCI(this.id, 'McMemo-2')
