@@ -480,11 +480,10 @@ export class Partitions extends GenDoc {
     this._maj = true
   }
 
-  majQC (idc, qv, c2m) {
+  majQC (idc, qv) {
     const e = this.mcpt[idc]
     if (e) {
       e.q = { ...qv }
-      e.q.c2m = c2m
       this._maj = true
     }
   }
@@ -513,15 +512,13 @@ export class Partitions extends GenDoc {
   }
 
   ajoutCompte (compta, cleAP, del, notif) { // id de compta, q: copie de qv de compta
-    compta.compile()
-    const q = { ...compta.qv }
+    const q = compta.qv
     if (q.qc + this.qt.qc > this.q.qc) throw new AppExc(A_SRV, 319, [q.qc + this.qt.qc, this.q.qc])
     if (q.qn + this.qt.qn > this.q.qn) throw new AppExc(A_SRV, 320, [q.qn + this.qt.qn, this.q.qn])
     if (q.qv + this.qt.qv > this.q.qv) throw new AppExc(A_SRV, 321, [q.qv + this.qt.qv, this.q.qv])
     const r = { cleAP, nr: 0, q}
     if (del) r.del = true
     if (notif) r.notif = notif
-    r.q.c2m = compta._c2m
     this.mcpt[compta.id] = r
     this._maj = true
   }
@@ -665,7 +662,11 @@ _data_ :
 - `id` : numéro du compte = id de son avatar principal.
 - `v` : 1..N.
 - `hxr` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
-- `dlv` : dernier jour de validité du compte.
+- `dlv`: date limite de validité, dernier jour d'un mois,
+  le compte peut être détruit dès le lendemain.
+
+- `flags`: flags issus du dernier calcul des compteurs de compta.
+- `mdcnx`: aaaamm, mois de dernière connexion.
 
 - `vpe` : version du périmètre
 - `vci` : version de Compti
@@ -677,17 +678,7 @@ _data_ :
 - `privK` : clé privée RSA de son avatar principal cryptée par la clé K du compte.
 
 - `dhvuK` : date-heure de dernière vue des notifications par le titulaire du compte, cryptée par la clé K.
-- `qv` : `{ qc, qn, qv, pcc, pcn, pcv, nbj }`
-  - `pcc, pcn, pcv, nbj` : remontés de `compta` en fin d'opération quand l'un d'eux passe un seuil de 5% / 5j, à la montée ou à la descente.
-    - `pcc` : pour un compte O, pourcentage de sa consommation mensualisée sur M/M-1 par rapport à son quota `qc`.
-    - `nbj` : pour un compta A, nombre de jours estimés de vie du compte avant épuisement de son solde en prolongeant sa consommation des 4 derniers mois et son abonnement `qn qv`.
-    - `pcn` : pourcentage de son volume de notes / chats / groupes par rapport à son quota qn.
-    - `pcv` : pourcentage de son volume de fichiers par rapport à son quota qv.
-  - `qc qn qv` : maj immédiate en cas de changement des quotas.
-    - pour un compte O identiques à ceux de son entrée dans partition.
-    - pour un compte A, qn qv donné par le compte lui-même.
-    - en cas de changement, les compteurs de consommation sont remontés. 
-  - permet de calculer `notifQ`, `notifX` (O), `notifS` (A)
+- `qv` : qv de compta.compteurs.qv (à quelques % près)
 
 _Comptes "O" seulement:_
 - `clePK` : clé P de la partition cryptée par la clé K du compte. Si cette clé a une longueur de 256, la clé P a été cryptée par la clé publique de l'avatar principal du compte suite à une affectation à une partition APRÈS sa création (changement de partition, passage de compte A à O)
@@ -749,7 +740,8 @@ export class Comptes extends GenDoc {
       id: args.id,
       hk: args.hXR,
       hXC: args.hXC,
-      dlv: AMJ.max, 
+      dlv: AMJ.max,
+      flags: 0,
       cleKXC: args.cleKXC, 
       privK: args.privK,
       clePK: args.clePK,
@@ -765,13 +757,14 @@ export class Comptes extends GenDoc {
       } else {
         r.idp = ''
       }
-      r.qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
+      r.qv = { qc: sp.quotas.qc, qn: sp.quotas.qn, qv: sp.quotas.qv, 
+        nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
     } else { // Comptable
       r.cleEK = args.cleEK
       r.clePA = args.clePA
       r.idp = args.idp
       r.del = true
-      r.qv = { qc: 1, qn: 1, qv: 1, pcc: 0, pcn: 0, pcv: 0, nbj: 0 }
+      r.qv = { qc: 1, qn: 1, qv: 1, nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
       // args.ck: `{ cleP, code }` crypté par la clé K du comptable
       r.tpk[r.idp] = args.ck
     }
@@ -867,67 +860,36 @@ export class Comptes extends GenDoc {
     this._maj = true
   }
 
-  reporter (compta) { // pc de compta, nbj de compta
-    const pc = compta._pc, nbj = compta._nbj, qv = compta.qv
-    if (this.qv.qc !== qv.qc || this.qv.qn !== qv.qn || this.qv.qv !== qv.qv) return true
-    if (Math.floor(this.qv.pcn / 20) !== Math.floor(pc.pcn / 20)) return true
-    if (Math.floor(this.qv.pcv / 20) !== Math.floor(pc.pcv / 20)) return true
-    if (this.qv.qc && (Math.floor(this.qv.pcc / 20) !== Math.floor(pc.pcc / 20))) return true
-    if (!this.qv.qc && (Math.floor(this.qv.nbj / 20) !== Math.floor(nbj / 20))) return true
-    return false
-  }
-
-  defDlv (e, auj, compta) {
-    // DLV maximale : N mois depuis aujourd'hui
-    const dlvmax = !e ? 0 : (AMJ.djMois(AMJ.amjUtcPlusNbj(auj, e.nbmi * 30)))
-
-    let dlv
-    if (this.idp) // Compte O
-      dlv = ID.estComptable(this.id) ? AMJ.max : dlvmax
-    else { // Compte A
-      const d = AMJ.djMois(AMJ.amjUtcPlusNbj(auj, compta._nbj))
-      dlv = dlvmax > d ? d : dlvmax
-    }
-    let diff1 = AMJ.diff(dlv, this.dlv)
-    if (diff1 < 0) diff1 = -diff1
-    return [dlv, diff1]
-  }
-
-  /* Report de compta et calcul DLV: seulement si,
+  /* Report de compta.compteurs et calcul DLV: si et seulement si,
   - compte était déjà en maj
-  - OU chgt DLV significatif
-  - OU report des compteurs significatif
+  - OU chgt DLV
+  - OU chgt des compteurs.qv significatif
+  - OU flags ont chnagé
   */
   async reportDeCompta (compta, gd) {
-    compta.compile() // calcul _nbj _c2m _pc
-    let dlv, rep, diff
-
-    const setR = gd.op.setR
-    if (setR.has(5) || setR.has(6)) {
-      dlv = this.dlv
-      diff = false
-    } else {
-      const e = await gd.getEspace()
-      const [dlv1, diff1] = this.defDlv (e, gd.op.auj, compta)
-      dlv = dlv1
-      diff = diff1
+    const e = await gd.getEspace()
+    const compteurs = compta.compteurs
+    let dlv
+    if (_estComptable) dlv = AMJ.max
+    else {
+      if (compteurs.solde < 0) {
+        /* `n = espace.nbmi * 30 / 2` - la moitié du délai de conservation d'un compte non accédé (`nbmi` : 12 par défaut).
+          `dlv` : dernier jour du mois de `ddsn + n`. Date de début de solde négatif, plus un délai de n jours. 
+        */
+        dlv = AMJ.djMois(AMJ.amjUtcPlusNbj(compteurs.ddsn, e.nbmi * 15))
+      } else dlv = AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, e.nbmi * 30))
     }
+    const fl = compteurs.flags
+    const dqv = compteurs.deltaQV(this.qv)
 
-    rep = this._maj || diff || this.reporter(compta)
-
-    if (rep) {
+    if (this._maj || this.dlv !== dlv || this.flags !== fl || dqv) {
       this.dlv = dlv
-      if (!this.estA) this.qv.pcc = compta._pc.pcc 
-      else this.qv.nbj = compta._nbj
-      this.qv.pcn = compta._pc.pcn
-      this.qv.pcv = compta._pc.pcv
-      this.qv.qc = compta.qv.qc
-      this.qv.qn = compta.qv.qn
-      this.qv.qv = compta.qv.qv
+      this.flags = fl
+      this.qv = c.qv
       this._maj = true
-      if (!this.estA) { // maj partition
+      if (!this.estA && dqv) { // maj partition
         const p = await gd.getPA(this.idp)
-        p.majQC(this.id, compta.qv, compta._c2m)
+        p.majQC(this.id, c.qv)
       }
     }
   }
@@ -1169,47 +1131,39 @@ export class Invits extends GenDoc {
 /** Comptas ************************************************
 _data_ :
 _data_:
-- `id` : numéro du compte = id de son avatar principal.
+- `id` : ID du compte = ID de son avatar principal.
 - `v` : 1..N.
-- `qv` : `{qc, qn, qv, nn, nc, ng, v}`: quotas et nombre de groupes, chats, notes, volume fichiers. Valeurs courantes.
 - `compteurs` sérialisation des quotas, volumes et coûts.
-- _Comptes "A" seulement_
-  - `solde`: résultat, 
-    - du cumul des crédits reçus depuis le début de la vie du compte (ou de son dernier passage en compte A), 
-    - plus les dons reçus des autres,
-    - moins les dons faits aux autres.
-  - `tickets`: map des tickets / dons:
-    - _clé_: `ids`
-    - _valeur_: `{dg, iddb, dr, ma, mc, refa, refc, di}`
-  - `dons` : liste des dons effectués / reçus
-    - `dh`: date-heure du don
-    - `m`: montant du don (positif ou négatif)
-    - `iddb`: id du donateur / bénéficiaire (selon le signe de `m`).
+- `tickets`: map des tickets / dons:
+  - _clé_: `ids`
+  - _valeur_: `{dg, dr, ma, mc, refa, refc}`
+- `dons` : liste des dons effectués / reçus `[{ dh, m, iddb }]`
+  - `dh`: date-heure du don
+  - `m`: montant du don (positif ou négatif)
+  - `iddb`: id du donateur / bénéficiaire (selon le signe de `m`).
 */
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
 
-  static nouveau (id, quotas, don) {
-    const qv = { qc: quotas.qc, qn: quotas.qn, qv: quotas.qv, nn: 0, nc: 0, ng: 0, v: 0 }
-    const c = new Compteurs(null, qv)
+  static nouveau (id, quotas, don, estA) {
+    const qv = { qc: quotas.qc, qn: quotas.qn, qv: quotas.qv, 
+      nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
+    const c = new Compteurs(null, qv, null, estA, don)
     const x = new Comptas().init({
       _maj: true, v: 0, 
-      id: id, 
-      qv, 
-      solde: don || 0,
+      id: id,
       compteurs: c.serial
     })
     return x.compile()
   }
 
-  get resume () { return new Compteurs(this.compteurs).resume }
+  get compteurs () { return new Compteurs(this.compteurs) }
+
+  get qv () { return new Compteurs(this.compteurs).qv }
 
   setA (estA) {
-    this.estA = estA
-    const c = new Compteurs(this.compteurs)
-    c.setA(estA)
+    const c = new Compteurs(this.compteurs, null, null, estA)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
@@ -1225,18 +1179,6 @@ export class Comptas extends GenDoc {
     return x
   }
 
-  majcpt (c) {
-    this._nbj = c.estA ? c.nbj(this.solde) : 0
-    this._c2m = c.conso2M
-    this._pc = c.pourcents
-  }
-
-  compile () {
-    const c = new Compteurs(this.compteurs)
-    this.majcpt(c)
-    return this
-  }
-
   exN () {
     const x = this.qv.nn + this.qv.nc + this.qv.ng
     if (x > this.qv.qn * UNITEN) throw new AppExc(F_SRV, 55, [x, this.qv.qn * UNITEN])
@@ -1248,36 +1190,36 @@ export class Comptas extends GenDoc {
   }
 
   quotas (q) { // q: { qc: qn: qv: }
-    this.qv.qc = q.qc
-    this.qv.qn = q.qn
-    this.qv.qv = q.qv
-    const c = new Compteurs(this.compteurs, this.qv)
+    const qv = { ...this.qv }
+    qv.qc = q.qc
+    qv.qn = q.qn
+    qv.qv = q.qv
+    const c = new Compteurs(this.compteurs, qv)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
   ncPlus (q) {
-    this.qv.nc += q
-    const c = new Compteurs(this.compteurs, this.qv)
+    const qv = { ...this.qv }
+    qv.nc += q
+    const c = new Compteurs(this.compteurs, qv)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
   nnPlus (q) {
-    this.qv.nn += q
-    const c = new Compteurs(this.compteurs, this.qv)
+    const qv = { ...this.qv }
+    qv.nn += q
+    const c = new Compteurs(this.compteurs, qv)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
   ngPlus (q) {
-    this.qv.ng += q
-    const c = new Compteurs(this.compteurs, this.qv)
+    const qv = { ...this.qv }
+    qv.ng += q
+    const c = new Compteurs(this.compteurs, qv)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
@@ -1290,22 +1232,22 @@ export class Comptas extends GenDoc {
   }
 
   finHeb (nn, vf) {
-    this.qv.nn -= nn
-    this.qv.v -= vf
-    const c = new Compteurs(this.compteurs, this.qv)
+    const qv = { ...this.qv }
+    qv.nn -= nn
+    qv.v -= vf
+    const c = new Compteurs(this.compteurs, qv)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
   debHeb (nn, vf) {
-    this.qv.nn += nn
-    this.qv.v += vf
-    if ((this.qv.nn + this.qv.ng + this.qv.nc) > (this.qv.qn * UNITEN)) throw new AppExc(A_SRV, 281)
-    if (this.qv.v > (this.qv.qv * UNITEV)) throw new AppExc(A_SRV, 282)
-    const c = new Compteurs(this.compteurs, this.qv)
+    const qv = { ...this.qv }
+    qv.nn += nn
+    qv.v += vf
+    if ((qv.nn + qv.ng + qv.nc) > (qv.qn * UNITEN)) throw new AppExc(A_SRV, 281)
+    if (qv.v > (qv.qv * UNITEV)) throw new AppExc(A_SRV, 282)
+    const c = new Compteurs(this.compteurs, qv)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
@@ -1317,12 +1259,6 @@ export class Comptas extends GenDoc {
 
   moinsTk (tk) {
     if (this.tickets) delete this.tickets[tk.ids]
-    this._maj = true
-  }
-
-  majSolde (m) {
-    this.solde += m
-    this.compile()
     this._maj = true
   }
 
@@ -1346,14 +1282,18 @@ export class Comptas extends GenDoc {
     tk.mc = m
     tk.refc = refc || ''
     this.tickets[tk.ids] = tk.shortTk()
-    this.majSolde(m)
+    const c = new Compteurs(this.serial, null, null, null, m)
+    this.compteurs = c.serial
+    this._maj = true
   }
 
   don (dh, m, iddb) {
-    if (m < 0 && this.solde + m < 2) throw new AppExc(A_SRV, 215, [-m, this.total])
-    this.majSolde(m)
+    const c = new Compteurs(this.serial, null, null, null, m)
+    if (m < 0 && c.solde < 2) throw new AppExc(A_SRV, 215, [-m, c.solde])
     if (!this.dons) this.dons = []
     this.dons.push({dh, m, iddb})
+    this.compteurs = c.serial
+    this._maj = true
   }
 
   async incorpConso (op) {
@@ -1366,7 +1306,6 @@ export class Comptas extends GenDoc {
     const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
     const c = new Compteurs(this.compteurs, null, x)
     this.compteurs = c.serial
-    this.majcpt(c)
     this._maj = true
     op.setRes('conso', conso)
   }

@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, R, idTkToL6, AMJ } from './api.mjs'
+import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, AL, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'
@@ -302,9 +302,9 @@ class GD {
 
   nouvCO (args, sp, quotas, don) {
     const c = Comptes.nouveau(args, sp)
+    c.mdcnx = Math.floor(AMJ.amjUtcDeT(this.op.dh) / 100)
     this.comptes.set(c.id, c)
-    const compta = Comptas.nouveau(c.id, quotas, don || 0)
-    compta.setA(c.estA)
+    const compta = Comptas.nouveau(c.id, quotas, don || 0, c.estA)
     this.comptas.set(c.id, compta)
     const compti = Comptis.nouveau(c.id)
     this.comptis.set(compti.id, compti)
@@ -755,7 +755,7 @@ export class Operation {
     this.auj = AMJ.amjUtcDeT(this.dh)
     if (config.mondebug) 
       config.logger.debug(this.nomop + ' : ' + new Date(this.dh).toISOString())
-    this.setR = new Set()
+    this.flags = 0
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
     this.result = { dh: this.dh }
     this.toInsert = []
@@ -817,8 +817,8 @@ export class Operation {
 
       if (this.aTaches) Taches.startDemon(this)
 
-      if (this.setR.has(R.RAL1)) await sleep(500)
-      if (this.setR.has(R.RAL2)) await sleep(500)
+      if (AL.has(this.flags, AL.RAL1)) await sleep(100)
+      if (AL.has(this.flags, AL.RAL2)) await sleep(3000)
       
       return this.result
     } catch (e) {
@@ -989,7 +989,7 @@ export class Operation {
     if (!this.SYS && !this.estAdmin && this.authMode !== 0)
       await this.auth2() // this.compta est accessible (si authentifié)
     if (this.phase2) await this.phase2(this.args)
-    if (this.setR.has(R.FIGE)) return
+    if (AL.has(this.flags, AL.FIGE)) return
     await this.gd.maj()
   }
 
@@ -1005,7 +1005,7 @@ export class Operation {
   Après authentification, sont disponibles:
     - this.id this.ns this.estA
     - this.compte this.compta
-    - this.setR : set des restictions
+    - this.flags : set des restictions
   */
   async auth1 () {
     const app_keys = config.app_keys
@@ -1042,14 +1042,14 @@ export class Operation {
   }
 
   async auth2 () {
-    this.setR = new Set()
+    this.flags = 0
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     const espace = await Esp.getEspOrg (this, this.org, true)
     if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 996) }
     espace.excFerme()
     if (this.excFige === 2) espace.excFige()
-    if (espace.fige) this.setR.add(R.FIGE)
+    if (espace.fige) AL.add(this.flags, AL.FIGE)
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, this.authData.hXR)
@@ -1079,13 +1079,7 @@ export class Operation {
 
     // Recherche des restrictions dans compta
     this.compta = await this.gd.getCA(this.id)
-    const r = this.compta.resume
-    let n = r.pcc
-    if (n >= 100) this.setR.add(R.RAL1)
-    else if (n >= 80) this.setR.add(R.RAL2)
-    if (r.pcn >= 100) this.setR.add(R.NRED)
-    if (r.pcv >= 100) this.setR.add(R.VRED)
-    if (r.solde < 0)  this.setR.add(R.RESTR)
+    this.compta.addFlags(this.flags)
 
     // Recherche des restrictions dans compte
     if (!this.estComptable && this.compte.idp) {
@@ -1094,8 +1088,8 @@ export class Operation {
       const nc = this.compte.notif
       if (nc && nc.nr > x) x = nc.nr
       if (x) {
-        if (x === 2) this.setR.add(R.LECT)
-        if (x === 3) this.setR.add(R.RESTRN)
+        if (x === 2) AL.add(this.flags, AL.LSNTF)
+        if (x === 3) AL.add(this.flags, AL.ARNTF)
       }
     }
   }

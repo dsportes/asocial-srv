@@ -166,6 +166,45 @@ Enlever un ou des flags: n &= ~FLAGS.AC & ~FLAGS.IN
 Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 */
 
+export class AL {
+  static RAL1 = 1 << 0 // Ralentissement des opérations
+  static RAL2 = 1 << 1 // Ralentissement max des opérations
+  static NRED = 1 << 2 // Nombre de notes / chats /groupes en réduction
+  static VRED = 1 << 3 // Volume de fichier en réduction
+  static SN = 1 << 4 // Solde négatif
+  static SN3M = 1 << 5 // Solde négatif dans les 90 jours
+  static SN6M = 1 << 6 // Solde négatif dans les 120 jours
+  static LSNTF = 1 << 7 // Lecture seule par notification de compte / partition
+  static ARNTF = 1 << 8 // Accès restreint par notification pour compte O (actions d'urgence seulement)
+  static FIGE = 1 << 9 // Espace figé en lecture
+
+  static libs = ['RAL1', 'RAL2', 'NRED', 'VRED', 'SN', 'SN3M', 'SN6M', 'LSNTF', 'ARNTF', 'FIGE']
+
+  // Le flag f a la valeur v (code ci-dessus)
+  static has (f, v) { return f && v && (f << v) }
+
+  // Ajouter la valeur v à f
+  static add (f, v) { 
+    if (f && v) f |= v
+    return f
+  }
+
+  // Enlever la valeur v à f
+  static del (f, v) {
+    if (f && v) f &= ~v
+    return f
+  }
+
+  static edit (f) {
+    const s = []
+    this.libs.forEach((l, i) => {
+      const v = 1 << i
+      if (f << v) s.push[l]
+    })
+    return s.join(' ')
+  }
+}
+
 /************************************************************************/
 /* retourne un code à 6 lettres majuscules depuis l'id d'un ticket 
 id d'un ticket: aa mm rrr rrr rrr r 
@@ -231,7 +270,9 @@ quand on l'utilise pour signifier un instant.
 */
 export class AMJ {
   static max = 20991231
+  static maxt = Date.parse('31 Dec 2099 23:59:59 UTC')
   static min = 20000101
+  static mint = Date.parse('01 Jan 2000 00:00:00 UTC')
   
   static lx = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
@@ -301,7 +342,8 @@ export class AMJ {
   // Retourne l'amj + N jours (locale) de celle passée en argument
   static amjUtcPlusNbj(amj, nbj) {
     const d = new Date(AMJ.tDeAmjUtc(amj))
-    return AMJ.amjUtcDeT(d.getTime() + (nbj * 86400000)) // OK parce que UTC
+    const t = d.getTime() + (nbj * 86400000)
+    return t >= AMJ.maxt ? AMJ.max : AMJ.amjUtcDeT(t) // OK parce que UTC
     // d.setDate(d.getDate() + nbj)
     // return AMJ.amjUtcDeT(d.getTime())
   }
@@ -451,32 +493,6 @@ export function edvol (vol, u) {
 }
 
 /************************************************************************/
-export class R { // Restrictions
-  static RAL1 = 1 // Ralentissement des opérations
-  // compte.qv.pcc >= 80% < 100%
-
-  static RAL2 = 2 // Ralentissement des opérations
-  // Comptes O : compte.qv.pcc >= 100%
-
-  static NRED = 3 // Nombre de notes / chats /groupes en réduction
-  // compte.qv.pcn >= 100
-
-  static VRED = 4 // Volume de fichier en réduction
-  // compte.qv.pcv > 100
-
-  static LECT = 5 // Compte en lecture seule (sauf actions d'urgence)
-  // Comptes 0 : espace.notifP compte.notifC de nr == 2
-
-  static RESTRN = 6 // Accès restreint par notification pour compte O (actions d'urgence seulement)
-  // Comptes O : espace.notifP compte.notifC de nr == 3
-
-  static RESTR = 7 // Accès restreint (actions d'urgence seulement)
-  // solde < 0
-
-  static FIGE = 8 // Espace figé en lecture
-}
-
-/************************************************************************/
 /* Un tarif correspond à,
 - `am`: son premier mois d'application. Un tarif s'applique toujours au premier de son mois.
 - `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
@@ -542,7 +558,8 @@ quotas et volumes `qv` : `{ qc, qn, qv, nn, nc, ng, v }`
 - `nn`: nombre de notes existantes.
 - `nc`: nombre de chats existants.
 - `ng` : nombre de participations aux groupes existantes.
-- `v`: volume effectif total des fichiers.
+- `v`: volume effectif total des fichiers
+- `cjm`: coût journalier moyen de calcul sur M et M-1.
 consommations `conso` : `{ nl, ne, vm, vd }`
 - `nl`: nombre absolu de lectures depuis la création du compte.
 - `ne`: nombre d'écritures.
@@ -589,7 +606,7 @@ export class Compteurs {
   dh : date-heure courante
   dhpc : dh de début de la dernière période de cumul abo / conso. (création ou changement O / A).
   estA : true si le compte est A.
-  qv : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v }`.
+  qv : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v, cjm }`.
     Quand on _prolonge_ l'état actuel pendant un certain temps AVANT d'appliquer de nouvelles valeurs,
     il faut pouvoir disposer de celles-ci.
   solde : en unité monétaire à dh.
@@ -662,8 +679,9 @@ export class Compteurs {
     this.dh = this.now // this.dh: date-heure de dernier calcul
     if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
     if (conso) this.majConso(conso)
-    if (chgA !== undefined && chgA !== this.estA) this.setA(chgA)
+    if (chgA !== undefined && chgA !== null && chgA !== this.estA) this.setA(chgA)
     this.majsolde(av, dbcr)
+    this.qv.cjm = this.cjm
   }
 
   get serial() {
@@ -802,7 +820,8 @@ export class Compteurs {
       return 0 // compte gratuit, ne le sera pas à l'avenir
     // Compte A qui n'était pas débiteur : quand le deviendra-t-il (estimation) ?
     const nbj = this.solde / this.cjAbo(this.qv, this.dh)
-    return AMJ.amjUtcDeT(this.dh + (nbj * 86400000)) // OK parce que UTC
+    const tx = this.dh + (nbj * 86400000)
+    return AMJ.amjUtcDeT(tx > AMJ.maxt ? AMJ.maxt : tx) // OK parce que UTC
   }
 
   /* Rythme MENSUEL (en fait 30 jours) de consommation sur les mois M et M-1
@@ -866,14 +885,8 @@ export class Compteurs {
   max : max de pcc pcn pcv
   ddsn : date de début de solde négatif
   ddsnEst: true si ddsn est estimée
-  */
+  
   get resume () {
-    /*
-    const pcc = Math.round( (this.conso2M * 100) / this.qv.qc)
-    if (pcc > 999) pcc = 999  
-    const pcn = Math.round(this.n * 100 / UNITEN / this.qv.qn)
-    const pcv = Math.round(this.v * 100 / UNITEV / this.qv.qv)
-    */
     let pcc = this.qv.qc ? Math.round( (this.cjm * 30 * 100) / this.qv.qc) : 999
     if (pcc > 999) pcc = 999  
     let pcn = this.qv.qn ? Math.round(this.n * 100 / UNITEN / this.qv.qn) : 999
@@ -884,6 +897,32 @@ export class Compteurs {
     return {estA: this.estA, pcc, pcn, pcv, max, 
       ddsn: this.ddsn, ddsnEst: this.ddsnEst, 
       solde: this.solde, njec: this.njec }
+  }
+  */
+
+  // Ajoute les flags à f ou à 0 si f absent: retourne f
+  addFlags (f) {
+    const x = f || 0
+    const pcc = this.qv.qc ? Math.round( (this.qv.cjm * 30 * 100) / this.qv.qc) : 999
+    if (pcc >= 100) AL.add(f, AL.RAL2) ; else if (pcc >= 80) AL.add(f, AL.RAL1)
+    const pcn = this.qv.qn ? Math.round(this.n * 100 / UNITEN / this.qv.qn) : 999
+    if (pcn >= 100) AL.add(f, AL.NRED)  
+    const pcv = this.qv.qv ? Math.round(this.v * 100 / UNITEV / this.qv.qv) : 999
+    if (pcv >= 100) AL.add(f, AL.VRED)
+    if (this.solde < 0) AL.add(f, AL.SN)
+    else {
+      const nj = (this.ddsn - this.dh) / MSPARJOUR
+      if (nj <= 90) AL.add(f, AL.SN3M); else if (nj <= 180) AL.add(f, AL.SN6M)
+    }
+    return x
+  }
+
+  get flags () { return this.addFlags(0) }
+
+  /* retourne le qv SSI il y a une différence significative
+  avec la valeur avant */
+  deltaQV (av) {
+
   }
 
   /*
@@ -1135,20 +1174,17 @@ export class Compteurs {
     const z = c.cumref // [x, t, (this.dh - t) / MSPARJOUR]
     const ld = ['création', 'devenu A', 'devenu O'][z[0]] + 
     console.log('>> ' + (this.estA ? 'A' : 'O') + ' >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-    console.log('dh =' + new Date(c.dh).toISOString())
+    console.log('dh=' + new Date(c.dh).toISOString())
     console.log('dh0=' + new Date(c.dh0).toISOString())
-    console.log('Période ref: ' + new Date(z[1]).toISOString()) + ' *** ' 
+    console.log('période ref: ' + new Date(z[1]).toISOString()) + ' *** ' 
       + ld + ' ' + z[2].toPrecision(2)
-    const r = this.resume
-    let s = 'Résumé: '
-    for(let f in r) s += f + '=' + r[f] + ' '
-    console.log(s)
+    console.log('flags: ' + this.flags)
     const p = `
   cumulCouts=${e6(c.cumulCouts)} cumulAbo=${e6(c.cumulAbo)} cumulConso=${e6(c.cumulConso)}
   aboma=${e6(c.aboma)} consoma=${e6(c.consoma)}
   QUOTAS -> qn=${c.qv.qn} qv=${c.qv.qn} qc=${c.qv.qn} 
-  CPT -> N=${c.n} nn=${c.qv.nn} nc=${c.qv.nc} ng=${c.qv.ng} V=${e6(c.qv.v)} 
-  cjm*30= ${e6(c.cjm * 30)}  cjAbo*30= ${e6(c.cjAbo * 30)}`
+  CPT -> N=${c.n} nn=${c.qv.nn} nc=${c.qv.nc} ng=${c.qv.ng} V=${e6(c.qv.v)} cjm*30= ${e6(c.qv.cjm * 30)} 
+  cjAbo*30= ${e6(c.cjAbo * 30)}`
     console.log(JSON.stringify(c.qv) + p)
   }
   
@@ -1227,7 +1263,7 @@ export function synthesesPartition (p) {
     id: p.id,
     ntfp: ntfp,
     q: { ...p.q },
-    qt: { qc: 0, qn: 0, qv: 0, c2m: 0, n: 0, v: 0 },
+    qt: { qc: 0, qn: 0, qv: 0, cjm: 0, n: 0, v: 0 },
     ntf: [0, 0, 0],
     nbc: 0,
     nbd: 0
@@ -1238,7 +1274,7 @@ export function synthesesPartition (p) {
     r.qt.qc += x.q.qc
     r.qt.qn += x.q.qn
     r.qt.qv += x.q.qv
-    r.qt.c2m += x.q.c2m
+    r.qt.cjm += x.q.cjm
     r.qt.n += x.q.nn + x.q.nc + x.q.ng
     r.qt.v += x.q.v
     if (x.notif && x.notif.nr) r.ntf[x.notif.nr - 1]++
@@ -1248,7 +1284,7 @@ export function synthesesPartition (p) {
   r.pcac = !r.q.qc ? 0 : Math.round(r.qt.qc * 100 / r.q.qc) 
   r.pcan = !r.q.qn ? 0 : Math.round(r.qt.qn * 100 / r.q.qn) 
   r.pcav = !r.q.qv ? 0 : Math.round(r.qt.qv * 100 / r.q.qv) 
-  r.pcc = !r.q.qc ? 0 : Math.round(r.qt.c2m * 100 / r.q.qc) 
+  r.pcc = !r.q.qc ? 0 : Math.round(r.qt.cjm * 30 * 100 / r.q.qc) 
   r.pcn = !r.q.qn ? 0 : Math.round(r.qt.n * 100 / (r.q.qn * UNITEN)) 
   r.pcv = !r.q.qv ? 0 : Math.round(r.qt.v * 100 / (r.q.qv * UNITEV)) 
   return r
