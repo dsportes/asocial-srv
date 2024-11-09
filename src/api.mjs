@@ -981,11 +981,17 @@ export class Compteurs {
   /* PRIVEE - Lors de la transition O <-> A : 
   raz des cumuls des abonnement / consommation des mois antérieurs */
   setA (estA) { 
+    // le solde est "arrêté" au solde réel
+    this.solde = this.soldeR
     this.estA = estA
     this.dhpc = this.dh
     this.aboma = 0
     this.consoma = 0
   }
+  
+  // Pour un compte A, le solde est amputé de la consommaton de la période référence
+  // Pour un compte O, c'est le solde sans imputation compte "gratuit")
+  get soldeCourant () { return this.solde -= (this.estA ? (this.aboma + this.consoma) : 0) }
 
   /* PRIVEE - Met à jour le solde ET recalcule si nécessaire la ddsn 
     av :  { dh: this.dh, qv : this.qv, solde: this.solde } - Valeurs AVANT
