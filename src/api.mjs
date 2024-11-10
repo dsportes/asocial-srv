@@ -171,14 +171,12 @@ export class AL {
   static RAL2 = 1 << 1 // Ralentissement max des opérations
   static NRED = 1 << 2 // Nombre de notes / chats /groupes en réduction
   static VRED = 1 << 3 // Volume de fichier en réduction
-  static SN = 1 << 4 // Solde négatif
-  static SN3M = 1 << 5 // Solde négatif dans les 90 jours
-  static SN6M = 1 << 6 // Solde négatif dans les 120 jours
-  static LSNTF = 1 << 7 // Lecture seule par notification de compte / partition
-  static ARNTF = 1 << 8 // Accès restreint par notification pour compte O (actions d'urgence seulement)
-  static FIGE = 1 << 9 // Espace figé en lecture
+  static ARSN = 1 << 4 // Accès restreint par solde négatif
+  static LSNTF = 1 << 5 // Lecture seule par notification de compte / partition
+  static ARNTF = 1 << 6 // Accès restreint par notification pour compte O (actions d'urgence seulement)
+  static FIGE = 1 << 7 // Espace figé en lecture
 
-  static libs = ['RAL1', 'RAL2', 'NRED', 'VRED', 'SN', 'SN3M', 'SN6M', 'LSNTF', 'ARNTF', 'FIGE']
+  static libs = ['RAL1', 'RAL2', 'NRED', 'VRED', 'ARSN', 'LSNTF', 'ARNTF', 'FIGE']
 
   // Le flag f a la valeur v (code ci-dessus)
   static has (f, v) { return f && v && (f << v) }
@@ -337,18 +335,22 @@ export class AMJ {
   static jDeAmjUtc (amj) { const d = new Date(AMJ.tDeAmjUtc(amj)); const j = d.getDay(); return j === 0 ? 7 : j }
 
   // Retourne le nombre de jours entre 2 amj
-  static diff (amj1, amj2) { return (AMJ.tDeAmjUtc(amj1) - AMJ.tDeAmjUtc(amj2)) / 86400000 }
+  static diff (amj1, amj2) { return (AMJ.tDeAmjUtc(amj1) - AMJ.tDeAmjUtc(amj2)) / MSPARJOUR }
 
-  // Retourne l'amj + N jours (locale) de celle passée en argument
+  // Retourne l'amj + N jours de celle passée en argument
   static amjUtcPlusNbj(amj, nbj) {
     const d = new Date(AMJ.tDeAmjUtc(amj))
     const t = d.getTime() + (nbj * 86400000)
     return t >= AMJ.maxt ? AMJ.max : AMJ.amjUtcDeT(t) // OK parce que UTC
-    // d.setDate(d.getDate() + nbj)
-    // return AMJ.amjUtcDeT(d.getTime())
   }
 
-  // Retourne l'amj + N jours (utc) de celle passée en argument
+  // Retourne l'amj + N jours de celle passée en argument
+  static amjTPlusNbj(dh, nbj) {
+    const t = dh + (nbj * MSPARJOUR)
+    return t >= AMJ.maxt ? AMJ.max : AMJ.amjUtcDeT(t) // OK parce que UTC
+  }
+  
+  // Retourne l'amj + N jours de celle passée en argument
   static amjLocPlusNbj(amj, nbj) {
     const d = new Date(AMJ.tDeAmjLoc(amj))
     d.setDate(d.getDate() + nbj)
@@ -598,7 +600,7 @@ export class Compteurs {
 
   static NBCD = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 + Compteurs.X4
 
-  static lp = ['dh0', 'dh', 'dhpc', 'estA', 'qv', 'solde', 'ddsnP', 'vd', 'mm', 'aboma', 'consoma']
+  static lp = ['dh0', 'dh', 'dhpc', 'estA', 'qv', 'solde', 'dhsn', 'vd', 'mm', 'aboma', 'consoma']
   static lqv = ['qc', 'qn', 'qv', 'nn', 'nc', 'ng', 'v']
 
   /* Propriétés stockées:
@@ -610,7 +612,7 @@ export class Compteurs {
     Quand on _prolonge_ l'état actuel pendant un certain temps AVANT d'appliquer de nouvelles valeurs,
     il faut pouvoir disposer de celles-ci.
   solde : en unité monétaire à dh.
-  ddsnP : date de début de solde négatif dans le passé.
+  dhsn : date-heure de début de solde négatif dans le passé.
   vd : [0..3] - vecteurs détaillés pour M M-1 M-2 M-3.
   mm : [0..18] - coût abo + conso pour le mois M et les 17 mois antérieurs (si 0 pour un mois, le compte n'était pas créé)
   aboma : pour un compte A, somme des coûts d'abonnement des mois antérieurs au mois courant depuis la création du compte 
@@ -657,7 +659,7 @@ export class Compteurs {
   */
   constructor (serial, qv, conso, chgA, dbcr, dh) {
     this.now = dh || Date.now()
-    if (this.now % 86400000 === 0) this.now++
+    if (this.now % MSPARJOUR === 0) this.now++
     if (serial) {
       const x = decode(serial)
       Compteurs.lp.forEach(p => { this[p] = x[p]})
@@ -667,7 +669,7 @@ export class Compteurs {
       this.dhpc = this.now
       this.estA = false
       this.solde = 0
-      this.ddsnP = 0
+      this.dhsn = 0
       this.qv = qv
       this.vd = new Array(Compteurs.NHD)
       for(let i = 0; i < Compteurs.NHD; i++) this.vd[i] = new Array(Compteurs.NBCD).fill(0)
@@ -675,13 +677,14 @@ export class Compteurs {
       this.aboma = 0
       this.consoma = 0
     }
-    const av = { dh: this.dh, qv : this.qv, solde: this.solde } // Valeurs AVANT pour calculer le nouveau solde
     this.dh = this.now // this.dh: date-heure de dernier calcul
+    this.majCjm()
+    this.majDhsn()
+    // fin de réactualisation. Préparation début nouvelle situation
     if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
     if (conso) this.majConso(conso)
     if (chgA !== undefined && chgA !== null && chgA !== this.estA) this.setA(chgA)
-    this.majsolde(av, dbcr)
-    this.qv.cjm = this.cjm
+    if (dbcr) this.majsolde(dbcr)
   }
 
   get serial() {
@@ -732,51 +735,18 @@ export class Compteurs {
     lignes.push([qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, nj, ca, cc].join(sep))
   }
 
-  /* début de la période de référence [x, dh] : (compte O seulment)
-  x: 0 -> création du compte
-  x: 1 -> début du mois précédent
-  x: 2 -> compte devient autonome
-  x: 3 -> compte devient organisation
-  */
- /*
-  get debref () {
-    let x = 0, t = 0
-    const [a, m] = AMJ.am(this.dh)
-    let ax = a, mx = m - 1
-    if (mx === 0) { mx = 12; ax--}
-    const tmp = AMJ.t0MoisM(ax, mx)
-    if (this.dhraz && this.dhraz > tmp) {
-      x = 3
-      t = this.dhraz
-    } else {
-      if (tmp < this.dh0) { x = 0; t = this.dh0 }
-      else { x = 1; t = tmp }
-    }
-    const r = [x, t, Math.floor((this.dh - t) / MSPARJOUR)]
-    return r
-  }
-  */
-
   /* nb de jours de la période de cumul abo+conso */
-  get nbjCumref () {
-    return (this.dh - this.dhpc) / MSPARJOUR
-  }
+  get nbjCumref () { return (this.dh - this.dhpc) / MSPARJOUR }
 
-  get cumulAbo () { 
-    return this.aboma + this.vd[0][Compteurs.CA]
-  }
+  get cumulAbo () { return this.aboma + this.vd[0][Compteurs.CA] }
 
-  get cumulConso () { 
-    return this.consoma + this.vd[0][Compteurs.CC]
-  }
+  get cumulConso () { return this.consoma + this.vd[0][Compteurs.CC] }
 
-  get cumulCouts () { 
-    return this.cumulAbo + this.cumulConso
-  }
+  get cumulCouts () { return this.cumulAbo + this.cumulConso }
 
   /* `cjm` : consommation journalière moyenne (en c) relevée sur le mois en cours et le précédent.
   */
-  get cjm () {
+  majCjm () {
     const nl = this.vd[0][Compteurs.X1 + Compteurs.NL] + this.vd[1][Compteurs.X1 + Compteurs.NL]
     const ne = this.vd[0][Compteurs.X1 + Compteurs.NN] + this.vd[1][Compteurs.X1 + Compteurs.NE]
     const vm = this.vd[0][Compteurs.X1 + Compteurs.VM] + this.vd[1][Compteurs.X1 + Compteurs.VM]
@@ -791,7 +761,7 @@ export class Compteurs {
     const ims = Compteurs.X1 + Compteurs.X2 + Compteurs.X3
     let ms = this.vd[0][ims] + this.vd[1][ims]
     if ((ms / MSPARJOUR) < 10) ms = 10 * MSPARJOUR
-    return ms ? m / ms : 0
+    this.qv.cjm = ms ? m / ms : 0
   }
 
   /* cjAbo : coût journalier de l'abonnement qv à la date dh*/
@@ -805,213 +775,78 @@ export class Compteurs {
     return m / 30
   }
 
-  /* deec : date estimée d'épuisement du crédit */
+  /* njec : nombre de jours estimés avant épuisement du crédit */
   get njec () {
-    if (this.solde < 0) return 0
+    if (this.soldeCourant < 0) return 0
     const cj = this.cjAbo + this.cjm
-    return Math.floor(this.solde / cj)
+    return Math.floor(this.soldeCourant / cj)
   }
-
-  /* Date de début de solde négatif: passée (réelle) ou future (estimée) */
-  get ddsn () {
-    if (this.ddsnP) // était inscrit comme négatif dans le passé
-      return this.ddsnP
-    if (!this.estA) // compte O qui n'était pas débiteur
-      return 0 // compte gratuit, ne le sera pas à l'avenir
-    // Compte A qui n'était pas débiteur : quand le deviendra-t-il (estimation) ?
-    const nbj = this.solde / this.cjAbo(this.qv, this.dh)
-    const tx = this.dh + (nbj * 86400000)
-    return AMJ.amjUtcDeT(tx > AMJ.maxt ? AMJ.maxt : tx) // OK parce que UTC
-  }
-
-  /* Rythme MENSUEL (en fait 30 jours) de consommation sur les mois M et M-1
-  - pour M le nombre de jours est le jour du mois, 
-  - pour M-1 c'est le nombre de jours du mois.
-  */
- /*
-  get conso2M () {
-    const [ac, mc] = AMJ.am(this.dh)
-    const mja = AMJ.djm(mc === 1 ? ac - 1 : ac, mc === 1 ? 12 : mc - 1)
-    return mc + mja === 0 ? 0 : (this.conso2B * 30 / (mc + mja))
-  }
-  
-  get conso2B () {
-    return this.vd[0][Compteurs.CC] + this.vd[1][Compteurs.CC]
-  }
-  */
-
-  /* Moyenne _mensualisée_ de la consommation sur le mois en cours et les 3 précédents
-  Si le nombre de jours d'existence est inférieur à 30, retourne conso2M
-  
-  get conso4M () {
-    let c = 0, ms = 0
-    for(let i = 0; i < Compteurs.NHD; i++) { 
-      c += this.vd[i][Compteurs.CC]
-      ms += this.vd[i][Compteurs.MS]
-    }
-    const nbj = Math.floor(ms / MSPARJOUR)
-    return nbj < 30 ? this.conso2M : (c * 30 / nbj)
-  }
-  */
-
-  /* Moyenne _mensualisée_ de l'abonnement sur le mois en cours et les 3 précédents
-  
-  get abo4M () {
-    let ams = 0, ms = 0
-    for(let i = 0; i < Compteurs.NHD; i++) { 
-      ms += this.vd[i][Compteurs.MS]
-      ams += (this.vd[i][Compteurs.CA] * ms )
-    }
-    if (ms === 0) {
-      const [ac, mc] = AMJ.am(this.dh)
-      const cu = Tarif.cu(ac, mc)
-      return (this.qv.qn * cu[0]) + (this.qv.qv * cu[1])
-    } else {
-      return ams / ms * MSPARMOIS
-    }
-  }
-  */
-
-  get n () { return this.qv.nn + this.qv.nc + this.qv.ng }
-
-  get v () { return this.qv.v }
-
-  get ddsnEst () { return this.ddsn !== this.ddsnP }
-
-  /*
-  pcc : consommation mensualisée sur M et M-1 / quota qc
-  pcn : nombre actuel de notes, chats, groupes / quota qn
-  pcv : volume actuel des fichiers / quota qv
-  max : max de pcc pcn pcv
-  ddsn : date de début de solde négatif
-  ddsnEst: true si ddsn est estimée
-  
-  get resume () {
-    let pcc = this.qv.qc ? Math.round( (this.cjm * 30 * 100) / this.qv.qc) : 999
-    if (pcc > 999) pcc = 999  
-    let pcn = this.qv.qn ? Math.round(this.n * 100 / UNITEN / this.qv.qn) : 999
-    if (pcn > 999) pcn = 999  
-    let pcv = this.qv.qv ? Math.round(this.v * 100 / UNITEV / this.qv.qv) : 999
-    if (pcv > 999) pcv = 999  
-    let max = pcc; if (pcn > max) max = pcn; if (pcv > max) max = pcv
-    return {estA: this.estA, pcc, pcn, pcv, max, 
-      ddsn: this.ddsn, ddsnEst: this.ddsnEst, 
-      solde: this.solde, njec: this.njec }
-  }
-  */
 
   // Ajoute les flags à f ou à 0 si f absent: retourne f
   addFlags (f) {
+    const n = this.qv.nn + this.qv.nc + this.qv.ng
     const x = f || 0
     const pcc = this.qv.qc ? Math.round( (this.qv.cjm * 30 * 100) / this.qv.qc) : 999
-    if (pcc >= 100) AL.add(f, AL.RAL2) ; else if (pcc >= 80) AL.add(f, AL.RAL1)
-    const pcn = this.qv.qn ? Math.round(this.n * 100 / UNITEN / this.qv.qn) : 999
-    if (pcn >= 100) AL.add(f, AL.NRED)  
-    const pcv = this.qv.qv ? Math.round(this.v * 100 / UNITEV / this.qv.qv) : 999
-    if (pcv >= 100) AL.add(f, AL.VRED)
-    if (this.solde < 0) AL.add(f, AL.SN)
-    else {
-      const nj = (this.ddsn - this.dh) / MSPARJOUR
-      if (nj <= 90) AL.add(f, AL.SN3M); else if (nj <= 180) AL.add(f, AL.SN6M)
-    }
+    if (pcc >= 100) AL.add(x, AL.RAL2) ; else if (pcc >= 80) AL.add(x, AL.RAL1)
+    const pcn = this.qv.qn ? Math.round(n * 100 / UNITEN / this.qv.qn) : 999
+    if (pcn >= 100) AL.add(x, AL.NRED)  
+    const pcv = this.qv.qv ? Math.round(this.qv.v * 100 / UNITEV / this.qv.qv) : 999
+    if (pcv >= 100) AL.add(x, AL.VRED)
+    if (this.soldeCourant < 0) AL.add(x, AL.SN)
     return x
   }
 
   get flags () { return this.addFlags(0) }
 
-  /* retourne le qv SSI il y a une différence significative
-  avec la valeur avant */
+  /* retourne true si le qv SSI a changé de manière significative par rapport à la valeur avant */
   deltaQV (av) {
-
-  }
-
-  /*
-  get notifQ () { // notitication de dépassement de quotas
-    const pcn = Math.round(this.n * 100 / UNITEN / this.qv.qn)
-    const pcv = Math.round(this.v * 100 / UNITEV / this.qv.qv)
-    const max = pcn > pcv ? pcn : pcv
-    const ntf = { dh: this.dh }
-    if (max >= 100) { ntf.nr = 2; ntf.texte = '%qv' }
-    else if (max >= 90) { ntf.nr = 0; ntf.texte = '%Q0' }
-    return ntf.texte ? ntf : null
-  }
-  
-  get notifX () { // consommation excessive
-    const ntf = { dh: this.dh }
-    if (this.qv.qc) {
-      const { pcc } = this.pourcents
-      if (pcc >= 100) { ntf.nr = 2; ntf.texte = '%X2' }
-      else if (pcc >= 90) { ntf.nr = 0; ntf.texte = '%X0' }
+    const ap = this.qv
+    if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) return true
+    function d5 (x) { 
+      if ((av[x] && !ap[x]) || (!av[x] && ap[x])) return true
+      let y = (av[x] - ap[x]) / av[x]; if (y < 0) y = -y
+      return y > 1.05 || y < 0.95
     }
-    return ntf.texte ? ntf : null
-  }
-  */
-
-  /* Nombre de jours avant que le solde devienne négatif
-  en prolongeant le coût d'abonnement et ceux de consommation sur les 4 derniers mois
-  raz: true pour une mutation de compte O en A. Le nombre de jours
-  ignore le coût antérieur accummulé.
-  
-  nbj (soldex, raz) {
-    const solde = raz ? soldex : (soldex - this.cumulCouts)
-    if (solde <= 0) return 0
-    const [ac, mc] = AMJ.am(this.dh)
-    const cu = Tarif.cu(ac, mc)
-    const abo = (this.qv.qn * cu[0]) + (this.qv.qv * cu[1])
-    const n = Math.floor(solde / (abo + this.conso4M) * 30)
-    return n < 999 ? n : 999
+    return d5('nn') || d5('nc') || d5('ng') || d5('ng') || d5('v') || d5('cjm')
   }
 
-  notifS (credits) { // notification de dépassement des crédits
-    const ntf = { dh: Date.now() }
-    // const solde = credits + this.dec - this.cumulCouts
-    const solde = credits - this.cumulCouts
-    if (solde < 0) { ntf.nr = 2; ntf.texte = '%S2' }
-    else {
-      const nbj = this.nbj(credits)
-      if (nbj < 60) {
-        ntf.nr = 0
-        ntf.texte = '%S0'
-      }
-    }
-    return ntf.texte ? ntf : null
-  }
-  */
+  // Pour un compte A, le solde est amputé de la consommaton de la période référence
+  // Pour un compte O, c'est le solde sans imputation compte "gratuit")
+  get soldeCourant () { return this.solde -= (this.estA ? (this.aboma + this.consoma) : 0) }
 
   /* PRIVEE - Lors de la transition O <-> A : 
   raz des cumuls des abonnement / consommation des mois antérieurs */
   setA (estA) { 
-    // le solde est "arrêté" au solde réel
-    this.solde = this.soldeR
+    // le solde est "arrêté" au solde courant
+    this.solde = this.soldeCourant
     this.estA = estA
     this.dhpc = this.dh
     this.aboma = 0
     this.consoma = 0
   }
   
-  // Pour un compte A, le solde est amputé de la consommaton de la période référence
-  // Pour un compte O, c'est le solde sans imputation compte "gratuit")
-  get soldeCourant () { return this.solde -= (this.estA ? (this.aboma + this.consoma) : 0) }
-
-  /* PRIVEE - Met à jour le solde ET recalcule si nécessaire la ddsn 
-    av :  { dh: this.dh, qv : this.qv, solde: this.solde } - Valeurs AVANT
-  */
-  majSolde (av, dbcr) {
-    this.solde += dbcr || 0
-    if (this.solde >= 0) {
-      this.ddsnP = 0
+  /* Date de début de solde négatif */
+  majDhsn () {
+    if (!this.estA) return // compte O : inchangée (gratuit)
+    if (this.dhsn) return // était déjà négatif : inchangée
+    if (this.soldeCourant >= 0) { 
+      this.dhsn = 0
       return
     }
-    // Solde négatif
-    if (av.solde < 0) return // le solde était déjà négatif : ddnsP est conservée
-    // le solde ETAIT positif. Quand est-il passé négatif ?
-    const c = this.cjAbo (av.qv, av.dh)
-    const dhn = av.dh + (MSPARJOUR * av.solde / c)
-    if (dhn > this.dh) { // n'aurait pas été négatif si le solde n'avait pas réduit
-      this.ddsnP = AMJ.amjUtcDeT(this.dh)
-    } else {
-      this.ddsnP = AMJ.amjUtcDeT(dhn)
+    const nbj = this.soldeCourant / this.cjAbo(this.qv, this.dh)
+    this.dhsn = this.dh - (nbj * MSPARJOUR)
+  }
+  
+  /* PRIVEE - Met à jour le solde et dhsn */
+  majSolde (dbcr) {
+    this.solde += dbcr || 0
+    if (this.soldeCourant >= 0) {
+      this.ddsn = 0
+      return
     }
+    // nouveau solde courant < 0
+    if (this.dhsn) return // était négatif, l'est toujours, dh de sn inchangée
+    this.dhsn = this.dh // était positif, devient négatif, dh de sn maintenant
   }
 
   /* PRIVEE - maj de la consommation */
@@ -1184,13 +1019,13 @@ export class Compteurs {
     console.log('dh0=' + new Date(c.dh0).toISOString())
     console.log('période ref: ' + new Date(z[1]).toISOString()) + ' *** ' 
       + ld + ' ' + z[2].toPrecision(2)
-    console.log('flags: ' + this.flags)
+    console.log('flags: ' + AL.edit(this.flags))
     const p = `
   cumulCouts=${e6(c.cumulCouts)} cumulAbo=${e6(c.cumulAbo)} cumulConso=${e6(c.cumulConso)}
   aboma=${e6(c.aboma)} consoma=${e6(c.consoma)}
   QUOTAS -> qn=${c.qv.qn} qv=${c.qv.qn} qc=${c.qv.qn} 
-  CPT -> N=${c.n} nn=${c.qv.nn} nc=${c.qv.nc} ng=${c.qv.ng} V=${e6(c.qv.v)} cjm*30= ${e6(c.qv.cjm * 30)} 
-  cjAbo*30= ${e6(c.cjAbo * 30)}`
+  CPT -> N=${c.qv.nn + c.qv.nc + c.qv.ng} nn=${c.qv.nn} nc=${c.qv.nc} ng=${c.qv.ng} V=${e6(c.qv.v)} cjm*30= ${e6(c.qv.cjm * 30)} 
+  njec= ${c.njec}`
     console.log(JSON.stringify(c.qv) + p)
   }
   

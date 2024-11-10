@@ -666,7 +666,7 @@ _data_ :
   le compte peut être détruit dès le lendemain.
 
 - `flags`: flags issus du dernier calcul des compteurs de compta.
-- `mdcnx`: aaaamm, mois de dernière connexion.
+- `dharF dhopf dharC dhopC dharS dhopS`: dh des ACCES RESTREINT (F, C, S).
 
 - `vpe` : version du périmètre
 - `vci` : version de Compti
@@ -742,6 +742,12 @@ export class Comptes extends GenDoc {
       hXC: args.hXC,
       dlv: AMJ.max,
       flags: 0,
+      dharF: 0,
+      dhopf: 0,
+      dharC: 0,
+      dhopC: 0,
+      dharS: 0,
+      dhopS: 0,
       cleKXC: args.cleKXC, 
       privK: args.privK,
       clePK: args.clePK,
@@ -777,6 +783,40 @@ export class Comptes extends GenDoc {
   setCI () { this._majci = true; this._maj = true }
 
   setIN () { this._majin = true; this._maj = true }
+
+  // Maj de la DLV du compte en fin d'opération
+  async majDlv (compta, gd) {
+    if (this._estComptable) {
+      if (this.dlv !== AMJ.max) { this.dlv = AMJ.max; this._maj = true }
+      return
+    } 
+    const c = compta.compteurs
+    if (c.solde < 0) {
+      if (this.dharS !== c.dhsn) {
+        this.dharS = c.dhsn
+        this.dhopS = gd.op.dh
+        this._maj = true
+      }
+    } else {
+      if (this.dharS) {
+        this.dharS = 0
+        this.dhopS = 0
+        this._maj = true
+      }
+    }
+    let dharM = this.dharF
+    if (dharM < this.dharC) dharM = this.dharC
+    if (dharM < this.dharS) dharM = this.dharS
+    const e = await gd.getEspace()
+    let amj 
+    if (dharM) amj = AMJ.amjTPlusNbj(dharM, e.nbmi * 15)
+    else amj = AMJ.amjTPlusNbj(gd.op.dh, e.nbmi * 30)
+    const dlv = AMJ.djMois(amj)
+    if (dlv !== this.dlv){
+      this.dlv = dlv
+      this._maj = true
+    }
+  }
 
   setZombi () {
     this._suppr = true
@@ -858,40 +898,6 @@ export class Comptes extends GenDoc {
   setDhvu (dhvu) {
     this.dhvuK = dhvu
     this._maj = true
-  }
-
-  /* Report de compta.compteurs et calcul DLV: si et seulement si,
-  - compte était déjà en maj
-  - OU chgt DLV
-  - OU chgt des compteurs.qv significatif
-  - OU flags ont chnagé
-  */
-  async reportDeCompta (compta, gd) {
-    const e = await gd.getEspace()
-    const compteurs = compta.compteurs
-    let dlv
-    if (_estComptable) dlv = AMJ.max
-    else {
-      if (compteurs.solde < 0) {
-        /* `n = espace.nbmi * 30 / 2` - la moitié du délai de conservation d'un compte non accédé (`nbmi` : 12 par défaut).
-          `dlv` : dernier jour du mois de `ddsn + n`. Date de début de solde négatif, plus un délai de n jours. 
-        */
-        dlv = AMJ.djMois(AMJ.amjUtcPlusNbj(compteurs.ddsn, e.nbmi * 15))
-      } else dlv = AMJ.djMois(AMJ.amjUtcPlusNbj(gd.op.auj, e.nbmi * 30))
-    }
-    const fl = compteurs.flags
-    const dqv = compteurs.deltaQV(this.qv)
-
-    if (this._maj || this.dlv !== dlv || this.flags !== fl || dqv) {
-      this.dlv = dlv
-      this.flags = fl
-      this.qv = c.qv
-      this._maj = true
-      if (!this.estA && dqv) { // maj partition
-        const p = await gd.getPA(this.idp)
-        p.majQC(this.id, c.qv)
-      }
-    }
   }
 
   ajoutAvatar (avatar, cleAK) {

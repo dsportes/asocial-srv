@@ -621,8 +621,23 @@ class GD {
     } else if (compta._maj) {
       compta._vav = compta.v
       compta.v++
+      /* Report de compta.compteurs SSI
+      compte était déjà en maj, 
+      OU chgt des compteurs.qv significatif
+      OU flags ont chnagé */
       const compte = await this.getCO(compta.id)
-      await compte.reportDeCompta(compta, this)
+      const c = compta.compteurs
+      const fl = c.flags
+      const dqv = c.deltaQV(compte.qv)
+      if (compte._maj || compte.flags !== fl || dqv) {
+        compte.flags = fl
+        compte.qv = c.qv
+        compte._maj = true
+        if (!compte.estA && dqv) { // maj partition
+          const p = await gd.getPA(compte.idp)
+          p.majQC(compte.id, c.qv)
+        }
+      }
       if (compta.v === 1) this.op.insert(compta.toRow(this.op)); else this.op.update(compta.toRow(this.op))
     }
   }
@@ -716,9 +731,11 @@ class GD {
 
     // Incorporation de la consommation dans compta courante
     if (!this.op.SYS && this.op.compte) {
-      const compta = await this.getCA(this.op.compte.id)
+      const compte = this.op.compte
+      const compta = await this.getCA(compte.id)
       await compta.incorpConso(this.op)
       await this.majCompta(compta)
+      await compte.majDlv(compta, this)
     }
 
     // maj compte courant

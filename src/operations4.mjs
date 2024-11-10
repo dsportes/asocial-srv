@@ -90,7 +90,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
   async phase2 (args) {
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
-    if (AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) throw new AppExc(F_SRV, 802)
+    if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) throw new AppExc(F_SRV, 802)
 
     if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 308)
 
@@ -140,7 +140,7 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
 
   async phase2(args) {
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
-    if (AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) throw new AppExc(F_SRV, 802)
+    if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) throw new AppExc(F_SRV, 802)
 
     const sp = await this.gd.getSPO(args.id, args.ids, 'ProlongerSponsoring')
     sp.prolonger(this.dh, args)
@@ -236,7 +236,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
 class OperationCh extends Operation {
 
   async intro1 () {
-    if (AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) await this.checkR()
+    if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) await this.checkR()
   }
 
   // Vérification des restrictions, initialisations de :
@@ -244,7 +244,7 @@ class OperationCh extends Operation {
     this.chI = await this.gd.getCAV(this.args.id, this.args.ids, 'Chat-intro')
     this.chE = await this.gd.getCAV(this.chI.idE, this.chI.idsE)
     if (!this.chE) return false
-    if (AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) await this.checkR()
+    if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) await this.checkR()
     return true
   }
 
@@ -513,7 +513,7 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
 
   async phase2(args) {
     /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable 
-    if ((AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) && !this.estComptable) throw new AppExc(F_SRV, 802)
+    if ((AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) && !this.estComptable) throw new AppExc(F_SRV, 802)
     */
     if (!this.compte.mav[args.id])
       throw new AppExc(A_SRV, 227)
@@ -563,7 +563,7 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
 
   async phase2(args) {
     /* Restriction NE s'applique QUE si le compte n'est pas le comptable */
-    if ((AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) && !this.estComptable) 
+    if ((AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) && !this.estComptable) 
       throw new AppExc(F_SRV, 802)
     if (!this.compte.mpg[args.idg]) throw new AppExc(A_SRV, 275)
 
@@ -955,6 +955,8 @@ operations.SetNotifP = class SetNotifP extends Operation {
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
     if (args.notif) args.notif.idDel = this.id
+    if (args.notif.nr !== 3) args.notif.dh3 = 0
+    else if (!ntf || ntf.nr !== 3) args.notif.dh3 = this.dh
     espace.setNotifP(args.notif, args.idp)
 
     const partition = await this.gd.getPA(args.idp, 'SetNotifP-2')
@@ -983,7 +985,8 @@ operations.SetNotifC = class SetNotifC extends Operation {
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
     if (args.notif) args.notif.idDel = this.id
-
+    if (args.notif.nr !== 3) args.notif.dh3 = 0
+    else if (!ntf || ntf.nr !== 3) args.notif.dh3 = this.dh
     compte.setNotif(args.notif || null)
 
     const partition = await this.gd.getPA(compte.idp, 'SetNotifC-3')
@@ -1080,7 +1083,7 @@ operations.MajCv = class MajCv extends Operation {
   }
 
   async phase2(args) {
-    if (AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) throw new AppExc(F_SRV, 802)
+    if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) throw new AppExc(F_SRV, 802)
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
 
     if (!ID.estGroupe(args.cv.id)) {
@@ -1155,7 +1158,7 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
   }
 
   async phase2(args) {
-    if (AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) throw new AppExc(F_SRV, 802)
+    if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) throw new AppExc(F_SRV, 802)
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
 
     if (this.compte.mav[args.id]) return // création déjà faite pour le compte
@@ -1178,7 +1181,7 @@ operations.McMemo = class McMemo extends Operation {
   }
 
   async phase2 (args) { 
-    if (AL.has(this.flags, ALSN) || AL.has(this.flags, ALARNTF)) throw new AppExc(F_SRV, 802)
+    if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) throw new AppExc(F_SRV, 802)
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
 
     const compti = await this.gd.getCI(this.id, 'McMemo-2')
