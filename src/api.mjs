@@ -600,31 +600,30 @@ export class Compteurs {
 
   static NBCD = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 + Compteurs.X4
 
-  static lp = ['dh0', 'dh', 'dhpc', 'estA', 'qv', 'solde', 'dhsn', 'vd', 'mm', 'aboma', 'consoma']
+  static lp = ['dh0', 'dh', 'dhP', 'estA', 'qv', 'soldeP', 'donsP', 'creditsP', 'dhsn', 'vd', 'mm', 'aboma', 'consoma']
   static lqv = ['qc', 'qn', 'qv', 'nn', 'nc', 'ng', 'v']
 
   /* Propriétés stockées:
   dh0 : date-heure de création du compte
   dh : date-heure courante
-  dhpc : dh de début de la dernière période de cumul abo / conso. (création ou changement O / A).
+  dhP : dh de début de la dernière période de réfrence (de cumul abo / conso). Création ou changement O / A.
   estA : true si le compte est A.
   qv : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v, cjm }`.
     Quand on _prolonge_ l'état actuel pendant un certain temps AVANT d'appliquer de nouvelles valeurs,
     il faut pouvoir disposer de celles-ci.
-  solde : en unité monétaire à dh.
-  dhsn : date-heure de début de solde négatif dans le passé.
+  soldeP : en unité monétaire au début de la période de référence.
+  donsP: somme des dons depuis le début de la période de référence
+  creditsP: somme des crédits depuis le début de la période de référence
+  dhsn : date-heure de début de solde négatif.
   vd : [0..3] - vecteurs détaillés pour M M-1 M-2 M-3.
   mm : [0..18] - coût abo + conso pour le mois M et les 17 mois antérieurs (si 0 pour un mois, le compte n'était pas créé)
-  aboma : pour un compte A, somme des coûts d'abonnement des mois antérieurs au mois courant depuis la création du compte 
-    OU le dernier passage A
-  consoma : pour un compte A, somme des coûts consommation des mois antérieurs au mois courant depuis la création du compte
-    OU le dernier passage A
+  aboma : pour un compte A, somme des coûts d'abonnement des mois antérieurs au mois courant depuis le début de la période de référence
+  consoma : pour un compte A, somme des coûts consommation des mois antérieurs au mois courant depuis le début de la période de référence
 
   Propriéts calculées:
   cjm : consommation journalière moyenne estimée.
   njec` : nombre de jours estimés avant épuisement du crédit.
   cjAbo : coût journalier de l'abonnement actuel.
-  resume` : propriétés de compteurs impactant les ralentissement / restrictions / dlv.
 
   Vecteur VD : pour chaque mois M à M-3, 14 (X1 + X2 + X3 + X4) compteurs:
   - X1 moyennes des quotas:
@@ -666,11 +665,14 @@ export class Compteurs {
       this.shift(this.now)
     } else { // création - Les quotas sont initialisés, les consommations et montants monétaires nuls
       this.dh0 = this.now
-      this.dhpc = this.now
+      this.dhP = this.now
       this.estA = false
-      this.solde = 0
+      this.soldeP = 0
+      this.donsP = 0
+      this.creditsP = 0
       this.dhsn = 0
-      this.qv = qv
+      this.qv = qv || { qc: 0, qn: 0, qv: 0, nn: 0, nc: 0, ng: 0, v: 0 }
+      this.qv.cjm = 0
       this.vd = new Array(Compteurs.NHD)
       for(let i = 0; i < Compteurs.NHD; i++) this.vd[i] = new Array(Compteurs.NBCD).fill(0)
       this.mm = new Array(Compteurs.NHM).fill(0)
@@ -684,7 +686,7 @@ export class Compteurs {
     if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
     if (conso) this.majConso(conso)
     if (chgA !== undefined && chgA !== null && chgA !== this.estA) this.setA(chgA)
-    if (dbcr) this.majsolde(dbcr)
+    if (dbcr) this.majDbCr(dbcr)
   }
 
   get serial() {
@@ -735,8 +737,8 @@ export class Compteurs {
     lignes.push([qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, nj, ca, cc].join(sep))
   }
 
-  /* nb de jours de la période de cumul abo+conso */
-  get nbjCumref () { return (this.dh - this.dhpc) / MSPARJOUR }
+  /* nb de jours de la période de référence (cumul abo+conso) */
+  get nbjCumref () { return (this.dh - this.dhP) / MSPARJOUR }
 
   get cumulAbo () { return this.aboma + this.vd[0][Compteurs.CA] }
 
@@ -798,7 +800,7 @@ export class Compteurs {
 
   get flags () { return this.addFlags(0) }
 
-  /* retourne true si le qv SSI a changé de manière significative par rapport à la valeur avant */
+  /* retourne true SSI qv a changé de manière significative par rapport à la valeur avant */
   deltaQV (av) {
     const ap = this.qv
     if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) return true
@@ -812,15 +814,17 @@ export class Compteurs {
 
   // Pour un compte A, le solde est amputé de la consommaton de la période référence
   // Pour un compte O, c'est le solde sans imputation compte "gratuit")
-  get soldeCourant () { return this.solde -= (this.estA ? (this.aboma + this.consoma) : 0) }
+  get soldeCourant () { return this.soldeP = this.soldeP + this.creditsP - this.donsP - (this.estA ? (this.aboma + this.consoma) : 0) }
 
   /* PRIVEE - Lors de la transition O <-> A : 
   raz des cumuls des abonnement / consommation des mois antérieurs */
   setA (estA) { 
     // le solde est "arrêté" au solde courant
-    this.solde = this.soldeCourant
+    this.soldeP = this.soldeCourant
     this.estA = estA
-    this.dhpc = this.dh
+    this.dhP = this.dh
+    this.donsP = 0
+    this.creditsP = 0
     this.aboma = 0
     this.consoma = 0
   }
@@ -838,8 +842,10 @@ export class Compteurs {
   }
   
   /* PRIVEE - Met à jour le solde et dhsn */
-  majSolde (dbcr) {
-    this.solde += dbcr || 0
+  majDbCr (dbcr) {
+    if (!dbcr) return
+    if (dbcr < 0) this.donsP += dbcr
+    if (this.dbcr > 0) this.creditsP += dbcr
     if (this.soldeCourant >= 0) {
       this.ddsn = 0
       return
@@ -1017,8 +1023,7 @@ export class Compteurs {
     console.log('>> ' + (this.estA ? 'A' : 'O') + ' >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
     console.log('dh=' + new Date(c.dh).toISOString())
     console.log('dh0=' + new Date(c.dh0).toISOString())
-    console.log('période ref: ' + new Date(z[1]).toISOString()) + ' *** ' 
-      + ld + ' ' + z[2].toPrecision(2)
+    console.log('dhP=: ' + new Date(c.dhP).toISOString()) + ' ***** nbj= ' + Math.floor(c.nbjCumref)
     console.log('flags: ' + AL.edit(this.flags))
     const p = `
   cumulCouts=${e6(c.cumulCouts)} cumulAbo=${e6(c.cumulAbo)} cumulConso=${e6(c.cumulConso)}
