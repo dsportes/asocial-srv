@@ -183,21 +183,21 @@ export class AL {
 
   // Ajouter la valeur v à f
   static add (f, v) { 
-    if (f && v) f |= v
+    if (v) f |= v
     return f
   }
 
   // Enlever la valeur v à f
   static del (f, v) {
-    if (f && v) f &= ~v
+    if (v) f &= ~v
     return f
   }
 
   static edit (f) {
+    if (!f) return ''
     const s = []
     this.libs.forEach((l, i) => {
-      const v = 1 << i
-      if (f << v) s.push[l]
+      if (f & (1 << i)) s.push(l)
     })
     return s.join(' ')
   }
@@ -861,14 +861,14 @@ export class Compteurs {
   // Ajoute les flags à f ou à 0 si f absent: retourne f
   addFlags (f) {
     const n = this.qv.nn + this.qv.nc + this.qv.ng
-    const x = f || 0
+    let x = f || 0
     const pcc = this.qv.qc ? Math.round( (this.qv.cjm * 30 * 100) / this.qv.qc) : 999
-    if (pcc >= 100) AL.add(x, AL.RAL2) ; else if (pcc >= 80) AL.add(x, AL.RAL1)
+    if (pcc >= 100) x = AL.add(x, AL.RAL2) ; else if (pcc >= 80) x = AL.add(x, AL.RAL1)
     const pcn = this.qv.qn ? Math.round(n * 100 / UNITEN / this.qv.qn) : 999
-    if (pcn >= 100) AL.add(x, AL.NRED)  
+    if (pcn >= 100) x = AL.add(x, AL.NRED)  
     const pcv = this.qv.qv ? Math.round(this.qv.v * 100 / UNITEV / this.qv.qv) : 999
-    if (pcv >= 100) AL.add(x, AL.VRED)
-    if (this.soldeCourant < 0) AL.add(x, AL.SN)
+    if (pcv >= 100) x = AL.add(x, AL.VRED)
+    if (this.soldeCourant < 0) x = AL.add(x, AL.ARSN)
     return x
   }
 
@@ -892,8 +892,7 @@ export class Compteurs {
     console.log('dh0=' + new Date(this.dh0).toISOString())
     console.log('dhP=' + new Date(this.dhP).toISOString())
     console.log('flags=' + AL.edit(this.flags))
-    const p = `
-  QUOTAS -> qn=${this.qv.qn} qv=${this.qv.qn} qc=${this.qv.qn} 
+    const p = `QUOTAS -> qn=${this.qv.qn} qv=${this.qv.qn} qc=${this.qv.qn} 
   CPT -> N=${this.qv.nn + this.qv.nc + this.qv.ng} nn=${this.qv.nn} nc=${this.qv.nc} ng=${this.qv.ng} v=${e6(this.qv.v)} 
   cjm*30= ${e6(this.qv.cjm * 30)} njec= ${this.njec}`
     console.log(p)
