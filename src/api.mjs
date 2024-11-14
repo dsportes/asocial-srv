@@ -508,9 +508,9 @@ export function edvol (vol, u) {
 */
 export class Tarif {
   static tarifs = [
-    { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
+    { am: 202401, cu: [0.45, 0.10, 80, 200, 15, 15] },
+    { am: 202501, cu: [0.55, 0.15, 80, 180, 15, 15] },
+    { am: 202506, cu: [0.65, 0.10, 80, 150, 15, 15] }
   ]
 
   static init(t) { Tarif.tarifs = t}
@@ -523,17 +523,25 @@ export class Tarif {
     return cu
   }
 
-  static evalConso (ca, dh) {
-    const [a, m] = AMJ.am(dh || Date.now())
-    const c = Tarif.cu(a, m)
-    const x = [(ca.nl * c[2] / Compteurs.MEGA) 
-      , (ca.ne * c[3] / Compteurs.MEGA) 
-      , (ca.vm * c[4] / Compteurs.GIGA)
-      , (ca.vd * c[5] / Compteurs.GIGA)]
-    let t = 0
-    x.forEach(i => { t += i })
-    x.push(t)
-    return x
+  // abonnement à une ms de qn / qv dans le mois mm
+  static cmsAbo (qn, qv, aaaa, mm) {
+    const cu = Tarif.cu(aaaa, mm)
+    let abo = cu[0] * qn
+    abo += cu[1] * qv
+    return abo / MSPARMOIS
+  }
+
+  static evalCaCc (a, m, ms, v) {
+    const cu = Tarif.cu(a, m)
+    let mc = 0, ma = 0
+    const p = ms / MSPARMOIS
+    ma += v[VQN] * cu[0] * p
+    ma += v[VQV] * cu[1] * p
+    mc += v[VNL] * cu[2] / MEGA
+    mc += v[VNE] * cu[3] / MEGA
+    mc += v[VVM] * cu[4] / GIGA
+    mc += v[VVD] * cu[5] / GIGA
+    return [ma, mc]
   }
 }
 
@@ -543,6 +551,28 @@ function e6 (x) {
   if (i === -1) return s
   return s.substring(0, i + 1) + s.substring(i + 1, i + 7)
 }
+
+export const VMS = 0 
+export const VQC = 1
+export const VQN = 2 
+export const VQV = 3 
+export const VNL = 4 
+export const VNE = 5 
+export const VVM = 6
+export const VVD = 7 
+export const VNN = 8 
+export const VNC = 9 
+export const VNG = 10 
+export const VV = 11 
+export const VAC = 12
+export const VAF = 13
+export const VCC = 14
+export const VCF = 15
+export const VDB = 16
+export const VCR = 17
+export const VS = 18
+export const MEGA = 1000000
+export const GIGA = MEGA * 1000
 
 /** Compteurs **********************************************************************
 Unités:
@@ -569,81 +599,51 @@ consommations `conso` : `{ nl, ne, vm, vd }`
 - `vd`: volume _descendant_ du Storage (download).
 */
 export class Compteurs {
-  static VALIDMOYC = 86400 * 1000 * 7
-  static MEGA = 1000000
-  static GIGA = Compteurs.MEGA * 1000
-  static COEFFCONSO = [Compteurs.MEGA, Compteurs.MEGA, Compteurs.GIGA, Compteurs.GIGA]
-
-  static NHD = 4 // nombre de mois d'historique détaillé (dont le mois en cours)
-  static NHM = 18 // nombre de mois d'historique des montants des coûts (dont le mois en cours)
-
-  static X1 = 3 // nombre de compteurs de quotas (qc qn qv)
-  static X2 = 4 // nombre de compteurs de consommation (lect, ecr, vm, vd)
-  static X3 = 4 // nombre de compteurs de volume (notes, chats, groupes, v)
-  static X4 = 3 // nombre de compteurs techniques (ms ca cc)
-
-  static CUCONSO = Compteurs.X1 - 1 // indice du premier CU de consommation
-  static QC = 0 // 0 quota de consommation
-  static QN = 1 // 1 quota du nombre total de notes / chats / groupes.
-  static QV = 2 // 2 quota du volume des fichiers.
-  static NL = 0 // 3 nombre de lectures cumulées sur le mois.
-  static NE = 1 // 4 nombre d'écritures.
-  static VM = 2 // 5 volume _montant_ vers le Storage (upload).
-  static VD = 3 // 6 volume _descendant_ du Storage (download).
-  static NN = 0 // 7 nombre de notes existantes.
-  static NC = 1 // 8 nombre de chats existants.
-  static NG = 2 // 9 nombre de participations aux groupes existantes.
-  static V = 3 // 10 volume effectif total des fichiers.
-  static MS = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 // 11 : nombre de ms dans le mois - si 0, le compte n'était pas créé
-  static CA = Compteurs.MS + 1 // 12 : coût de l'abonnment pour le mois
-  static CC = Compteurs.MS + 2 // 13 : coût de la consommation pour le mois
-
-  static NBCD = Compteurs.X1 + Compteurs.X2 + Compteurs.X3 + Compteurs.X4
-
-  static lp = ['dh0', 'dh', 'dhP', 'estA', 'qv', 'soldeP', 'donsP', 'creditsP', 'dhsn', 'vd', 'mm', 'aboma', 'consoma']
-  static lqv = ['qc', 'qn', 'qv', 'nn', 'nc', 'ng', 'v']
+  static lp = ['dh0', 'dh', 'dhP', 'estA', 'qv', 'ddsn', 'vd']
+  static lqv = ['qc', 'qn', 'qv', 'nn', 'nc', 'ng', 'v', 'cjm']
 
   /* Propriétés stockées:
   dh0 : date-heure de création du compte
   dh : date-heure courante
-  dhP : dh de début de la dernière période de réfrence (de cumul abo / conso). Création ou changement O / A.
+  dhP : dh de début de la dernière période de référence (de cumul abo / conso). Création ou changement O / A.
   estA : true si le compte est A.
   qv : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v, cjm }`.
     Quand on _prolonge_ l'état actuel pendant un certain temps AVANT d'appliquer de nouvelles valeurs,
     il faut pouvoir disposer de celles-ci.
-  soldeP : en unité monétaire au début de la période de référence.
-  donsP: somme des dons depuis le début de la période de référence
-  creditsP: somme des crédits depuis le début de la période de référence
-  dhsn : date-heure de début de solde négatif.
-  vd : [0..3] - vecteurs détaillés pour M M-1 M-2 M-3.
-  mm : [0..18] - coût abo + conso pour le mois M et les 17 mois antérieurs (si 0 pour un mois, le compte n'était pas créé)
-  aboma : pour un compte A, somme des coûts d'abonnement des mois antérieurs au mois courant depuis le début de la période de référence
-  consoma : pour un compte A, somme des coûts consommation des mois antérieurs au mois courant depuis le début de la période de référence
+  ddsn : date-heure de début de solde négatif.
+  vd : [0..11] - vecteur détaillé pour les 12 mois de l'année (glissante)
 
   Propriéts calculées:
   cjm : consommation journalière moyenne estimée.
-  njec` : nombre de jours estimés avant épuisement du crédit.
-  cjAbo : coût journalier de l'abonnement actuel.
+  njec : nombre de jours estimés avant épuisement du crédit.
+  flags : flags courants
+  aaaa mm : année / mois de dh.
 
-  Vecteur VD : pour chaque mois M à M-3, 14 (X1 + X2 + X3 + X4) compteurs:
-  - X1 moyennes des quotas:
-    - QC : moyenne de qc dans le mois (en c)
-    - qn : moyenne de qn dans le mois (en nombre de documents)
-    - qv : moyenne de qv dans le mois (en bytes)
-  - X2 cumuls des consommations:
-    - NL : nb lectures cumulés sur le mois (L),
-    - NE : nb écritures cumulés sur le mois (E),
-    - VM : total des transferts montants (B),
-    - VD : total des transferts descendants (B).
-  - X3 moyennes des compteurs:
-    - NN : nombre moyen de notes existantes.
-    - NC : nombre moyen de chats existants.
-    - NG : nombre moyen de participations aux groupes existantes.
-    - V : volume moyen effectif total des fichiers stockés.
-  - X4 compteurs spéciaux
-    - MS : nombre de ms dans le mois - si 0, le compte n'était pas créé
-    - CA : coût de l'abonnement pour le mois
-    - CC : coût de la consommation pour le mois
+  Vecteur vd : pour chaque mois M de l'année glissante ([0] est janvier)
+  - MS 0 : nombre de ms dans le mois - si 0, le compte n'était pas créé
+  - moyennes des quotas:
+    - QC 1 : moyenne de qc dans le mois (en c)
+    - QN 2 : moyenne de qn dans le mois (en nombre de documents)
+    - QV 3 : moyenne de qv dans le mois (en bytes)
+  - cumuls des consommations:
+    - NL 4 : nb lectures cumulés sur le mois (L),
+    - NE 5 : nb écritures cumulés sur le mois (E),
+    - VM 6 : total des transferts montants (B),
+    - VD 7 : total des transferts descendants (B).
+  - moyennes des compteurs:
+    - NN 8 : nombre moyen de notes existantes.
+    - NC 9 : nombre moyen de chats existants.
+    - NG 10 : nombre moyen de participations aux groupes existantes.
+    - V 11 : volume moyen effectif total des fichiers stockés.
+  - compteurs monétaires
+    - AC 12 : coût de l'abonnement (dans le mois)
+    - AF 13 : abonnement facturé (dans le mois)
+    - CC 14 : coût de consommation (dans le mois)
+    - CF 15 : consommation facturée (dans le mois)
+    - DB 16 : débits du mois
+    - CR 17 : crédits du mois
+    - S 18 : solde au début du mois
+    Le solde en fin de mois est celui du début du mois suivant: S - DB + CR - CF - AF
   */
 
   /*
@@ -651,7 +651,6 @@ export class Compteurs {
   - qv: facultatif. compteurs de quotas et des nombres de notes, chats, groupes et v. 
     En cas de présence, mise à jour APRES recalcul à l'instant actuel.
   - conso: facultatif. compteurs de consommation à ajouter au mois courant.
-    En cas de présence, ajouts APRES recalcul à l'instant actuel.
   - chgA: true devient A, false devient O, undefined inchangé.
   - dbcr: débit / crédit apporté au solde.
   - dh: normalement absent. Utilisé pour faire des tests indépendants de la date-heure courante.
@@ -662,111 +661,186 @@ export class Compteurs {
     if (serial) {
       const x = decode(serial)
       Compteurs.lp.forEach(p => { this[p] = x[p]})
-      this.shift(this.now)
+      const d = new Date(this.now)
+      this.aaaa = d.getUTCFullYear()
+      this.mm = d.getUTCMonth() + 1
+      this.calculV()
+      this.dh = this.now
     } else { // création - Les quotas sont initialisés, les consommations et montants monétaires nuls
       this.dh0 = this.now
       this.dhP = this.now
+      this.dh = this.now // this.dh: date-heure de dernier calcul
+      const d = new Date(this.dh)
+      this.aaaa = d.getUTCFullYear()
+      this.mm = d.getUTCMonth() + 1
       this.estA = false
-      this.soldeP = 0
-      this.donsP = 0
-      this.creditsP = 0
-      this.dhsn = 0
+      this.ddsn = 0
+      this.db = 0
+      this.cr = 0
       this.qv = qv || { qc: 0, qn: 0, qv: 0, nn: 0, nc: 0, ng: 0, v: 0 }
       this.qv.cjm = 0
-      this.vd = new Array(Compteurs.NHD)
-      for(let i = 0; i < Compteurs.NHD; i++) this.vd[i] = new Array(Compteurs.NBCD).fill(0)
-      this.mm = new Array(Compteurs.NHM).fill(0)
-      this.aboma = 0
-      this.consoma = 0
+      this.vd = new Array(12)
+      for(let i = 0; i < 12; i++) this.vd[i] = new Array(VS + 1).fill(0)
+      this.vd[this.mm - 1][VMS] = 1 // 1ms d'existence dans le mois
     }
-    this.dh = this.now // this.dh: date-heure de dernier calcul
-    this.majCjm()
-    this.majDhsn()
+
+    if (dbcr) {
+      const v = this.vd[this.mm - 1]
+      if (dbcr > 0) v[VCR] += dbcr; else v[VDB] -= dbcr
+      const sc = this.soldeCourant
+      if (sc >= 0) this.ddsn = 0
+      else if (!this.ddsn) this.ddsn = this.dh // n'était pas négatif et maintenant l'est
+      // si était négatif, inchangé
+    }
+
     // fin de réactualisation. Préparation début nouvelle situation
     if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
-    if (conso) this.majConso(conso)
-    if (chgA !== undefined && chgA !== null && chgA !== this.estA) this.setA(chgA)
-    if (dbcr) this.majDbCr(dbcr)
+    
+    // consommation moyenne (en c) relevée sur le mois en cours et le précédent
+    {
+      const vc = this.vd[this.mm - 1]
+      let mp = this.mm === 1 ? 11 : this.mm - 2
+      const vp = this.vd[mp]
+      const ct = (vc[VCC] * vc[VMS]) + (vp[VCC] * vp[VMS])
+      let ms = vc[VMS] + vp[VMS]
+      if ((ms / MSPARJOUR) < 10) ms = 10 * MSPARJOUR
+      const cm = (ct / ms)
+      const nbj = ms / MSPARJOUR
+      this.qv.cjm = cm / nbj
+    }
+
+    if (conso) {
+      const v = this.vd[this.mm - 1]
+      v[VNL] += conso.nl
+      v[VNE] += conso.ne
+      v[VVD] += conso.vd
+      v[VVM] += conso.vm
+    }
+
+    if (chgA !== undefined && chgA !== null && chgA !== this.estA) {
+      this.estA = chgA
+      this.dhP = this.dh
+    }
   }
 
   get serial() {
-    /* for (let i = 0; i < Compteurs.NHD; i++) {
-        const v = this.vd[i]
-        for (let j = 0; j < Compteurs.NBCD; j++) 
-          if (isNaN(v[j])) throw new AppExc(A_SRV, 17, [i, j])
-      } */
     const x = {}; Compteurs.lp.forEach(p => { x[p] = this[p]})
     return new Uint8Array(encode(x))
   }
 
-  static CSVHDR (sep) {
-    return ['QC', 'QN', 'QV', 'NL', 'NE', 'VM', 'VD', 
-      'NN', 'NC', 'NG', 'V', 'NJ', 'CA', 'CC'].join(sep)
+  get soldeCourant () { return this.soldeDeM(this.mm) }
+
+  soldeDeM (m) {
+    const vf = this.vd[m - 1]
+    return vf[VS] - vf[VDB] + vf[VCR] - vf[VCF] - vf[VAF] // S - DB + CR - CF - AF
   }
 
-  /* Cette méthode est invoquée par collNs en tant que 
-  "processeur" de chaque row récupéré pour éviter son stockage en mémoire
-  puis son traitement:
-  - lignes : array de cumul des lignes générées.
-  - mr : mois relatif
-  - sep : séparateur CSV à utiliser
-  - data : row sérialisé (non crypté) compta, contenant un champ compteurs (sérialisation des compteurs).
-  */
-  static CSV (lignes, mr, sep, data) {
-    const dcomp = decode(data)
-    const c = new Compteurs(dcomp.compteurs)
-    const vx = c.vd[mr]
-    const nj = Math.ceil(vx[Compteurs.MS] / 86400000)
-    if (!nj) return
-    
-    const x1 = Compteurs.X1
-    const x2 = Compteurs.X1 + Compteurs.X2
-    const qc = Math.round(vx[Compteurs.QC])
-    const qn = Math.round(vx[Compteurs.QN])
-    const qv = Math.round(vx[Compteurs.QV])
-    const nl = Math.round(vx[Compteurs.NL + x1])
-    const ne = Math.round(vx[Compteurs.NE + x1])
-    const vm = Math.round(vx[Compteurs.VM + x1])
-    const vd = Math.round(vx[Compteurs.VD + x1])
-    const nn = Math.round(vx[Compteurs.NN + x2])
-    const nc = Math.round(vx[Compteurs.NC + x2])
-    const ng = Math.round(vx[Compteurs.NG + x2])
-    const v = Math.round(vx[Compteurs.V + x2])
-    const ca = Math.round(vx[Compteurs.CA] * 100)
-    const cc = Math.round(vx[Compteurs.CC] * 100)
-    lignes.push([qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, nj, ca, cc].join(sep))
+  calculV () {
+    const d = new Date(this.dh)
+    const aaaa1 = d.getUTCFullYear()
+    const mm1 = d.getUTCMonth() + 1
+    if (aaaa1 === this.aaaa && mm1 === this.mm) this.prolongerM(this.aaaa, this.mm, this.now)
+    else {
+      // on termine le mois qui était en cours
+      this.prolongerM(aaaa1, mm1, this.tfM(aaaa1, mm1))
+      const vf = this.vd[mm1] // mois de dh fini
+      let solde = this.soldeDeM(mm1)
+      // insertion de N mois entiers
+      let a = aaaa1, m = mm1
+      while (true) {
+        m++; if (m === 13) { m = 1; a++ }
+        if (a === this.aaaa && m === this.mm) break
+        solde = this.insererM(a, m, solde, this.tfM(a, m))
+      }
+      this.insererM(a, m, solde, this.now)
+    }
   }
 
-  /* nb de jours de la période de référence (cumul abo+conso) */
-  get nbjCumref () { return (this.dh - this.dhP) / MSPARJOUR }
-
-  get cumulAbo () { return this.aboma + this.vd[0][Compteurs.CA] }
-
-  get cumulConso () { return this.consoma + this.vd[0][Compteurs.CC] }
-
-  get cumulCouts () { return this.cumulAbo + this.cumulConso }
-
-  /* `cjm` : consommation journalière moyenne (en c) relevée sur le mois en cours et le précédent.
-  */
-  majCjm () {
-    const nl = this.vd[0][Compteurs.X1 + Compteurs.NL] + this.vd[1][Compteurs.X1 + Compteurs.NL]
-    const ne = this.vd[0][Compteurs.X1 + Compteurs.NN] + this.vd[1][Compteurs.X1 + Compteurs.NE]
-    const vm = this.vd[0][Compteurs.X1 + Compteurs.VM] + this.vd[1][Compteurs.X1 + Compteurs.VM]
-    const vd = this.vd[0][Compteurs.X1 + Compteurs.VD] + this.vd[1][Compteurs.X1 + Compteurs.VD]
-    const [ac, mc] = AMJ.am(this.dh)
-    const cu = Tarif.cu(ac, mc)
-    let m = 0
-    m += cu[Compteurs.CUCONSO + Compteurs.NL] * nl
-    m += cu[Compteurs.CUCONSO + Compteurs.NE] * ne
-    m += cu[Compteurs.CUCONSO + Compteurs.VM] * vm
-    m += cu[Compteurs.CUCONSO + Compteurs.VD] * vd
-    const ims = Compteurs.X1 + Compteurs.X2 + Compteurs.X3
-    let ms = this.vd[0][ims] + this.vd[1][ims]
-    if ((ms / MSPARJOUR) < 10) ms = 10 * MSPARJOUR
-    this.qv.cjm = ms ? m / ms : 0
+  insererM(a, m, solde, dhf) {
+    const t0 = this.t0M(a, m)
+    const q = this.qv
+    const v = new Array(VS + 1).fill(0)
+    this.vd[m - 1] = v
+    v[VMS] = dhf - t0
+    v[VQC] = q.qc
+    v[VQN] = q.qn
+    v[VQV] = q.qv
+    v[VNN] = q.nn
+    v[VNC] = q.nc
+    v[VNG] = q.ng
+    v[VV] = q.v
+    const abo = Tarif.cmsAbo(q.qn, q.qv, a, m) * (dhf - t0)
+    v[VAC] = abo 
+    v[VCC] = 0
+    v[VAF] = this.estA ? v[VAC] : 0
+    v[VCF] = 0
+    v[VS] = solde
+    const soldeAp = this.soldeDeM(m)
+    if (this.ddsn || soldeAp >= 0 ) return soldeAp // était déjà négatif au début du mois ou solde en fin positif
+    const ms = Math.floor((v[VMS] * solde) / (solde - soldeAp)) // (soldeAp est < 0) - nombre de millis pour épuiser le solde initial
+    this.ddsn = t0 + ms
+    return soldeAp
   }
 
-  /* cjAbo : coût journalier de l'abonnement qv à la date dh*/
+  t0M (a, m) { return Date.UTC(a, m - 1, 1) + 1 }
+
+  tfM (a, m) { 
+    let ax = a; let mx = m; if (mx === 12) { mx = 0; ax++ }
+    const t = Date.UTC(ax, mx, 1) - 1
+    const s = new Date(t).toISOString()
+    return t // premier jour du mois suivant à minuit - 1ms
+  }
+
+  // m : indice mois, dhf: limite dans le mois
+  prolongerM (a, m, dhf) {
+    const t0 = this.t0M(a, m)
+    const q = this.qv
+    const v = this.vd[m - 1]
+    const soldeCAv = this.soldeDeM(m) // solde courant AVANT
+    const msav = v[VMS]
+    const msap = this.dh0 <= t0 ? dhf - t0 : dhf - this.dh0
+    const delta = msap - msav
+    if (delta === 0) return
+    // Maj des quotas moyens au prorata de la prolongation
+    v[VMS] = msap
+    v[VQC] = ((v[VQC] * msav) + (q.qc * delta)) / msap
+    v[VQN] = ((v[VQN] * msav) + (q.qn * delta)) / msap
+    v[VQV] = ((v[VQV] * msav) + (q.qn * delta)) / msap
+    // Maj des moyennes des nombres de documents et du volume au prorata de la prolongation
+    v[VNN] = ((v[VNN] * msav) + (q.nn * delta)) / msap
+    v[VNC] = ((v[VNC] * msav) + (q.nc * delta)) / msap
+    v[VNG] = ((v[VNG] * msav) + (q.ng * delta)) / msap
+    v[VV] = ((v[VV] * msav) + (q.v * delta)) / msap
+    // Augmentation du COUT de l'abonnement et de la consommation
+    const [ma, mc] = Tarif.evalCaCc (a, m, delta, v)
+    v[VAC] += ma
+    v[VCC] += mc
+    if (this.estA) {
+      // Augmentaion de la FACTURATION de l'abonnement et de la consommation
+      // Etait déjà facturé dans le mois : temps déjà facturé dhP - t0
+      // N'a pas été facturé dans le mois: temps déjà facturé 0
+      const dfm = this.dhP < t0 ? 0 : (this.dhP - t0)
+      const [ma, mc] = Tarif.evalCaCc (a, m, (msap - dfm), v)
+      v[VAF] += ma
+      v[VCF] += mc
+    }
+    const soldeCAp = this.soldeDeM(m) // solde courant APRES
+    if (soldeCAv < 0) { // était négatif
+      if (soldeCAp > 0) {// devenu positif
+        this.ddsn = 0
+      } // else : toujours négatif, ddsn ne change pas
+    } else { // était positif
+      if (soldeCAp > 0) { // toujours positif
+        this.ddsn = 0 // en fait ça ne change rien
+      } else { // devenu négatif entre dh et dhf
+        const consoMs = (soldeCAv - soldeCAp) / (dhf - this.dh) // consommation par ms entre dh et dhf
+        const nbms = Math.floor(soldeCAv / consoMs) // nombdre de ms pour ramener soldCav à 0 avec la conso calculée
+        this.ddsn = this.dh + nbms
+      }
+    }
+  }
+
+  /* PRIVEE : cjAbo : coût journalier de l'abonnement qv à la date dh*/
   cjAbo (qv, dh) {
     const [ac, mc] = AMJ.am(dh)
     const cu = Tarif.cu(ac, mc)
@@ -777,11 +851,11 @@ export class Compteurs {
     return m / 30
   }
 
-  /* njec : nombre de jours estimés avant épuisement du crédit */
+  // njec : nombre de jours estimés avant épuisement du crédit
   get njec () {
-    if (this.soldeCourant < 0) return 0
-    const cj = this.cjAbo + this.cjm
-    return Math.floor(this.soldeCourant / cj)
+    const sc = this.soldeCourant
+    const abo = Tarif.cmsAbo(this.qv.qn, this.qv.qv, this.aaaa, this.mm) * MSPARJOUR
+    return sc <= 0 ? 0 : Math.floor(sc / (abo + this.qv.cjm))
   }
 
   // Ajoute les flags à f ou à 0 si f absent: retourne f
@@ -812,255 +886,80 @@ export class Compteurs {
     return d5('nn') || d5('nc') || d5('ng') || d5('ng') || d5('v') || d5('cjm')
   }
 
-  // Pour un compte A, le solde est amputé de la consommaton de la période référence
-  // Pour un compte O, c'est le solde sans imputation compte "gratuit")
-  get soldeCourant () { return this.soldeP = this.soldeP + this.creditsP - this.donsP - (this.estA ? (this.aboma + this.consoma) : 0) }
-
-  /* PRIVEE - Lors de la transition O <-> A : 
-  raz des cumuls des abonnement / consommation des mois antérieurs */
-  setA (estA) { 
-    // le solde est "arrêté" au solde courant
-    this.soldeP = this.soldeCourant
-    this.estA = estA
-    this.dhP = this.dh
-    this.donsP = 0
-    this.creditsP = 0
-    this.aboma = 0
-    this.consoma = 0
-  }
-  
-  /* Date de début de solde négatif */
-  majDhsn () {
-    if (!this.estA) return // compte O : inchangée (gratuit)
-    if (this.dhsn) return // était déjà négatif : inchangée
-    if (this.soldeCourant >= 0) { 
-      this.dhsn = 0
-      return
-    }
-    const nbj = this.soldeCourant / this.cjAbo(this.qv, this.dh)
-    this.dhsn = this.dh - (nbj * MSPARJOUR)
-  }
-  
-  /* PRIVEE - Met à jour le solde et dhsn */
-  majDbCr (dbcr) {
-    if (!dbcr) return
-    if (dbcr < 0) this.donsP += dbcr
-    if (this.dbcr > 0) this.creditsP += dbcr
-    if (this.soldeCourant >= 0) {
-      this.ddsn = 0
-      return
-    }
-    // nouveau solde courant < 0
-    if (this.dhsn) return // était négatif, l'est toujours, dh de sn inchangée
-    this.dhsn = this.dh // était positif, devient négatif, dh de sn maintenant
-  }
-
-  /* PRIVEE - maj de la consommation */
-  majConso (conso) { // { nl, ne, vm, vd }
-    const [ac, mc] = AMJ.am(this.dh)
-    const cu = Tarif.cu(ac, mc)
-    const v = this.vd[0]
-    let m = 0
-    if (conso.nl) {
-      v[Compteurs.X1 + Compteurs.NL] += conso.nl
-      m += cu[Compteurs.CUCONSO + Compteurs.NL] * conso.nl / Compteurs.COEFFCONSO[Compteurs.NL]
-    }
-    if (conso.ne) {
-      v[Compteurs.X1 + Compteurs.NE] += conso.ne
-      m += cu[Compteurs.CUCONSO + Compteurs.NE] * conso.ne / Compteurs.COEFFCONSO[Compteurs.NE]
-    }
-    if (conso.vd) {
-      v[Compteurs.X1 + Compteurs.VD] += conso.vd
-      m += cu[Compteurs.CUCONSO + Compteurs.VD] * conso.vd / Compteurs.COEFFCONSO[Compteurs.VD]
-    }
-    if (conso.vm) {
-      v[Compteurs.X1 + Compteurs.VM] += conso.vm
-      m += cu[Compteurs.CUCONSO + Compteurs.VM] * conso.vm / Compteurs.COEFFCONSO[Compteurs.VM]
-    }
-    v[Compteurs.CC] += m
-  }
-
-  /* PRIVEE */
-  deltam (ac, mc, a, m) { // nombre de mois entiers entre l'ancien mois courant [ac, mc] et le futur [a, m]
-    let n = 0, ax = ac, mx = mc
-    while(m !== mx || a !== ax) { 
-      n++; mx++; 
-      if (mx === 13) { mx = 1; ax++ } 
-    }
-    return n
-  }
-
-  /* PRIVEE */
-  shift (t) {
-    const [a, m, j] = AMJ.aaaammjj(AMJ.amjUtcDeT(t))
-    const [ac, mc, jc] = AMJ.aaaammjj(AMJ.amjUtcDeT(this.dh))
-    const [t0, avx, apx] = AMJ.t0avap(this.dh)
-    if (a === ac && m === mc) { // le mois courant n'est pas fini
-      const ap = t - this.dh // ap : temps restant entre dh et t
-      // Si l'instant t est dans le mois de création, le nombre de ms AVANT dans le mois est moindre que avx
-      const av = this.dh0 > t0 ? (this.dh - this.dh0) : avx 
-      const v = this.calculMC(av, ap, this.vd[0], Tarif.cu(ac, mc))  
-      this.mm[0] = v[Compteurs.CA] + v[Compteurs.CC] // le cout total du mois courant a changé
-      this.vd[0] = v // le détail du mois courant a changé
-      return
-    }
-
-    // le nouveau mois courant est un autre mois
-    // on calcule les mois manquants entre l'ancien courant et le mois actuel
-    const n = this.deltam(ac, mc, a, m) // nombre de mois à créer et calculer (au moins 1, le futur courant)
-    // init de la structure temporaire vd / mm
-    const _vd = new Array(Compteurs.NHD)
-    for(let i = 0; i < Compteurs.NHD; i++) _vd[i] = new Array(Compteurs.NBCD).fill(0)
-    const _mm = new Array(Compteurs.NHM).fill(0)
-
-    { 
-      // Mois courant "nouveau"
-      const [, msmois, ] = AMJ.t0avap(t) // nb de ms AVANT t
-      const v = this.calculNM (Tarif.cu(a, m), msmois)
-      _mm[0] = v[Compteurs.CA] + v[Compteurs.CC] // le cout total du mois courant a changé
-      _vd[0] = v // le détail du mois courant a changé
-    }
-
-    let ax = ac; let mx = mc
-    for(let i = 1; i < n; i++) {
-      // Mois intermédiaires "nouveaux" à créer APRES le courant (créé ci-dessus) 
-      // et AVANT l'ancien courant recalculé ci-dessous (qui devient antérieur)
-      if (mx === 11) { ax++; mx = 1} else mx++
-      const msmois = AMJ.djm(ax, mx) * MSPARJOUR // nombre de millisecondes du mois
-      const v = this.calculNM (Tarif.cu(ax, mx), msmois)
-      this.aboma += v[Compteurs.CA]
-      this.consoma += v[Compteurs.CC]
-      if (i < Compteurs.NHD) _vd[i] = v
-      if (i < Compteurs.NHM) _mm[i] = v[Compteurs.CA] + v[Compteurs.CC] // le cout total du nouveau mois a été calculé
-    }
-
-    {
-      // Recalcul de "l'ex" mois courant, prolongé jusqu'à sa fin et devenant antérieur
-      // si c'était le mois de création, le nombre de ms AVANT n'est pas avx celui depuis le début du mois
-      const av = this.dh0 > t0 ? (this.dh - this.dh0) : avx
-      const v = this.calculMC(av, apx, this.vd[0], Tarif.cu(ac, mc))
-      // le mois "ex" courant est dvenu antérieur
-      this.aboma += v[Compteurs.CA] 
-      this.consoma += v[Compteurs.CC]
-      if (n < Compteurs.NHD) _vd[n] = v
-      if (n < Compteurs.NHM) _mm[n] = v[Compteurs.CA] + v[Compteurs.CC] // le cout total de l'ex mois courant a été calculé
-    }
-
-    /* completer _vd si nécessaire. On a créé n mois. 
-    - ajouter dans _vd les mois antérieurs dans la limite de NHD
-    - ajouter dans _mm les mois antérieurs dans la limite de NHM
-    */
-    let mq = Compteurs.NHD - n - 1
-    if (mq > 0) {
-      for(let i = 0; i < mq; i++) _vd[n + 1 + i] = this.vd[i + 1]
-    }
-    mq = Compteurs.NHM - n - 1
-    if (mq > 0) {
-      for(let i = 0; i < mq; i++) _mm[n + 1 +i] = this.mm[i + 1]
-    }
-    this.vd = _vd
-    this.mm = _mm
-  }
-
-  /* PRIVEE */
-  moy (av, ap, vav, vap) {
-    return ((vav * av) + (vap * ap)) / (av + ap)
-  }
-
-  /* PRIVEE */
-  calculMC (av, ap, vmc, cu) { // calcul du mois courant par extension
-    const v = new Array(Compteurs.NBCD).fill(0)
-    v[Compteurs.MS] = av + ap // nombre de millisecondes du mois
-    // Les compteurs sont des moyennes de quotas
-    for(let i = 0; i < Compteurs.X1; i++)
-      v[i] = this.moy(av, ap, vmc[i], this.qv[Compteurs.lqv[i]])
-    // Les X2 suivants sont des cumuls de consommation
-    for(let i = 0, j = Compteurs.X1; i < Compteurs.X2; i++, j++)
-      v[j] = vmc[j]
-    // Les X3 suivants sont des moyennes de volumes
-    for(let i = 0, j = Compteurs.X1 + Compteurs.X2; i < Compteurs.X3; i++, j++) {
-      const y = Compteurs.lqv[Compteurs.X1 + i]
-      v[j] = this.moy(av, ap, vmc[j], this.qv[y])
-    }
-    // calcul du montant par multiplication par leur cout unitaire.
-    // pour les "abonnements" qn et qv le cu est annuel: 
-    // on le calcule au prorata des ms du mois / ms d'un an
-    const px = v[Compteurs.MS] / MSPARAN
-    for(let i = 1; i < Compteurs.X1; i++)
-      v[Compteurs.CA] += v[i] * cu[i - 1] * px
-    // pour les X2 suivants, coût unitaire est par Mega ou Giga
-    for(let i = Compteurs.X1, c = 0; i < Compteurs.X1 + Compteurs.X2; i++, c++)
-      v[Compteurs.CC] += v[i] * cu[Compteurs.CUCONSO + c] / Compteurs.COEFFCONSO[c]
-    return v
-  }
-
-  /* PRIVEE */
-  calculNM (cu, msmois) { // calcul d'un nouveau mois ENTIER
-    const v = new Array(Compteurs.NBCD).fill(0)
-    v[Compteurs.MS] = msmois// nombre de millisecondes du mois
-    // Les X1 premiers compteurs sont des quotas à initialiser
-    for(let i = 0; i < Compteurs.X1; i++)
-      v[i] = this.qv[Compteurs.lqv[i]]
-    // Les X2 suivants sont des cumuls de consommation à mettre à 0
-    for(let i = 0, j = Compteurs.X1; i < Compteurs.X2; i++, j++)
-      v[j] = 0
-    // Les X3 suivants sont des nombres de notes ... existantes
-    for(let i = 0, j = Compteurs.X1 + Compteurs.X2; i < Compteurs.X3; i++, j++) {
-      const y = Compteurs.lqv[Compteurs.X1 + i]
-      v[j] = this.qv[y]
-    }
-    // Seuls qn et qv accroissent l'abonnement. Il n'y a pas de consommation
-    for(let i = 0; i < Compteurs.X1; i++) {
-      v[Compteurs.CA] += v[i] * cu[i] * (msmois / MSPARAN)
-    }
-    return v
-  }
-
   printhdr () {
-    const c = this
-    const z = c.cumref // [x, t, (this.dh - t) / MSPARJOUR]
-    const ld = ['création', 'devenu A', 'devenu O'][z[0]] + 
-    console.log('>> ' + (this.estA ? 'A' : 'O') + ' >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-    console.log('dh=' + new Date(c.dh).toISOString())
-    console.log('dh0=' + new Date(c.dh0).toISOString())
-    console.log('dhP=: ' + new Date(c.dhP).toISOString()) + ' ***** nbj= ' + Math.floor(c.nbjCumref)
-    console.log('flags: ' + AL.edit(this.flags))
+    console.log('>> ' + (this.estA ? 'A' : 'O') + ' >> ' + this.aaaa + '/' + this.mm + ' >>>>>>>>>>>>>>>>')
+    console.log('dh=' + new Date(this.dh).toISOString())
+    console.log('dh0=' + new Date(this.dh0).toISOString())
+    console.log('dhP=' + new Date(this.dhP).toISOString())
+    console.log('flags=' + AL.edit(this.flags))
     const p = `
-  cumulCouts=${e6(c.cumulCouts)} cumulAbo=${e6(c.cumulAbo)} cumulConso=${e6(c.cumulConso)}
-  aboma=${e6(c.aboma)} consoma=${e6(c.consoma)}
-  QUOTAS -> qn=${c.qv.qn} qv=${c.qv.qn} qc=${c.qv.qn} 
-  CPT -> N=${c.qv.nn + c.qv.nc + c.qv.ng} nn=${c.qv.nn} nc=${c.qv.nc} ng=${c.qv.ng} V=${e6(c.qv.v)} cjm*30= ${e6(c.qv.cjm * 30)} 
-  njec= ${c.njec}`
-    console.log(JSON.stringify(c.qv) + p)
+  QUOTAS -> qn=${this.qv.qn} qv=${this.qv.qn} qc=${this.qv.qn} 
+  CPT -> N=${this.qv.nn + this.qv.nc + this.qv.ng} nn=${this.qv.nn} nc=${this.qv.nc} ng=${this.qv.ng} v=${e6(this.qv.v)} 
+  cjm*30= ${e6(this.qv.cjm * 30)} njec= ${this.njec}`
+    console.log(p)
   }
   
   printvd (n) {
-    if (!this.vd[n][Compteurs.MS]) return
-    const m = this.vd[n]
-    const a = Compteurs.X1
-    const b = a + Compteurs.X2
-    const p = 
-  `[${n}] abom=${e6(m[Compteurs.CA])}  consom=${e6(m[Compteurs.CC])}
-    moy quotas: ${e6(m[Compteurs.QC])} ${e6(m[Compteurs.QN])} ${e6(m[Compteurs.QV])}
-    conso:  nl=${m[a + Compteurs.NL]}  ne=${m[a + Compteurs.NE]}  vd=${m[a + Compteurs.VD]}  vm=${m[a + Compteurs.VM]}
-    vols: nn=${e6(m[b + Compteurs.NN])}  nc=${e6(m[b + Compteurs.NC])}  ng=${e6(m[b + Compteurs.NG])}  v=${e6(m[b + Compteurs.V])}`
-    console.log(p)
-  }
-
-  printmm () {
-    const r = []
-    for(let m = 0; m < this.mm.length; m++) { 
-      const x = this.mm[m]
-      if (x) r.push(`[${m}] ${e6(x)}`)
+    let m = this.mm
+    for (let i = 0; i < 12; i++) {
+      const v = this.vd[m - 1]
+      if (!v[VMS]) break
+      const nj = Math.floor(v[VMS] / MSPARJOUR)
+      const p = 
+`[${m} ${nj} jours]
+  moy quotas:  qc=${e6(v[VQC])}  qn=${e6(v[VQN])}  qv=${e6(v[VQV])}
+  moy vols: nn=${e6(v[VNN])}  nc=${e6(v[VNC])}  ng=${e6(v[VNG])}  v=${e6(v[VV])}
+  conso:  nl=${v[VNL]}  ne=${v[VNE]}  vd=${v[VVD]}  vm=${v[VVM]}
+  coûts:  ac=${e6(v[VAC])}  af=${e6(v[VAF])}  cc=${e6(v[VCC])}  cf=${e6(v[VAC])}
+  soldes:  DB=${e6(v[VDB])}  CR=${e6(v[VCR])}  début=${e6(v[VS])}  fin=${e6(this.soldeDeM(m))}
+`
+      console.log(p)
+      m--; if (m === 0) m = 12
     }
-    console.log('mm  ' + r.join(' | '))
   }
 
   print () {
     this.printhdr()
-    for(let n = 0; n < Compteurs.NHD; n++) this.printvd(n)
-    this.printmm()
+    this.printvd()
     console.log('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+  }
+
+  static CSVHDR (sep) {
+    return ['NJ', 'QC', 'QN', 'QV', 'NL', 'NE', 'VM', 'VD', 
+      'NN', 'NC', 'NG', 'V', 'AC', 'AF', 'CC', 'CF'].join(sep)
+  }
+
+  /* Cette méthode est invoquée par collNs en tant que 
+  "processeur" de chaque row récupéré pour éviter son stockage en mémoire
+  puis son traitement:
+  - lignes : array de cumul des lignes générées.
+  - mr : mois relatif
+  - sep : séparateur CSV à utiliser
+  - data : row sérialisé (non crypté) compta, contenant un champ compteurs (sérialisation des compteurs).
+  */
+  static CSV (lignes, mr, sep, data) {
+    const dcomp = decode(data)
+    const c = new Compteurs(dcomp.compteurs)
+    const vx = c.vd[mr]
+    const nj = Math.ceil(vx[VMS] / MSPARMOIS)
+    if (!nj) return
+    
+    const qc = Math.round(vx[VQC])
+    const qn = Math.round(vx[VQN])
+    const qv = Math.round(vx[VQV])
+    const nl = Math.round(vx[VNL])
+    const ne = Math.round(vx[VNE])
+    const vm = Math.round(vx[VVM])
+    const vd = Math.round(vx[VVD])
+    const nn = Math.round(vx[VNN])
+    const nc = Math.round(vx[VNC])
+    const ng = Math.round(vx[VNG])
+    const v = Math.round(vx[VV])
+    const ac = Math.round(vx[VCA] * 100)
+    const af = Math.round(vx[VCC] * 100)
+    const cc = Math.round(vx[VCA] * 100)
+    const cf = Math.round(vx[VCC] * 100)
+    lignes.push([nj, qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, ac, af, cc, cf].join(sep))
   }
 }
 
