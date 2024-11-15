@@ -634,7 +634,7 @@ class GD {
         compte.qv = c.qv
         compte._maj = true
         if (!compte.estA && dqv) { // maj partition
-          const p = await gd.getPA(compte.idp)
+          const p = await this.getPA(compte.idp)
           p.majQC(compte.id, c.qv)
         }
       }
@@ -1094,9 +1094,9 @@ export class Operation {
       await sleep(3000); throw new AppExc(F_SRV, 104) 
     }
 
-    // Recherche des restrictions dans compta
+    // Recherche des restrictions dans compta: ajout de celles-ci dans this.flags
     this.compta = await this.gd.getCA(this.id)
-    this.compta.addFlags(this.flags)
+    this.compta.compteurs.addFlags(this.flags)
 
     // Recherche des restrictions dans compte
     if (!this.estComptable && this.compte.idp) {

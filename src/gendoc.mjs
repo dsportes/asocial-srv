@@ -430,7 +430,7 @@ _data_:
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
     - `q` : `qc qn qv c2m nn nc ng v` extraits du document `comptas` du compte.
-      - `q.c2m` est le compteur `conso2M` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1 (observé à `dhic`). 
+      - `q.cjm` est le compteur `cjm` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1 (observé à `dhic`). 
 */
 export class Partitions extends GenDoc { 
   constructor () { super('partitions') }
@@ -791,9 +791,9 @@ export class Comptes extends GenDoc {
       return
     } 
     const c = compta.compteurs
-    if (c.solde < 0) {
-      if (this.dharS !== c.dhsn) {
-        this.dharS = c.dhsn
+    if (c.soldeCourant < 0) {
+      if (this.dharS !== c.ddsn) {
+        this.dharS = c.ddsn
         this.dhopS = gd.op.dh
         this._maj = true
       }
@@ -1139,7 +1139,7 @@ _data_ :
 _data_:
 - `id` : ID du compte = ID de son avatar principal.
 - `v` : 1..N.
-- `compteurs` sérialisation des quotas, volumes et coûts.
+- `serialCompteurs` sérialisation des quotas, volumes et coûts.
 - `tickets`: map des tickets / dons:
   - _clé_: `ids`
   - _valeur_: `{dg, dr, ma, mc, refa, refc}`
@@ -1158,18 +1158,20 @@ export class Comptas extends GenDoc {
     const x = new Comptas().init({
       _maj: true, v: 0, 
       id: id,
-      compteurs: c.serial
+      serialCompteurs: c.serial,
+      dons: [],
+      tickets: {}
     })
     return x.compile()
   }
 
-  get compteurs () { return new Compteurs(this.compteurs) }
+  get compteurs () { return new Compteurs(this.serialCompteurs) }
 
-  get qv () { return new Compteurs(this.compteurs).qv }
+  get qv () { return this.compteurs.qv }
 
   setA (estA) {
-    const c = new Compteurs(this.compteurs, null, null, estA)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, null, null, estA)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
@@ -1200,39 +1202,39 @@ export class Comptas extends GenDoc {
     qv.qc = q.qc
     qv.qn = q.qn
     qv.qv = q.qv
-    const c = new Compteurs(this.compteurs, qv)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, qv)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
   ncPlus (q) {
     const qv = { ...this.qv }
     qv.nc += q
-    const c = new Compteurs(this.compteurs, qv)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, qv)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
   nnPlus (q) {
     const qv = { ...this.qv }
     qv.nn += q
-    const c = new Compteurs(this.compteurs, qv)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, qv)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
   ngPlus (q) {
     const qv = { ...this.qv }
     qv.ng += q
-    const c = new Compteurs(this.compteurs, qv)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, qv)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
   vPlus (q) {
     this.qv.v += q
-    const c = new Compteurs(this.compteurs, this.qv)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, this.qv)
+    this.serialCompteurs = c.serial
     this.majcpt(c)
     this._maj = true
   }
@@ -1241,8 +1243,8 @@ export class Comptas extends GenDoc {
     const qv = { ...this.qv }
     qv.nn -= nn
     qv.v -= vf
-    const c = new Compteurs(this.compteurs, qv)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, qv)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
@@ -1252,8 +1254,8 @@ export class Comptas extends GenDoc {
     qv.v += vf
     if ((qv.nn + qv.ng + qv.nc) > (qv.qn * UNITEN)) throw new AppExc(A_SRV, 281)
     if (qv.v > (qv.qv * UNITEV)) throw new AppExc(A_SRV, 282)
-    const c = new Compteurs(this.compteurs, qv)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, qv)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
@@ -1288,17 +1290,17 @@ export class Comptas extends GenDoc {
     tk.mc = m
     tk.refc = refc || ''
     this.tickets[tk.ids] = tk.shortTk()
-    const c = new Compteurs(this.serial, null, null, null, m)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, null, null, null, m)
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
   don (dh, m, iddb) {
-    const c = new Compteurs(this.serial, null, null, null, m)
+    const c = new Compteurs(this.serialCompteurs, null, null, null, m)
     if (m < 0 && c.solde < 2) throw new AppExc(A_SRV, 215, [-m, c.solde])
     if (!this.dons) this.dons = []
     this.dons.push({dh, m, iddb})
-    this.compteurs = c.serial
+    this.serialCompteurs = c.serial
     this._maj = true
   }
 
@@ -1310,8 +1312,8 @@ export class Comptas extends GenDoc {
       vm: op.vm 
     }
     const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
-    const c = new Compteurs(this.compteurs, null, x)
-    this.compteurs = c.serial
+    const c = new Compteurs(this.serialCompteurs, null, x)
+    this.serialCompteurs = c.serial
     this._maj = true
     op.setRes('conso', conso)
   }

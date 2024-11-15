@@ -543,6 +543,19 @@ export class Tarif {
     mc += v[VVD] * cu[5] / GIGA
     return [ma, mc]
   }
+
+  static evalConso (ca, dh) {
+    const [a, m] = AMJ.am(dh || Date.now())
+    const c = Tarif.cu(a, m)
+    const x = [(ca.nl * c[2] / MEGA) 
+      , (ca.ne * c[3] / MEGA) 
+      , (ca.vm * c[4] / GIGA)
+      , (ca.vd * c[5] / GIGA)]
+    let t = 0
+    x.forEach(i => { t += i })
+    x.push(t)
+    return x
+  }
 }
 
 function e6 (x) {
@@ -879,11 +892,15 @@ export class Compteurs {
     const ap = this.qv
     if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) return true
     function d5 (x) { 
+      if (av[x] === ap[x]) return false
       if ((av[x] && !ap[x]) || (!av[x] && ap[x])) return true
       let y = (av[x] - ap[x]) / av[x]; if (y < 0) y = -y
-      return y > 1.05 || y < 0.95
+      if (y < 0.05) return false
+      if (x !== 'cjm') return true
+      if (ap[x] < 0.1) return false
+      return true
     }
-    return d5('nn') || d5('nc') || d5('ng') || d5('ng') || d5('v') || d5('cjm')
+    return d5('nn') || d5('nc') || d5('ng') || d5('v') || d5('cjm')
   }
 
   printhdr () {

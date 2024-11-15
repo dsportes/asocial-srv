@@ -297,7 +297,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     this.compte = compte
     this.compta = compta
     compti.setMc(sp.id, args.htK, args.txK)
-    await compte.reportDeCompta(compta, this.gd)
+    // await compte.reportDeCompta(compta, this.gd)
 
     const avatar = this.gd.nouvAV(args, args.cvA)
 
@@ -346,7 +346,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
         cleEC: args.ch.cleE2C,
         items: [{a: 0, dh: dhsp, t: args.ch.t1c}, {a: 1, dh: this.dh, t: args.ch.t2c}]
       })
-      const comptaE = await this.gd.getCA(sp.id, 'SyncSp')
+      const comptaE = await this.gd.getCA(sp.id, 'AcceptationSponsoring')
       comptaE.ncPlus(1)
     }
 
@@ -801,12 +801,12 @@ operations.CreationComptable = class CreationComptable extends Operation {
     
     args.id = ID.duComptable()
 
-    const qc = { qc: 1, qn: 1, qv: 1 } 
+    const qc = { qc: 16, qn: 16, qv: 16 } 
     const partition = await this.gd.nouvPA(args.idp, qc)
 
     // Compte Comptable
-    const quotas = { qc: 1, qn: 1, qv: 1 }
-    const {compte, compta} = this.gd.nouvCO(args, null, quotas, 0)
+    const quotas = { qc: 8, qn: 8, qv: 8 }
+    const {compte, compta} = this.gd.nouvCO(args, null, quotas, 100)
     this.compte = compte
 
     partition.ajoutCompte(compta, args.cleAP, true)

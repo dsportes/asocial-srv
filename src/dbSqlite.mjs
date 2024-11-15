@@ -93,7 +93,8 @@ class Connx {
   // PRIVATE
   trap (e) {
     if (e.constructor.name !== 'SqliteError') throw e
-    const s = (e.code || '???') + '\n' + (e.message || '') + '\n' + this.lastSql.join('\n')
+    const s = (e.code || '???') + '\n' + (e.message || '') + '\n' + 
+      (e.stack ? e.stack + '\n' : '') + this.lastSql.join('\n')
     if (e.code && e.code.startsWith('SQLITE_BUSY')) return [1, s]
     return [2, s]
   }
