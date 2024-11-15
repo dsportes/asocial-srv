@@ -834,8 +834,8 @@ export class Operation {
 
       if (this.aTaches) Taches.startDemon(this)
 
-      if (AL.has(this.flags, AL.RAL1)) await sleep(100)
-      if (AL.has(this.flags, AL.RAL2)) await sleep(3000)
+      if (!this.estA && AL.has(this.flags, AL.RAL1)) await sleep(100)
+      if (!this.estA && AL.has(this.flags, AL.RAL2)) await sleep(3000)
       
       return this.result
     } catch (e) {
