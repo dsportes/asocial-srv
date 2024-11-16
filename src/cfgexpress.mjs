@@ -1,10 +1,9 @@
 /* eslint-disable no-unused-vars */
 import express from 'express'
 import { encode, decode } from '@msgpack/msgpack'
-import path from 'path'
 
 import { config } from './config.mjs'
-import { decode3, getHP, sendAlMail } from './util.mjs'
+import { decode3, getHP, sendAlMail, sleep } from './util.mjs'
 import { AMJ, APIVERSION, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
 import { pubsub } from './notif.mjs'
 
@@ -49,7 +48,8 @@ export function appExpress(dbp, storage) {
   }
 
   //**** ping du site ***
-  app.get('/ping', (req, res) => {
+  app.get('/ping', async (req, res) => {
+    await sleep(config.D1)
     setRes(res, 200, 'text/plain').send((config.run.nom ? config.run.nom + ' - ' : '') + new Date().toISOString())
   })
 

@@ -106,8 +106,9 @@ ne soit considérée comme obsolète */
 export const IDBOBS = 18 * 30
 export const IDBOBSGC = 19 * 30
 
-export const UNITEN = 250 // nombre de notes + chats + groupes
+export const UNITEN = 100 // nombre de notes + chats + groupes
 export const UNITEV = 100 * 1000 * 1000 // volume de fichiers
+export const UNITEIO = 100 * 1000 // unité de lecture / écriture
 export const MAXTAILLEGROUPE = 100
 
 export const limitesjour = { 
@@ -500,17 +501,17 @@ export function edvol (vol, u) {
 - `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
   - `u1`: abonnement mensuel en c à 250 notes / chats (250 = UNITEN)
   - `u2`: abonnement mensuel en c à 100Mo de fichiers (100Mo = UNITEV)
-  - `ul`: 1 million de lectures en c
-  - `ue`: 1 million d'écritures en c
-  - `um`: 1 GB de transfert montant en c
-  - `ud`: 1 GB de transfert descendant en c
+  - `ul`: UNITEIO de lectures en c
+  - `ue`: UNITEIO d'écritures en c
+  - `um`: UNITEV bytes de transfert montant en c
+  - `ud`: UNITEV bytes de transfert descendant en c
 - les coûts sont en centimes d'euros
 */
 export class Tarif {
   static tarifs = [
-    { am: 202401, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202501, cu: [0.55, 0.15, 80, 180, 15, 15] },
-    { am: 202506, cu: [0.65, 0.10, 80, 150, 15, 15] }
+    { am: 202401, cu: [0.45, 0.10, 8, 20, 15, 15] },
+    { am: 202501, cu: [0.55, 0.15, 8, 18, 15, 15] },
+    { am: 202506, cu: [0.65, 0.10, 8, 15, 15, 15] }
   ]
 
   static init(t) { Tarif.tarifs = t}
@@ -537,20 +538,20 @@ export class Tarif {
     const p = ms / MSPARMOIS
     ma += v[VQN] * cu[0] * p
     ma += v[VQV] * cu[1] * p
-    mc += v[VNL] * cu[2] / MEGA
-    mc += v[VNE] * cu[3] / MEGA
-    mc += v[VVM] * cu[4] / GIGA
-    mc += v[VVD] * cu[5] / GIGA
+    mc += v[VNL] * cu[2] / UNITEIO
+    mc += v[VNE] * cu[3] / UNITEIO
+    mc += v[VVM] * cu[4] / UNITEV
+    mc += v[VVD] * cu[5] / UNITEV
     return [ma, mc]
   }
 
   static evalConso (ca, dh) {
     const [a, m] = AMJ.am(dh || Date.now())
     const c = Tarif.cu(a, m)
-    const x = [(ca.nl * c[2] / MEGA) 
-      , (ca.ne * c[3] / MEGA) 
-      , (ca.vm * c[4] / GIGA)
-      , (ca.vd * c[5] / GIGA)]
+    const x = [(ca.nl * c[2] / UNITEIO) 
+      , (ca.ne * c[3] / UNITEIO) 
+      , (ca.vm * c[4] / UNITEV)
+      , (ca.vd * c[5] / UNITEV)]
     let t = 0
     x.forEach(i => { t += i })
     x.push(t)
@@ -584,8 +585,6 @@ export const VCF = 15
 export const VDB = 16
 export const VCR = 17
 export const VS = 18
-export const MEGA = 1000000
-export const GIGA = MEGA * 1000
 
 /** Compteurs **********************************************************************
 Unités:

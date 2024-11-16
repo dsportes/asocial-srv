@@ -511,7 +511,7 @@ export class Partitions extends GenDoc {
       throw new AppExc(A_SRV, 328, [this.q.qc - this.qt.qc + avqc, ap.qc])
   }
 
-  ajoutCompte (compta, cleAP, del, notif) { // id de compta, q: copie de qv de compta
+  ajoutCompteO (compta, cleAP, del, notif) { // (compte O) id de compta, q: copie de qv de compta
     const q = compta.qv
     if (q.qc + this.qt.qc > this.q.qc) throw new AppExc(A_SRV, 319, [q.qc + this.qt.qc, this.q.qc])
     if (q.qn + this.qt.qn > this.q.qn) throw new AppExc(A_SRV, 320, [q.qn + this.qt.qn, this.q.qn])
@@ -615,22 +615,19 @@ export class Syntheses extends GenDoc {
     this._maj = true
   }
 
-  updQuotas(av, ap) {
+  updQuotasA (av, ap) { // pour des comptes A seulement
     if ((av.qn < ap.qn) && (this.qA.qn - this.qtA.qn - av.qn < ap.qn))
       throw new AppExc(A_SRV, 326, [this.qA.qn - this.qtA.qn - av.qv, ap.qn])
     else this.qtA.qn = this.qtA.qn - av.qn + ap.qn
     if ((av.qv < ap.qv) && (this.qA.qv - this.qtA.qv - av.qv < ap.qv))
       throw new AppExc(A_SRV, 327, [this.qA.qv - this.qtA.qv - av.qv, ap.qv])
     else this.qtA.qv = this.qtA.qv - av.qv + ap.qv
-    if ((av.qc < ap.qc) && (this.qA.qc - this.qtA.qc - av.qc < ap.qc))
-      throw new AppExc(A_SRV, 325, [this.qA.qc - this.qtA.qc - av.qc, ap.qc])
-    else this.qtA.qc = this.qtA.qc - av.qc + ap.qc
+    this.qtA.qc = this.qtA.qc - av.qc + ap.qc
     this._maj = true
   }
 
-  ajoutCompteA (q) {
+  ajoutCompteA (q) { // Sur mutation en compte A
     this.qtA.qc += q.qc; this.qtA.qn +=q.qn; this.qtA.qv += q.qv
-    if (this.qtA.qc > this.qA.qc) throw new AppExc(A_SRV, 322, [this.qA.qc, this.qtA.qc])
     if (this.qtA.qn > this.qA.qn) throw new AppExc(A_SRV, 323, [this.qA.qn, this.qtA.qn])
     if (this.qtA.qv > this.qA.qv) throw new AppExc(A_SRV, 324, [this.qA.qv, this.qtA.qv])
     this._maj = true

@@ -9,10 +9,12 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   NOPURGESESSIONS: true, // En test ne pas purger les sessions dans notif
 
   tarifs: [
-    { am: 202201, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202305, cu: [0.45, 0.10, 80, 200, 15, 15] },
-    { am: 202309, cu: [0.45, 0.10, 80, 200, 15, 15] }
+    { am: 202401, cu: [0.45, 0.10, 8, 20, 15, 15] },
+    { am: 202501, cu: [0.55, 0.15, 8, 18, 15, 15] },
+    { am: 202506, cu: [0.65, 0.10, 8, 15, 15, 15] }
   ],
+  creationComptable: { qn: 5, qv: 5, qc: 5, cr: 100, pqn: 10, pqv: 10, pqc: 10 },
+  D1: 2000, // Délai d'attente sur exception et opérations non auth
 
   // Paramètres fonctionnel
   gccode: '1234azerty', // Code d'habilitation du lancement du GC

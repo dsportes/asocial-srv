@@ -798,7 +798,7 @@ export class Operation {
         if (st === 0) break // transcation OK
         if (st === 1) { // DB lock / contention
           if (retry === 2) throw new AppExc(E_SRV, 10, [detail])
-          await sleep(1000)
+          await sleep(config.D1)
         } else if (st === 2) // DB error
           throw new AppExc(E_SRV, 11, [detail])
       }
@@ -834,8 +834,8 @@ export class Operation {
 
       if (this.aTaches) Taches.startDemon(this)
 
-      if (!this.estA && AL.has(this.flags, AL.RAL1)) await sleep(100)
-      if (!this.estA && AL.has(this.flags, AL.RAL2)) await sleep(3000)
+      if (!this.estA && AL.has(this.flags, AL.RAL1)) await sleep(config.D1 / 10)
+      if (!this.estA && AL.has(this.flags, AL.RAL2)) await sleep(config.D1 * 2)
       
       return this.result
     } catch (e) {
@@ -1030,13 +1030,13 @@ export class Operation {
 
     const t = this.args.token
     if (!t && this.authMode !== 0) { 
-      await sleep(3000)
+      await sleep(config.D1)
       throw new AppExc(F_SRV, 205) 
     } 
     this.authData = null
     this.estAdmin = false
     if (!t) {
-      if (this.authMode === 3) { await sleep(3000); throw new AppExc(F_SRV, 999) }
+      if (this.authMode === 3) { await sleep(config.D1); throw new AppExc(F_SRV, 999) }
       return
     }
     try { 
@@ -1053,7 +1053,7 @@ export class Operation {
       }
       this.org = this.authData.org
     } catch (e) { 
-      await sleep(3000)
+      await sleep(config.D1)
       throw new AppExc(F_SRV, 206, [e.message])
     }
   }
@@ -1063,7 +1063,7 @@ export class Operation {
 
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     const espace = await Esp.getEspOrg (this, this.org, true)
-    if (!espace) { await sleep(3000); throw new AppExc(F_SRV, 996) }
+    if (!espace) { await sleep(config.D1); throw new AppExc(F_SRV, 996) }
     espace.excFerme()
     if (this.excFige === 2) espace.excFige()
     if (espace.fige) AL.add(this.flags, AL.FIGE)
@@ -1071,7 +1071,7 @@ export class Operation {
     /* Compte */
     this.compte = await this.gd.getCO(0, null, this.authData.hXR)
     if (!this.compte || this.compte.hXC !== this.authData.hXC) { 
-      await sleep(3000); throw new AppExc(F_SRV, 998) 
+      await sleep(config.D1); throw new AppExc(F_SRV, 998) 
     }
 
     /* La dlv a été calculée à la fin de l'opération précédente, potentiellement des mois avant
@@ -1082,7 +1082,7 @@ export class Operation {
     Donc cette dlv (calculée peut-être il y a longtemps) est VALIDE maintenant.
     */
     if (this.compte.dlv < this.auj) { 
-      await sleep(3000); throw new AppExc(F_SRV, 997) 
+      await sleep(config.D1); throw new AppExc(F_SRV, 997) 
     }
 
     this.id = this.compte.id
@@ -1091,7 +1091,7 @@ export class Operation {
 
     // Opération du seul Comptable
     if (this.authMode === 2 && !this.estComptable) { 
-      await sleep(3000); throw new AppExc(F_SRV, 104) 
+      await sleep(config.D1); throw new AppExc(F_SRV, 104) 
     }
 
     // Recherche des restrictions dans compta: ajout de celles-ci dans this.flags

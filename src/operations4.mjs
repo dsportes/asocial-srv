@@ -113,7 +113,6 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       if (q.qv > (s.q.qv - s.qt.qv)) throw new AppExc(F_SRV, 321, [s.q.qv - s.qt.qv, q.qv])
     } else {
       const s = await this.gd.getSY()
-      if (q.qc > (s.qA.qc - s.qtA.qc)) throw new AppExc(F_SRV, 325, [s.qA.qc - s.qtA.qc, q.qc])
       if (q.qn > (s.qA.qn - s.qtA.qn)) throw new AppExc(F_SRV, 323, [s.qA.qn - s.qtA.qn, q.qn])
       if (q.qv > (s.qA.qv - s.qtA.qv)) throw new AppExc(F_SRV, 324, [s.qA.qv - s.qtA.qv, q.qv])
       if (this.estComptable || !this.compte._estA) args.don = DONCOMPTEO
@@ -382,9 +381,7 @@ operations.MajChat = class MajChat extends OperationCh {
     const avE = await this.gd.getAV(this.chI.idE, 'MajChat-2')
 
     if (args.don) {
-      if (!this.compte._estA) throw new AppExc(F_SRV, 214)
       const cptE = await this.gd.getCO(avE.idc) // cptE existe puisque chE existe ici
-      if (!cptE || !cptE._estA) throw new AppExc(F_SRV, 214)
       const comptaE = await this.gd.getCA(cptE.id, 'MajChat-1')
       comptaE.don(this.dh, args.don, this.id)
       this.compta.don(this.dh, -args.don, this.cptE.id) // ici chE existe, donc cptE
@@ -474,9 +471,9 @@ operations.ChangementPC = class ChangementPC extends Operation {
   }
 }
 
-/* StatutAvatar: Vérification que le bénéficiaire envisagé d\'un don est bien un compte autonome
+/* StatutAvatar: Si l'avatar est avatar principal, retourne sa partition
 Retour: [idc, idp]
-- idc: id du compte
+- idc: args.id si c'est un avatar principal, sinon ''
 - idp: id de la partition si compte "0", '' si compte "A"
 */
 operations.StatutAvatar = class StatutAvatar extends Operation {
@@ -489,8 +486,10 @@ operations.StatutAvatar = class StatutAvatar extends Operation {
 
   async phase2(args) {
     const avatar = await this.gd.getAV(args.id, 'StatutAvatar-1')
-    const c = await this.gd.getCO(avatar.idc)
-    this.setRes('idcidp', [c.id, c.idp || ''])
+    if (avatar.idc === args.id) {
+      const c = await this.gd.getCO(avatar.idc)
+      this.setRes('idcidp', [args.id, c.idp || ''])
+    } else this.setRes('idcidp', ['', ''])
   }
 }
 
@@ -587,7 +586,7 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
 operations.SetQuotas = class SetQuotas extends Operation {
   constructor (nom) { 
     super(nom, 1, 2) 
-    this.rargs = {
+    this.targs = {
       idp: { t: 'idp' }, // id de la partition
       idc: { t: 'idc' }, // id du compte
       q: { t: 'q' } // quotas: {qc, qn, qv}
@@ -598,8 +597,8 @@ operations.SetQuotas = class SetQuotas extends Operation {
     const compta = (args.idc === this.id) ? this.compta : await this.gd.getCA(args.idc, 'SetQuotas-1')
     if (!args.idp) { // compte A
       const synth = await this.gd.getSY()
-      synth.updQuotas(compta.qv, args.q) // peut lever une Exc si insuffisance de quotas
-    } else { // compte P
+      synth.updQuotasA(compta.qv, args.q) // peut lever une Exc si insuffisance de quotas
+    } else { // compte O
       const part = await this.gd.getPA(args.idp, 'SetQuotas-2')
       part.checkUpdateQ(args.idc, args.q) // peut lever une Exc si insuffisance de quotas
     }
@@ -611,7 +610,7 @@ operations.SetQuotas = class SetQuotas extends Operation {
 operations.NouvellePartition = class NouvellePartition extends Operation {
   constructor (nom) { 
     super(nom, 2, 2)
-    this.rargs = {
+    this.targs = {
       idp: { t: 'idp' }, // id de la partition
       itemK: { t: 'u8' }, //  {cleP, code} crypté par la clé K du Comptable.
       quotas: { t: 'q' } // quotas: {qc, qn, qv}
@@ -633,7 +632,7 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
 operations.SupprPartition = class SupprPartition extends Operation {
   constructor (nom) { 
     super(nom, 2, 2)
-    this.rargs = {
+    this.targs = {
       idp: { t: 'idp' } // id de la partition
     }
   }
@@ -657,7 +656,7 @@ operations.SupprPartition = class SupprPartition extends Operation {
 operations.SetQuotasPart = class SetQuotasPart extends Operation {
   constructor (nom) { 
     super(nom, 2, 2)
-    this.rargs = {
+    this.targs = {
       idp: { t: 'idp' }, // id de la partition
       quotas: { t: 'q' } // quotas: {qc, qn, qv}
     }
@@ -695,7 +694,7 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
 operations.SetQuotasA = class SetQuotasA extends Operation {
   constructor (nom) { 
     super(nom, 2, 2) 
-    this.rargs = {
+    this.targs = {
       quotas: { t: 'q' } // quotas: {qc, qn, qv}
     }
   }
@@ -716,12 +715,10 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
     const maxn = rqn < 0 ? q.qn : rqn
     const rqv = qe.qv - qpt.qv + q.qv
     const maxv = rqv < 0 ? q.qv : rqv
-    const rqc = qe.qc - qpt.qc + q.qc
-    const maxc = rqc < 0 ? q.qc : rqc
     const qap = args.quotas
+    qap.qc = 0
     if (qap.qn > maxn) throw new AppExc(F_SRV, 331)
     if (qap.qv > maxv) throw new AppExc(F_SRV, 332)
-    if (qap.qc > maxc) throw new AppExc(F_SRV, 333)
     synth.setQA(qap)
   }
 }
@@ -730,7 +727,7 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
 operations.SetCodePart = class SetCodePart extends Operation {
   constructor (nom) { 
     super(nom, 2, 2)
-    this.rargs = {
+    this.targs = {
       idp: { t: 'idp' }, // id de la partition
       etpk: { t: 'u8' } // {codeP, code} crypté par la clé K du Comptable
     }
@@ -862,7 +859,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     synth.retraitCompteA(cpt.qv)
 
     const part = await this.gd.getPA(idp, 'MuterCompteO-4')
-    part.ajoutCompte(compta, args.cleAP, false) // Peut lever Exc de quotas
+    part.ajoutCompteO(compta, args.cleAP, false) // Peut lever Exc de quotas
 
     await this.setChat(args)
   }
@@ -909,7 +906,7 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
     if (epap) throw new AppExc(A_SRV, 233)
 
     partav.retraitCompte(args.id)
-    partap.ajoutCompte(compta, args.cleAP, false, args.notif || null)
+    partap.ajoutCompteO(compta, args.cleAP, false, args.notif || null)
 
     // Maj du compte
     cpt.chgPart(partap.id, args.clePK, args.notif || null)

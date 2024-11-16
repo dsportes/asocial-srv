@@ -42,13 +42,12 @@ operations.EchoTexte = class EchoTexte extends Operation {
     super(nom, 0)
     this.SYS = true 
     this.targs = {
-      to: { t: 'int', min: 0, max: 10 },
       texte: { t: 'string' }
     }
   }
 
   async phase2(args) {
-    if (args.to) await sleep(args.to * 1000)
+    await sleep(config.D1)
     this.setRes('echo', args.texte)
   }
 }
@@ -61,13 +60,12 @@ operations.ErreurFonc = class ErreurFonc extends Operation {
     super(nom, 0)
     this.SYS = true
     this.targs = {
-      to: { t: 'int', min: 0, max: 10 },
       texte: { t: 'string' }
     }
   }
 
   async phase2(args) {
-    if (args.to) await sleep(args.to * 1000)
+    await sleep(config.D1)
     throw new AppExc(A_SRV, 10, [args.texte])
   }
 }
@@ -84,6 +82,7 @@ operations.PingDB = class PingDB extends Operation {
   }
 
   async phase2() {
+    await sleep(config.D1)
     this.result.type = 'text/plain'
     this.result.bytes = await this.db.ping()
   }
@@ -149,6 +148,7 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
     await this.checkEspaceOrg(args.org)
     
     const avatar = await this.gd.getAV(args.id, 'getPub')
+    if (!avatar.pub) await sleep(config.D1)
     this.setRes('pub', avatar ? avatar.pub : null)
   }
 }
@@ -170,11 +170,12 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   async phase2 (args) {
     const espace = await this.setEspaceOrg(args.org)
 
-    if (espace.hTC) // Compte du Comptable pas encore créé
+    if (espace.hTC) { // Compte du Comptable pas encore créé
+      await sleep(config.D1)
       this.setRes('cleET', espace.hTC === args.hTC ? espace.cleET : false)
-    else {
+    } else {
       const sp = compile(await this.db.getSponsoringIds(ID.long(args.hps1, this.ns)))
-      if (!sp) { sleep(3000); throw new AppExc(F_SRV, 11) }
+      if (!sp) { await sleep(config.D1); throw new AppExc(F_SRV, 11) }
       this.setRes('rowSponsoring', sp.toShortRow(this))
       this.setRes('ns', this.ns)  
     }
@@ -198,6 +199,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
     await this.checkEspaceOrg(args.org)
 
     if (await this.db.getCompteHk(ID.long(args.hps1, this.ns))) this.setRes('existe', true)
+    else await sleep(D1)
   }
 }
 
@@ -273,7 +275,10 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     await this.setEspaceOrg(args.org) // set this.ns et this.org
 
     const avsponsor = await this.gd.getAV(args.idsp)
-    if (!avsponsor) throw new AppExc(F_SRV, 401)
+    if (!avsponsor) {
+      await sleep(config.D1)
+      throw new AppExc(F_SRV, 401)
+    }
 
     // Recherche du sponsorings
     const sp = await this.gd.getSPO(args.idsp, args.idssp)
@@ -287,7 +292,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     if (sp.don) { 
       const csp = await this.gd.getCA(args.idsp)
       if (!csp) throw new AppExc(F_SRV, 402)
-      if (csp.estA) csp.don(this.dh, -2, args.id)
+      csp.don(this.dh, -sp.don, args.id)
     }
 
     // créé compte compta compti invit
@@ -306,10 +311,10 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     if (pid) {
       const partition = await this.gd.getPA(pid) // assert si n'existe pas
       partition.checkUpdateQ(pid, sp.quotas) // peut lever une Exc si insuffisance de quotas
-      partition.ajoutCompte(compta, args.cleAP, sp.del)
+      partition.ajoutCompteO(compta, args.cleAP, sp.del)
     } else {
       const synth = await this.gd.getSY()
-      synth.updQuotas({ qn: 0, qv: 0, qc: 0 }, sp.quotas) // peut lever une Exc si insuffisance de quotas
+      synth.updQuotasA({ qn: 0, qv: 0, qc: 0 }, sp.quotas) // peut lever une Exc si insuffisance de quotas
     }
     
     /* Création chat */
@@ -373,7 +378,10 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
     await this.setEspaceOrg(args.org)
 
     const avsponsor = await this.gd.getAV(args.id)
-    if (!avsponsor) throw new AppExc(F_SRV, 401)
+    if (!avsponsor) {
+      await sleep(config.D1)
+      throw new AppExc(F_SRV, 401)
+    }
   
     // Recherche du sponsorings
     const sp = await this.gd.getSPO(args.id, args.ids)
@@ -794,22 +802,29 @@ operations.CreationComptable = class CreationComptable extends Operation {
   }
 
   async phase2(args) {
+    const cfg = config.creationComptable
     const espace = await this.setEspaceOrg(args.org, false)
 
-    if (!espace.hTC) throw new AppExc(F_SRV, 105)
-    if (espace.hTC !== args.hTC) throw new AppExc(F_SRV, 106)
+    if (!espace.hTC) {
+      await sleep(config.D1)
+      throw new AppExc(F_SRV, 105)
+    }
+    if (espace.hTC !== args.hTC) {
+      await sleep(config.D1)
+      throw new AppExc(F_SRV, 106)
+    }
     
     args.id = ID.duComptable()
 
-    const qc = { qc: 16, qn: 16, qv: 16 } 
+    const qc = { qc: cfg.pqc, qn: cfg.pqn, qv: cfg.pqv } 
     const partition = await this.gd.nouvPA(args.idp, qc)
 
     // Compte Comptable
-    const quotas = { qc: 8, qn: 8, qv: 8 }
-    const {compte, compta} = this.gd.nouvCO(args, null, quotas, 100)
+    const quotas = { qc: cfg.qc, qn: cfg.qn, qv: cfg.qv }
+    const {compte, compta} = this.gd.nouvCO(args, null, quotas, cfg.cr)
     this.compte = compte
 
-    partition.ajoutCompte(compta, args.cleAP, true)
+    partition.ajoutCompteO(compta, args.cleAP, true)
 
     const cvA = { id: args.id }
     this.gd.nouvAV(args, cvA)

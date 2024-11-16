@@ -4,6 +4,11 @@ import express from 'express'
 import { config } from './config.mjs'
 import { pubsub } from './notif.mjs'
 
+function sleep (delai) {
+  if (delai <= 0) return
+  return new Promise((resolve) => { setTimeout(() => resolve(), delai) })
+}
+
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
   res.status(status)
@@ -38,7 +43,8 @@ export function appExpress() {
   })
 
   //**** ping du site ***
-  app.get('/ping', (req, res) => {
+  app.get('/ping', async (req, res) => {
+    await sleep(config.D1)
     setRes(res, 200, 'text/plain').send('PUBSUB - ' + new Date().toISOString())
   })
 
