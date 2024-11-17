@@ -1297,7 +1297,7 @@ export class Comptas extends GenDoc {
 
   don (dh, m, iddb) {
     const c = new Compteurs(this.serialCompteurs, null, null, null, m)
-    if (m < 0 && c.solde < 2) throw new AppExc(A_SRV, 215, [-m, c.solde])
+    if (m < 0 && c.soldeCourant + m < 2) throw new AppExc(A_SRV, 215, [-m, c.soldeCourant])
     if (!this.dons) this.dons = []
     this.dons.push({dh, m, iddb})
     this.serialCompteurs = c.serial
@@ -1576,9 +1576,8 @@ export class Sponsorings extends GenDoc {
     sp.txK = args.txK
     sp.dconf = args.dconf || false
     sp.quotas = args.quotas
-    if (!args.partitionId) { // compte A
-      sp.don = args.don
-    } else {
+    sp.don = args.don
+    if (args.partitionId) { 
       sp.clePYC = args.clePYC
       sp.partitionId = args.partitionId
       sp.del = args.del

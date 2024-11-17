@@ -115,12 +115,9 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       const s = await this.gd.getSY()
       if (q.qn > (s.qA.qn - s.qtA.qn)) throw new AppExc(F_SRV, 323, [s.qA.qn - s.qtA.qn, q.qn])
       if (q.qv > (s.qA.qv - s.qtA.qv)) throw new AppExc(F_SRV, 324, [s.qA.qv - s.qtA.qv, q.qv])
-      if (this.estComptable || !this.compte._estA) args.don = DONCOMPTEO
-      else {
-        if (this.compta.solde <= args.don + 2)
-          throw new AppExc(F_SRV, 212, [this.compta.solde, args.don])
-      }
     }
+    if (this.compta.solde - args.don < 2)
+      throw new AppExc(F_SRV, 212, [this.compta.solde, args.don])
 
     await this.gd.nouvSPO(args, args.hYR, 'AjoutSponsoring')
   }
