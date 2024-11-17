@@ -556,7 +556,7 @@ _data_:
 - `id` : ns de son espace.
 - `v` : 
 - `qA` : `{ qc, qn, qv }` - quotas **maximum** disponibles pour les comptes A.
-- `qtA` : `{ qc, qn, qv }` - quotas **effectivement attribués** aux comptes A. En conséquence `qA.qn - qtA.qn` est le quotas `qn` encore attribuable aux compte A.
+- `qtA` : `{ qn, qv }` - quotas **effectivement attribués** aux comptes A. En conséquence `qA.qn - qtA.qn` est le quotas `qn` encore attribuable aux compte A.
 
 - `tsp` : table des _synthèses_ des partitions.
   - _index_: numéro de la partition.
@@ -578,7 +578,7 @@ export class Syntheses extends GenDoc {
     return new Syntheses().init({
       _maj: true, v: 0,
       qA: { qc: 0, qn: 0, qv: 0 },
-      qtA: { qc: 0, qn: 0, qv: 0 },
+      qtA: { qn: 0, qv: 0 },
       id: '',
       tsp: {}
     })
@@ -621,20 +621,23 @@ export class Syntheses extends GenDoc {
     if ((av.qv < ap.qv) && (this.qA.qv - this.qtA.qv - av.qv < ap.qv))
       throw new AppExc(A_SRV, 327, [this.qA.qv - this.qtA.qv - av.qv, ap.qv])
     else this.qtA.qv = this.qtA.qv - av.qv + ap.qv
-    this.qtA.qc = this.qtA.qc - av.qc + ap.qc
+    // this.qtA.qc = this.qtA.qc - av.qc + ap.qc
     this._maj = true
   }
 
   ajoutCompteA (q) { // Sur mutation en compte A
-    this.qtA.qc += q.qc; this.qtA.qn +=q.qn; this.qtA.qv += q.qv
+    // this.qtA.qc += q.qc
+    this.qtA.qn +=q.qn
+    this.qtA.qv += q.qv
     if (this.qtA.qn > this.qA.qn) throw new AppExc(A_SRV, 323, [this.qA.qn, this.qtA.qn])
     if (this.qtA.qv > this.qA.qv) throw new AppExc(A_SRV, 324, [this.qA.qv, this.qtA.qv])
     this._maj = true
   }
 
-  retraiCompteA (q) {
-    qtA.qc -= q.qc; qtA.qn -=q.qn; qtA.qv -= q.qv
-    if (qtA.qc < 0) qtA.qc = 0
+  retraitCompteA (q) {
+    qtA.qn -=q.qn
+    qtA.qv -= q.qv
+    // if (qtA.qc < 0) qtA.qc = 0
     if (qtA.qn < 0) qtA.qn = 0
     if (qtA.qv < 0) qtA.qv = 0
     this._maj = true

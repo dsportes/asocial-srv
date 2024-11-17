@@ -384,7 +384,7 @@ operations.MajChat = class MajChat extends OperationCh {
       const cptE = await this.gd.getCO(avE.idc) // cptE existe puisque chE existe ici
       const comptaE = await this.gd.getCA(cptE.id, 'MajChat-1')
       comptaE.don(this.dh, args.don, this.id)
-      this.compta.don(this.dh, -args.don, this.cptE.id) // ici chE existe, donc cptE
+      this.compta.don(this.dh, -args.don, cptE.id) // ici chE existe, donc cptE
     }
 
     if (args.t) {
