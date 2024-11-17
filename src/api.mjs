@@ -485,6 +485,7 @@ export class AMJ {
   }
 }
 
+/************************************************************************/
 export function edvol (vol, u) {
   const v = vol || 0
   if (v < 1000) return v + (u || 'o')
@@ -493,6 +494,32 @@ export function edvol (vol, u) {
   if (v < 1000000000000) return (v / 1000000000).toPrecision(3) + 'G' + (u || 'o')
   if (v < 1000000000000000) return (v / 1000000000000).toPrecision(3) + 'T' + (u || 'o')
   return (v / 1000000000000000).toPrecision(3) + 'P' + (u || 'o')
+}
+
+/************************************************************************/
+export const lqv = ['qn', 'qv', 'qc', 'nn', 'nc', 'ng', 'v', 'cjm']
+export const qv0 = { qc: 0, qn: 0, qv: 0, nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
+export function assertQv (qv, src) {
+  let c = ''
+  let x = 'QV'
+  if (qv === 'null') c = 'null'
+  else if (qv === 'undefined') c = 'undefined'
+  else if (typeof qv !== 'object') c = 'not-object'
+  else {
+    for (const f of lqv) {
+      const v = qv[f]
+      if (v === null) { c = 'null'; x = f; break }
+      if (v === undefined) { c = 'undefined'; x = f; break }
+      if (typeof v !== 'number') { c = 'NaN'; x = f; break }
+    }
+  }
+  if (c) {
+    const y = x + '/' + c
+    const msg = `ASSERT : ${src} - ${y} - 331`
+    const t = new Date().toISOString()
+    console.error(t + ' ' + msg)
+    return new AppExc(A_SRV, 331, [src, x, c])
+  }
 }
 
 /************************************************************************/
@@ -595,7 +622,7 @@ Unités:
 - E : écriture d'un document.
 - € : unité monétaire.
 
-quotas et volumes `qv` : `{ qc, qn, qv, nn, nc, ng, v }`
+quotas et volumes `qv` : `{ qc, qn, qv, nn, nc, ng, v, cjm }`
 - `qc`: limite de consommation
 - `qn`: quota du nombre total de notes / chats / groupes.
 - `qv`: quota du volume des fichiers.
@@ -612,7 +639,6 @@ consommations `conso` : `{ nl, ne, vm, vd }`
 */
 export class Compteurs {
   static lp = ['dh0', 'dh', 'dhP', 'estA', 'qv', 'ddsn', 'vd']
-  static lqv = ['qc', 'qn', 'qv', 'nn', 'nc', 'ng', 'v', 'cjm']
 
   /* Propriétés stockées:
   dh0 : date-heure de création du compte
@@ -689,8 +715,7 @@ export class Compteurs {
       this.ddsn = 0
       this.db = 0
       this.cr = 0
-      this.qv = qv || { qc: 0, qn: 0, qv: 0, nn: 0, nc: 0, ng: 0, v: 0 }
-      this.qv.cjm = 0
+      this.qv = { ...qv0 }
       this.vd = new Array(12)
       for(let i = 0; i < 12; i++) this.vd[i] = new Array(VS + 1).fill(0)
       this.vd[this.mm - 1][VMS] = 1 // 1ms d'existence dans le mois
@@ -719,6 +744,7 @@ export class Compteurs {
       const cm = (ct / ms)
       const nbj = ms / MSPARJOUR
       this.qv.cjm = cm / nbj
+      assertQv(this.qv, 'Calcul cjm')
     }
 
     if (conso) {
@@ -736,6 +762,7 @@ export class Compteurs {
   }
 
   get serial() {
+    assertQv(this.qv, 'serial')
     const x = {}; Compteurs.lp.forEach(p => { x[p] = this[p]})
     return new Uint8Array(encode(x))
   }
@@ -886,8 +913,10 @@ export class Compteurs {
 
   get flags () { return this.addFlags(0) }
 
-  /* retourne true SSI qv a changé de manière significative par rapport à la valeur avant */
+  /* retourne true SSI qv de Compteurs 
+  a changé de manière significative par rapport à la valeur qv du COMPTE */
   deltaQV (av) {
+    // assertQv(av, 'deltaQV')
     const ap = this.qv
     if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) return true
     function d5 (x) { 
@@ -1023,7 +1052,7 @@ export function synthesesPartition (p) {
     id: p.id,
     ntfp: ntfp,
     q: { ...p.q },
-    qt: { qc: 0, qn: 0, qv: 0, cjm: 0, n: 0, v: 0 },
+    qt: { ...qv0 },
     ntf: [0, 0, 0],
     nbc: 0,
     nbd: 0
@@ -1031,21 +1060,20 @@ export function synthesesPartition (p) {
   for(const idx in p.mcpt) {
     if (idx === '0') continue
     const x = p.mcpt[idx]
-    r.qt.qc += x.q.qc
-    r.qt.qn += x.q.qn
-    r.qt.qv += x.q.qv
-    r.qt.cjm += x.q.cjm
-    r.qt.n += x.q.nn + x.q.nc + x.q.ng
-    r.qt.v += x.q.v
+    lqv.forEach(f => { r.qt[f] += x.q[f] })
     if (x.notif && x.notif.nr) r.ntf[x.notif.nr - 1]++
     r.nbc++
     if (x.del) r.nbd++
   }
+  synthesePartPC(r)
+  return r
+}
+
+export function synthesePartPC (r) {
   r.pcac = !r.q.qc ? 0 : Math.round(r.qt.qc * 100 / r.q.qc) 
   r.pcan = !r.q.qn ? 0 : Math.round(r.qt.qn * 100 / r.q.qn) 
   r.pcav = !r.q.qv ? 0 : Math.round(r.qt.qv * 100 / r.q.qv) 
   r.pcc = !r.q.qc ? 0 : Math.round(r.qt.cjm * 30 * 100 / r.q.qc) 
-  r.pcn = !r.q.qn ? 0 : Math.round(r.qt.n * 100 / (r.q.qn * UNITEN)) 
+  r.pcn = !r.q.qn ? 0 : Math.round((r.qt.nn + r.qt.nc + r.qt.ng) * 100 / (r.q.qn * UNITEN)) 
   r.pcv = !r.q.qv ? 0 : Math.round(r.qt.v * 100 / (r.q.qv * UNITEV)) 
-  return r
 }

@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, AL, idTkToL6, AMJ } from './api.mjs'
+import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, assertQv, AL, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'

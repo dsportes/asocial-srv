@@ -171,7 +171,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
     const espace = await this.setEspaceOrg(args.org)
 
     if (espace.hTC) { // Compte du Comptable pas encore créé
-      await sleep(config.D1)
+      if (espace.hTC !== args.hTC) await sleep(config.D1)
       this.setRes('cleET', espace.hTC === args.hTC ? espace.cleET : false)
     } else {
       const sp = compile(await this.db.getSponsoringIds(ID.long(args.hps1, this.ns)))
@@ -198,8 +198,10 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   async phase2 (args) {
     await this.checkEspaceOrg(args.org)
 
-    if (await this.db.getCompteHk(ID.long(args.hps1, this.ns))) this.setRes('existe', true)
-    else await sleep(D1)
+    if (await this.db.getCompteHk(ID.long(args.hps1, this.ns))) {
+      this.setRes('existe', true)
+      await sleep(config.D1)
+    }
   }
 }
 

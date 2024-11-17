@@ -1,6 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack'
 import { FLAGS, F_SRV, A_SRV, AppExc, AMJ, UNITEN, UNITEV,
-  Compteurs, ID, limitesjour, synthesesPartition } from './api.mjs'
+  Compteurs, lqv, qv0, assertQv, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
 /* GenDoc **************************************************
@@ -429,8 +429,7 @@ _data_:
     - `notif`: notification du compte cryptée par la clé P de la partition (redonde celle dans compte).
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
-    - `q` : `qc qn qv c2m nn nc ng v` extraits du document `comptas` du compte.
-      - `q.cjm` est le compteur `cjm` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1 (observé à `dhic`). 
+    - `q` : `qc qn qv nn nc ng v cjm` extraits du document `comptas` du compte.
 */
 export class Partitions extends GenDoc { 
   constructor () { super('partitions') }
@@ -480,7 +479,7 @@ export class Partitions extends GenDoc {
     this._maj = true
   }
 
-  majQC (idc, qv) {
+  majQC (idc, qv) { // qv vérifié à l'appel modele / majCompta
     const e = this.mcpt[idc]
     if (e) {
       e.q = { ...qv }
@@ -574,7 +573,6 @@ export class Syntheses extends GenDoc {
   constructor () { super('syntheses') }
 
   static l1 = ['qc', 'qn', 'qv']
-  static l2 = ['qc', 'qn', 'qv', 'c2m', 'n', 'v']
 
   static nouveau (/* ns */) { 
     return new Syntheses().init({
@@ -594,17 +592,18 @@ export class Syntheses extends GenDoc {
       ntfp: [0, 0, 0],
       ntf: [0, 0, 0],
       q: { qc: 0, qn: 0, qv: 0 },
-      qt: { qc: 0, qn: 0, qv: 0, c2m: 0, n: 0, v: 0 }
+      qt: { ...qv0 }
     }
     for (const id in this.tsp) {
       if (id === '0') continue
       const r = this.tsp[id]
+      assertQv(r.qt, 'Syntheses.compile ' + id)
       a.nbc += r.nbc
       a.nbd += r.nbd
       a.ntfp[0] += r.ntfp[0]; a.ntfp[1] += r.ntfp[1]; a.ntfp[2] += r.ntfp[2]
       a.ntf[0] += r.ntf[0]; a.ntf[1] += r.ntf[1]; a.ntf[2] += r.ntf[2]
       Syntheses.l1.forEach(f => { a.q[f] += r.q[f] })
-      Syntheses.l2.forEach(f => { a.qt[f] += r.qt[f] })
+      lqv.forEach(f => { a.qt[f] += r.qt[f] })
     }
     this.tsp['0'] = a
     return this
@@ -1151,6 +1150,7 @@ export class Comptas extends GenDoc {
   static nouveau (id, quotas, don, estA) {
     const qv = { qc: quotas.qc, qn: quotas.qn, qv: quotas.qv, 
       nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
+    assertQv(qv, 'Comptas.nouveau')
     const c = new Compteurs(null, qv, null, estA, don)
     const x = new Comptas().init({
       _maj: true, v: 0, 
