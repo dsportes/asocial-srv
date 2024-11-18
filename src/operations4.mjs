@@ -1062,7 +1062,6 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
     } else {
       tk.reception(this.auj, args.mc, args.refc)
       compta.enregTk(tk, args.mc, args.refc)
-      await compte.reportDeCompta(compta, this.gd)
     }
   }
 }
@@ -2103,6 +2102,8 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     const f = note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
     if (!f) throw new AppExc(A_SRV, 307)
+    // Ralentissement éventuel
+    await this.attente(lg / 1000000)
     const url = await this.storage.getUrl(this.org, avgr.alias, args.idf)
     this.setRes('url', url)
     this.vd += f.lg // décompte du volume descendant
@@ -2163,6 +2164,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       throw new AppExc(F_SRV, 56, [x, compta.qv.qn * UNITEV])
 
     const idf = ID.fic()
+    await this.attente(lg / 1000000)
     const url = await this.storage.getUrl(this.org, avgr.alias, idf)
     this.setRes('url', url)
     this.setRes('idf', idf)

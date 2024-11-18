@@ -834,15 +834,27 @@ export class Operation {
 
       if (this.aTaches) Taches.startDemon(this)
 
-      if (!this.estA && AL.has(this.flags, AL.RAL1)) await sleep(config.D1 / 10)
-      if (!this.estA && AL.has(this.flags, AL.RAL2)) await sleep(config.D1 * 2)
-      
+      if (!this.estAdmin && !this.estComptable && AL.has(this.flags, AL.RAL)) {
+        const tx = AL.txRal(this.compta.qv)
+        await sleep(Math.round(1 + (tx / 10)) * 1000)
+      }
+
+      await this.attente(1) // Ralentissement des opérations
+
       return this.result
     } catch (e) {
       if (config.mondebug) 
         config.logger.error(this.nomop + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
       throw e
     }
+  }
+
+  // m : coeff d'attente pour 1 Mo de transfert. 
+  // Si m = 1, attente pour op de calcul
+  async attente (m) {
+    if (this.estAdmin || this.estComptable || !AL.has(this.flags, AL.RAL)) return
+    const tx = AL.txRal(this.compta.qv)
+    await sleep(m * (1 + (tx / 10)) * 1000 )
   }
 
   phase1 (args) { 

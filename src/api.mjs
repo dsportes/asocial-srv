@@ -168,8 +168,7 @@ Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 */
 
 export class AL {
-  static RAL1 = 1 << 0 // Ralentissement des opérations
-  static RAL2 = 1 << 1 // Ralentissement max des opérations
+  static RAL = 1 << 1 // Ralentissement des opérations
   static NRED = 1 << 2 // Nombre de notes / chats /groupes en réduction
   static VRED = 1 << 3 // Volume de fichier en réduction
   static ARSN = 1 << 4 // Accès restreint par solde négatif
@@ -177,7 +176,7 @@ export class AL {
   static ARNTF = 1 << 6 // Accès restreint par notification pour compte O (actions d'urgence seulement)
   static FIGE = 1 << 7 // Espace figé en lecture
 
-  static libs = ['RAL1', 'RAL2', 'NRED', 'VRED', 'ARSN', 'LSNTF', 'ARNTF', 'FIGE']
+  static libs = ['RAL', 'NRED', 'VRED', 'ARSN', 'LSNTF', 'ARNTF', 'FIGE']
 
   // Le flag f a la valeur v (code ci-dessus)
   static has (f, v) { return f && v && (f << v) }
@@ -201,6 +200,13 @@ export class AL {
       if (f & (1 << i)) s.push(l)
     })
     return s.join(' ')
+  }
+
+  /* Taux de ralentissement: pourcentage (de 0 à 100) de **dépassement** d'un quota de calcul au delà de 100 
+  S'applique à tous les "qv", de compta comme de compte */
+  static txRal (qv) { 
+    const pcc = qv.qc ? Math.round( (qv.cjm * 30 * 100) / qv.qc) : 999
+    return pcc < 100 ? 0 : (pcc >= 200 ? 100 : (pcc - 100))
   }
 }
 
@@ -563,12 +569,12 @@ export class Tarif {
     const cu = Tarif.cu(a, m)
     let mc = 0, ma = 0
     const p = ms / MSPARMOIS
-    ma += v[VQN] * cu[0] * p
-    ma += v[VQV] * cu[1] * p
-    mc += v[VNL] * cu[2] / UNITEIO
-    mc += v[VNE] * cu[3] / UNITEIO
-    mc += v[VVM] * cu[4] / UNITEV
-    mc += v[VVD] * cu[5] / UNITEV
+    ma += (v[VQN] * cu[0] * p)
+    ma += (v[VQV] * cu[1] * p)
+    mc += (v[VNL] * cu[2] / UNITEIO)
+    mc += (v[VNE] * cu[3] / UNITEIO)
+    mc += (v[VVM] * cu[4] / UNITEV)
+    mc += (v[VVD] * cu[5] / UNITEV)
     return [ma, mc]
   }
 
@@ -855,11 +861,6 @@ export class Compteurs {
     v[VAC] += ma
     v[VCC] += mc
     if (this.estA) {
-      // Augmentaion de la FACTURATION de l'abonnement et de la consommation
-      // Etait déjà facturé dans le mois : temps déjà facturé dhP - t0
-      // N'a pas été facturé dans le mois: temps déjà facturé 0
-      const dfm = this.dhP < t0 ? 0 : (this.dhP - t0)
-      const [ma, mc] = Tarif.evalCaCc (a, m, (msap - dfm), v)
       v[VAF] += ma
       v[VCF] += mc
     }
@@ -902,7 +903,7 @@ export class Compteurs {
     const n = this.qv.nn + this.qv.nc + this.qv.ng
     let x = f || 0
     const pcc = this.qv.qc ? Math.round( (this.qv.cjm * 30 * 100) / this.qv.qc) : 999
-    if (pcc >= 100) x = AL.add(x, AL.RAL2) ; else if (pcc >= 80) x = AL.add(x, AL.RAL1)
+    if (pcc >= 100) x = AL.add(x, AL.RAL)
     const pcn = this.qv.qn ? Math.round(n * 100 / UNITEN / this.qv.qn) : 999
     if (pcn >= 100) x = AL.add(x, AL.NRED)  
     const pcv = this.qv.qv ? Math.round(this.qv.v * 100 / UNITEV / this.qv.qv) : 999
