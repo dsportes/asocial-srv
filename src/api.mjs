@@ -642,54 +642,81 @@ consommations `conso` : `{ nl, ne, vm, vd }`
 - `ne`: nombre d'écritures.
 - `vm`: volume _montant_ vers le Storage (upload).
 - `vd`: volume _descendant_ du Storage (download).
+
+La structure est la suivante:
+- `dh0` : date-heure de création du compte
+- `dh` : date-heure de calcul actuelle
+- `dhP` : date-heure de création ou de changement O <-> A (informative, n'intervient pas dans les calculs).
+- `estA` : `true` si le compte est A.
+- `qv` : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v, cjm }`.
+- `ddsn` : date-heure de début de solde négatif.
+- `vd` : [0..11] - vecteur détaillé pour les 12 mois de l'année (glissante)
+
+Propriétés calculées:
+- `cjm` : consommation moyenne de M M-1 ramenée à un jour.
+- `njec` : nombre de jours estimés avant épuisement du crédit.
+- `flags` : flags courants 
+  - `RAL` : ralentissement (excès de calcul / quota)
+  - `NRED` : documents en réduction (excès de nombre de documents / quota)
+  - `VRED` : volume de fichiers en réduction (excès de volume / quota)
+  - `ARSN` : accès restreint pour solde négatif
+- `aaaa mm` : année / mois de dh.
+
+**Vecteur `vd`** : pour chaque mois M de l'année glissante ([0] est janvier)
+- MS 0 : nombre de ms dans le mois - si 0, le compte n'était pas créé
+- moyennes des quotas:
+  - QC 1 : moyenne de qc dans le mois (en c)
+  - QN 2 : moyenne de qn dans le mois (en nombre de documents)
+  - QV 3 : moyenne de qv dans le mois (en bytes)
+- cumuls des consommations:
+  - NL 4 : nb lectures cumulés sur le mois (L),
+  - NE 5 : nb écritures cumulés sur le mois (E),
+  - VM 6 : total des transferts montants (B),
+  - VD 7 : total des transferts descendants (B).
+- moyennes des compteurs:
+  - NN 8 : nombre moyen de notes existantes.
+  - NC 9 : nombre moyen de chats existants.
+  - NG 10 : nombre moyen de participations aux groupes existantes.
+  - V 11 : volume moyen effectif total des fichiers stockés.
+- compteurs monétaires
+  - AC 12 : coût de l'abonnement (dans le mois)
+  - AF 13 : abonnement facturé (dans le mois)
+  - CC 14 : coût de consommation (dans le mois)
+  - CF 15 : consommation facturée (dans le mois)
+  - DB 16 : débits du mois
+  - CR 17 : crédits du mois
+  - S 18 : solde au début du mois
+  
+Le solde en fin de mois est celui du début du mois suivant: S - DB + CR - CF - AF
+
+Le principe de calcul est de partir avec la dernière photographie enregistrée à la date-heure `dh`.
+- le calcul démarre _maintenant_ à la date-heure `now`.
+- la première étape est d'établir le passé survenu entre `dh` et `now`: ce peut être quelques secondes comme 18 mois.
+  - par principe aucun événement ne s'est produit entre ces deux instants, il s'agit donc de _prolonger_ l'état connu à `dh` jusqu'à `now`.
+  - le mois M de la photo précédente à dh doit être prolonger, soit jusqu'à now, soit jusqu'à la fin du mois.
+  - puis le cas échéant il _peut_ y avoir N mois entiers à prolonger dans l'état connu à fin M.
+  - puis le cas échéant il _peut_ y avoir un dernier mois incomplet prolongeant le dernier calculé.
+
+Quand on prolonge un mois selon les compteurs deux cas se présentent:
+- soit c'est une addition : les nombres de lectures, écritures ... augmentent.
+- soit c'est l'ajustement d'une _moyenne_ en fonction du nombre de millisecondes sur laquelle elle était calculée et celui sur laquelle elle est à prolonger.
+
+Le calcul s'effectuant depuis le dernier mois calculé, mois par mois, le calcul peut s'effectuer sur plus de 12 mois, sachant que les onze derniers et le mois courant sont disponibles dans `vd`.
+
+Après la phase de prolongation de dh à now, on met à jour le nouvel état courant:
+- les compteurs qv peuvent être à mettre à jour,
+- le statut O/A peut être à mettre à jour,
+- une consommation peut être à enregistrer: c'est au cycle suivant qu'elle _coûtera_.
+
+Le coût de calcul moyen sur M M-1 peut être effectué: 
+si le nombre de ms de cette période est trop faible (moins de 10 jours) 
+la moyenne peut être aberrante en survalorisant les opérations les plus récentes.
+Cette moyenne considère qu'il y a toujours eu au moins 10 jours de vie, même si la création remonte à moins que cela.  
 */
+
 export class Compteurs {
   static lp = ['dh0', 'dh', 'dhP', 'estA', 'qv', 'ddsn', 'vd']
-
-  /* Propriétés stockées:
-  dh0 : date-heure de création du compte
-  dh : date-heure courante
-  dhP : dh de début de la dernière période de référence (de cumul abo / conso). Création ou changement O / A.
-  estA : true si le compte est A.
-  qv : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v, cjm }`.
-    Quand on _prolonge_ l'état actuel pendant un certain temps AVANT d'appliquer de nouvelles valeurs,
-    il faut pouvoir disposer de celles-ci.
-  ddsn : date-heure de début de solde négatif.
-  vd : [0..11] - vecteur détaillé pour les 12 mois de l'année (glissante)
-
-  Propriéts calculées:
-  cjm : consommation journalière moyenne estimée.
-  njec : nombre de jours estimés avant épuisement du crédit.
-  flags : flags courants
-  aaaa mm : année / mois de dh.
-
-  Vecteur vd : pour chaque mois M de l'année glissante ([0] est janvier)
-  - MS 0 : nombre de ms dans le mois - si 0, le compte n'était pas créé
-  - moyennes des quotas:
-    - QC 1 : moyenne de qc dans le mois (en c)
-    - QN 2 : moyenne de qn dans le mois (en nombre de documents)
-    - QV 3 : moyenne de qv dans le mois (en bytes)
-  - cumuls des consommations:
-    - NL 4 : nb lectures cumulés sur le mois (L),
-    - NE 5 : nb écritures cumulés sur le mois (E),
-    - VM 6 : total des transferts montants (B),
-    - VD 7 : total des transferts descendants (B).
-  - moyennes des compteurs:
-    - NN 8 : nombre moyen de notes existantes.
-    - NC 9 : nombre moyen de chats existants.
-    - NG 10 : nombre moyen de participations aux groupes existantes.
-    - V 11 : volume moyen effectif total des fichiers stockés.
-  - compteurs monétaires
-    - AC 12 : coût de l'abonnement (dans le mois)
-    - AF 13 : abonnement facturé (dans le mois)
-    - CC 14 : coût de consommation (dans le mois)
-    - CF 15 : consommation facturée (dans le mois)
-    - DB 16 : débits du mois
-    - CR 17 : crédits du mois
-    - S 18 : solde au début du mois
-    Le solde en fin de mois est celui du début du mois suivant: S - DB + CR - CF - AF
-  */
-
+  
   /*
   - serial : sérialisation de l'état antérieur, null pour une création (qv est alors requis)
   - qv: facultatif. compteurs de quotas et des nombres de notes, chats, groupes et v. 
