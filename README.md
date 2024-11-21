@@ -1,4 +1,3 @@
-Serveur de l'application **asocial**.
+Serveur de l'application **asocial**.: services OP et PUBSUB
 
-@@README de l'application - [README](https://raw.githack.com/dsportes/asocial-doc/master/readme.md)
-
+[Documentation de l'application](https://asocialapps.github.io/frdocs)
