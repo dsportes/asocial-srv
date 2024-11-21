@@ -152,7 +152,7 @@ async function operation(req, res, dbp, storage) {
       return
     } */
 
-    if (config.run.origins) checkOrigin(req)
+    if (config.run.origins && config.run.origins.size) checkOrigin(req)
 
     /* if (opName === 'yoyo'){
       setRes(res, 200, 'text/plain').send('yoyo ' + new Date().toISOString())
