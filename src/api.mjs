@@ -179,7 +179,7 @@ export class AL {
   static libs = ['RAL', 'NRED', 'VRED', 'ARSN', 'LSNTF', 'ARNTF', 'FIGE']
 
   // Le flag f a la valeur v (code ci-dessus)
-  static has (f, v) { return f && v && (f << v) }
+  static has (f, v) { return f && v && (f & v) }
 
   // Ajouter la valeur v à f
   static add (f, v) { 
@@ -766,20 +766,17 @@ export class Compteurs {
     // fin de réactualisation. Préparation début nouvelle situation
     if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
     
-    // consommation moyenne (en c) relevée sur le mois en cours et le précédent
+    // consommation moyenne journalière (en c) relevée sur le mois en cours et le précédent
     {
       const vc = this.vd[this.mm - 1]
       let mp = this.mm === 1 ? 11 : this.mm - 2
       const vp = this.vd[mp]
-      const ct = (vc[VCC] * vc[VMS]) + (vp[VCC] * vp[VMS])
-      let ms = vc[VMS] + vp[VMS]
-      if ((ms / MSPARJOUR) < 10) ms = 10 * MSPARJOUR
-      const cm = (ct / ms)
-      const nbj = ms / MSPARJOUR
-      this.qv.cjm = cm / nbj
+      const ct = vc[VCC] + vp[VCC]
+      const nbj = (vc[VMS] + vp[VMS]) / MSPARJOUR
+      this.qv.cjm = ct / (nbj < 10 ? 10 : nbj)
       assertQv(this.qv, 'Calcul cjm')
     }
-
+    
     if (conso) {
       const v = this.vd[this.mm - 1]
       v[VNL] += conso.nl
