@@ -1,5 +1,4 @@
 ## Bug / vérifications...
-- changer help.json
 - les pages help
 
 ## Doc
