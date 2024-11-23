@@ -1,6 +1,8 @@
 ## Bug / vérifications...
 - les pages help
 
+- calcul compteurs
+
 ## Doc
 application.md est en cours
 
