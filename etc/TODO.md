@@ -1,7 +1,6 @@
 ## Bug / vérifications...
+- changer help.json
 - les pages help
-
-- calcul compteurs
 
 ## Doc
 application.md est en cours

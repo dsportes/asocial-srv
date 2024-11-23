@@ -560,35 +560,14 @@ export class Tarif {
   // abonnement à une ms de qn / qv dans le mois mm
   static cmsAbo (qn, qv, aaaa, mm) {
     const cu = Tarif.cu(aaaa, mm)
-    let abo = cu[0] * qn
-    abo += cu[1] * qv
-    return abo / MSPARMOIS
+    return ((cu[0] * qn) + (cu[1] * qv)) / MSPARMOIS
   }
 
-  static evalCaCc (a, m, ms, v) {
-    const cu = Tarif.cu(a, m)
-    let mc = 0, ma = 0
-    const p = ms / MSPARMOIS
-    ma += (v[VQN] * cu[0] * p)
-    ma += (v[VQV] * cu[1] * p)
-    mc += (v[VNL] * cu[2] / UNITEIO)
-    mc += (v[VNE] * cu[3] / UNITEIO)
-    mc += (v[VVM] * cu[4] / UNITEV)
-    mc += (v[VVD] * cu[5] / UNITEV)
-    return [ma, mc]
-  }
-
-  static evalConso (ca, dh) {
+  static evalConso (ca, dh) { // ca: { nl, ne, vm, vd }
     const [a, m] = AMJ.am(dh || Date.now())
     const c = Tarif.cu(a, m)
-    const x = [(ca.nl * c[2] / UNITEIO) 
-      , (ca.ne * c[3] / UNITEIO) 
-      , (ca.vm * c[4] / UNITEV)
-      , (ca.vd * c[5] / UNITEV)]
-    let t = 0
-    x.forEach(i => { t += i })
-    x.push(t)
-    return x
+    return (ca.nl * c[2] / UNITEIO) + (ca.ne * c[3] / UNITEIO) +
+      (ca.vm * c[4] / UNITEV) + (ca.vd * c[5] / UNITEV)
   }
 }
 
@@ -765,29 +744,32 @@ export class Compteurs {
 
     // fin de réactualisation. Préparation début nouvelle situation
     if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
-    
-    // consommation moyenne journalière (en c) relevée sur le mois en cours et le précédent
-    {
-      const vc = this.vd[this.mm - 1]
-      let mp = this.mm === 1 ? 11 : this.mm - 2
-      const vp = this.vd[mp]
-      const ct = vc[VCC] + vp[VCC]
-      const nbj = (vc[VMS] + vp[VMS]) / MSPARJOUR
-      this.qv.cjm = ct / (nbj < 10 ? 10 : nbj)
-      assertQv(this.qv, 'Calcul cjm')
-    }
-    
-    if (conso) {
-      const v = this.vd[this.mm - 1]
-      v[VNL] += conso.nl
-      v[VNE] += conso.ne
-      v[VVD] += conso.vd
-      v[VVM] += conso.vm
-    }
 
     if (chgA !== undefined && chgA !== null && chgA !== this.estA) {
       this.estA = chgA
       this.dhP = this.dh
+    }
+
+    const v = this.vd[this.mm - 1]
+
+    if (conso) {
+      v[VNL] += conso.nl
+      v[VNE] += conso.ne
+      v[VVD] += conso.vd
+      v[VVM] += conso.vm
+      const cout = Tarif.evalConso(conso, this.dh)
+      v[VCC] += cout
+      if (this.estA) v[VCF] += cout
+    }
+
+    // consommation moyenne journalière (en c) relevée sur le mois en cours et le précédent
+    {
+      const mp = this.mm === 1 ? 11 : this.mm - 2
+      const vp = this.vd[mp]
+      const ct = v[VCC] + vp[VCC]
+      const nbj = (v[VMS] + vp[VMS]) / MSPARJOUR
+      this.qv.cjm = ct / (nbj < 10 ? 10 : nbj)
+      assertQv(this.qv, 'Calcul cjm')
     }
   }
 
@@ -881,13 +863,9 @@ export class Compteurs {
     v[VNG] = ((v[VNG] * msav) + (q.ng * delta)) / msap
     v[VV] = ((v[VV] * msav) + (q.v * delta)) / msap
     // Augmentation du COUT de l'abonnement et de la consommation
-    const [ma, mc] = Tarif.evalCaCc (a, m, delta, v)
-    v[VAC] += ma
-    v[VCC] += mc
-    if (this.estA) {
-      v[VAF] += ma
-      v[VCF] += mc
-    }
+    const cabo = Tarif.cmsAbo (v[VQN], v[VQV], a, m) * delta
+    v[VAC] += cabo
+    if (this.estA) v[VAF] += cabo
     const soldeCAp = this.soldeDeM(m) // solde courant APRES
     if (soldeCAv < 0) { // était négatif
       if (soldeCAp > 0) {// devenu positif
@@ -897,8 +875,9 @@ export class Compteurs {
       if (soldeCAp > 0) { // toujours positif
         this.ddsn = 0 // en fait ça ne change rien
       } else { // devenu négatif entre dh et dhf
-        const consoMs = (soldeCAv - soldeCAp) / (dhf - this.dh) // consommation par ms entre dh et dhf
-        const nbms = Math.floor(soldeCAv / consoMs) // nombdre de ms pour ramener soldCav à 0 avec la conso calculée
+        // consommation PASSEE (entre dh et dhf) par ms
+        const consoMs = (soldeCAv - soldeCAp) / (dhf - this.dh) 
+        const nbms = Math.floor(soldeCAv / consoMs) // nombre de ms pour ramener soldCav à 0 avec la conso calculée
         this.ddsn = this.dh + nbms
       }
     }
