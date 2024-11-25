@@ -500,7 +500,7 @@ export class Partitions extends GenDoc {
   checkUpdateQ (idc, ap) {
     const e = this.mcpt[idc]
     const avqn = e ? e.q.qn : 0
-    const avqc = e ? e.q.qn : 0
+    const avqc = e ? e.q.qc : 0
     const avqv = e ? e.q.qv : 0
     if (ap.qn > avqn && (this.q.qn - this.qt.qn + avqn < ap.qn))
       throw new AppExc(A_SRV, 329, [this.q.qn - this.qt.qn + avqn, ap.qn])
