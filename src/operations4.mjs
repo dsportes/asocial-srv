@@ -948,13 +948,16 @@ operations.SetNotifP = class SetNotifP extends Operation {
     const ntf = espace.tnotifP[args.idp]
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
-    if (args.notif) args.notif.idDel = this.id
-    if (args.notif.nr !== 3) args.notif.dh3 = 0
-    else if (!ntf || ntf.nr !== 3) args.notif.dh3 = this.dh
-    espace.setNotifP(args.notif, args.idp)
+    if (args.notif) {
+      args.notif.idDel = this.id
+      if (args.notif.nr !== 3) args.notif.dh3 = 0
+      else if (!ntf || ntf.nr !== 3) args.notif.dh3 = this.dh
+      args.notif.dh = this.dh
+    }
+    espace.setNotifP(args.notif || null, args.idp)
 
     const partition = await this.gd.getPA(args.idp, 'SetNotifP-2')
-    partition.setNrp(args.notif)
+    partition.setNrp(args.notif || null)
   }
 }
 
@@ -978,9 +981,14 @@ operations.SetNotifC = class SetNotifC extends Operation {
     const ntf = compte.notif
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
-    if (args.notif) args.notif.idDel = this.id
-    if (args.notif.nr !== 3) args.notif.dh3 = 0
-    else if (!ntf || ntf.nr !== 3) args.notif.dh3 = this.dh
+
+    if (args.notif) {
+      args.notif.idDel = this.id
+      if (args.notif.nr !== 3) args.notif.dh3 = 0
+      else if (!ntf || ntf.nr !== 3) args.notif.dh3 = this.dh
+      args.notif.dh = this.dh
+    }
+
     compte.setNotif(args.notif || null)
 
     const partition = await this.gd.getPA(compte.idp, 'SetNotifC-3')

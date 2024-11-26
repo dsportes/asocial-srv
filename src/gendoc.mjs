@@ -333,6 +333,7 @@ export class Espaces extends GenDoc {
     }
 
     if (op.estComptable) {
+      cl.tnotifP = this.tnotifP
       return cl.toRow(op)._data_
     }
 
@@ -343,6 +344,8 @@ export class Espaces extends GenDoc {
       if (!op.compte.del) {
         const x = this.tnotifP[op.compte.idp]
         cl.tnotifP = x ? { x } : { }
+      } else {
+        cl.tnotifP = this.tnotifP
       }
     } else { // par exemple depuis SyncSp
       delete cl.tnotifP
