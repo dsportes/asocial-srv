@@ -1703,6 +1703,10 @@ export class Chats extends GenDoc {
       const x = { _nom: 'chats', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
     }
+    /* BUG contourné
+    if (this.st === 12) 
+      this.st = 11
+    */
     return this.toRow(op)._data_
   }
 }

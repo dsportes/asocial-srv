@@ -493,7 +493,7 @@ operations.StatutAvatar = class StatutAvatar extends Operation {
 /* RafraichirCvsAv: Rafraichissement des CVs des membres / chats de l\'avatar
 Retour: [nc, nv]
 - nc: nombre de CV mises à jour
-- nv: nombre de chats existants
+- nv: nombre de chats / membres scannés
 Exception générique:
 - 8001: avatar disparu
 */
@@ -519,21 +519,20 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
     let nc = 0, nv = 0
 
     for(const {ids, idE, vcv} of args.lch) {
-      const { av, disp } = await this.gd.getAAVCV(idE, vcv)
-      if (disp) {
+      nv++
+      const av = await this.gd.getAAVCV(idE, vcv)
+      if (av) {
         const ch = await this.gd.getCAV(args.id, ids)
-        if (ch) { nv++; ch.chEdisp() }
-      } else if (av) {
-        const ch = await this.gd.getCAV(args.id, ids)
-        if (ch) { nv++; ch.setCvE(av.cvA); nc++ }
+        if (ch) { nc++; nv++; ch.setCvE(av.cvA)  }
       }
     }
 
     for(const {id, im, ida, vcv} of args.lmb) {
-      const { av } = await this.gd.getAAVCV(ida, vcv)
+      nv++
+      const av = await this.gd.getAAVCV(ida, vcv)
       if (av) {
         const mb = await this.gd.getMBR(id, im)
-        if (mb) { nv++; mb.setCvA(av.cvA); nc++ }
+        if (mb) { nc++; mb.setCvA(av.cvA) }
       }
     }
 

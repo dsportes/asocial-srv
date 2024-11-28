@@ -380,20 +380,14 @@ class GD {
     return a
   }
 
-  /* Retourne { disp, av }
-  - avatar s'il existe ET que sa CV est plus récente que vcv
-  - disp: true avatar a disparu
+  /* Retourne l'avatar si sa CV est plus récente que vcv
+  En cas de retour null, ça peut être parce que l'avatar n'existe plus
   */
   async getAAVCV (id, vcv) {
-    let disp = false
     let av = this.avatars.get(id)
-    if (av) return av.vcv > vcv ? { av, disp } : { disp }
-    av = await this.op.db.getAvatarVCV(ID.long(id, this.op.ns) , vcv)
-    disp = (!av)
-    if (disp) return { disp }
-    this.avatars.set(id, av)
-    disp = false
-    return av.vcv > vcv ? { av, disp } : { disp }
+    if (!av)
+      av = await this.op.db.getAvatarVCV(ID.long(id, this.op.ns) , vcv)
+    return av && av.vcv > vcv ? av : null
   }
 
   nouvGR (args) {
@@ -465,6 +459,10 @@ class GD {
     d = compile(await this.op.getRowChat(id, ids))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 5, [k]) }
+    /* BUG contourné
+    if (d.st === 12) 
+      d.st = 11
+    */
     this.sdocs.set(k, d)
     return d
   }
@@ -601,6 +599,8 @@ class GD {
         if (d.cvA && !d.cvA.v) { d.vcv = d.v; d.cvA.v = d.v }
       } else if (d._nom === 'groupes') {
         if (d.cvG && !d.cvG.v) d.cvG.v = d.v
+      } else if (d._nom === 'chats') {
+        if (d.cvE) d.vcv = d.cvE.v
       }
       if (ins) this.op.insert(d.toRow(this.op))
       else this.op.update(d.toRow(this.op))
