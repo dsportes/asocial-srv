@@ -387,7 +387,7 @@ class Connx {
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
   */
   async selTickets (id, ns, aamm, fnprocess) {
-    const mx = ns + (aamm % 10000) + '9999999999'
+    const mx = ns + (aamm % 10000) + '99999999'
     const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND ids <= @mx')
     const rows = st.all({ id, mx })
     if (!rows) return []

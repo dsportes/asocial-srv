@@ -522,7 +522,7 @@ operations.TicketsStat = class TicketsStat extends Operation {
 
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
 
-    const ns = espace.id
+    const ns = espace.ns
     const moisauj = Math.floor(this.auj / 100)
     const mois = AMJ.moisMoins(moisauj, args.mr)
 

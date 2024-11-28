@@ -264,7 +264,7 @@ export class Espaces extends GenDoc {
     this.hTC = hTC
     this._maj = true
   }
-
+F
   comptableOK () {
     delete this.hTC
     this._maj = true
@@ -385,7 +385,18 @@ export class Tickets extends GenDoc {
     })
   }
 
+  immuable () {
+    if (this.dr) return 1
+    const [a, m, j] = AMJ.aaaammjj(this.dg)
+    const [am, mm, jm] = AMJ.aaaammjj(AMJ.amjUtc())
+    let mp = mm - 1, ap = am
+    if (mp === 0) { mp = 12; ap--}
+    return (a === am && m === mm) || (a === ap && m === mp) ? 0 : 2
+  }
+
   setZombi () {
+    const i = this.immuable()
+    if (i) throw new AppExc(A_SRV, i === 1 ? 332 : 333)
     this._suppr = true
     this._maj = true
   }
@@ -1270,20 +1281,6 @@ export class Comptas extends GenDoc {
 
   moinsTk (tk) {
     if (this.tickets) delete this.tickets[tk.ids]
-    this._maj = true
-  }
-
-  reinitSoldeO () {
-    this.solde = 0
-    this.tickets = null
-    this.compile()
-    this._maj = true
-  }
-
-  reinitSoldeA (m) {
-    this.solde = m
-    this.tickets = {}
-    this.compile()
     this._maj = true
   }
 

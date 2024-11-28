@@ -69,7 +69,7 @@ export class ID {
     return '' + ((ID.rnd6() % d8) + (x1 * d8))
   }
 
-  static duComptable () { return '300000000000' }
+  static duComptable (ns) { return (ns || '') + '300000000000' }
   static estPartition (id) { return id.charAt(0) === '2' }
   static estComptable (id) { return id === '300000000000' }
   static estAvatar (id) { return id.charAt(0) === '3' }
@@ -96,7 +96,6 @@ export class ID {
 
 export const HBINSECONDS = 20 // 120
 export const ESPTO = 3 // en minutes : rechargement de la cache des espaces
-export const DONCOMPTEO = 1
 
 export const MSPARJOUR = 86400 * 1000
 export const MSPARAN = 365 * MSPARJOUR

@@ -1,4 +1,4 @@
-import { AppExc, A_SRV, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE, DONCOMPTEO } from './api.mjs'
+import { AppExc, A_SRV, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
@@ -803,7 +803,6 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     compta.setA(true)
     const q = compta.qv
     compta.quotas({ qc: q.qc, qn: q.qn, qv: q.qv })
-    compta.reinitSoldeA(DONCOMPTEO)
 
     const synth = await this.gd.getSY()
     synth.ajoutCompteA(compte.qv) // peut lever Exwc de blocage
@@ -850,7 +849,6 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
     compta.estA(false)
     compta.quotas(args.quotas)
-    compta.reinitSoldeO()
 
     const synth = await this.gd.getSY()
     synth.retraitCompteA(cpt.qv)
@@ -1062,6 +1060,7 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
     const tk = await this.gd.getTKT(args.ids)
     if (!tk) throw new AppExc(A_SRV, 240)
     if (tk.dr) throw new AppExc(A_SRV, 241)
+    if (tk.immuable()) throw new AppExc(A_SRV, 334)
 
     const compte = await this.gd.getCO(tk.idc)
     const compta = await this.gd.getCA(tk.idc)

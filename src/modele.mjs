@@ -77,7 +77,9 @@ export class Esp {
     if (!ns) { if (!assert) return null; assertKO(assert, 1, [ns]) }
     op.ns = ns
     op.org = org
-    return compile(Esp.map.get(ns))
+    const e = compile(Esp.map.get(ns))
+    e.ns = ns
+    return e
   }
 
   static updEsp(op, e) {
