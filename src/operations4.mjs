@@ -281,7 +281,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       // 1: idE est délégué de la partition de idI, 
       // idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
 
-      hZC : { t: 'u8', n: true }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
+      hZC : { t: 'ids', n: true }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
       ch: { t: 'nvch' }, // { cck, ccP, cleE1C, cleE2C, t1c }
       // ccK: clé C du chat cryptée par la clé K du compte de idI
       // ccP: clé C du chat cryptée par la clé publique de idE
