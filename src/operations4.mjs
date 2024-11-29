@@ -272,9 +272,15 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       idE: { t: 'ida' }, // id de l'vatar du chat "externe"
       urgence: { t: 'bool', n: true }, // chats ouvert d'urgence
       mode: { t: 'modech' }, 
+      // - 0: par phrase de contact - hZC en est le hash
+      // - 1: idE est Comptable
+      // - 2: idE est délégué de la partition de idI
+      // - idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
+    
       // 0: par phrase de contact (hZC en est le hash),  
       // 1: idE est délégué de la partition de idI, 
       // idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
+
       hZC : { t: 'u8', n: true }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
       ch: { t: 'nvch' }, // { cck, ccP, cleE1C, cleE2C, t1c }
       // ccK: clé C du chat cryptée par la clé K du compte de idI
@@ -291,7 +297,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     const avI = await this.gd.getAV(args.idI, 'NouveauChat-1')
     const avE = await this.gd.getAV(args.idE, 'NouveauChat-2')
 
-    if (!args.mode) {
+    if (args.mode === 0) {
       if (avE.hZC !== args.hZC) throw new AppExc(A_SRV, 221)
     } else if (args.mode === 1) {
       if (!ID.estComptable(args.idE)) throw new AppExc(A_SRV, 225)
@@ -320,7 +326,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     chI = await this.gd.nouvCAV({ 
       id: args.idI,
       ids: idsI,
-      st: 11,
+      st: 10,
       idE: args.idE,
       idsE: idsE,
       cvE: avE.cvA,
@@ -331,10 +337,10 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     this.setRes('rowChat', chI.toShortRow(this))
     this.compta.ncPlus(1)
 
-    await this.gd.nouvCAV({
+    const chE = await this.gd.nouvCAV({
       id: args.idE,
       ids: idsE,
-      st: 11,
+      st: 1,
       idE: args.idI,
       idsE: idsI,
       cvE: avI.cvA,
@@ -342,10 +348,10 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       cleEC: args.ch.cleE1C,
       items: [{a: 1, dh: this.dh, t: args.ch.txt}]
     })
-    const comptaE = await this.gd.getCA(args.idE, 'NouveauChat-3')
-    comptaE.ncPlus(1)
+    // const comptaE = await this.gd.getCA(args.idE, 'NouveauChat-3')
+    // comptaE.ncPlus(1)
 
-    if (ID.estComptable(this.chE.id) && args.urgence) 
+    if (ID.estComptable(chE.id) && args.urgence) 
       await this.alerte('chat')
   }
 }
@@ -407,9 +413,10 @@ operations.MajChat = class MajChat extends OperationCh {
   }
 }
 
-/* PassifChat : déclare le chat indésirable
+/* Mise en état "passif" d\'un chat
+Nombre de chat - 1, items vidé
 Retour
-- suppr: true si E a disparu
+- disp: true si E a disparu
 */
 operations.PassifChat = class PassifChat extends OperationCh {
   constructor (nom) { 
@@ -1126,14 +1133,20 @@ operations.GetCv = class GetCv extends Operation {
           if (!chat) throw new AppExc(A_SRV, 244)
         } else throw new AppExc(A_SRV, 244)
       } else {
-        if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 242)
+        if (!this.compte.mav[args.id]) {
+          if (!this.compte.idp) throw new AppExc(A_SRV, 335)
+          // OK si délégué de la partition du compte
+          const p = await this.gd.getPA(this.compte.idp, 'GetCv-1')
+          const e = p.mcpt[args.id]
+          if (!e || !e.del) throw new AppExc(A_SRV, 335)
+        }
       }
-      const avatar = await this.gd.getAV(args.id, 'MajCv-1')
+      const avatar = await this.gd.getAV(args.id, 'GetCv-2')
       this.setRes('cv', avatar.cvA)
     } else {
       const e = this.compte.mpg[args.id]
       if (!e) throw new AppExc(A_SRV, 243)
-      const groupe = await this.gd.getGR(args.id, 'MajCv-3')
+      const groupe = await this.gd.getGR(args.id, 'GetCv-3')
       let ok = false
       for(const ida of e.lav)
         if (groupe.mmb.get(ida)) ok = true

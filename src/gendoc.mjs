@@ -473,7 +473,7 @@ export class Partitions extends GenDoc {
     const m = {}
     for(const idx in this.mcpt) {
       const e = this.mcpt[idx]
-      const x = { del: e.del }
+      const x = { del: e.del, cleAP: e.cleAP }
       if (compte.del) {
         x.notif = e.notif
         x.q = e.q
@@ -1615,7 +1615,28 @@ export class Sponsorings extends GenDoc {
   toShortRow (op) { return this.toRow(op)._data_ }
 }
 
-/* Chats *************************************************/
+/** Chat ************************************************************
+_data_ (de l'exemplaire I):
+- `id`: id de I,
+- `ids`: à la création calculé par hash du cryptage par la clé du site de `idI / idE`.
+- `v`: 1..N.
+- `vcv` : version de la carte de visite de E.
+
+- `st` : deux chiffres `I E`
+  - I : 0:passif, 1:actif
+  - E : 0:passif, 1:actif, 2:disparu
+- `idE idsE` : identifiant de _l'autre_ chat.
+- `cvE` : `{id, v, ph, tx}` carte de visite de E au moment de la création / dernière mise à jour du chat (textes cryptés par sa clé A).
+- `cleCKP` : clé C du chat cryptée,
+  - si elle a une longueur inférieure à 256 bytes par la clé K du compte de I.
+  - sinon cryptée par la clé RSA publique de I.
+- `cleEC` : clé A de l'avatar E cryptée par la clé du chat.
+- `items` : liste des items `[{a, dh, l t}]`
+  - `a` : 0:écrit par I, 1: écrit par E
+  - `dh` : date-heure d'écriture.
+  - `dhx` : date-heure de suppression.
+  - `t` : texte crypté par la clé C du chat (vide s'il a été supprimé).
+*/
 export class Chats extends GenDoc { 
   constructor() { super('chats') } 
 
@@ -1703,10 +1724,6 @@ export class Chats extends GenDoc {
       const x = { _nom: 'chats', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
     }
-    /* BUG contourné
-    if (this.st === 12) 
-      this.st = 11
-    */
     return this.toRow(op)._data_
   }
 }
