@@ -680,11 +680,11 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
     const qe = esp.quotas
     const qpt = synth.tsp['0'].q
     const rqn = qe.qn - qpt.qn + q.qn
-    const maxn = rqn < 0 ? q.qn : rqn
+    const maxn = rqn < q.qn ? q.qn : rqn
     const rqv = qe.qv - qpt.qv + q.qv
-    const maxv = rqv < 0 ? q.qv : rqv
+    const maxv = rqv < q.qv ? q.qv : rqv
     const rqc = qe.qc - qpt.qc + q.qc
-    const maxc = rqc < 0 ? q.qc : rqc
+    const maxc = rqc < q.qc ? q.qc : rqc
     const qap = args.quotas
     if (qap.qn > maxn) throw new AppExc(F_SRV, 331, [maxn, qap.qn])
     if (qap.qv > maxv) throw new AppExc(F_SRV, 332, [maxv, qap.qv])
@@ -715,9 +715,9 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
     const qe = esp.quotas
     const qpt = synth.tsp['0'].q
     const rqn = qe.qn - qpt.qn + q.qn
-    const maxn = rqn < 0 ? q.qn : rqn
+    const maxn = rqn < q.qn ? q.qn : rqn
     const rqv = qe.qv - qpt.qv + q.qv
-    const maxv = rqv < 0 ? q.qv : rqv
+    const maxv = rqv < q.qv ? q.qv : rqv
     const qap = args.quotas
     qap.qc = 0
     if (qap.qn > maxn) throw new AppExc(F_SRV, 331)
