@@ -166,7 +166,7 @@ operations.GetCompta = class GetCompta extends Operation {
   }
 }
 
-/* GetComptaQv : retourne les compteurs qv de la compta d'un compte
+/* GetComptaQv : retourne les compteurs qv de compteurs de la compta d'un compte
 Retour: 
 - comptaQV: rowCompta
 */
@@ -751,7 +751,7 @@ operations.MuterCompte = class MuterCompte extends Operation {
 
     const av = compile(await this.db.getAvatarHk(ID.long(args.hZR, this.ns)))
     if (!av) throw new AppExc(A_SRV, 317)
-    const avatar = await this.gd.getAV(av.id, 'GetAvatarPC')
+    const avatar = await this.gd.getAV(av.id, 'MuterCompteO-8')
     if (!avatar || avatar.hZC !== args.hZC) throw new AppExc(A_SRV, 317)
   }
 

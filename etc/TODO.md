@@ -1,4 +1,5 @@
 ## Bug / vérifications...
+- Groupes : quotas heb - PageGroupe.gererheb PageGroupes.nvGr
 - les pages help
 
 ## Réflexions
