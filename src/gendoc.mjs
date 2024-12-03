@@ -643,17 +643,19 @@ export class Syntheses extends GenDoc {
     // this.qtA.qc += q.qc
     this.qtA.qn +=q.qn
     this.qtA.qv += q.qv
+    this.qtA.qc += q.qc
     if (this.qtA.qn > this.qA.qn) throw new AppExc(A_SRV, 323, [this.qA.qn, this.qtA.qn])
     if (this.qtA.qv > this.qA.qv) throw new AppExc(A_SRV, 324, [this.qA.qv, this.qtA.qv])
     this._maj = true
   }
 
   retraitCompteA (q) {
-    qtA.qn -=q.qn
-    qtA.qv -= q.qv
-    // if (qtA.qc < 0) qtA.qc = 0
-    if (qtA.qn < 0) qtA.qn = 0
-    if (qtA.qv < 0) qtA.qv = 0
+    this.qtA.qn -=q.qn
+    this.qtA.qv -= q.qv
+    this.qtA.qc -= q.qc
+    // if (this.qtA.qc < 0) this.qtA.qc = 0
+    if (this.qtA.qn < 0) this.qtA.qn = 0
+    if (this.qtA.qv < 0) this.qtA.qv = 0
     this._maj = true
   }
 

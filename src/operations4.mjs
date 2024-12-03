@@ -476,8 +476,7 @@ operations.ChangementPC = class ChangementPC extends Operation {
 }
 
 /* StatutAvatar: Si l'avatar est avatar principal, retourne sa partition
-Retour: [idc, idp]
-- idc: args.id si c'est un avatar principal, sinon ''
+Retour: SSI id est un avatar principal
 - idp: id de la partition si compte "0", '' si compte "A"
 */
 operations.StatutAvatar = class StatutAvatar extends Operation {
@@ -492,8 +491,8 @@ operations.StatutAvatar = class StatutAvatar extends Operation {
     const avatar = await this.gd.getAV(args.id, 'StatutAvatar-1')
     if (avatar.idc === args.id) {
       const c = await this.gd.getCO(avatar.idc)
-      this.setRes('idcidp', [args.id, c.idp || ''])
-    } else this.setRes('idcidp', ['', ''])
+      this.setRes('idp', c.idp || '')
+    }
   }
 }
 
@@ -795,6 +794,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
       hZR: { t: 'ids' }, // hash de sa phrase de contact réduite
       hZC: { t: 'ids' }, // hash de sa phrase de contact complète      
       ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
+      quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
       t: { t: 'u8' } // texte (crypté) de l'item à ajouter au chat
     }
   }
@@ -853,7 +853,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     if (cpt.idp) throw new AppExc(A_SRV, 288)
     cpt.chgPart(idp, args.clePK, null, true)
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
-    compta.estA(false)
+    compta.setA(false)
     compta.quotas(args.quotas)
 
     const synth = await this.gd.getSY()
@@ -888,10 +888,9 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
     this.targs = {
       id: { t: 'ida' }, // id du compte qui change de partition
       idp: { t: 'idp' }, // id de la nouvelle partition
-      hZC: { t: 'u8' }, // hash de sa phrase de contact complète   
       cleAP: { t: 'u8' }, // clé A du compte cryptée par la clé P de la nouvelle partition
       clePK: { t: 'u8' }, // clé de la nouvelle partition cryptée par la clé publique du compte
-      notif: { t: 'u8' } // ids du chat du compte demandeur (Comptable / Délégué)
+      notif: { t: 'ntf', n: true } // notificcation du compte en cours
     }
   }
 
