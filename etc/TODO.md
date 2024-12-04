@@ -15,4 +15,28 @@ Déploiements:
 - CF OP
 - CF PUBSUB
 
-Édition
+# Mutation des comptes O<->AR
+### Compte "O"
+Le compte (s'il est vraiment "O") doit donner son autorisation à un ou plusieurs comptes Comptable / délégués de sa partition. Pour chacun:
+- le chat avec lui est marqué `mutI / mutE` 1 (autorisation de mutation en compte A).
+- l'`ids` du chat est ajouté à `lmut` de son compte.
+
+### Compte "A"
+Le compte (s'il est vraiment "A") doit donner son autorisation à un ou plusieurs comptes Comptable / délégués _d'une_ partition. Pour chacun:
+- le chat avec lui est marqué `mutI / mutE` 2 (autorisation de mutation en compte "O").
+- l'`ids` du chat est ajouté à `lmut` de son compte.
+
+### Pour les Comptable / délégués (_d'une_ partition)
+
+Le composant `ChatsAvec` liste le ou les chats qu'un contact E a avec les avatars du compte. Si le chat à l'indicateur `mutE` à 1 ou 2, son icône d'ouverture est particulière pour indiquer qu'une mutation a été demandée au compte.
+
+Dans la page des chats, chaque chat ayant une demande de mutation est repérée (et peut être filtrée).
+
+Les actions de mutation sont accessibles depuis un _chat_ ayant un `mutE` à 1 ou 2.
+- un bouton affiche la compta (conséquence de l'existence de `mutE`).
+- l'action de mutation, en plus de muter le compte,
+  - liste tous les chats de `lmut` du compte,
+  - efface les `mut` de ces chats,
+  - supprime `lmut`.
+
+L'opération d'auto-mutation d'un délégué en compte A est accessible depuis la page du compte.

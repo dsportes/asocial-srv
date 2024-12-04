@@ -143,22 +143,35 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
   }
 }
 
-/* GetCompta : retourne la compta d'un compte */
+/* GetCompta : retourne la compta d'un compte
+Le demandeur doit être:
+- le comptable,
+- OU un délégué de sa partition si c'est un cpompte O
+- OU avec un chat ayant un "mut" avec le demandé si c'est un compte A 
+Retour:
+- rowCompta s'il existe
+*/
 operations.GetCompta = class GetCompta extends Operation {
   constructor (nom) { 
     super(nom, 1)
     this.targs = {
-      id: { t: 'ida' } // id du compte
+      id: { t: 'ida' }, // id du compte dont la compta est demandée
+      ids: { t: 'ida', n: true }
     }
   }
 
   async phase2 (args) {
     const id = args.id || this.id
     if (id !== this.id && !this.estComptable) {
-      if (!this.compte.del) throw new AppExc(F_SRV, 218)
-      const partition = await this.gd.getPA(this.compte.idp, 'GetCompta-2')
-      const e = partition.mcpt[id]
-      if (!e) throw new AppExc(F_SRV, 219)
+      if (this.compte.idp) { // c'est un compte O
+        if (!this.compte.del) throw new AppExc(F_SRV, 218)
+        const partition = await this.gd.getPA(this.compte.idp, 'GetCompta-2')
+        const e = partition.mcpt[id]
+        if (!e) throw new AppExc(A_SRV, 342)
+      } else {
+        const chI = await this.gd.getCAV(this.args.id, this.args.ids)
+        if (!chI || !chI.mut) throw new AppExc(A_SRV, 342)
+      }
     }
     const compte = await this.gd.getCO(id, 'GetCompta-3')
     const compta = await this.gd.getCA(id, 'GetCompta-1')
@@ -228,7 +241,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   }
 }
 
-/* OperationCh : super classe permettant d'utiliser la méthode intro() */
+/* OperationCh : super classe permettant d'utiliser les méthodes intro1/2() */
 class OperationCh extends Operation {
 
   async intro1 () {
@@ -356,6 +369,43 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
   }
 }
 
+/* MutChat: Ajout ou suppression d\'une demande de mutation sur un chat 
+*/
+operations.MutChat = class MajChat extends OperationCh {
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'ida' }, // id de l'avatar du chat (principal)
+      ids: { t: 'ids' },  // ids du chat
+      mut: { t: 'int', min: 0, max: 2 } // type de demande - 1 muter en O, 2 muter en A
+    }
+  }
+
+  async phase2 (args) {
+    if (this.compte.idp) { // demandeur est compte O
+      if (args.mut !== 0 || args.mut !== 2) throw new AppExc('A_SRV', 341, [args.mut, 'O'])
+    } else {
+      if (args.mut !== 0 || args.mut !== 1) throw new AppExc('A_SRV', 341, [args.mut, 'A'])
+    }
+
+    const chI = await this.gd.getCAV(this.args.id, this.args.ids)
+    if (!chI) throw new AppExc('A_SRV', 337)
+    const chE = await this.gd.getCAV(chI.idE, chI.idsE)
+    if (!chE) throw new AppExc('A_SRV', 338)
+
+    const compteE = await this.gd.getCO(args.id)
+    if (!compteE) throw new AppExc('A_SRV', 336)
+    if (!compteE.idp || !compteE.del) throw new AppExc('A_SRV', 339)
+    if (!ID.estComptable(args.id) && this.compte.idp && this.compte.idp !== compteE.idp)
+      throw new AppExc('A_SRV', 340)
+
+    chI.setMutI(args.mut)
+    chE.setMutE(args.mut)
+    if (args.mut) compteE.plusLmut(chI.idsE)
+    else compteE.moinsLmut(chI.idsE)
+  }
+}
+
 /* MajChat: Ajout ou suppression d\'un item à un chat ***********
 Retour:
 - disp: true si E a disparu (pas de maj faite)
@@ -475,24 +525,33 @@ operations.ChangementPC = class ChangementPC extends Operation {
   }
 }
 
-/* StatutAvatar: Si l'avatar est avatar principal, retourne sa partition
-Retour: SSI id est un avatar principal
-- idp: id de la partition si compte "0", '' si compte "A"
+/* StatutChatE: Statut du contact d'un chat
+Retour: { cpt, idp, del }
+- cpt: true si avatar principal
+- idp: id de la partition si compte "0", 
+- del: true si delégué
 */
-operations.StatutAvatar = class StatutAvatar extends Operation {
+operations.StatutChatE = class StatutChatE extends Operation {
   constructor (nom) { 
     super(nom, 1)
     this.targs = {
-      id: { t: 'ida' } // id de l'avatar
+      ids: { t: 'ida' } // ids = chat
     }
   }
 
   async phase2(args) {
-    const avatar = await this.gd.getAV(args.id, 'StatutAvatar-1')
-    if (avatar.idc === args.id) {
-      const c = await this.gd.getCO(avatar.idc)
-      this.setRes('idp', c.idp || '')
+    const r = { cpt: false, idp: '', del: false }
+    const chI = await this.gd.getCAV(this.compte.id, args.ids)
+    if (chI) {
+      const avatar = await this.gd.getAV(chI.idE)
+      if (avatar && avatar.idc === chI.idE) {
+        r.cpt = true
+        const c = await this.gd.getCO(chI.idE)
+        r.idp = c.idp
+        if (r.idp) r.del = c.del
+      }
     }
+    this.setRes('statut', r)
   }
 }
 
@@ -777,6 +836,38 @@ operations.MuterCompte = class MuterCompte extends Operation {
     if (chI.stI === 0) this.compta.ncPlus(1) // I était passif, redevient actif
     chI.actifI()
     chE.actifE()
+  }
+}
+
+/*  MuterCompteAauto: Auto mutation du compte O en compte A
+Mutation d'un compte `c` O de la partition `p` en compte A
+- augmente `syntheses.qtA`.
+- diminue `partition[p].mcpt[c].q` ce qui se répercute sur `syntheses.tsp[p].qt`.
+- bloqué si l'augmentation de `syntheses.qtA` fait dépasser `syntheses.qA`.
+*/
+operations.MuterCompteAauto = class MuterCompteAauto extends operations.MuterCompte {
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      quotas: { t: 'q' } // quotas: { qc, qn, qv }   
+    }
+  }
+
+  async phase2 (args) {
+    if (!this.compte.idp || !this.compte.del || this.estComptable) 
+      throw new AppExc(A_SRV, 243)
+
+    this.compta.setA(true)
+    this.compta.quotas(args.quotas)
+
+    const synth = await this.gd.getSY()
+    synth.ajoutCompteA(args.quotas) // peut lever Exwc de blocage
+
+    const part = await this.gd.getPA(this.compte.idp, 'MuterCompteAauto-4')
+    part.retraitCompte(this.compte.id)
+
+    // Maj du compte
+    this.compte.chgPart(null)
   }
 }
 

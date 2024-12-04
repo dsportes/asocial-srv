@@ -674,47 +674,58 @@ export class Syntheses extends GenDoc {
 
 /* Comptes ************************************************************
 _data_ :
-- `id` : numéro du compte = id de son avatar principal.
+- `id` : ID du compte = ID de son avatar principal.
 - `v` : 1..N.
-- `hxr` : `ns` + `hXR`, hash du PBKFD d'un extrait de la phrase secrète.
-- `dlv`: date limite de validité, dernier jour d'un mois,
-  le compte peut être détruit dès le lendemain.
-
-- `flags`: flags issus du dernier calcul des compteurs de compta.
-- `dharF dhopf dharC dhopC dharS dhopS`: dh des ACCES RESTREINT (F, C, S).
+- `hk` : `hXR`, hash du PBKFD d'un extrait de la phrase secrète (en base précédé de `ns`).
+- `dlv` : dernier jour de validité du compte.
 
 - `vpe` : version du périmètre
-- `vci` : version de Compti
-- `vin` : version de Invit
+- `vci` : version de `comptis`
+- `vin` : version de `invits`
 
 - `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
 - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
-- `cleEK` : clé de l'espace cryptée par la clé K du compte, à la création de l'espace pour le Comptable. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
+- `cleEK` : pour le Comptable, clé de l'espace cryptée par sa clé K à la création de l'espace pour le Comptable. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
 - `privK` : clé privée RSA de son avatar principal cryptée par la clé K du compte.
 
 - `dhvuK` : date-heure de dernière vue des notifications par le titulaire du compte, cryptée par la clé K.
-- `qv` : qv de compta.compteurs.qv (à quelques % près)
+- `qv` : `{ qc, qn, qv, nn, nc, ng, v, cjm }`. Recopiés de `compta.compteurs.qv` en fin d'opération quand l'un d'eux passe un seuil de 5% (sans seuil pour `qc, qn, qv`), à la montée ou à la descente.
+  - `qc`: limite de consommation
+  - `qn`: quota du nombre total de notes / chats / groupes.
+  - `qv`: quota du volume des fichiers.
+  - `nn`: nombre de notes existantes.
+  - `nc`: nombre de chats existants.
+  - `ng` : nombre de participations aux groupes existantes.
+  - `v`: volume effectif total des fichiers
+  - `cjm`: coût journalier moyen de calcul sur M et M-1.
+- `flags` : flags courants. Recopiés de `compta.compteurs.flags` en fin d'opération en cas de changement.
+  - `RAL` : ralentissement (excès de calcul / quota)
+  - `NRED` : documents en réduction (excès de nombre de documents / quota)
+  - `VRED` : volume de fichiers en réduction (excès de volume / quota)
+  - `ARSN` : accès restreint pour solde négatif
+
+- `lmut` : liste des `ids` des chats pour lesquels le compte (son avatar principal) a une demande de mutation (`mutI` != 0)
 
 _Comptes "O" seulement:_
 - `clePK` : clé P de la partition cryptée par la clé K du compte. Si cette clé a une longueur de 256, la clé P a été cryptée par la clé publique de l'avatar principal du compte suite à une affectation à une partition APRÈS sa création (changement de partition, passage de compte A à O)
-- `idp` : id de la partition (son numéro).
+- `idp` : ID de sa partition.
 - `del` : `true` si le compte est délégué de la partition.
 - `notif`: notification de niveau _compte_ dont le texte est crypté par la clé P de la partition (`null` s'il n'y en a pas).
 
 - `mav` : map des avatars du compte. 
-  - _clé_ : id de l'avatar.
-  - _valeur_ : `cleAK`: clé A de l'avatar crypté par la clé K du compte.
+  - _clé_ : ID de l'avatar.
+  - _valeur_ : `claAK`: clé A de l'avatar crypté par la clé K du compte.
 
 - `mpg` : map des participations aux groupes:
-  - _clé_ : id du groupe
+  - _clé_ : ID du groupe
   - _valeur_: `{ cleGK, lav }`
     - `cleGK` : clé G du groupe cryptée par la clé K du compte.
-    - `lav`: liste de ses avatars participant au groupe. compilé -> sav : Set
+    - `lav`: liste de ses avatars participant au groupe.
 
 **Comptable seulement:**
-- `tpk` : table des partitions `{cleP, code }` crypté par clé K du comptable. Son index est le numéro de la partition.
+- `tpK` : map des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
   - `cleP` : clé P de la partition.
-  - `code` : code / commentaire court de convenance attribué par le Comptable
+  - `code` : code / commentaire court de convenance attribué par le Comptable.
 */
 export class Comptes extends GenDoc { 
   constructor() { super('comptes') }
@@ -768,7 +779,8 @@ export class Comptes extends GenDoc {
       clePK: args.clePK,
       mav: {},
       mpg: {},
-      tpk: {}
+      tpk: {},
+      lmut: []
     }
     if (sp) { // sponsorisé
       if (sp.partitionId) {
@@ -798,6 +810,31 @@ export class Comptes extends GenDoc {
   setCI () { this._majci = true; this._maj = true }
 
   setIN () { this._majin = true; this._maj = true }
+
+  plusLmut (ids) {
+    const s = new Set(this.lmut || [])
+    if (!s.has(ids)) {
+      s.add(ids)
+      this.lmut = Array.from(s)
+      this._maj = true
+    }
+  }
+
+  moinsLmut (ids) {
+    const s = new Set(this.lmut || [])
+    if (s.has(ids)) {
+      s.delete(ids)
+      this.lmut = Array.from(s)
+      this._maj = true
+    }
+  }
+
+  resetLmut () {
+    if (this.lmut && this.lmut.length) {
+      this.lmut = []
+      this._maj = true
+    }
+  }
 
   // Maj de la DLV du compte en fin d'opération
   async majDlv (compta, gd) {
@@ -1673,6 +1710,20 @@ export class Chats extends GenDoc {
     }
     this.items = nl
     this._maj = true
+  }
+
+  setMutI (m) {
+    if (m !== this.mutI) {
+      this.mutI = m
+      this._maj = true
+    }
+  }
+
+  setMutE (m) {
+    if (m !== this.mutE) {
+      this.mutE = m
+      this._maj = true
+    }
   }
 
   setCvE (cv) {
