@@ -156,25 +156,26 @@ operations.GetCompta = class GetCompta extends Operation {
     super(nom, 1)
     this.targs = {
       id: { t: 'ida' }, // id du compte dont la compta est demandée
-      ids: { t: 'ida', n: true }
+      ids: { t: 'ids', n: true }
     }
   }
 
   async phase2 (args) {
-    const id = args.id || this.id
-    if (id !== this.id && !this.estComptable) {
-      if (this.compte.idp) { // c'est un compte O
-        if (!this.compte.del) throw new AppExc(F_SRV, 218)
-        const partition = await this.gd.getPA(this.compte.idp, 'GetCompta-2')
-        const e = partition.mcpt[id]
-        if (!e) throw new AppExc(A_SRV, 342)
+    if (args.id !== this.id && !this.estComptable) {
+      if (args.ids) {
+        const chI = await this.gd.getCAV(this.id, this.args.ids)
+        if (!chI || !chI.mutE) throw new AppExc(A_SRV, 342)
       } else {
-        const chI = await this.gd.getCAV(this.args.id, this.args.ids)
-        if (!chI || !chI.mut) throw new AppExc(A_SRV, 342)
+        if (this.compte.idp) { // c'est un compte O
+          if (!this.compte.del) throw new AppExc(F_SRV, 218)
+          const partition = await this.gd.getPA(this.compte.idp, 'GetCompta-2')
+          const e = partition.mcpt[args.id]
+          if (!e) throw new AppExc(A_SRV, 342)
+        } else throw new AppExc(A_SRV, 342)
       }
     }
-    const compte = await this.gd.getCO(id, 'GetCompta-3')
-    const compta = await this.gd.getCA(id, 'GetCompta-1')
+    const compte = await this.gd.getCO(args.id, 'GetCompta-3')
+    const compta = await this.gd.getCA(args.id, 'GetCompta-1')
     this.setRes('rowCompta', compta.toShortRow(this, compte.idp))
   }
 }
@@ -371,7 +372,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
 
 /* MutChat: Ajout ou suppression d\'une demande de mutation sur un chat 
 */
-operations.MutChat = class MajChat extends OperationCh {
+operations.MutChat = class MutChat extends OperationCh {
   constructor (nom) { 
     super(nom, 1, 2) 
     this.targs = {
@@ -383,9 +384,9 @@ operations.MutChat = class MajChat extends OperationCh {
 
   async phase2 (args) {
     if (this.compte.idp) { // demandeur est compte O
-      if (args.mut !== 0 || args.mut !== 2) throw new AppExc('A_SRV', 341, [args.mut, 'O'])
+      if (args.mut !== 0 && args.mut !== 2) throw new AppExc(A_SRV, 341, [args.mut, 'O'])
     } else {
-      if (args.mut !== 0 || args.mut !== 1) throw new AppExc('A_SRV', 341, [args.mut, 'A'])
+      if (args.mut !== 0 && args.mut !== 1) throw new AppExc(A_SRV, 341, [args.mut, 'A'])
     }
 
     const chI = await this.gd.getCAV(this.args.id, this.args.ids)
@@ -393,16 +394,16 @@ operations.MutChat = class MajChat extends OperationCh {
     const chE = await this.gd.getCAV(chI.idE, chI.idsE)
     if (!chE) throw new AppExc('A_SRV', 338)
 
-    const compteE = await this.gd.getCO(args.id)
+    const compteE = await this.gd.getCO(chE.id)
     if (!compteE) throw new AppExc('A_SRV', 336)
-    if (!compteE.idp || !compteE.del) throw new AppExc('A_SRV', 339)
+    if (!compteE.idp || !compteE.del) throw new AppExc(A_SRV, 339)
     if (!ID.estComptable(args.id) && this.compte.idp && this.compte.idp !== compteE.idp)
       throw new AppExc('A_SRV', 340)
 
     chI.setMutI(args.mut)
     chE.setMutE(args.mut)
-    if (args.mut) compteE.plusLmut(chI.idsE)
-    else compteE.moinsLmut(chI.idsE)
+    if (args.mut) this.compte.plusLmut(chI.idsE)
+    else this.compte.moinsLmut(chI.idsE)
   }
 }
 
@@ -535,7 +536,7 @@ operations.StatutChatE = class StatutChatE extends Operation {
   constructor (nom) { 
     super(nom, 1)
     this.targs = {
-      ids: { t: 'ida' } // ids = chat
+      ids: { t: 'ids' } // ids = chat
     }
   }
 
@@ -777,7 +778,6 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
     const rqv = qe.qv - qpt.qv + q.qv
     const maxv = rqv < q.qv ? q.qv : rqv
     const qap = args.quotas
-    qap.qc = 0
     if (qap.qn > maxn) throw new AppExc(F_SRV, 331)
     if (qap.qv > maxv) throw new AppExc(F_SRV, 332)
     synth.setQA(qap)
@@ -802,24 +802,21 @@ operations.SetCodePart = class SetCodePart extends Operation {
 operations.MuterCompte = class MuterCompte extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
-  async check (args) {
+  async check () {
     const ec = this.estComptable
     const ed = !ec && this.compte.del
     if (!ec && !ed) throw new AppExc(A_SRV, 287)
-
-    const av = compile(await this.db.getAvatarHk(ID.long(args.hZR, this.ns)))
-    if (!av) throw new AppExc(A_SRV, 317)
-    const avatar = await this.gd.getAV(av.id, 'MuterCompteO-8')
-    if (!avatar || avatar.hZC !== args.hZC) throw new AppExc(A_SRV, 317)
   }
 
   async setChat (args) {
     const chI = await this.gd.getCAV(this.id, args.ids, 'MuterCompteO-5')
+    chI.setMutE(0)
     const chE = await this.gd.getCAV(chI.idE, chI.idsE)
     if (!chE) { // pas de chatE: pas de mise à jour de chat I
       chI.chEdisp()
       return
     }
+    chE.setMutI(0)
     // cas normal : maj sur chI et chE - avE et cptE existent
     const avI = await this.gd.getAV(this.id, 'MuterCompteO-6')
     const avE = await this.gd.getAV(chI.idE, 'MuterCompteO-7')
@@ -882,8 +879,6 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant A
-      hZR: { t: 'ids' }, // hash de sa phrase de contact réduite
-      hZC: { t: 'ids' }, // hash de sa phrase de contact complète      
       ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
       quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
       t: { t: 'u8' } // texte (crypté) de l'item à ajouter au chat
@@ -893,8 +888,8 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
   async phase2 (args) {
     const compte = await this.gd.getCO(args.id, 'MuterCompteA-2')
     if (!compte.idp) throw new AppExc(A_SRV, 289)
-    
-    await this.check(args)
+
+    await this.check()
   
     const compta = await this.gd.getCA(args.id, 'MuterCompteA-3')
     compta.setA(true)
@@ -909,6 +904,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
 
     // Maj du compte
     compte.chgPart(null)
+    compte.resetLmut()
 
     await this.setChat(args)
   }
@@ -925,8 +921,6 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant O
-      hZR: { t: 'ids' }, // hash de sa phrase de contact réduite
-      hZC: { t: 'ids' }, // hash de sa phrase de contact complète   
       quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
       cleAP: { t: 'u8' }, // clé A du compte cryptée par la clé P de la partition
       clePK: { t: 'u8' }, // clé de la nouvelle partition cryptée par la clé publique du compte
@@ -936,19 +930,21 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
   }
 
   async phase2 (args) {
-    await this.check(args)
+    await this.check()
   
     const idp = this.compte.idp
 
-    const cpt = await this.gd.getCO(args.id, 'MuterCompteO-2')
-    if (cpt.idp) throw new AppExc(A_SRV, 288)
-    cpt.chgPart(idp, args.clePK, null, true)
+    const compte = await this.gd.getCO(args.id, 'MuterCompteO-2')
+    if (compte.idp) throw new AppExc(A_SRV, 288)
+    compte.resetLmut()
+    compte.chgPart(idp, args.clePK, null, true)
+
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
     compta.setA(false)
     compta.quotas(args.quotas)
 
     const synth = await this.gd.getSY()
-    synth.retraitCompteA(cpt.qv)
+    synth.retraitCompteA(compte.qv)
 
     const part = await this.gd.getPA(idp, 'MuterCompteO-4')
     part.ajoutCompteO(compta, args.cleAP, false) // Peut lever Exc de quotas

@@ -679,6 +679,8 @@ _data_ :
 - `hk` : `hXR`, hash du PBKFD d'un extrait de la phrase secrète (en base précédé de `ns`).
 - `dlv` : dernier jour de validité du compte.
 
+- `dharF dhopf dharC dhopC dharS dhopS`: dh des ACCES RESTREINT (F, C, S).
+
 - `vpe` : version du périmètre
 - `vci` : version de `comptis`
 - `vin` : version de `invits`
@@ -1657,13 +1659,19 @@ export class Sponsorings extends GenDoc {
 /** Chat ************************************************************
 _data_ (de l'exemplaire I):
 - `id`: id de I,
-- `ids`: à la création calculé par hash du cryptage par la clé du site de `idI / idE`.
+- `ids`: aléatoire.
 - `v`: 1..N.
 - `vcv` : version de la carte de visite de E.
 
 - `st` : deux chiffres `I E`
-  - I : 0:passif, 1:actif
-  - E : 0:passif, 1:actif, 2:disparu
+  - I : 0:indésirable, 1:actif
+  - E : 0:indésirable, 1:actif, 2:disparu
+- `mutI` :
+  - 1 - I a demandé à E de le muter en compte "O"
+  - 2 - I a demandé à E de le muter en compte "A"
+- `mutE` :
+  - 1 - E a demandé à I de le muter en compte "O"
+  - 2 - E a demandé à I de le muter en compte "A"
 - `idE idsE` : identifiant de _l'autre_ chat.
 - `cvE` : `{id, v, ph, tx}` carte de visite de E au moment de la création / dernière mise à jour du chat (textes cryptés par sa clé A).
 - `cleCKP` : clé C du chat cryptée,
