@@ -1,6 +1,7 @@
 ## Bug / vérifications...
 - Groupes : quotas heb - PageGroupe.gererheb PageGroupes.nvGr
 - les pages help
+- Comptable: refresh compta quand ticket pour lui
 
 ## Réflexions
 Ne pas bloquer la connexion d'un compte au delà de sa DLV:
