@@ -908,11 +908,11 @@ export class Comptes extends GenDoc {
       this.idp = idp
       this.notif = notif || null
     } else {
-      this.del = false
       this.clePK = null
       this.idp = null
       this.notif = null
     }
+    this.del = false
     this._maj = true
   }
 
