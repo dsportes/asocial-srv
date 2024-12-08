@@ -570,7 +570,7 @@ _data_:
 - `id` : ns de son espace.
 - `v` : 
 - `qA` : `{ qc, qn, qv }` - quotas **maximum** disponibles pour les comptes A.
-- `qtA` : `{ qn, qv }` - quotas **effectivement attribués** aux comptes A. En conséquence `qA.qn - qtA.qn` est le quotas `qn` encore attribuable aux compte A.
+- `qtA` : `{ qn, qv, qc }` - quotas **effectivement attribués** aux comptes A. En conséquence `qA.qn - qtA.qn` est le quotas `qn` encore attribuable aux compte A.
 
 - `tsp` : table des _synthèses_ des partitions.
   - _index_: numéro de la partition.
@@ -592,7 +592,7 @@ export class Syntheses extends GenDoc {
     return new Syntheses().init({
       _maj: true, v: 0,
       qA: { qc: 0, qn: 0, qv: 0 },
-      qtA: { qn: 0, qv: 0 },
+      qtA: { qn: 0, qv: 0, qc: 0 },
       id: '',
       tsp: {}
     })
