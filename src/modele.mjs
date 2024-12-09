@@ -1493,7 +1493,7 @@ export class Operation {
     await this.db.collNs(
       'comptas', 
       ns, 
-      (data) => { Compteurs.CSV(lignes, mr, sep, data) }
+      (data) => { Compteurs.CSV(lignes, mois, sep, data) }
     )
     const buf = Buffer.from(lignes.join('\n'))
     const buf2 = crypter(cleES, buf)

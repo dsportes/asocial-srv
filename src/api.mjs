@@ -786,6 +786,12 @@ export class Compteurs {
 
   get serial() {
     assertQv(this.qv, 'serial')
+    for (let m = 0; m < 12; m++) {
+      const v = this.vd[m]
+      for(let i = 0; i < 19; i++)
+        if (isNaN(v[i]))
+          throw new AppExc(A_SRV, 345, [m, i])
+    }
     const x = {}; Compteurs.lp.forEach(p => { x[p] = this[p]})
     return new Uint8Array(encode(x))
   }
@@ -881,8 +887,9 @@ export class Compteurs {
     const soldeCAv = this.soldeDeM(m) // solde courant AVANT
     const msav = v[VMS]
     const msap = this.dh0 <= t0 ? dhf - t0 : dhf - this.dh0
+    if (msap <= 0) return
     const delta = msap - msav
-    if (delta === 0) return
+    if (delta <= 0) return
     // Maj des quotas moyens au prorata de la prolongation
     v[VMS] = msap
     v[VQC] = ((v[VQC] * msav) + (q.qc * delta)) / msap
@@ -1016,10 +1023,11 @@ export class Compteurs {
   - sep : séparateur CSV à utiliser
   - data : row sérialisé (non crypté) compta, contenant un champ compteurs (sérialisation des compteurs).
   */
-  static CSV (lignes, mr, sep, data) {
+  static CSV (lignes, mois, sep, data) {
     const dcomp = decode(data)
-    const c = new Compteurs(dcomp.compteurs)
-    const vx = c.vd[mr]
+    const c = new Compteurs(dcomp.serialCompteurs)
+    const m = mois % 100
+    const vx = c.vd[m - 1]
     const nj = Math.ceil(vx[VMS] / MSPARMOIS)
     if (!nj) return
     
@@ -1034,10 +1042,10 @@ export class Compteurs {
     const nc = Math.round(vx[VNC])
     const ng = Math.round(vx[VNG])
     const v = Math.round(vx[VV])
-    const ac = Math.round(vx[VCA] * 100)
-    const af = Math.round(vx[VCC] * 100)
-    const cc = Math.round(vx[VCA] * 100)
-    const cf = Math.round(vx[VCC] * 100)
+    const ac = Math.round(vx[VAC] * 100)
+    const af = Math.round(vx[VAF] * 100)
+    const cc = Math.round(vx[VCC] * 100)
+    const cf = Math.round(vx[VCF] * 100)
     lignes.push([nj, qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, ac, af, cc, cf].join(sep))
   }
 }

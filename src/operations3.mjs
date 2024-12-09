@@ -563,6 +563,7 @@ operations.Sync = class Sync extends Operation {
   async phase2(args) {
     if (!args.datasync) {
       const espace = await Esp.getEspOrg (this, this.org)
+      if (!espace) throw new AppExc(A_SRV, 344, [this.org])
       if (espace.dlvat && espace.dlvat < this.auj) {
         new AppExc(F_SRV, 14, [AMJ.editDeAmj(espace.dlvat)])
       }
