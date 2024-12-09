@@ -513,9 +513,11 @@ export function assertQv (qv, src) {
   else {
     for (const f of lqv) {
       const v = qv[f]
+      // if (f === 'cjm') console.log('cjm ', v)
       if (v === null) { c = 'null'; x = f; break }
       if (v === undefined) { c = 'undefined'; x = f; break }
-      if (typeof v !== 'number') { c = 'NaN'; x = f; break }
+      if (isNaN(v)) { 
+        c = 'NaN'; x = f; break }
     }
   }
   if (c) {
@@ -563,7 +565,7 @@ export class Tarif {
   }
 
   static evalConso (ca, dh) { // ca: { nl, ne, vm, vd }
-    const x = Tarif.evalConso2(ca, dh)[4]
+    return Tarif.evalConso2(ca, dh)[4]
   }
 
   static evalConso2 (ca, dh) { // ca: { nl, ne, vm, vd }

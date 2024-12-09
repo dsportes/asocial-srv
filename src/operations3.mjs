@@ -272,8 +272,6 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 
   async phase2 (args) {
-    // this.subJSON = args.subJSON || null
-
     await this.setEspaceOrg(args.org) // set this.ns et this.org
 
     const avsponsor = await this.gd.getAV(args.idsp)
@@ -476,6 +474,7 @@ operations.Sync = class Sync extends Operation {
     super(nom, 1, 1) 
     this.targs = {
       subJSON: { t: 'string', n: true }, // subscription de la session
+      nhb: { t: 'int', n: true}, // numéro de HB pour un login / relogin
       dataSync: { t: 'u8', n: true }, // sérialisation de l'état de synchro de la session
       // null : C'EST UNE PREMIERE CONNEXION - Création du DataSync
       // recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
@@ -571,6 +570,7 @@ operations.Sync = class Sync extends Operation {
 
     if (!args.dataSync) this.setRes('tarifs', Tarif.tarifs)
     this.subJSON = args.subJSON || null
+    this.nhb = args.nhb || 0
 
     this.mgr = new Map() // Cache locale des groupes acquis dans l'opération
 

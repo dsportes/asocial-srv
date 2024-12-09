@@ -773,7 +773,7 @@ export class Operation {
     this.dh = Date.now()
     this.auj = AMJ.amjUtcDeT(this.dh)
     if (config.mondebug) 
-      config.logger.debug(this.nomop + ' : ' + new Date(this.dh).toISOString())
+      config.logger.info(this.nomop + ' : ' + new Date(this.dh).toISOString())
     this.flags = 0
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
     this.result = { dh: this.dh }
@@ -816,12 +816,11 @@ export class Operation {
 
       await this.phase3(this.args) // peut ajouter des résultas
 
-      let nhb
-      if (this.subJSON) {
+      if (this.subJSON) { // de Sync exclusivement
         if (this.subJSON.startsWith('???'))
           console.log('subJSON=', this.subJSON)
         else
-          nhb = await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.id, 
+          await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
             this.compte.perimetre, this.compte.vpe)
       } else if (this.gd.trLog._maj) {
         this.gd.trLog.fermer()
@@ -830,9 +829,10 @@ export class Operation {
         
         const sl = this.gd.trLog.serialLong
         if (sl)
-          nhb = await genNotif(this.ns, this.sessionId || null, sl)
+          this.nhb = await genNotif(this.ns, this.sessionId || null, sl)
       }
-      if (nhb !== undefined) this.setRes('nhb', nhb)
+      if (this.nhb !== undefined) 
+        this.setRes('nhb', { sessionId: this.sessionId, nhb: this.nhb, op: this.nomop })
 
       if (this.aTaches) Taches.startDemon(this)
 

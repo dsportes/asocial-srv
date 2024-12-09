@@ -250,7 +250,7 @@ class Session {
   }
 
   // Enregistrement d'une session
-  login (sid, subscription, cid, perimetre, vpe) {
+  login (sid, subscription, nhb, cid, perimetre, vpe) {
     const dlv = Date.now() + (HBINSECONDS * 1000)
     const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
     let s = this.sessions.get(rnd)
@@ -263,16 +263,18 @@ class Session {
         this.majPerimetreC(c, vpe, perimetre)
       }
       // rnd et subscription n'ont pas changé
-      s.nc = nc
-      s.cid = cid
-      s.nhb = 0
+      if (s.cid !== cid || s.nc !== nc) {
+        s.nc = nc
+        s.cid = cid
+        s.nhb = nhb
+      }
       s.dlv = dlv
     } else {
-      s = { rnd, nc, subscription, cid, nhb: 0, dlv: dlv }
+      s = { rnd, nc, subscription, cid, nhb: nhb, dlv: dlv }
       this.setCpt(rnd, cid, vpe, perimetre)
       this.sessions.set(rnd, s)
     }
-    return 0
+    return s.nhb
   }
 
   // Enregistrement du heartbeat d'une session
@@ -280,24 +282,19 @@ class Session {
     const dlv = Date.now() + (HBINSECONDS * 1000)
     const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
     const s = this.sessions.get(rnd)
+    if (!s || s.nc !== nc) return -1
     if (nhb) {
-      let nhbav = -1
-      if (s) {
-        if (s.nc === nc) {
-          nhbav = s.nhb
-          s.dlv = dlv
-          s.nhb = nhb
-        }
-      }
+      const nhbav = s.nhb
+      s.dlv = dlv
+      s.nhb = nhb
       return nhbav
-    } else {
-      // déconnexion
-      if (s) {
-        this.detachCpt(rnd, s.cid)
-        this.sessions.delete(rnd)
-      }
-      return 0
     }
+    // déconnexion
+    if (s) {
+      this.detachCpt(rnd, s.cid)
+      this.sessions.delete(rnd)
+    }
+    return 0
   }
 }
 
@@ -327,12 +324,12 @@ export async function genNotif(ns, sid, trlogLong) {
 
 // Appel de fonction locale OU post au service PUBSUB
 // Retourne le numéro de HB courant ou 0 si service NON joignable
-export async function genLogin(ns, org, sid, subscription, cid, perimetre, vpe) {
+export async function genLogin(ns, org, sid, subscription, nhb, cid, perimetre, vpe) {
   if (!Session.pubsubURL) {
     Session.orgs.set(org, ns)
-    return Session.getSession(ns).login(sid, subscription, cid, perimetre, vpe)
+    return Session.getSession(ns).login(sid, subscription, nhb, cid, perimetre, vpe)
   }
-  return await post('login', { ns, org, sid, subscription, cid, perimetre, vpe })
+  return await post('login', { ns, org, sid, subscription, nhb, cid, perimetre, vpe })
 }
 
 // Appel de fonction locale OU post au service PUBSUB
@@ -366,7 +363,7 @@ export async function pubsub (req, res) {
     case 'login' : {
       const args = decode(decrypterSrv(Session.appKey, req.rawBody))
       Session.orgs.set(args.org, args.ns)
-      result = await Session.getSession(args.ns).login(args.sid, args.subscription, args.cid, args.perimetre, args.vpe)
+      result = await Session.getSession(args.ns).login(args.sid, args.subscription, args.nhb, args.cid, args.perimetre, args.vpe)
       break
     }
     case 'notif' : {
