@@ -264,7 +264,7 @@ export class Espaces extends GenDoc {
     this.hTC = hTC
     this._maj = true
   }
-F
+
   comptableOK () {
     delete this.hTC
     this._maj = true
@@ -329,6 +329,7 @@ F
 
     if (op.estAdmin) {
       cl.cleES = decrypterSrv(op.db.appKey, this.cleES)
+      cl.hTC = this.hTC
       return cl.toRow(op)._data_
     }
 

@@ -674,7 +674,7 @@ operations.SetNotifE = class SetNotifE extends Operation {
     super(nom, 3) 
     this.targs = {
       ns: { t: 'ns' }, // id de l'espace notifié
-      ntf: { t: 'ntf', n: true } // sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base
+      ntf: { t: 'ntfesp', n: true } // sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base
     }
   }
 

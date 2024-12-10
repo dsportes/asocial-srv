@@ -962,6 +962,14 @@ export class Operation {
           if (v.texte && !(v.texte instanceof Uint8Array)) ko(n)
           break
         }
+        case 'ntfesp' : { // { nr, dh, texte }
+          if (tof !== 'object') ko(n)
+          if (typeof v.dh !== 'number' || !Number.isInteger(v.dh)) ko(n)
+          if (v.dh < Operation.mindh || v.dh > Operation.maxdh) ko(n)
+          if (!v.nr || !Number.isInteger(v.nr) || v.nr < 1 || v.nr > 3) ko(n)
+          if (v.texte && (typeof v.texte !== 'string')) ko(n)
+          break
+        }
         case 'lidf' : {
           if (tof !== 'array') ko(n)
           let b = true
