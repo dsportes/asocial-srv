@@ -328,6 +328,12 @@ export class AMJ {
     return (a * 10000) + (m * 100) + j
   }
 
+  // Retourne l'amj utc d'une epoch
+  static aaaammjjDeT (t) {
+    const d = new Date(t || Date.now())
+    return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()]
+  }
+  
   // amj du jour actuel "local"
   static amjLoc () { return AMJ.amjLocDeT( Date.now() )}
 
@@ -564,6 +570,16 @@ export class Tarif {
     return ((cu[0] * qn) + (cu[1] * qv)) / MSPARMOIS
   }
 
+  // abonnement mensuel qn / qv aujourd'hui
+  // [ total, AboN, AboV ]
+  static abo (q) {
+    const [aaaa, mm, jj] = AMJ.aaaammjjDeT()
+    const cu = Tarif.cu(aaaa, mm)
+    const n = (cu[0] * q.qn)
+    const v = (cu[1] * q.qv)
+    return [n + v, n, v]
+  }
+  
   static evalConso (ca, dh) { // ca: { nl, ne, vm, vd }
     return Tarif.evalConso2(ca, dh)[4]
   }
