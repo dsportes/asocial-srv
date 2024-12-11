@@ -1293,7 +1293,7 @@ operations.ChangementPS = class ChangementPS extends Operation {
     super(nom, 1, 2)
     this.targs = {
       hps1: { t: 'ids' }, // hash9 du PBKFD de la phrase secrète réduite du compte.
-      hXC: { t: 'u8' }, // hash du PBKFD de la phrase secrète complète
+      hXC: { t: 'ids' }, // hash du PBKFD de la phrase secrète complète
       cleKXC: { t: 'u8' } // clé K cryptée par la phrase secrète
     }
   }
