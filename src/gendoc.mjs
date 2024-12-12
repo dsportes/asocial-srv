@@ -1225,8 +1225,8 @@ export class Comptas extends GenDoc {
 
   get qv () { return this.compteurs.qv }
 
-  setA (estA) {
-    const c = new Compteurs(this.serialCompteurs, null, null, estA)
+  setIdp (idp) {
+    const c = new Compteurs(this.serialCompteurs, null, null, idp || '')
     this.serialCompteurs = c.serial
     this._maj = true
   }
@@ -1237,10 +1237,7 @@ export class Comptas extends GenDoc {
   }
 
   toShortRow (op, idp) { 
-    if (idp) this.idp = idp
-    const x = this.toRow(op)._data_ 
-    delete this.idp
-    return x
+    return this.toRow(op)._data_ 
   }
 
   exN () {

@@ -306,7 +306,7 @@ class GD {
     const c = Comptes.nouveau(args, sp)
     c.mdcnx = Math.floor(AMJ.amjUtcDeT(this.op.dh) / 100)
     this.comptes.set(c.id, c)
-    const compta = Comptas.nouveau(c.id, quotas, don || 0, c.estA)
+    const compta = Comptas.nouveau(c.id, quotas, don || 0, c.idp || '')
     this.comptas.set(c.id, compta)
     const compti = Comptis.nouveau(c.id)
     this.comptis.set(compti.id, compti)

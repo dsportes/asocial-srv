@@ -497,17 +497,6 @@ export class AMJ {
 }
 
 /************************************************************************/
-export function edvol (vol, u) {
-  const v = vol || 0
-  if (v < 1000) return v + (u || 'o')
-  if (v < 1000000) return (v / 1000).toPrecision(3) + 'K' + (u || 'o')
-  if (v < 1000000000) return (v / 1000000).toPrecision(3) + 'M' + (u || 'o')
-  if (v < 1000000000000) return (v / 1000000000).toPrecision(3) + 'G' + (u || 'o')
-  if (v < 1000000000000000) return (v / 1000000000000).toPrecision(3) + 'T' + (u || 'o')
-  return (v / 1000000000000000).toPrecision(3) + 'P' + (u || 'o')
-}
-
-/************************************************************************/
 export const lqv = ['qn', 'qv', 'qc', 'nn', 'nc', 'ng', 'v', 'cjm']
 export const qv0 = { qc: 0, qn: 0, qv: 0, nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
 export function assertQv (qv, src) {
@@ -650,7 +639,7 @@ La structure est la suivante:
 - `dh0` : date-heure de création du compte
 - `dh` : date-heure de calcul actuelle
 - `dhP` : date-heure de création ou de changement O <-> A (informative, n'intervient pas dans les calculs).
-- `estA` : `true` si le compte est A.
+- `idp` : id de la partition pour un compte O.
 - `qv` : quotas et volumes du dernier calcul `{ qc, qn, qv, nn, nc, ng, v, cjm }`.
 - `ddsn` : date-heure de début de solde négatif.
 - `vd` : [0..11] - vecteur détaillé pour les 12 mois de l'année (glissante)
@@ -721,18 +710,18 @@ Cette moyenne considère qu'il y a toujours eu au moins 10 jours de vie, même s
 */
 
 export class Compteurs {
-  static lp = ['dh0', 'dh', 'dhP', 'estA', 'qv', 'ddsn', 'vd']
+  static lp = ['dh0', 'dh', 'dhP', 'idp', 'qv', 'ddsn', 'vd']
   
   /*
   - serial : sérialisation de l'état antérieur, null pour une création (qv est alors requis)
   - qv: facultatif. compteurs de quotas et des nombres de notes, chats, groupes et v. 
     En cas de présence, mise à jour APRES recalcul à l'instant actuel.
   - conso: facultatif. compteurs de consommation à ajouter au mois courant.
-  - chgA: true devient A, false devient O, undefined inchangé.
+  - idp: id de la partition O, '' si A.
   - dbcr: débit / crédit apporté au solde.
   - dh: normalement absent. Utilisé pour faire des tests indépendants de la date-heure courante.
   */
-  constructor (serial, qv, conso, chgA, dbcr, dh) {
+  constructor (serial, qv, conso, idp, dbcr, dh) {
     this.now = dh || Date.now()
     if (this.now % MSPARJOUR === 0) this.now++
     if (serial) {
@@ -750,7 +739,7 @@ export class Compteurs {
       const d = new Date(this.dh)
       this.aaaa = d.getUTCFullYear()
       this.mm = d.getUTCMonth() + 1
-      this.estA = false
+      this.idp = ''
       this.ddsn = 0
       this.db = 0
       this.cr = 0
@@ -772,8 +761,8 @@ export class Compteurs {
     // fin de réactualisation. Préparation début nouvelle situation
     if (qv) this.qv = qv // valeurs de quotas / volumes à partir de maintenant
 
-    if (chgA !== undefined && chgA !== null && chgA !== this.estA) {
-      this.estA = chgA
+    if (idp !== undefined && idp !== null && idp !== this.idp) {
+      this.idp = idp
       this.dhP = this.dh
     }
 
@@ -799,6 +788,8 @@ export class Compteurs {
       assertQv(this.qv, 'Calcul cjm')
     }
   }
+
+  get estA () { return this.idp === ''}
 
   get serial() {
     assertQv(this.qv, 'serial')
@@ -1027,7 +1018,7 @@ export class Compteurs {
   }
 
   static CSVHDR (sep) {
-    return ['NJ', 'QC', 'QN', 'QV', 'NL', 'NE', 'VM', 'VD', 
+    return ['IP', 'NJ', 'QC', 'QN', 'QV', 'NL', 'NE', 'VM', 'VD', 
       'NN', 'NC', 'NG', 'V', 'AC', 'AF', 'CC', 'CF'].join(sep)
   }
 
@@ -1044,6 +1035,7 @@ export class Compteurs {
     const c = new Compteurs(dcomp.serialCompteurs)
     const m = mois % 100
     const vx = c.vd[m - 1]
+    const ip = '\"' + c.idp + '\"'
     const nj = Math.ceil(vx[VMS] / MSPARMOIS)
     if (!nj) return
     
@@ -1062,7 +1054,7 @@ export class Compteurs {
     const af = Math.round(vx[VAF] * 100)
     const cc = Math.round(vx[VCC] * 100)
     const cf = Math.round(vx[VCF] * 100)
-    lignes.push([nj, qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, ac, af, cc, cf].join(sep))
+    lignes.push([ip, nj, qc, qn, qv, nl, ne, vm, vd, nn, nc, ng, v, ac, af, cc, cf].join(sep))
   }
 }
 

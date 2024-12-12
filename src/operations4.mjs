@@ -176,7 +176,7 @@ operations.GetCompta = class GetCompta extends Operation {
     }
     const compte = await this.gd.getCO(args.id, 'GetCompta-3')
     const compta = await this.gd.getCA(args.id, 'GetCompta-1')
-    this.setRes('rowCompta', compta.toShortRow(this, compte.idp))
+    this.setRes('rowCompta', compta.toShortRow(this))
   }
 }
 
@@ -854,7 +854,7 @@ operations.MuterCompteAauto = class MuterCompteAauto extends operations.MuterCom
     if (!this.compte.idp || !this.compte.del || this.estComptable) 
       throw new AppExc(A_SRV, 243)
 
-    this.compta.setA(true)
+    this.compta.setIdp('')
     this.compta.quotas(args.quotas)
 
     const synth = await this.gd.getSY()
@@ -892,7 +892,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     await this.check()
   
     const compta = await this.gd.getCA(args.id, 'MuterCompteA-3')
-    compta.setA(true)
+    compta.setIdp('')
     const q = compta.qv
     compta.quotas({ qc: q.qc, qn: q.qn, qv: q.qv })
 
@@ -932,7 +932,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
   async phase2 (args) {
     await this.check()
   
-    const idp = this.compte.idp
+    const idp = this.compte.idp // partition de l'exécutant de la mutation
 
     const compte = await this.gd.getCO(args.id, 'MuterCompteO-2')
     if (compte.idp) throw new AppExc(A_SRV, 288)
@@ -940,7 +940,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     compte.chgPart(idp, args.clePK, null, true)
 
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
-    compta.setA(false)
+    compta.setIdp(idp)
     compta.quotas(args.quotas)
 
     const synth = await this.gd.getSY()

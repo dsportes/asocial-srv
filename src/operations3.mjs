@@ -298,7 +298,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     // créé compte compta compti invit
     const {compte, compta, compti, invit} = this.gd.nouvCO(args, sp, sp.quotas, sp.don)
     // pas de setRes pour le row compte qui VA ETRE MIS A JOUR après la phase 2 - Sera fait en phase 3
-    compta.setA(sp.partitionId ? false : true)
+    compta.setIdp(sp.partitionId || '')
     this.compte = compte
     this.compta = compta
     compti.setMc(sp.id, args.htK, args.txK)
