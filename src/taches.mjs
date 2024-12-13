@@ -296,6 +296,7 @@ operations.DLV = class DLV extends Operation {
   }
 }
 
+// récupération des transferts inachevés
 operations.TRA = class TRA extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
