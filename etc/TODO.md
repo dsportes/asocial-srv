@@ -2,11 +2,8 @@
 - Groupes : quotas heb - PageGroupe.gererheb PageGroupes.nvGr
 
 Pages help
-- outils
-- page compte
-- page espace,
-- page partition,
-- page admin,
+- page compte: un TODO
+- suppr_avatar
 - presse-papier
 - notes et fichiers, fiches en avion
 - groupes
