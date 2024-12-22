@@ -1502,7 +1502,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     // construction de l'item invit dans groupe
     let aInviter = false // inviter effectivement (sinon laisser en pré-invité)
     const invit = { fl: args.flags, li: [] }
-    if (args.idi) {
+    if (args.idi) { // mode simple
       if (!this.compte.mav[args.idi]) 
         throw new AppExc(A_SRV, 249) // invitant non membre du groupe
       const imi = gr.mmb.get(args.idi)
@@ -1514,7 +1514,8 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       // Vote : TOUS les avatars du compte animateurs du groupe votent OUI ensemble
       const s1 = this.compte.imAnimsDeGr(gr)
       const invita = gr.invits[im]
-      if (invita && invita.fl === args.flags) // flags identiques : cumuls des votes
+      if (invita && invita.fl === args.flags && eqU8(membre.msgG, args.msgG))
+        // flags ou texte identiques : reprise des votes actuels
         invita.li.forEach(i => { s1.add(i)})
       const s2 = gr.anims // Tous les animateurs du groupe
       s1.forEach(i => { if (s2.has(i)) invit.li.push(i)})
@@ -1707,7 +1708,7 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
     // Set des im des avatars du compte étant animateur */
     const anc = this.compte.imAnimsDeGr(gr)
 
-    let fst = 0
+    let fst = stm // futur statut
     if (args.anim && stm === 4) {
       // passer le membre en animateur
       if (!anc.size) throw new AppExc(A_SRV, 263)

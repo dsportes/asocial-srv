@@ -987,7 +987,7 @@ export class Comptes extends GenDoc {
     this._maj =true
   }
 
-  estAvc (id) { return this.mav[id] }
+  estAvc (id) { return this.mav[id] !== undefined}
 
   /* Mise à niveau des listes avatars / groupes du dataSync
   en fonction des avatars et groupes listés dans mav/mpg du compte 
