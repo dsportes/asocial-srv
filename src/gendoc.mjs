@@ -2024,14 +2024,14 @@ export class Groupes extends GenDoc {
     this._maj = true
   }
 
-  setFlags (anc, st, im, iam, ian, idm, idn, ide) {
+  setFlags (anc, st, im, iam, ian, idm, idn, ide, idmAvc) {
     this.st[im] = st
     const fl = this.flags[im]
     let nvfl = fl
     const iamav = fl & FLAGS.AM
     const ianav = fl & FLAGS.AN
     if (iam !== iamav || ian !== ianav) {
-      if (!this.compte.estAvc(idm)) throw new AppExc(A_SRV, 265)
+      if (!idmAvc) throw new AppExc(A_SRV, 265)
       if (iam) nvfl |= FLAGS.AM; else nvfl &= ~FLAGS.AM
       if (ian) nvfl |= FLAGS.AN; else nvfl &= ~FLAGS.AN
     }

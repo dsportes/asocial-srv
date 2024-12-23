@@ -1726,7 +1726,8 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
     const idn = args.nvflags & FLAGS.DN
     const ide = idn ? args.nvflags & FLAGS.DE : false
 
-    const chgFl = gr.setFlags (anc, fst, im, iam, ian, idm, idn, ide)
+    const idmAvc = this.compte.estAvc(args.idm)
+    const chgFl = gr.setFlags (anc, fst, im, iam, ian, idm, idn, ide, idmAvc)
 
     if (chgFl) {
       const mb = await this.gd.getMBR(args.idg, im, 'MajDroitsMembre-3')
