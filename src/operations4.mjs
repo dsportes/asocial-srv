@@ -1725,6 +1725,7 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
     const idm = args.nvflags & FLAGS.DM
     const idn = args.nvflags & FLAGS.DN
     const ide = idn ? args.nvflags & FLAGS.DE : false
+    if (args.anim && !idm) throw new AppExc(A_SRV, 346, [idm, idg])
 
     const idmAvc = this.compte.estAvc(args.idm)
     const chgFl = gr.setFlags (anc, fst, im, iam, ian, idm, idn, ide, idmAvc)
