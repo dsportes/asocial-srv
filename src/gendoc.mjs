@@ -1380,7 +1380,7 @@ _data_:
 - `vcv` : version de la carte de visite afin qu'une opération puisse détecter (sans lire le document) si la carte de visite est plus récente que celle qu'il connaît.
 - `hk` : hash du PBKFD de la phrase de contact réduite.
 
-- `rds` :
+- `idc` : id du compte de l'avatar (égal à son id pour l'avatar principal).
 - `cleAZC` : clé A cryptée par ZC (PBKFD de la phrase de contact complète).
 - `pcK` : phrase de contact complète cryptée par la clé K du compte.
 - `hZC` : hash du PBKFD de la phrase de contact complète.

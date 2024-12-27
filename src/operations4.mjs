@@ -1830,49 +1830,54 @@ operations.HebGroupe = class HebGroupe extends Operation {
       action: { t: 'int', min: 1, max: 4 }, 
       // 1: 'Je prends l\'hébergement à mon compte',
       // 2: 'Je cesse d\'héberger ce groupe',
-      // 3: 'Je reprends l\'hébergement de ce groupe par un autre de mes avatars',
-      // 4: 'Je met à jour les nombres de notes et volumes de fichiers maximum attribués au groupe',
-      quotas: { t: 'q2' } // qn: nombre maximum de notes, qv : volume maximum des fichiers
+      // 3: 'Je transmet l\'hébergement à un autre de mes avatars',
+      // 4: 'Je met seulement à jour les nombres de notes et volumes de fichiers maximum attribués au groupe',
+      qn: { t: 'int', min: 0 }, // qn: nombre maximum de notes, qv : volume maximum des fichiers
+      qv: { t: 'int', min: 0 } // qn: nombre maximum de notes, qv : volume maximum des fichiers
     }
   }
 
   async phase2 (args) {
-    args.qn = args.quotas.qn; args.qv = quotas.qv
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
-    if (args.action === 1 || args.action === 3){
-      const avatar = await this.gd.getAV(args.nvHeb)
-      if (!avatar) throw new AppExc(F_SRV, 1)
-    }
 
-    if (args.action === 2) { // fin d'hébergement
+    // 2: 'Je cesse d\'héberger ce groupe',    
+    if (args.action === 2) { 
       if (gr.idh !== this.id) throw new AppExc(A_SRV, 276)
       gr.finHeb(this.auj)
       this.compta.finHeb(gr.nn, gr.vf)
       return
     }
 
-    if (args.action === 1) { // Je reprends l\'hébergement à mon compte
-      // if (!gr.idh) throw new AppExc(A_SRV, 277)
-      if (gr.idh === this.id) throw new AppExc(A_SRV, 278)
-      const im = gr.mmb.get(args.nvHeb)
-      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(A_SRV, 279)
-      if (gr.st[gr.imh] === 5 && gr.st[im] !== 5) throw new AppExc(A_SRV, 280)
+    let im
+    if (args.action === 1 || args.action === 3){
+      const avatar = await this.gd.getAV(args.nvHeb)
+      if (!avatar) throw new AppExc(F_SRV, 1)
+      if (avatar.idc !== this.id) throw new AppExc(F_SRV, 277)
+      im = gr.mmb.get(args.nvHeb)
+    }
+
+    // 1: 'Je prends l\'hébergement à mon compte',
+    if (args.action === 1) {
+      if (gr.idh && gr.idh !== this.id && gr.st[gr.imh] === 5 && gr.st[im] !== 5) 
+        throw new AppExc(A_SRV, 280)
       this.compta.debHeb(gr.nn, gr.vf)
       gr.majHeb(args.qn, args.qv, this.id, im)
       return
     }
 
-    if (args.action === 3) { // Je reprends l\'hébergement de ce groupe par un autre de mes avatars
+    // 3: 'Je transmet l\'hébergement à un autre de mes avatars',
+    if (args.action === 3) { 
       if (gr.idh !== this.id) throw new AppExc(A_SRV, 283)
-      const im = gr.mmb.get(args.nvHeb)
-      if (!im || gr.accesNote2(im) !== 2) throw new AppExc(A_SRV, 284)
       gr.majHeb(args.qn, args.qv, this.id, im)
+      return
     }
 
-    if (args.action === 4) { // Je met à jour les nombres de notes et volumes de fichiers maximum attribués au groupe
+    // 4: 'Je met seulement à jour les nombres de notes et volumes de fichiers maximum attribués au groupe',
+    if (args.action === 4) { 
       if (gr.idh !== this.id) throw new AppExc(A_SRV, 285)
       gr.majHeb(args.qn, args.qv, gr.idh, gr.imh)
+      return
     }
 
   }
