@@ -1,8 +1,8 @@
 ## Bug / vérifications...
-- Groupes : quotas heb - PageGroupe.gererheb PageGroupes.nvGr
 
 Pages help
 - page compte: un TODO
+- groupes ...
 - suppr_avatar
 - presse-papier
 - notes et fichiers, fiches en avion
