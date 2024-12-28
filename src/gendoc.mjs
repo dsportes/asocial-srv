@@ -2288,6 +2288,11 @@ export class Chatgrs extends GenDoc {
     this._maj = true
   }
 
+  imDeItem (dh) {
+    for(const x of this.items)
+      if (x.dh === dh && !x.dhx) return x.im
+  }
+
   supprItem (dh, dhx) {
     const l = []
     for(const x of this.items) {

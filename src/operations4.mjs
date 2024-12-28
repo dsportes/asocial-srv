@@ -1652,9 +1652,9 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
-      idaut: { t: 'ida' }, // id du membre auteur du texte
+      idaut: { t: 'ida', n: true }, // id du membre auteur du texte
       dh: { t: 'dh', n: true }, // date-heure de l'item effacé
-      msgG: { t: 'u8' } // texte de l'item
+      msgG: { t: 'u8', n: true } // texte de l'item
     }
   }
 
@@ -1671,8 +1671,9 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
       ch.addItem(im, this.dh, args.msgG)
     } else {
       const s = this.compte.idMbGr(args.idg)
-      if (!gr.estAnim(s)) throw new AppExc(A_SRV, 274)
       const ch = await this.gd.getCGR(args.idg, 'ItemChatgr')
+      const id = gr.tid[ch.imDeItem(args.dh)]
+      if (!s.has(id) && !gr.estAnim(s)) throw new AppExc(A_SRV, 274)
       ch.supprItem(args.dh, this.dh)
     }
   }
