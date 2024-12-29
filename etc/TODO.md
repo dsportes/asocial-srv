@@ -3,6 +3,7 @@
 Pages help
 - page compte: un TODO
 - groupes ...
+- page sponsoring, nouveau, acceptation
 - suppr_avatar
 - presse-papier
 - notes et fichiers, fiches en avion
