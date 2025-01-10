@@ -1,13 +1,10 @@
 ## Bug / vérifications...
 
 Pages help
-- page compte: un TODO
 - groupes ...
-- page sponsoring, nouveau, acceptation
 - suppr_avatar
 - presse-papier
 - notes et fichiers, fiches en avion
-- groupes
 
 ## Réflexions
 Ne pas bloquer la connexion d'un compte au delà de sa DLV:
