@@ -1288,7 +1288,6 @@ export class Comptas extends GenDoc {
     this.qv.v += q
     const c = new Compteurs(this.serialCompteurs, this.qv)
     this.serialCompteurs = c.serial
-    this.majcpt(c)
     this._maj = true
   }
 
