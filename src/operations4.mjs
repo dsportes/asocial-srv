@@ -2052,7 +2052,7 @@ operations.MajNote = class MajNote extends OperationNo {
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
-      aut: { t: 'int', min: 1, max: 1000, n: true }, // im de l'auteur de la note pour un groupe
+      ida: { t: 'ida', n: true }, // pour une note de groupe, id de son avatar auteur
       t: { t: 'u8' } // texte crypté
     }
   }
@@ -2063,9 +2063,10 @@ operations.MajNote = class MajNote extends OperationNo {
     await this.checkNoteId()
     let im = 0
     if (ng) {
-      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
+      const e = this.mavc.get(args.ida) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
+      if (!this.anim && (note.im && note.im !== e.im)) 
+        throw new AppExc(A_SRV, 314)
       note.setAut(e.im)
       im = e.im    
     }
