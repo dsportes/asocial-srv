@@ -1800,7 +1800,7 @@ _data_:
   - `null` : mode simple.
   - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
 - `invits` : map `{ fl, li[] }` des invitations en attente de vote ou de réponse.
-- `tid` : table des ids courts des membres.
+- `tid` : table des ids des membres.
 - `st` : table des statuts.
 - `flags` : tables des flags.
 - `lng` : liste noire _groupe_ des ids (courts) des membres.

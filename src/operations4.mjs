@@ -1924,12 +1924,15 @@ class OperationNo extends Operation {
 
   async checkNoteId () {
     const id = this.args.id
+    this.note = this.args.ids ? await this.gd.getNOT(this.args.id, this.args.ids) : null
     if (ID.estGroupe(id)) {
       const e = this.compte.mpg[id] 
       if (!e) throw new AppExc(A_SRV, 290)
-      this.mavc = new Map()
+      this.mavc = new Map() // actifs du compte: idm, { im, am, an, de, anim }
       this.groupe = await this.gd.getGR(id, 'OperationNo-1')
       this.anim = false
+      // Le compte a un avatar ayant droit d'écriture
+      this.aDE = false
       for (const idm of e.lav) {
         const im = this.groupe.mmb.get(idm)
         if (!im || this.groupe.st[im] < 4) continue
@@ -1940,10 +1943,16 @@ class OperationNo extends Operation {
         if ((f & FLAGS.AN) && (f & FLAGS.DN)) an = true 
         if ((f & FLAGS.AM) && (f & FLAGS.DM)) am = true 
         if (an && (f & FLAGS.DE)) de = true
-        if (an) this.mavc.set(idm, { im, am, de, anim })
+        if (an) {
+          if (de) this.aDE = true
+          this.mavc.set(idm, { im, am, an, de, anim })
+        }
       }
-      if (!this.mavc.size) throw new AppExc(A_SRV, 291)
+      if (!this.mavc.size) throw new AppExc(A_SRV, 291) // pas d'actifs dans mon compte
       this.aut = this.args.ida ? this.mavc.get(this.args.ida) : null
+      // L'auteur exclusif de la note est avatar du compte (ou pas d'exclu)
+      this.idxAvc = this.note.im && this.compte.mav[this.groupe.tid[this.note.im]] ? true : false
+      // Le compte a un avatar ayant droit d'écriture
     } else {
       if (!this.compte.mav[id]) throw new AppExc(A_SRV, 292)
     }
@@ -2032,16 +2041,18 @@ operations.RattNote = class RattNote extends OperationNo {
 
   async phase2 (args) { 
     if (!args.pid) throw new AppExc(A_SRV, 300)
-    const note = await this.gd.getNOT(args.id, args.ids, 'RattNote-1')
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
-    let ok = ng ? false : true
-    if (ng) for(const [, e] of this.mavc ) { // idm, { im, am, de, anim }
-      if (e.de && (!note.im || (note.im === e.im) || e.anim)) ok = true
+    if (!this.note) assertKO('RattNote-1', 13, [id + '/NOT' + ids])
+
+    if (ng) {
+      // this.idxAvc : L'auteur exclusif de la note est avatar du compte (ou pas exclu)
+      if (!this.idxAvc) throw new AppExc(A_SRV, 314)
+      // this.aDE : Le compte a un avatar ayant droit d'écriture
+      if (!this.aDE) throw new AppExc(A_SRV, 301)
     }
-    if (!ok) throw new AppExc(A_SRV, 301)
     await this.checkRatt(ng)
-    note.setRef(args.pid, args.pids)
+    this.note.setRef(args.pid, args.pids)
   }
 }
 
@@ -2058,19 +2069,23 @@ operations.MajNote = class MajNote extends OperationNo {
   }
 
   async phase2 (args) { 
-    const note = await this.gd.getNOT(args.id, args.ids, 'MajNote-1')
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
+    if (!this.note) assertKO('RattNote-1', 13, [id + '/NOT' + ids])
+
     let im = 0
     if (ng) {
-      const e = this.mavc.get(args.ida) // idm, { im, am, de, anim }
+      // this.idxAvc : L'auteur exclusif de la note est avatar du compte (ou pas exclu)
+      if (!this.idxAvc) throw new AppExc(A_SRV, 314)
+      // this.aDE : Le compte a un avatar ayant droit d'écriture
+      if (!this.aDE) throw new AppExc(A_SRV, 301)
+      // ida n'est pas de mon compte ou n'a pas le droit d'écriture
+      const e = this.mavc.get(args.ida) // idm, { im, am, an, de, anim }
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
-      if (!this.anim && (note.im && note.im !== e.im)) 
-        throw new AppExc(A_SRV, 314)
-      note.setAut(e.im)
-      im = e.im    
+      this.note.setAut(e.im)
+      im = e.im
     }
-    note.setTexte(args.t, im, this.dh)
+    this.note.setTexte(args.t, im, this.dh)
   }
 }
 
@@ -2085,20 +2100,18 @@ operations.SupprNote = class SupprNote extends OperationNo {
   }
 
   async phase2 (args) { 
-    const note = await this.gd.getNOT(args.id, args.ids)
-    if (!note) return
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
+    if (!this.note) assertKO('SupprNote-1', 13, [id + '/NOT' + ids])
+
     let ok = false
     if (ng) {
-      if (!this.anim) {
-        for(const [,e] of this.mavc) {
-          if (e.de && (!note.im || note.im === e.im)) ok = true
-        }
-      } else ok = true
-      if (!ok) throw new AppExc(A_SRV, 315)
+      // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
+      if (!this.idxAvc) throw new AppExc(A_SRV, 314)
+      // this.aDE : Le compte a un avatar ayant droit d'écriture
+      if (!this.aDE) throw new AppExc(A_SRV, 301)
     }
-    const dv = -note.vf
+    const dv = -this.note.vf
 
     let compta
 
@@ -2120,7 +2133,7 @@ operations.SupprNote = class SupprNote extends OperationNo {
     this.lidf = []
     for(const idf in note.mfa) this.lidf.push(idf)
 
-    note.setZombi()
+    this.note.setZombi()
 
     if (this.lidf.length) 
       this.idfp = await this.setFpurge(args.id, this.lidf)
@@ -2149,13 +2162,14 @@ operations.HTNote = class HTNote extends OperationNo {
   }
 
   async phase2 (args) { 
-    const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
+    if (!this.note) assertKO('SupprNote-1', 13, [id + '/NOT' + ids])
+
     if (ng) {
-      note.setHT(args.htK, this.id)
-      if (this.anim) note.setHTG(args.htG)
-    } else note.setHT(args.htK)
+      this.note.setHT(args.htK, this.id)
+      if (this.anim) this.note.setHTG(args.htG)
+    } else this.note.setHT(args.htK)
   }
 }
 
@@ -2171,29 +2185,55 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
   }
 
   async phase2 (args) {
-    // Pour attribuer l\'exclusité d\'écriture d\'une note, il faut, 
-    // a) soit être animateur, 
-    // b) soit l\'avoir soi-même, c) soit que personne ne l\'ait déjà.'
-    const note = await this.gd.getNOT(args.id, args.ids, 'HTNote-1')
     if (!ID.estGroupe(args.id)) throw new AppExc(A_SRV, 303)
     await this.checkNoteId()
-    let aExclu = false
-    for(const [, e] of this.mavc) 
-      if (e.im === note.im) aExclu = true
-
-    let im = 0
-    if (!args.ida) {
-      if (!aExclu && !this.anim) throw new AppExc(A_SRV, 306)
-    } else {
-      const peut = this.anim || aExclu || !note.im
-      if (!peut) throw new AppExc(A_SRV, 304)
-      im = this.groupe.mmb.get(args.ida)
-      if (!im) throw new AppExc(A_SRV, 305)
+    if (!this.note) assertKO('SupprNote-1', 13, [id + '/NOT' + ids])
+  
+    const im = args.ida ? this.groupe.mmb.get(args.ida) : 0
+    if (im) {
+      // l'avatar cible a-t-il droit d'écriture sur la note ?
       const f = this.groupe.flags[im]
       const ok = (f & FLAGS.AN) && (f & FLAGS.DN) && (f & FLAGS.DE)
       if (!ok) throw new AppExc(A_SRV, 305)
     }
-    note.setExclu(im)
+    const idaAvc = args.ida && this.compte.mav[args.ida] ? true : false
+
+    let aEX = false // A toujours un avatar exclusif actif et AYANT TOUJOURS droits d'écriture
+    if (this.note.im && this.groupe.st[this.note.im] >= 4) {
+      const f = this.groupe.flags[this.note.im]
+      const ok = (f & FLAGS.AN) && (f & FLAGS.DN) && (f & FLAGS.DE)
+      if (ok) aEX = true
+    }
+
+    if (aEX) { 
+      // la note A actuellement un auteur exclusif
+      // l'auteur exclusif actuel de la note est-il avatar du compte ?
+      if (!this.idxAvc) throw new AppExc(A_SRV, im ? 350 : 349)
+
+      if (!im) this.note.setExclu(0) // suppression d'exclusivité
+      else {
+        // transfert d'exclusivité autorisé à n'importe qui
+        if (im === this.note.im) return // c'est toujours le même
+        this.note.setExclu(im)
+      }
+    } else { 
+      // la note n'a pas (encore) d'auteur exclusif
+      if (!im) return // et n'en aura toujours pas
+      if (!this.anim) { // le compte demandeur n'a pas d'animateur
+        // il peut demander seulement pour lui
+        // et s'il est auteur seul de la note
+        if (!idaAvc) throw new AppExc(A_SRV, 348)
+        // tous les auteurs de la note sont-ils du compte ?
+        let ok = true
+        this.note.l.forEach(ima => { if (!this.compte.mav[this.groupe.tid[ima]]) ok = false })
+        if (!ok) throw new AppExc(A_SRV, 347)
+        this.note.setExclu(im)
+      } else {
+        // un compte animateur peut donner l'exclusivité 
+        // à tout avatar (de son compte ou d'un un autre)
+        this.note.setExclu(im)
+      }
+    }
   }
 }
 
@@ -2213,9 +2253,9 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
 
   async phase2 (args) {
     await this.checkNoteId()
-    const note = await this.gd.getNOT(args.id, args.ids, 'GetUrlNf-1')
+    if (!this.note) assertKO('GetUrlNf-1', 13, [id + '/NOT' + ids])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
-    const f = note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
+    const f = this.note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
     if (!f) throw new AppExc(A_SRV, 307)
     // Ralentissement éventuel
     await this.attente(lg / 1000000)
@@ -2244,18 +2284,19 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
 
   async phase2 (args) {
     await this.checkNoteId()
-    const note = await this.gd.getNOT(args.id, args.ids, 'PutUrlNf-1')
+    if (!this.note) assertKO('GetUrlNf-1', 13, [id + '/NOT' + ids])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     if (ID.estGroupe(args.id)) {
-      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
-      if (!e || !e.de) throw new AppExc(A_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
+      // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
+      if (!this.idxAvc) throw new AppExc(A_SRV, 314)
+      // this.aDE : Le compte a un avatar ayant droit d'écriture
+      if (!this.aDE) throw new AppExc(A_SRV, 301)
     }
 
     let nv = args.lg
     const s = new Set()
     if (args.lidf && args.lidf.length) args.lidf.forEach(idf => { s.add(idf) })
-    for (const idf in note.mfa) {
+    for (const idf in this.note.mfa) {
       if (!s.has(idf)) nv += note.mfa[idf].lg
     }
 
@@ -2268,13 +2309,13 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
         compta = this.groupe.idh === this.id ? this.compta : 
           await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
       } else { // Pas d'hébergeur, le volume doit baisser
-        if (nv > note.vf) throw new AppExc(A_SRV, 312)
+        if (nv > this.note.vf) throw new AppExc(A_SRV, 312)
       }
     } else {
       compta = this.compta
     }
     // dépassement du quota comptable du compte ou de l'hébergeur
-    const x = compta.qv.v + nv - note.vf
+    const x = compta.qv.v + nv - this.note.vf
     if (x > compta.qv.qv * UNITEV) 
       throw new AppExc(F_SRV, 56, [x, compta.qv.qn * UNITEV])
 
@@ -2298,18 +2339,17 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
       fic: { t: 'fic' }, // { idf, lg, ficN }
-      aut: { t: 'ida', n: true }, // id de l'auteur (pour une note de groupe)
+      ida: { t: 'ida', n: true }, // id de l'auteur (pour une note de groupe)
       lidf: { t: 'lidf', n: true } // liste des idf fichiers de la note à supprimer
     }
   }
 
   async phase2 (args) {
     await this.checkNoteId()
-    await this.gd.getNOT(args.id, args.ids, 'ValiderUpload-1')
-    const note = await this.gd.getNOT(args.id, args.ids, 'ValiderUpload-2')
+    if (!this.note) assertKO('ValiderUpload-1', 13, [id + '/NOT' + ids])
     const f = note.mfa[args.fic.idf]
     if (f) throw new AppExc(A_SRV, 310)
-    let dv = note.vf
+    let dv = this.note.vf
     note.setFic(args.fic)
     if (args.lidf && args.lidf.length) 
       args.lidf.forEach(idf => { note.delFic(idf)})
@@ -2319,10 +2359,14 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     let compta
 
     if (ID.estGroupe(args.id)) {
-      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
+      // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
+      if (!this.idxAvc) throw new AppExc(A_SRV, 314)
+      // this.aDE : Le compte a un avatar ayant droit d'écriture
+      if (!this.aDE) throw new AppExc(A_SRV, 301)
+  
+      const e = this.mavc.get(args.ida) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
-      note.setAut(e.im)
+      this.note.setAut(e.im)
       if (this.groupe.idh) {
         this.groupe.setNV(0, dv)
         this.groupe.exV()
@@ -2372,22 +2416,27 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
 
   async phase2 (args) {
     await this.checkNoteId()
-    await this.gd.getNOT(args.id, args.ids, 'SupprFichier-1')
-    const note = await this.gd.getNOT(args.id, args.ids, 'SupprFichier-2')
-    const f = note.mfa[args.idf]
+    if (!this.note) assertKO('SupprFichier-1', 13, [id + '/NOT' + ids])
+
+    const f = this.note.mfa[args.idf]
     if (!f) return
-    let dv = note.vf
-    note.delFic(args.idf)
-    note.setVF()
-    dv = note.vf - dv // négatif
+    let dv = this.note.vf
+    this.note.delFic(args.idf)
+    this.note.setVF()
+    dv = this.note.vf - dv // négatif
 
     let compta
 
     if (ID.estGroupe(args.id)) {
-      const e = this.mavc.get(args.aut) // idm, { im, am, de, anim }
+      // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
+      if (!this.idxAvc) throw new AppExc(A_SRV, 314)
+      // this.aDE : Le compte a un avatar ayant droit d'écriture
+      if (!this.aDE) throw new AppExc(A_SRV, 301)
+  
+      const e = this.mavc.get(args.ida) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
-      if (note.im && note.im !== e.im) throw new AppExc(A_SRV, 314)
-      note.setAut(e.im)
+      this.note.setAut(e.im)
+
       if (this.groupe.idh) {
         this.groupe.setNV(0, dv)
         this.groupe.exV()
