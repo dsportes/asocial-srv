@@ -1951,7 +1951,7 @@ class OperationNo extends Operation {
       if (!this.mavc.size) throw new AppExc(A_SRV, 291) // pas d'actifs dans mon compte
       this.aut = this.args.ida ? this.mavc.get(this.args.ida) : null
       // L'auteur exclusif de la note est avatar du compte (ou pas d'exclu)
-      this.idxAvc = this.note.im && this.compte.mav[this.groupe.tid[this.note.im]] ? true : false
+      this.idxAvc = !this.note.im || (this.note.im && this.compte.mav[this.groupe.tid[this.note.im]]) ? true : false
       // Le compte a un avatar ayant droit d'écriture
     } else {
       if (!this.compte.mav[id]) throw new AppExc(A_SRV, 292)
@@ -2131,7 +2131,7 @@ operations.SupprNote = class SupprNote extends OperationNo {
     }
 
     this.lidf = []
-    for(const idf in note.mfa) this.lidf.push(idf)
+    for(const idf in this.note.mfa) this.lidf.push(idf)
 
     this.note.setZombi()
 
