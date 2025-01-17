@@ -1155,7 +1155,7 @@ export class Invits extends GenDoc {
   supprInvit (idg, ida) {
     const l = []
     this.invits.forEach(i => { 
-      if (i.idg !== idg || i.ida !== ida) l.pudh(i)
+      if (i.idg !== idg || i.ida !== ida) l.push(i)
     })
     this.invits = l
     this._maj = true
@@ -1164,7 +1164,7 @@ export class Invits extends GenDoc {
   /* L'entrée idg / ida, si elle existe, est supprimée */
   supprGrInvit (idg) {
     const l = []
-    this.invits.forEach(i => { if (i.idg !== idg) l.pudh(i) })
+    this.invits.forEach(i => { if (i.idg !== idg) l.push(i) })
     this.invits = l
     this._maj = true
   }
