@@ -2208,7 +2208,11 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
     if (aEX) { 
       // la note A actuellement un auteur exclusif
       // l'auteur exclusif actuel de la note est-il avatar du compte ?
-      if (!this.idxAvc) throw new AppExc(A_SRV, im ? 350 : 349)
+      if (!this.idxAvc) {
+        // Possible ssi compte animateur et auteur exclusif pas anamiteur
+        if (!this.anim || this.groupe.st[this.note.im] === 5)
+          throw new AppExc(A_SRV, im ? 350 : 349)
+      }
 
       if (!im) this.note.setExclu(0) // suppression d'exclusivité
       else {
