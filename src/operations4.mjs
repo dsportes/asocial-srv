@@ -1997,8 +1997,8 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ida: { t: 'ida', n: true }, // pour une note de groupe, id de son avatar auteur
       exclu: { t: 'bool', n: true }, // true si l'auteur est exclusif
-      pid: { t: 'idag', n: true }, // id de la note parente pour une note rattachée
-      pids: { t: 'ids', n: true}, // ids de la note parente pour une note rattachée
+      pid: { t: 'idag' }, // id de la note parente pour une note rattachée
+      pids: { t: 'ids', n: true }, // ids de la note parente pour une note rattachée
       t: { t: 'u8' } // texte crypté
     }
   }

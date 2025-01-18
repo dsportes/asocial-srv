@@ -493,12 +493,14 @@ operations.Sync = class Sync extends Operation {
     return g
   }
 
-  async getGrRows (ida, x) { 
+  async getGrRows1 (ida, x) { 
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
     if (!gr) gr = compile(await this.db.getV('groupes', ID.long(ida, this.ns), x.vs))
     if (gr) this.addRes('rowGroupes', gr.toShortRow(this, this.compte, x.m))
+  }
 
+  async getGrRows (ida, x) { 
     if (x.m) {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
       SINON chargement initial de puis 0 */
@@ -514,10 +516,12 @@ operations.Sync = class Sync extends Operation {
       this.addRes('rowNotes', compile(row).toShortRow(this, this.id))
   }
   
-  async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
+  async getAvRows1 (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
     const row = await this.db.getV('avatars', ID.long(ida, this.ns), x.vs)
     if (row) this.addRes('rowAvatars', compile(row).toShortRow(this))
+  }
 
+  async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
     for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.vs)) {
       const x = compile(row)
       this.addRes('rowNotes', x.toShortRow(this))
@@ -622,6 +626,7 @@ operations.Sync = class Sync extends Operation {
         x.chg = false
         // Si la version en base est supérieure à celle en session, chargement
         if (!x.vb || (x.vs < x.vb)) {
+          await this.getAvRows1(ida, x)
           await this.getAvRows(ida, x)
           x.chg = true
           if (this.nl - n > 20) break
@@ -634,6 +639,7 @@ operations.Sync = class Sync extends Operation {
         OU s'il faut désormais des notes alors qu'il n'y en a pas en session
         chargement */
         if (!x.vb || (x.vs < x.vb) || (x.m && !x.ms) || (x.n && !x.ns)) {
+          await this.getGrRows1(idg, x)
           await this.getGrRows(idg, x)
           x.chg = true
           if (this.nl - n > 20) break

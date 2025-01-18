@@ -1000,8 +1000,7 @@ export class Comptes extends GenDoc {
       if (!ds.avatars.has(ida)) 
         ds.avatars.set(ida, { id: ida, vs: 0, vb: 0 })
     
-    /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte
-    Suppression de leurs entrées dans idRds / rdsId */
+    /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte */
     const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
     for(const ida of sa) if (!this.mav[ida]) ds.avatars.delete(ida)
 
@@ -1010,8 +1009,7 @@ export class Comptes extends GenDoc {
       if (!ds.groupes.has(idg)) 
         ds.groupes.set(idg, { id: idg, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false })
     
-    /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte
-    Suppression de leurs entrées dans idRds / rdsId */
+    /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte */
     const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
     for(const idg of sg) if (!this.mpg[idg]) ds.groupes.delete(idg)
   }
