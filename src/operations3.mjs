@@ -465,7 +465,7 @@ operations.GetEspace = class GetEspace extends Operation {
 * Opérations AVEC connexion (donc avec contrôle de l'espace)
 * Opération (unique) de Synchronisation
 *******************************************************************************/
-
+const nlmax = 100 // nombre de lectures par lot de synchro
 /* Sync : opération générique de synchronisation d'une session cliente
 LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / groupes tirés du compte
 */
@@ -629,10 +629,10 @@ operations.Sync = class Sync extends Operation {
           await this.getAvRows1(ida, x)
           await this.getAvRows(ida, x)
           x.chg = true
-          if (this.nl - n > 20) break
+          if (this.nl - n > nlmax) break
         }
       }
-      if (this.nl - n <= 20) for(const [idg, x] of this.ds.groupes) {
+      if (this.nl - n <= nlmax) for(const [idg, x] of this.ds.groupes) {
         x.chg = false
         /* Si la version en base est supérieure à celle en session, 
         OU s'il faut désormais des membres alors qu'il n'y en a pas en session
@@ -642,7 +642,7 @@ operations.Sync = class Sync extends Operation {
           await this.getGrRows1(idg, x)
           await this.getGrRows(idg, x)
           x.chg = true
-          if (this.nl - n > 20) break
+          if (this.nl - n > nlmax) break
         }
       }
     }
