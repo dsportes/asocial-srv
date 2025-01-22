@@ -2324,7 +2324,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       throw new AppExc(F_SRV, 56, [x, compta.qv.qn * UNITEV])
 
     const idf = ID.fic()
-    await this.attente(lg / 1000000)
+    await this.attente(args.lg / 1000000)
     const url = await this.storage.getUrl(this.org, avgr.alias, idf)
     this.setRes('url', url)
     this.setRes('idf', idf)
@@ -2351,14 +2351,14 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
   async phase2 (args) {
     await this.checkNoteId()
     if (!this.note) assertKO('ValiderUpload-1', 13, [id + '/NOT' + ids])
-    const f = note.mfa[args.fic.idf]
+    const f = this.note.mfa[args.fic.idf]
     if (f) throw new AppExc(A_SRV, 310)
     let dv = this.note.vf
-    note.setFic(args.fic)
+    this.note.setFic(args.fic)
     if (args.lidf && args.lidf.length) 
       args.lidf.forEach(idf => { note.delFic(idf)})
-    note.setVF()
-    dv = note.vf - dv
+    this.note.setVF()
+    dv = this.note.vf - dv
 
     let compta
 
