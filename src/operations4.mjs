@@ -2262,7 +2262,7 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
     const f = this.note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
     if (!f) throw new AppExc(A_SRV, 307)
     // Ralentissement éventuel
-    await this.attente(lg / 1000000)
+    await this.attente(f.lg / 1000000)
     const url = await this.storage.getUrl(this.org, avgr.alias, args.idf)
     this.setRes('url', url)
     this.vd += f.lg // décompte du volume descendant
@@ -2301,14 +2301,14 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     const s = new Set()
     if (args.lidf && args.lidf.length) args.lidf.forEach(idf => { s.add(idf) })
     for (const idf in this.note.mfa) {
-      if (!s.has(idf)) nv += note.mfa[idf].lg
+      if (!s.has(idf)) nv += this.note.mfa[idf].lg
     }
 
     let compta
     if (ID.estGroupe(args.id)) {
       // Dépassement du quota donné par l'hébergeur ?
       if (this.groupe.idh) {
-        if (this.groupe.vf - note.vf + nv > this.groupe.qv * UNITEV) 
+        if (this.groupe.vf - this.note.vf + nv > this.groupe.qv * UNITEV) 
           throw new AppExc(F_SRV, 66, [this.vf, this.qv * UNITEV])
         compta = this.groupe.idh === this.id ? this.compta : 
           await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
@@ -2356,7 +2356,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     let dv = this.note.vf
     this.note.setFic(args.fic)
     if (args.lidf && args.lidf.length) 
-      args.lidf.forEach(idf => { note.delFic(idf)})
+      args.lidf.forEach(idf => { this.note.delFic(idf)})
     this.note.setVF()
     dv = this.note.vf - dv
 
