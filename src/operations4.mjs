@@ -2414,7 +2414,7 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
       idf: { t: 'idf' }, // id du fichier à supprimer
-      aut: { t: 'ida', n: true } // id de l'auteur (pour une note de groupe)
+      ida: { t: 'ida', n: true } // id de l'auteur (pour une note de groupe)
     }
   }
 
