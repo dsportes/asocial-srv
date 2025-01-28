@@ -1,5 +1,4 @@
-import { appKeyBin, config } from './config.mjs' // Avant Providers DB
-// import { app_keys } from './keys.mjs'
+import { appKeyBin, config, getDBProvider, getStorageProvider } from './config.mjs'
 
 import http from 'http'
 import https from 'https'
@@ -8,7 +7,6 @@ import { exit, env } from 'process'
 import { existsSync, readFileSync } from 'node:fs'
 
 import { setLogger } from './logger.mjs'
-import { getDBProvider, getStorageProvider } from './util.mjs'
 import { appExpress } from './cfgexpress.mjs'
 import { pubsubStart } from './notif.mjs'
 
@@ -30,10 +28,10 @@ try {
   config.logger.info('PORT= [' + port + ']')
 
   dbp = await getDBProvider(config.run.db_provider, config.run.site)
-  if (dbp.ko) exit(1)
+  if (!dbp || dbp.ko) exit(1)
   
   storage = await getStorageProvider(config.run.storage_provider)
-  if (storage.ko) exit(1)
+  if (!storage || storage.ko) exit(1)
 
   loadTaches()
   load3()

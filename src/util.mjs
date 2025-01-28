@@ -3,13 +3,7 @@ import { encode, decode } from '@msgpack/msgpack'
 
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { AppExc, A_SRV } from './api.mjs'
-import { appKeyBin, config } from './config.mjs'
-import { FsProvider } from './storageFS.mjs'
-import { GcProvider } from './storageGC.mjs'
-import { S3Provider } from './storageS3.mjs'
-import { SqliteProvider } from './dbSqlite.mjs'
-import { FirestoreProvider } from './dbFirestore.mjs'
-import { smSendgrid } from './sendgrid.mjs'
+import { appKeyBin, config, mySmSendgrid } from './config.mjs'
 
 export function u8ToB64 (u8, url) {
   if (!u8 || !u8.length) return ''
@@ -53,45 +47,6 @@ const SALTS = new Array(256)
     for (let j = 0; j < 16; j++) x[j] = (s[j] + i) % 256
     SALTS[i] = x
   }
-}
-
-export async function getStorageProvider (codeProvider) {
-  config.logger.info('Storage= [' + config.run.storage_provider + ']')
-  let storage
-  switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
-  case 'fs' : { storage = new FsProvider(codeProvider); break }
-  case 's3' : { storage = new S3Provider(codeProvider); break }
-  case 'gc' : { storage = new GcProvider(codeProvider); break }
-  }
-  if (!storage) {
-    config.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
-    return false
-  }
-  if (config.mondebug) {
-    const m = await storage.ping()
-    config.logger.info(m)
-  }
-  return storage
-}
-
-export async function getDBProvider (codeProvider, site) {
-  config.logger.info('DB= [' + codeProvider + ']')
-  let dbp
-  switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
-  case 'sqlite' : { dbp = new SqliteProvider(site, codeProvider); break }
-  case 'firestore' : { dbp = new FirestoreProvider(site, codeProvider); break }
-  }
-  if (!dbp || dbp.ko) {
-    config.logger.error('DB provider non trouvé:' + codeProvider)
-    return false
-  }
-  if (config.mondebug) {
-    const db = await dbp.connect({})
-    const [st, detail] = await db.ping()
-    await db.disconnect()
-    config.logger.info('PING DB status:' + st + ' detail:' + detail)
-  }
-  return dbp
 }
 
 /* Retourne le couple [hostname, port] d'une URL */
@@ -167,8 +122,8 @@ export function decrypter (cle, u8) { // u8: Buffer
 
 export async function sendAlMail (site, org, to, sub) {
   const s = 'AsocialApp - [' + site + '] '  + org + ' : ' + sub
-  if (config.alertes._sendgrid_api_key) {
-    await smSendgrid(to, s, '')
+  if (mySmSendgrid && config.alertes._sendgrid_api_key) {
+    await mySmSendgrid(to, s, '')
     return
   }
 

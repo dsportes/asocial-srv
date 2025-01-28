@@ -9,7 +9,6 @@ const init = {
   ok: false
 }
 
-
 export async function smSendgrid (to, sub, txt) {
   if (!init.done) {
     const api_key = config.alertes ? config.alertes._sendgrid_api_key : null

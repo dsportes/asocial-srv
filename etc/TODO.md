@@ -2,9 +2,9 @@
 
 ## TODO
 Pages d'aide:
-- notes et fichiers, fiches en avion
-- suppr_avatar
-- presse-papier
+- download des notes
+- suppr_avatar ... et TESTER
+- Rubriques "Comment faire pour ..."
 
 ## Réflexions
 **Ne pas bloquer la connexion d'un compte au delà de sa DLV:**
@@ -25,3 +25,8 @@ Déploiements:
 - GAE
 - CF OP
 - CF PUBSUB
+
+## DEV
+Tests des tâches et reprises
+
+Ajuster Firestore provider et retester avec GcProvider.
