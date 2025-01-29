@@ -409,7 +409,7 @@ operations.MutChat = class MutChat extends OperationCh {
 
 /* MajLectChat: mise à jour de la dh de lecture du chat ***********
 */
-operations.MajLectChat = class MajChat extends OperationCh {
+operations.MajLectChat = class MajLectChat extends OperationCh {
   constructor (nom) { 
     super(nom, 1, 2) 
     this.targs = {
@@ -1692,6 +1692,29 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
       const id = gr.tid[ch.imDeItem(args.dh)]
       if (!s.has(id) && !gr.estAnim(s)) throw new AppExc(A_SRV, 274)
       ch.supprItem(args.dh, this.dh)
+    }
+  }
+}
+
+/* MajLectChatgr: mise à jour de la lecture d'un chat du groupe
+*/
+operations.MajLectChatgr = class MajLectChatgr extends Operation {
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      idg: { t: 'idg' }, // id du groupe
+      lstIm: { t: 'array' } // liste des im des membres ayant lu
+    }
+  }
+
+  async phase2 (args) { 
+    const ch = await this.gd.getCGR(args.idg)
+    if (!ch) return
+    const dh = ch.dh
+
+    for(const im of args.lstIm) {
+      const m = await this.gd.getMBR(args.idg, im)
+      if (m) m.setLect(dh)
     }
   }
 }

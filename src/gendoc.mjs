@@ -2206,6 +2206,11 @@ export class Membres extends GenDoc {
     this._maj = true
   }
 
+  setLect (dh) {
+    this.dhLectChat = dh
+    this._maj = true
+  }
+
   setCvA (cv) {
     this.cvA = cv
     this._maj = true
@@ -2285,6 +2290,15 @@ export class Chatgrs extends GenDoc {
   }
 
   toShortRow (op) { return this.toRow(op)._data_ }
+
+  get dh () {
+    let t = 0
+    for(const x of this.items) {
+      if (x.dhx > t) t = x.dhx
+      if (x.dh > t) t = x.dh
+    }
+    return t
+  }
 
   addItem (im, dh, t) {
     const it = { im, dh, dhx: 0, t }
