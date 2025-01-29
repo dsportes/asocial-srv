@@ -407,6 +407,23 @@ operations.MutChat = class MutChat extends OperationCh {
   }
 }
 
+/* MajLectChat: mise à jour de la dh de lecture du chat ***********
+*/
+operations.MajLectChat = class MajChat extends OperationCh {
+  constructor (nom) { 
+    super(nom, 1, 2) 
+    this.targs = {
+      id: { t: 'ida' }, // id de l'avatar du chat
+      ids: { t: 'ids' },  // ids du chat
+    }
+  }
+
+  async phase2 (args) {
+    await this.intro2(args)
+    this.chI.setLect()
+  }
+}
+
 /* MajChat: Ajout ou suppression d\'un item à un chat ***********
 Retour:
 - disp: true si E a disparu (pas de maj faite)
@@ -417,10 +434,10 @@ operations.MajChat = class MajChat extends OperationCh {
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar du chat
       ids: { t: 'ids' },  // ids du chat
-      t: { t: 'u8' }, // texte gzippé crypté par la clé C du chat (null si suppression)
+      t: { t: 'u8', n: true }, // texte gzippé crypté par la clé C du chat (null si suppression)
       dh: { t: 'dh', n: true }, // 0 ou date-heure de l'item du chat à supprimer
       urgence: { t: 'bool', n: true }, // chat d'urgence
-      don: { t: 'int', min: 0, max: 1000 } // montant du don de I à E
+      don: { t: 'int', min: 0, max: 1000, n: true } // montant du don de I à E
     }
   }
 

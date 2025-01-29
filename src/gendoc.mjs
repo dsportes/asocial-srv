@@ -1734,6 +1734,20 @@ export class Chats extends GenDoc {
     this._maj = true
   }
 
+  get dh () {
+    let t = 0
+    if (this.items.length) for (const it of this.items) {
+      const x = it.dhx ? it.dhx : it.dh
+      if (x > t) t = x
+    }
+    return t
+  }
+
+  setLect () {
+    this.dhLectChat = this.dh
+    this._maj = true
+  }
+
   get stI() { return Math.floor(this.st / 10) }
 
   get stE () { return this.st % 10 }
