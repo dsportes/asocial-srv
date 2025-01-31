@@ -1,8 +1,12 @@
 ## Bug / vérifications...
+TEST:
+- suppr groupe 'avec notes et fichiers)
+- suppr avatar avec notes et fichiers et groupes
+- Toutes les taches, page admin et reprise
 
 ## TODO
 Pages d'aide:
-- download des notes
+- page partition: export CSV des coûts
 - suppr_avatar ... et TESTER
 - Rubriques "Comment faire pour ..."
 
@@ -10,13 +14,6 @@ Pages d'aide:
 **Ne pas bloquer la connexion d'un compte au delà de sa DLV:**
 - le GC _peut_ supprimer les comptes, et c'est ça qui va empêcher la connexion.
 - pour un espace _figé en archive_, le GC n'opère plus: les comptes restent accessibles. A noter que pour un compte en AR, le blocage va finir par apparaître ... sauf SI cette contrainte ne s'applique pas aux espaces figés.
-
-**Export CSV des coûts / partition**
-4 * 3 colonnes
-- 4 quotas: QN, QV, QC et Total (QN + QV + QC)
-- 3 compteurs: coût du quota attribué, coût des quotas distribués, coût des quota utilisés
-
-Lignes: ID, code et 12 compteurs - 1 ligne de total général
 
 ## Doc
 application.md est en cours
@@ -27,6 +24,4 @@ Déploiements:
 - CF PUBSUB
 
 ## DEV
-Tests des tâches et reprises
-
 Ajuster Firestore provider et retester avec GcProvider.
