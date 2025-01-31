@@ -13,10 +13,10 @@ Pages d'aide:
 
 **Export CSV des coûts / partition**
 4 * 3 colonnes
-- 3 compteurs: coût Quota, coût Quota attribué, coût Quota utilisé
 - 4 quotas: QN, QV, QC et Total (QN + QV + QC)
+- 3 compteurs: coût du quota attribué, coût des quotas distribués, coût des quota utilisés
 
-Lignes: ID et 12 compteurs - 1 ligne de total général
+Lignes: ID, code et 12 compteurs - 1 ligne de total général
 
 ## Doc
 application.md est en cours

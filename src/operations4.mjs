@@ -2429,7 +2429,8 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
       compta.exV()
     }
     
-    await this.purgeTransferts(args.id, args.fic.idf)
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
+    await this.purgeTransferts(avgr.alias, args.fic.idf)
 
     if (args.lidf && args.lidf.length) 
       this.idfp = await this.setFpurge(args.id, args.lidf)
@@ -2498,11 +2499,13 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
       compta.exV()
     }
     this.idfp = await this.setFpurge(args.id, [args.idf])
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
+    args.alias = avgr.alias
   }
 
   async phase3 (args) {
     try {
-      await this.storage.delFiles(this.org, args.id, [args.idf])
+      await this.storage.delFiles(this.org, args.alias, [args.idf])
       await this.unsetFpurge(this.idfp)
     } catch (e) { 
       trace('SupprFichier-phase3', args.id, e.message)

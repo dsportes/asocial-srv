@@ -273,7 +273,8 @@ operations.DFH = class DFH extends Operation {
 
     const idg = args.lst.pop()
     this.ns = this.db.nsDeIdLongue(idg)
-    await this.supprGroupe(idg) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    const groupe = await this.gd.getGR(idg)
+    await this.supprGroupe(groupe) // bouclera sur le suivant de hb jusqu'à épuisement de hb
   }
 }
 
@@ -445,11 +446,13 @@ operations.AGN = class AGN extends Operation {
 
   async phase2(args) {
     const id = args.tache.id
+    const alias = args.tache.ids
     this.ns = args.tache.ns
     args.nb = await this.db.delScoll('notes', ID.long(id, this.ns))
     let esp
     try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }
-    if (esp) await this.storage.delId(esp.org, id)
+    if (esp) 
+      await this.storage.delId(esp.org, alias)
     args.fini = true
   }
 }

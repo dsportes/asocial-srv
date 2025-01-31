@@ -1360,7 +1360,8 @@ export class Operation {
     this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
     // tâches de suppression de tous les membres et des notes
     await Taches.nouvelle(this, Taches.GRM, gr.id, 0)
-    await Taches.nouvelle(this, Taches.AGN, gr.id, 0)
+    // Pour AGN, ids est l'alias du groupe
+    await Taches.nouvelle(this, Taches.AGN, gr.id, gr.alias)
   }
 
   /* Méthode de mise à jour des CV des membres d'un groupe */
@@ -1447,7 +1448,8 @@ export class Operation {
     await this.db.delScoll('sponsorings', av.id)
 
     await Taches.nouvelle(this, Taches.AVC, av.id, 0)
-    await Taches.nouvelle(this, Taches.AGN, av.id, 0)
+    // Pour AGN, ids est l'alias de l'avatar
+    await Taches.nouvelle(this, Taches.AGN, av.id, av.alias)
   }
 
   // eslint-disable-next-line no-unused-vars
