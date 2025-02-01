@@ -2430,15 +2430,16 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     }
     
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
-    await this.purgeTransferts(avgr.alias, args.fic.idf)
+    this.alias = avgr.alias
+    await this.purgeTransferts(this.alias, args.fic.idf)
 
     if (args.lidf && args.lidf.length) 
-      this.idfp = await this.setFpurge(args.id, args.lidf)
+      this.idfp = await this.setFpurge(this.alias, args.lidf)
   }
 
   async phase3 (args) {
     if (this.idfp) try {
-      await this.storage.delFiles(this.org, args.id, args.lidf)
+      await this.storage.delFiles(this.org, this.alias, args.lidf)
       await this.unsetFpurge(this.idfp)
     } catch (e) { 
       trace('ValiderUpload-phase3', args.id, e.message)

@@ -1261,6 +1261,7 @@ export class Comptas extends GenDoc {
   ncPlus (q) {
     const qv = { ...this.qv }
     qv.nc += q
+    if (qv.nc < 0) qv.nc = 0
     const c = new Compteurs(this.serialCompteurs, qv)
     this.serialCompteurs = c.serial
     this._maj = true
@@ -1269,6 +1270,7 @@ export class Comptas extends GenDoc {
   nnPlus (q) {
     const qv = { ...this.qv }
     qv.nn += q
+    if (qv.nn < 0) qv.nn = 0
     const c = new Compteurs(this.serialCompteurs, qv)
     this.serialCompteurs = c.serial
     this._maj = true
@@ -1277,6 +1279,7 @@ export class Comptas extends GenDoc {
   ngPlus (q) {
     const qv = { ...this.qv }
     qv.ng += q
+    if (qv.ng < 0) qv.ng = 0
     const c = new Compteurs(this.serialCompteurs, qv)
     this.serialCompteurs = c.serial
     this._maj = true
@@ -1285,6 +1288,7 @@ export class Comptas extends GenDoc {
   vPlus (q) {
     const qv = { ...this.qv }
     qv.v += q
+    if (qv.v < 0) qv.v = 0
     const c = new Compteurs(this.serialCompteurs, qv)
     this.serialCompteurs = c.serial
     this._maj = true
@@ -1294,6 +1298,8 @@ export class Comptas extends GenDoc {
     const qv = { ...this.qv }
     qv.nn -= nn
     qv.v -= vf
+    if (qv.ng < 0) qv.ng = 0
+    if (qv.v < 0) qv.v = 0
     const c = new Compteurs(this.serialCompteurs, qv)
     this.serialCompteurs = c.serial
     this._maj = true

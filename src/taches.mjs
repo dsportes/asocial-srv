@@ -238,7 +238,7 @@ operations.StartDemon = class StartDemon extends Operation {
       Taches.demon = true
       await Esp.load(this.db)
       const lnsac = Esp.actifs()
-      const lnsinac = Esp.actifs()
+      const lnsinac = Esp.inactifs()
       const dh = Taches.dh(Date.now())
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -259,7 +259,7 @@ operations.StartDemon = class StartDemon extends Operation {
 
 }
 
-// détection d'une fin d'hébergement
+// détection des groupes en fin d'hébergement
 operations.DFH = class DFH extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
@@ -272,13 +272,13 @@ operations.DFH = class DFH extends Operation {
     if (!args.lst.length) { args.fini = true; return }
 
     const idg = args.lst.pop()
-    this.ns = this.db.nsDeIdLongue(idg)
-    const groupe = await this.gd.getGR(idg)
+    this.ns = ID.ns(idg)
+    const groupe = await this.gd.getGR(ID.court(idg))
     await this.supprGroupe(groupe) // bouclera sur le suivant de hb jusqu'à épuisement de hb
   }
 }
 
-// détection d'une résiliation de compte
+// détection des comptes au dela de leur DLV
 operations.DLV = class DLV extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
@@ -334,13 +334,13 @@ operations.FPU = class FPU extends Operation {
     const lst = await this.db.listeFpurges(this)
     args.nb = 0
     for (const fpurge of lst) {
-      if (fpurge.id && fpurge.idag && fpurge.lidf) {
+      if (fpurge.id && fpurge.alias && fpurge.lidf) {
         args.nb += fpurge.lidf.length
         const ns = ID.ns(fpurge.id)
         let esp
         try { esp = await this.setEspace(ns) } catch (e) { /* */ }
         if (esp) {
-          await this.storage.delFiles(esp.org, fpurge.idag, fpurge.lidf)
+          await this.storage.delFiles(esp.org, fpurge.alias, fpurge.lidf)
           await this.db.unsetFpurge(fpurge.id)
         }
       }
@@ -430,12 +430,18 @@ operations.STA = class STA extends Operation {
   }
 }
 
+/********************************************
+* Taches NON GC : GRM AGN AVC
+*/
+
 // purge des membres d'un groupe supprimé
 operations.GRM = class GRM extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    args.nb = await this.db.delScoll('membres', args.tache.id)
+    const id = args.tache.id
+    this.ns = args.tache.ns
+    args.nb = await this.db.delScoll('membres', ID.long(id, this.ns))
     args.fini = true
   }
 }
@@ -462,14 +468,14 @@ operations.AVC = class AVC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase2(args) {
-    const ida = args.tache.id
+    const id = args.tache.id
     this.ns = args.tache.ns
-    for (const row of await this.db.scoll('chats', ID.long(ida, this.ns), 0)) {
+    for (const row of await this.db.scoll('chats', ID.long(id, this.ns), 0)) {
       const chI = compile(row)
       const chE = await this.gd.getCAV(chI.idE, chI.idsE)
       if (chE) chE.chEdisp()
     }
-    args.nb = await this.db.delScoll('chats', ID.long(ida, this.ns))
+    args.nb = await this.db.delScoll('chats', ID.long(id, this.ns))
     args.fini = true
   }
 }

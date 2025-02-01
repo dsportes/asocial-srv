@@ -528,7 +528,7 @@ export function assertQv (qv, src) {
 /* Un tarif correspond à,
 - `am`: son premier mois d'application. Un tarif s'applique toujours au premier de son mois.
 - `cu` : un tableau de 6 coûts unitaires `[u1, u2, ul, ue, um, ud]`
-  - `u1`: abonnement mensuel en c à 250 notes / chats (250 = UNITEN)
+  - `u1`: abonnement mensuel en c à 100 notes / chats (100 = UNITEN)
   - `u2`: abonnement mensuel en c à 100Mo de fichiers (100Mo = UNITEV)
   - `ul`: UNITEIO de lectures en c
   - `ue`: UNITEIO d'écritures en c

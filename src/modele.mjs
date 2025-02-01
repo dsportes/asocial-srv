@@ -1322,9 +1322,9 @@ export class Operation {
     await this.db.purgeTransferts(this.ns + idag, idf)
   }
 
-  async setFpurge (idag, lidf) {
+  async setFpurge (alias, lidf) {
     const id = this.ns + ID.rnd()
-    const _data_ = new Uint8Array(encode({ id, idag, lidf }))
+    const _data_ = new Uint8Array(encode({ id, alias, lidf }))
     await this.db.setFpurge(id, _data_)
     return id
   }
