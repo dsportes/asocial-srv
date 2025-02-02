@@ -1938,10 +1938,49 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
 
   async phase2 (args) {
     if (!this.compte.mav[args.id]) throw new AppExc(F_SRV, 1)
-    const avatar = await this.gd.getAV(args.id)
-    if (!avatar) throw new AppExc(F_SRV, 1)
+    const av = await this.gd.getAV(args.id)
+    if (!av) throw new AppExc(F_SRV, 1)
     if (args.id === this.id ) throw new AppExc(A_SRV, 286)
-    await this.resilAvatar(avatar)
+
+    /* Gestion de ses groupes et invits */
+    const sg = new Set()
+    const invits = await this.gd.getIN(av.idc)
+    if (invits) invits.setDesGroupes(av.id, sg)
+    this.compte.setDesGroupes(av.id, sg)
+
+    for(const idg of sg) {
+      const gr = await this.gd.getGR(idg)
+      if (!gr) continue
+      const { im, estHeb, nbActifs } = gr.supprAvatar(av.id)
+      if (im) { // suppression du membre
+        const mb = await this.gd.getMBR(gr.id, im)
+        if (mb) mb.setZombi()
+      }
+      await this.checkAnimInvitants(gr)
+      if (estHeb) { // fin d'hébergement éventuel
+        this.compta.finHeb(gr.nn, gr.vf)
+        gr.finHeb(this.auj)
+      }
+      this.compta.ngPlus(-1) // diminution du nombre de participations aux groupes
+      if (!nbActifs) await this.supprGroupe(gr) // suppression éventuelle du groupe
+    }
+
+    this.compte.supprAvatar(av.id)
+    
+    /* Purges
+    'notes': tache de purge, 
+    'transferts': purge par le GC sur dlv,
+    'sponsorings': suppressions ici,
+    'chats': tache de purge ET de gestion de disparition sur idE,
+    'tickets': le Comptable ne meurt jamais
+    enfin l'avatar lui même ici (et dlv de son versions).
+    */
+    av.setZombi()
+    await this.db.delScoll('sponsorings', av.id)
+
+    await Taches.nouvelle(this, Taches.AVC, av.id, 0)
+    // Pour AGN, ids est l'alias de l'avatar
+    await Taches.nouvelle(this, Taches.AGN, av.id, av.alias)
   }
 }
 

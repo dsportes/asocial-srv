@@ -1076,7 +1076,6 @@ _data_:
 - `id` : id du compte.
 - `v` : version.
 
-- `rds`:
 - `invits`: liste des invitations en cours:
   - _valeur_: `{idg, ida, cleGA, cvG, ivpar, dh}`
     - `idg`: id du groupe,
@@ -1177,9 +1176,12 @@ export class Invits extends GenDoc {
           const idcv = ip.cvA.id
           if (setInv.has(idcv)) invpar.push(ip)
         }
-        if (invpar.length !== inv.invpar.length) {
-          inv.invpar = invpar
-          m = true
+        if (invpar.length) {
+          if (invpar.length !== inv.invpar.length) {
+            inv.invpar = invpar
+            m = true
+          }
+          l.push(inv)
         }
       } else l.push(inv)
     }
@@ -1846,7 +1848,7 @@ export class Groupes extends GenDoc {
       id: args.idg, // id du groupe
       alias: ID.rnd(),
       tid: [null, args.ida], // id de l'avatar fondateur
-      msu: args.msu, // mode simple (true) / unanime
+      msu: args.msu ? null : [], // mode simple (true) / unanime
       qn: args.quotas.qn,  // quotas.qn
       qv: args.quotas.qv, // quotas.qv
       cvG: args.cvG, // CV du groupe cryptée clé G
