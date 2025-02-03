@@ -1,13 +1,11 @@
 ## Bug / vérifications...
 TEST:
-- suppr groupe 'avec notes et fichiers)
-- suppr avatar avec notes et fichiers et groupes
-- Toutes les taches, page admin et reprise
+- Taches GC à finir de tester
 
 ## TODO
 Pages d'aide:
 - page partition: export CSV des coûts
-- suppr_avatar ... et TESTER
+- suppr_avatar
 - Rubriques "Comment faire pour ..."
 
 ## Réflexions

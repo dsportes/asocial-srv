@@ -165,8 +165,13 @@ class Connx {
   }
 
   async delTache (op, ns, id, ids) {
-    const st = this._stmt('DELTACHE', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
-    st.run({ op, ns, id, ids })
+    if (ids) {
+      const st = this._stmt('DELTACHE1', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
+      st.run({ op, ns, id, ids })
+    } else {
+      const st = this._stmt('DELTACHE2', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id')
+      st.run({ op, ns, id })
+    }
   }
 
   async recTache (op, ns, id, ids, dhf, nb) {

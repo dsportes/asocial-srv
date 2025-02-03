@@ -1107,7 +1107,7 @@ export class Invits extends GenDoc {
   toShortRow (op) { return this.toRow(op)._data_ }
 
   setDesGroupes(ida, s) {
-    this.invits.forEach(i => { if (i.ida !== ida) s.push(i.idg)})
+    this.invits.forEach(i => { if (i.ida !== ida) s.add(i.idg)})
   }
 
   setTousGroupes(s) {

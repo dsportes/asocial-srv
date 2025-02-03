@@ -2,7 +2,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, Esp, trace } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, E_SRV, AppExc, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
+import { AMJ, ID, E_SRV, A_SRV, AppExc, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
 import { sleep, decrypterSrv, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -106,9 +106,10 @@ export class Taches {
         await op.run(args, db.provider, storage)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!this.estGC) // La tache est supprimée
-            await db.delTache(this.op, this.id, this.ids, this.ns)
+            await db.delTache(this.op, this.ns, this.id, this.ids)
           else // La tache est déjà inscrite pour sa prochaine exécution
-            await db.recTache(this.op, this.id, this.ids, this.ns, Date.now(), args.nb || 0)
+            // (op, ns, id, ids, dhf, nb)
+            await db.recTache(this.op, this.ns, this.id, this.ids, Date.now(), args.nb || 0)
           break
         }
       } catch (e) { // Opération sortie en exception
@@ -265,6 +266,7 @@ operations.DFH = class DFH extends Operation {
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
+    // Test d'une exc: throw new AppExc(A_SRV, 10, ['plantage DFH'])
     if (!args.lst) {
       args.lst = await this.db.getGroupesDfh(this.auj)
       args.nb = args.lst.length
