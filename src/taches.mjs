@@ -2,7 +2,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, Esp, trace } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, E_SRV, A_SRV, AppExc, IDBOBSGC, NBMOISENLIGNETKT } from './api.mjs'
+import { AMJ, ID, E_SRV, A_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
 import { sleep, decrypterSrv, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -360,9 +360,10 @@ operations.VER = class VER extends Operation {
 
   async phase2(args) {
     args.nb = 0
-    const suppr = AMJ.amjUtcPlusNbj(this.auj, IDBOBSGC)
-    args.nb += await this.db.purgeSPO(suppr)
-    args.nb += await this.db.purgeVER(suppr)
+    const suppr1 = AMJ.amjUtcPlusNbj(this.auj, -limitesjour.sponsoring)
+    args.nb += await this.db.purgeSPO(suppr1)
+    const suppr2 = AMJ.amjUtcPlusNbj(this.auj, -IDBOBSGC)
+    args.nb += await this.db.purgeVER(suppr2)
     args.fini = true
   }
 }

@@ -574,7 +574,10 @@ class GD {
       v._vav = v.v
       v.v++
       v._maj = true
-      if (suppr) v.dlv = this.op.auj
+      if (suppr) {
+        v.dlv = this.op.auj
+        v._zombi = true
+      }
       const rv = v.toRow(this.op)
       if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
       this.trLog.addAvgr(id, v)  

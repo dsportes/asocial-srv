@@ -48,7 +48,7 @@ export function decryptRow (appKey, row) {
 
 export function prepRow (appKey, row) {
   const r = { ...row }
-  if (!ROWSENCLAIR.has(row._nom)) 
+  if (row._data_ !== null && !ROWSENCLAIR.has(row._nom)) 
     r._data_ = crypterSrv(appKey, row._data_)
   delete r._nom
   delete r._vav
@@ -183,7 +183,8 @@ export class GenDoc {
       for (const [key, value] of Object.entries(this)) if (!key.startsWith('_')) d[key] = value
       d._nom = this._nom
       row._data_ = Buffer.from(encode(d))
-    } else row._data_ = null
+    } else 
+      row._data_ = null
     return row
   }
 
