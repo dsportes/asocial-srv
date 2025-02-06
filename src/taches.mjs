@@ -231,10 +231,6 @@ operations.StartDemon = class StartDemon extends Operation {
       if (args.code !== config.gccode) throw new AppExc(E_SRV, 12)
       this.result = { type: 'text/plain', bytes: Buffer.from('OK - ' + new Date().toISOString())}
     }
-    setTimeout(async () => { await this.runit() }, 1)
-  }
-
-  async runit() {
     try {
       Taches.demon = true
       await Esp.load(this.db)

@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS "taches" (
 );
 CREATE INDEX "taches_dh" ON "taches" ( "dh" );
 CREATE INDEX "taches_ns" ON "taches" ( "ns" );
-
 CREATE TABLE IF NOT EXISTS "espaces" (
   "id" TEXT,
   "org" TEXT,

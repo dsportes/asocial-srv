@@ -194,7 +194,7 @@ class Connx {
     return st.all({ ns })
   }
 
-  async toutesTaches (ns) {
+  async toutesTaches () {
     const st = this._stmt('TOUTESTACHES', 'SELECT * FROM taches')
     return st.all()
   }
@@ -319,21 +319,6 @@ class Connx {
     if (rows) rows.forEach(row => { r.push(row.id)})
     return r
   }
-
-  /* Retourne l'array des id des comptes du ns donné dont la dlv est:
-  - dla: bridée par la dlvat actuelle de l'espace
-  - dlf: ou supérieure à la dlvat future
-  async getComptesDlvat (ns, dla, dlf) {
-    const ns1 = ns
-    const ns2 = ns + '{'
-    const st = this._stmt('SELCDLVAT', 
-      'SELECT id FROM comptes WHERE id >= @ns1 AND id < @ns2 AND (dlv > @dlf OR dlv = @dla)')
-    const rows = st.all({ dla, dlf, ns1, ns2 })
-    const r = []
-    if (rows) rows.forEach(row => { r.push(row.id)})
-    return r
-  }
-  */
 
   /* Retourne la collection de nom 'nom' : pour avoir tous les espaces */
   async coll (nom) {

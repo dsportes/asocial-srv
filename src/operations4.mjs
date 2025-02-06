@@ -2539,9 +2539,11 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
       compta.vPlus(dv)
       compta.exV()
     }
-    this.idfp = await this.setFpurge(args.id, [args.idf])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     args.alias = avgr.alias
+
+    // APRES toutes les 
+    this.idfp = await this.setFpurge(args.id, [args.idf])
   }
 
   async phase3 (args) {
