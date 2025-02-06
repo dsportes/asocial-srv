@@ -4,7 +4,6 @@ TEST:
 
 ## TODO
 Pages d'aide:
-- page partition: export CSV des coûts
 - Rubriques "Comment faire pour ..."
 
 ## Réflexions

@@ -11,6 +11,8 @@ Exemple purge-db
 node src/tools.mjs purge-db --in 2,coltes,firebase_b,A
 node src/tools.mjs purge-db --in 2,coltes,sqlite_b,B
 
+Exemple purge-st
+node src/tools.mjs purge-st --in demo2,fs_b
 */
 import { exit } from 'process'
 import { parseArgs } from 'node:util'
@@ -300,14 +302,14 @@ export class Outils {
 
   async purgeSt() {
     const cin = this.cfg.in
-    let msg = 'purge-db:'
+    let msg = 'purge-st:'
     msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname
     msg += this.simu ? ' SIMULATION' : ' !!! REEL !!!'
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
-    const p = cin.prov
+    const p = cin.storage
     if (!this.simu) {
       await p.delOrg(cin.org)
       this.log('\nPurge de ' + cin.org + ' terminée')
