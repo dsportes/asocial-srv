@@ -11,3 +11,4 @@ logs
 *.db3-shm
 *.db3-wal
 emulators
+fsstorageb

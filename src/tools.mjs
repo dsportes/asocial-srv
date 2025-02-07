@@ -2,10 +2,13 @@
 Exemple export-db:
 node src/tools.mjs export-db --in 1,demo,sqlite_a,A --out 2,demo2,sqlite_b,B
 node src/tools.mjs export-db --in 1,demo,sqlite_a,A --out 1,demo,firestore_a,A
+node src/tools.mjs export-db --in 1,demo,firestore_a,A --out 1,demo,sqlite_b,A
+
 node src/tools.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
 
 Exemple export-st:
 node src/tools.mjs export-st --in demo,fs_a --out demo,gc_a
+node src/tools.mjs export-st --in demo,gc_a --out demo,fs_b
 
 Exemple purge-db
 node src/tools.mjs purge-db --in 2,coltes,firebase_b,A
