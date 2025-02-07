@@ -1150,9 +1150,11 @@ export class Operation {
     du coût journalier d'abonnement sur le solde.
     Donc cette dlv (calculée peut-être il y a longtemps) est VALIDE maintenant.
     */
+    /*
     if (this.compte.dlv < this.auj) { 
       await sleep(config.D1); throw new AppExc(F_SRV, 997) 
     }
+    */
 
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
