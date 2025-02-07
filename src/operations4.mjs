@@ -2216,13 +2216,13 @@ operations.SupprNote = class SupprNote extends OperationNo {
     this.note.setZombi()
 
     if (this.lidf.length) 
-      this.idfp = await this.setFpurge(args.id, this.lidf)
+      this.idfp = this.gd.setFpurge(args.id, this.lidf)
   }
 
   async phase3 (args) {
     if (this.lidf.length) try {
       await this.storage.delFiles(this.org, args.id, this.lidf)
-      await this.unsetFpurge(this.idfp)
+      await this.db.unsetFpurge(this.idfp)
     } catch (e) { 
       trace('SupprNote-phase3', args.id, e.message)
     }
@@ -2339,13 +2339,17 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
     await this.checkNoteId()
     if (!this.note) assertKO('GetUrlNf-1', 13, [id + '/NOT' + ids])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
-    const f = this.note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
-    if (!f) throw new AppExc(A_SRV, 307)
+    this.alias = avgr.alias
+    this.f = this.note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
+    if (!this.f) throw new AppExc(A_SRV, 307)
+    this.vd += this.f.lg // décompte du volume descendant
+  }
+
+  async phase3 (args) {
     // Ralentissement éventuel
-    await this.attente(f.lg / 1000000)
-    const url = await this.storage.getUrl(this.org, avgr.alias, args.idf)
+    await this.attente(this.f.lg / 1000000)
+    const url = await this.storage.getUrl(this.org, this.alias, args.idf)
     this.setRes('url', url)
-    this.vd += f.lg // décompte du volume descendant
   }
 }
 
@@ -2370,6 +2374,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     await this.checkNoteId()
     if (!this.note) assertKO('GetUrlNf-1', 13, [id + '/NOT' + ids])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
+    this.alias = avgr.alias
     if (ID.estGroupe(args.id)) {
       // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
       if (!this.idxAvc) throw new AppExc(A_SRV, 314)
@@ -2403,15 +2408,15 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     if (x > compta.qv.qv * UNITEV) 
       throw new AppExc(F_SRV, 56, [x, compta.qv.qn * UNITEV])
 
-    const idf = ID.fic()
-    await this.attente(args.lg / 1000000)
-    const url = await this.storage.getUrl(this.org, avgr.alias, idf)
-    this.setRes('url', url)
-    this.setRes('idf', idf)
+    this.idf = ID.fic()
+    this.gd.nouvTRA(avgr.alias, this.idf)
+  }
 
-    const dlv = AMJ.amjUtcPlusNbj(this.auj, 1)
-    const tr = new Transferts().init({ id: avgr.alias, idf, dlv })
-    this.insert(tr.toRow(this))
+  async phase3 (args) {
+    await this.attente(args.lg / 1000000)
+    const url = await this.storage.getUrl(this.org, this.alias, this.idf)
+    this.setRes('url', url)
+    this.setRes('idf', this.idf)
   }
 }
 
@@ -2471,16 +2476,17 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     this.alias = avgr.alias
-    await this.purgeTransferts(this.alias, args.fic.idf)
+
+    this.gd.setTransfertsApurger(this.alias, args.fic.idf)
 
     if (args.lidf && args.lidf.length) 
-      this.idfp = await this.setFpurge(this.alias, args.lidf)
+      this.idfp = this.gd.setFpurge(this.alias, args.lidf)
   }
 
   async phase3 (args) {
     if (this.idfp) try {
       await this.storage.delFiles(this.org, this.alias, args.lidf)
-      await this.unsetFpurge(this.idfp)
+      await this.db.unsetFpurge(this.idfp)
     } catch (e) { 
       trace('ValiderUpload-phase3', args.id, e.message)
     }
@@ -2543,13 +2549,13 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
     args.alias = avgr.alias
 
     // APRES toutes les 
-    this.idfp = await this.setFpurge(args.id, [args.idf])
+    this.idfp = this.gd.setFpurge(args.id, [args.idf])
   }
 
   async phase3 (args) {
     try {
       await this.storage.delFiles(this.org, args.alias, [args.idf])
-      await this.unsetFpurge(this.idfp)
+      await this.db.unsetFpurge(this.idfp)
     } catch (e) { 
       trace('SupprFichier-phase3', args.id, e.message)
     }

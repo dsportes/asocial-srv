@@ -64,10 +64,8 @@ class Connx {
         if (this.op.toUpdate.length) await this.updateRows(this.op.toUpdate)
         if (this.op.toDelete.length) await this.deleteRows(this.op.toDelete)
       })
-      await this.disconnect()
       return [0, '']
     } catch (e) {
-      await this.disconnect()
       return this.trap(e)
     }
   }
@@ -131,13 +129,6 @@ class Connx {
     const wb = this.fs.batch()
     for (const row of rows) {
       const r = await prepRow(this.appKey, row)
-      /*
-      if (GenDoc.majeurs.has(row._nom)) {
-        r.id = row.id
-        r.v = row.v
-        if (row.vcv !== undefined) r.vcv = row.vcv
-      }
-      */
       const dr = this.fs.doc(FirestoreProvider._path(row._nom, r.id, r.ids))
       wb.set(dr, r)
     }
@@ -145,8 +136,9 @@ class Connx {
   }
 
   /*********************************************************************/
+  // Retourne un dr (document reference)
   tacheP (top, ns, id, ids) {
-    return 'taches/' + top + ';' + ns + ';' + id + (ids ? ';' + ids : '')
+    return this.fs.doc('taches/' + top + ';' + ns + ';' + id + (ids ? ';' + ids : ''))
   }
 
   async setTache (t) {
@@ -158,40 +150,23 @@ class Connx {
       dh: t.dh, 
       exc: t.exc
     }
-    const p = this.tacheP(r.op, r.ns, r.id, r.ids)
-    const dr = this.fs.doc(p)
-    /*
-    if (this.transaction)
-      this.transaction.set(dr, r)
-    else
-    */
-      await dr.set(r)
+    const dr = this.tacheP(r.op, r.ns, r.id, r.ids)
+    await dr.set(r)
   }
 
   async delTache (top, ns, id, ids) { // t: {op, id, ids}
-    const p = this.tacheP(top, ns, id, ids)
-    /*
-    if (this.transaction)
-      this.transaction.delete(this.fs.doc(p))
-    else
-    */
-      await this.fs.doc(p).delete()
+    const dr = this.tacheP(top, ns, id, ids)
+    await dr.delete()
   }
 
   async recTache (top, ns, id, ids, dhf, nb) {
-    const p = this.tacheP(top, ns, id, ids)
-    const dr = this.fs.doc(p)
-    const ds = this.transaction ? await this.transaction.get(dr) : await dr.get()
+    const dr = this.tacheP(top, ns, id, ids)
+    const ds = await dr.get()
     const r = ds.exists ? ds.data() : null
     if (r) {
       r.dhf = dhf
       r.nb = nb
-      /*
-      if (this.transaction)
-        this.transaction.set(dr, r)
-      else
-      */
-        await dr.set(r)  
+      await dr.set(r)  
     }
   }
 
@@ -510,9 +485,8 @@ class Connx {
     return n
   }
 
-  async setFpurge (id, _data_) {
+  async setFpurge (r) {
     const dr = this.fs.doc(FirestoreProvider._path('fpurges', id))
-    const r =  { id, _data_}
     if (this.transaction)
       this.transaction.set(dr, r)
     else
@@ -554,7 +528,7 @@ class Connx {
     if (!qs.empty) {
       for (const qds of qs.docs) { 
         const row = qds.data()
-        r.push([row.id, row.ids])
+        r.push([row.id, row.idf])
       }
     }
     this.op.nl += r.length

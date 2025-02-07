@@ -3,7 +3,7 @@ import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, assertQv, AL, 
 import { config } from './config.mjs'
 import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'
-import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, 
+import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, Transferts,
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
 import { genNotif, genLogin } from './notif.mjs'
@@ -254,6 +254,10 @@ class GD {
 
     this.comptas = new Map()
     this.partitions = new Map()
+
+    this.fpurges = []
+    this.transferts = []
+    this.transfertsApurger = []
   }
 
   /* Création conjointe de espace et synthese */
@@ -548,6 +552,23 @@ class GD {
     return d
   }
 
+  async nouvTRA (alias, idf) {
+    const dlv = AMJ.amjUtcPlusNbj(this.op.auj, 1)
+    const tr = new Transferts().init({ id: alias, idf, dlv })
+    this.transferts.push(tr)
+  }
+
+  setFpurge (alias, lidf) {
+    const id = this.op.ns + ID.rnd()
+    const _data_ = new Uint8Array(encode({ id, alias, lidf }))
+    this.fpurges.push({ id, _data_ })
+    return id
+  }
+
+  setTransfertsApurger (alias, idf) {
+    this.transfertsApurger.push({ alias, idf })
+  }
+  
   async getV (id) {
     let v = this.versions.get(id)
     if (!v) {
@@ -725,7 +746,9 @@ class GD {
     for(const [,d] of this.comptis) await this.majCompti(d)
     for(const [,d] of this.invits) await this.majInvit(d)
     if (this.espace) await this.majesp(this.espace)
-    
+    if (this.transferts.length) for(const x of this.transferts) 
+      await this.op.insert(x.toRow(this.op))
+
     // comptas SAUF celle du compte courant
     for(const [id, d] of this.comptas) 
       if (id !== this.op.id) await this.majCompta(d)
@@ -751,6 +774,12 @@ class GD {
     
     // maj syntheses possiblement affectées par maj des partitions
     if (this.synthese) await this.majsynth()
+    
+    // PLUS DE LECTURES A PARTIR D'ICI
+    if (this.fpurges.length) for(const x of this.fpurges) 
+      await this.op.db.setFpurge(x)
+    if (this.transfertsApurger.length) for(const x of this.transfertsApurger)
+      await this.op.db.purgeTransferts(x.alias, x.idf)
   }
 
 }
@@ -770,6 +799,8 @@ export class Operation {
     this.dh = Date.now()
     this.ns = 0
     this.org = ''
+    this.result = { dh: this.dh }
+    this.flags = 0
   }
 
   reset () {
@@ -787,6 +818,16 @@ export class Operation {
     this.gd = new GD(this)
   }
 
+  async transac () { // Appelé par this.db.doTransaction
+    if (!this.SYS && !this.estAdmin && this.authMode !== 0)
+      await this.auth2() // this.compta est accessible (si authentifié)
+    if (this.phase2) {
+      await this.phase2(this.args)
+      if (!AL.has(this.flags, AL.FIGE))
+        await this.gd.maj()
+    }
+  }
+
   /* Exécution de l'opération */
   async run (args, dbp, storage) {
     try {
@@ -794,60 +835,70 @@ export class Operation {
       this.dbp = dbp
       this.storage = storage
       if (!this.SYS) await this.auth1()
-      this.phase1(this.args)
+      await dbp.connect(this)
+      if (this.phase1) await this.phase1(this.args)
 
-      for (let retry = 0; retry < 3; retry++) {
+      if (this.phase2) for (let retry = 0; retry < 3; retry++) {
         this.reset()
-        await dbp.connect(this)
         const [st, detail] = await this.db.doTransaction() // Fait un appel à transac
         if (st === 0) break // transcation OK
-        if (st === 1) { // DB lock / contention
-          if (retry === 2) throw new AppExc(E_SRV, 10, [detail])
-          await sleep(config.D1)
-        } else if (st === 2) // DB error
-          throw new AppExc(E_SRV, 11, [detail])
+        if (st === 2) {
+          trace ('Op.run.phase2', 'DB error', detail, true)
+          throw new AppExc(E_SRV, 11, [detail]) // DB error
+        }
+        // st === 1 - DB lock / contention
+        if (retry === 2) {
+          trace ('Op.run.phase2', 'DB lock', detail, true)
+          throw new AppExc(E_SRV, 10, [detail])
+        }
+        await sleep(config.D1)
+        // retry - deconnexion / reconnexion
+        this.db.disconnect()
+        await dbp.connect(this)
       }
 
-      /* Envoi en cache des objets majeurs mis à jour / supprimés */  
-      const updated = [] // rows mis à jour / ajoutés
-      const deleted = [] // paths des rows supprimés
-      this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-      this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
-      this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-      Cache.update(updated, deleted)
-      if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
-
-      await this.phase3(this.args) // peut ajouter des résultas
-
-      if (this.subJSON) { // de Sync exclusivement
-        if (this.subJSON.startsWith('???'))
-          console.log('subJSON=', this.subJSON)
-        else
-          await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
-            this.compte.perimetre, this.compte.vpe)
-      } else if (this.gd.trLog._maj) {
-        this.gd.trLog.fermer()
-        const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
-        if (sc) this.setRes('trlog', sc)
-        
-        const sl = this.gd.trLog.serialLong
-        if (sl)
-          this.nhb = await genNotif(this.ns, this.sessionId || null, sl)
-      }
-      if (this.nhb !== undefined) 
-        this.setRes('nhb', { sessionId: this.sessionId, nhb: this.nhb, op: this.nomop })
-
-      if (this.aTaches) Taches.startDemon(this)
-
-      if (!this.estAdmin && !this.estComptable && AL.has(this.flags, AL.RAL)) {
-        const tx = AL.txRal(this.compta.qv)
-        await sleep(Math.round(1 + (tx / 10)) * 1000)
+      if (this.phase2) {
+        /* Envoi en cache des objets majeurs mis à jour / supprimés */  
+        const updated = [] // rows mis à jour / ajoutés
+        const deleted = [] // paths des rows supprimés
+        this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+        this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
+        this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
+        Cache.update(updated, deleted)
+        if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
       }
 
-      await this.attente(1) // Ralentissement des opérations
+      await this.phase3(this.args) // peut ajouter des résultats et db HORS transaction
 
+      if (this.phase2) {
+        if (this.subJSON) { // de Sync exclusivement
+          if (this.subJSON.startsWith('???'))
+            console.log('subJSON=', this.subJSON)
+          else
+            await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
+              this.compte.perimetre, this.compte.vpe)
+        } else if (this.gd.trLog._maj) {
+          this.gd.trLog.fermer()
+          const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
+          if (sc) this.setRes('trlog', sc)
+          
+          const sl = this.gd.trLog.serialLong
+          if (sl)
+            this.nhb = await genNotif(this.ns, this.sessionId || null, sl)
+        }
+        if (this.nhb !== undefined) 
+          this.setRes('nhb', { sessionId: this.sessionId, nhb: this.nhb, op: this.nomop })
+      }
+
+      if (this.aTaches) 
+        Taches.prochTache(this.dbp, this.storage)
+      
+      await this.db.disconnect()
+
+      await this.attente(1)
       return this.result
     } catch (e) {
+      if (this.db) await this.db.disconnect()
       if (config.mondebug) 
         config.logger.error(this.nomop + ' : ' + new Date(this.dh).toISOString() + ' : ' + e.toString())
       throw e
@@ -857,12 +908,13 @@ export class Operation {
   // m : coeff d'attente pour 1 Mo de transfert. 
   // Si m = 1, attente pour op de calcul
   async attente (m) {
-    if (this.estAdmin || this.estComptable || !AL.has(this.flags, AL.RAL)) return
-    const tx = AL.txRal(this.compta.qv)
-    await sleep(m * (1 + (tx / 10)) * 1000 )
+    if (!this.estAdmin && !this.estComptable && AL.has(this.flags, AL.RAL)) {
+      const tx = AL.txRal(this.compta.qv)
+      await sleep(m * (1 + (tx / 10)) * 1000 )
+    }
   }
 
-  phase1 (args) { 
+  async phase1 (args) { 
     args.x = '$'
     const op = this.nomop
     function ko (n) { 
@@ -1026,14 +1078,6 @@ export class Operation {
   async phase2 () { return }
 
   async phase3 () { return }
-
-  async transac () { // Appelé par this.db.doTransaction
-    if (!this.SYS && !this.estAdmin && this.authMode !== 0)
-      await this.auth2() // this.compta est accessible (si authentifié)
-    if (this.phase2) await this.phase2(this.args)
-    if (AL.has(this.flags, AL.FIGE)) return
-    await this.gd.maj()
-  }
 
   /* Authentification *************************************************************
   authMode:
@@ -1323,17 +1367,6 @@ export class Operation {
 
   async purgeTransferts (idag, idf) {
     await this.db.purgeTransferts(this.ns + idag, idf)
-  }
-
-  async setFpurge (alias, lidf) {
-    const id = this.ns + ID.rnd()
-    const _data_ = new Uint8Array(encode({ id, alias, lidf }))
-    await this.db.setFpurge(id, _data_)
-    return id
-  }
-
-  async unsetFpurge (id) {
-    await this.db.unsetFpurge(id) 
   }
 
   /* Méthode de suppression d'un groupe */

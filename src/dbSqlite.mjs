@@ -81,11 +81,9 @@ class Connx {
       if (this.op.toUpdate.length) await this.updateRows(this.op.toUpdate)
       if (this.op.toDelete.length) await this.deleteRows(this.op.toDelete)
       this._stmt('commit', 'COMMIT').run()
-      await this.disconnect()
       return [0, '']
     } catch (e) {
       try { this._stmt('rollback', 'ROLLBACK').run() } catch (e2) { /* */ }
-      await this.disconnect()
       return this.trap(e)
     }
   }
@@ -408,9 +406,9 @@ class Connx {
     return info.changes
   }
 
-  async setFpurge (id, _data_) {
+  async setFpurge (r) {
     const st = this._stmt('INSFPURGE', 'INSERT INTO fpurges (id, _data_) VALUES (@id, @_data_)')
-    st.run({ id, _data_ })
+    st.run(r)
     this.op.ne++
   }
 
@@ -438,7 +436,7 @@ class Connx {
     const st = this._stmt('SELTRADLV', 'SELECT * FROM transferts WHERE dlv <= @dlv')
     const rows = st.all({ dlv })
     if (rows) rows.forEach(row => {
-      r.push([row.id, row.ids])
+      r.push([row.id, row.idf])
     })
     this.op.nl += r.length
     return r

@@ -31,8 +31,6 @@ export class Taches {
 
   static AVC = 24 // gestion et purges des chats de l'avatar
 
-  // static ESP = 25 // maj des dlv des comptes d'un espace dont la dlvat a changé
-
   static OPSGC = new Set([Taches.DFH, Taches.DLV, Taches.TRA, Taches.FPU, Taches.VER, Taches.STA])
 
   get estGC () { return Taches.OPSGC.has(this.op) }
@@ -47,7 +45,6 @@ export class Taches {
     21: 'GRM',
     22: 'AGN',
     24: 'AVC'
-    // 25: 'ESP'
   }
 
   static dh (t) {
@@ -79,64 +76,21 @@ export class Taches {
     oper.aTaches = true
   }
 
-  constructor ({op, id, ids, ns, dh, exc}) {
-    this.op = op; this.id = id; this.ids = ids; this.ns = ns; this.dh = dh; this.exc = exc
-  }
-
-  async doit (db, storage) {
-    const cl = Taches.OPCLZ[this.op]
-    const args = { tache: this }
-
-    /* La tâche est inscrite pour plus tard : en cas de non terminaison
-    elle est déjà configurée pour être relancée. */
-    this.dh = Taches.dhRetry(this)
-    this.exc = ''
-    await db.setTache(this)
-
-    /* L'opération va être lancée N fois, jusqu'à ce qu'elle indique
-    qu'elle a épuisé son travail.
-    L'argument args indique
-    - tache: l'objet tache (son op, id, ids ...)
-    - fini: true quand l'opération a épuisé ce qu'elle avait à faire
-    */
-    while(!args.fini) {
-      const nom = Taches.OPNOMS[this.op]
-      const op = new cl(nom)
-      try {
-        await op.run(args, db.provider, storage)
-        if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
-          if (!this.estGC) // La tache est supprimée
-            await db.delTache(this.op, this.ns, this.id, this.ids)
-          else // La tache est déjà inscrite pour sa prochaine exécution
-            // (op, ns, id, ids, dhf, nb)
-            await db.recTache(this.op, this.ns, this.id, this.ids, Date.now(), args.nb || 0)
-          break
-        }
-      } catch (e) { // Opération sortie en exception
-        // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
-        this.exc = e.message + (e.stack ? '\n' + e.stack : '')
-        await db.setTache(this)
-        const al = config.alertes
-        if (al) {
-          const al1 = al['admin']
-          if (al1)
-            await sendAlMail(config.run.site, op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
-        }
-        break
-      }
-    }
-  }
-
-  static startDemon (opOrig) {
+  static prochTache (dbp, storage) {
     if (Taches.demon) return
     setTimeout(async () => { 
-      try {
-        const op = new operations.StartDemon('StartDemon', true) 
-        await op.run({}, opOrig.dbp, opOrig.storage)
-      } catch (e) {
-        config.logger.error('StartDemon: ' + e.toString())
-      }
+      if (!Taches.demon)
+        try {
+          const op = new operations.ProchTache('ProchTache', true) 
+          await op.run({}, dbp, storage)
+        } catch (e) {
+          config.logger.error('ProchTache: ' + e.toString())
+        }
     }, 1)
+  }
+
+  constructor ({op, id, ids, ns, dh, exc}) {
+    this.op = op; this.id = id; this.ids = ids; this.ns = ns; this.dh = dh; this.exc = exc
   }
 
 }
@@ -153,7 +107,7 @@ Invoqué à la création d'un espace pour initilaiser ces taches dans une base v
 operations.InitTachesGC = class InitTachesGC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
-  async phase2() {
+  async phase1() {
     const rows = await this.db.nsTaches('')
     const s = new Set()
     Taches.OPSGC.forEach(t => { s.add(t)})
@@ -165,6 +119,8 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
     }
     this.setRes('nxnc', [Taches.OPSGC.size - s.size, s.size])
   }
+
+  get phase2() { return null }
 }
 
 /*****************************************
@@ -178,12 +134,14 @@ args.ns :
 operations.GetTaches = class GetTaches extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
-  async phase2 (args) {
+  async phase1 (args) {
     let taches
     if (args.ns === '*') taches = await this.db.toutesTaches()
     else taches = await this.db.nsTaches(args.ns)
     this.setRes('taches', taches)
   }
+
+  get phase2() { return null }
 }
 
 /*****************************************
@@ -194,9 +152,11 @@ args.op ns id ids :
 operations.DelTache = class DelTache extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
-  async phase2(args) {
+  async phase1 (args) {
     await this.db.delTache(args.op, args.ns, args.id, args.ids)
   }
+
+  get phase2() { return null }
 }
 
 /*****************************************
@@ -207,50 +167,94 @@ args.op ns id ids :
 operations.GoTache = class GoTache extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
-  async phase2(args) {
+  async phase1 (args) {
     this.ns = args.ns
     await this.db.delTache(args.op, args.ns, args.id, args.ids)
     await Taches.nouvelle(this, args.op, args.id, args.ids)
   }
+
+  get phase2() { return null }
 }
 
-/* StartDemon: 'Lancement immédiat du démon'*/
-operations.StartDemon = class StartDemon extends Operation {
+/* Opération ProchTache: lancement de la prochaine tâche
+- s'il n'y a PAS de prochaine tache à traiter, FIN
+- sinon RELANCE (en asynchrone) une nouvelle opération ProchTache pour traiter la tache suivante
+*/
+operations.ProchTache = class ProchTache extends Operation {
   constructor (nom, interne) { 
     super(nom, 0)
     this.interne = interne
     this.SYS = true
-    this.targs = { 
-      code: { t: 'x' } // code d'habilitation
-    }
   }
 
-  async phase2(args) {
+  get phase2() { return null }
+
+  async phase1 (args) {
     if (Taches.demon) return
     if (!this.interne) {
       if (args.code !== config.gccode) throw new AppExc(E_SRV, 12)
       this.result = { type: 'text/plain', bytes: Buffer.from('OK - ' + new Date().toISOString())}
     }
+
     try {
       Taches.demon = true
       await Esp.load(this.db)
       const lnsac = Esp.actifs()
       const lnsinac = Esp.inactifs()
       const dh = Taches.dh(Date.now())
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        let proch = await this.db.prochTache(dh, lnsac, lnsinac)
-        if (!proch) {
-          await sleep(500)
-          proch = await this.db.prochTache(dh, lnsac, lnsinac)
-          if (!proch) break
-        }
-        await new Taches(proch).doit(this.db, this.storage)
-      }
-      Taches.demon = false
+
+      const proch = await this.db.prochTache(dh, lnsac, lnsinac)
+      if (proch) {
+        await this.doit(new Taches(proch))
+        Taches.demon = false
+        Taches.prochTache(this.dbp, this.storage)
+      } else
+        Taches.demon = false
     } catch (e) {
       trace ('demon', 'run', e.toString(), true)
       Taches.demon = false
+    }
+  }
+
+  async doit (tache) {
+    const cl = Taches.OPCLZ[tache.op]
+    const args = { tache }
+
+    /* La tâche est inscrite pour plus tard : en cas de non terminaison
+    elle est déjà configurée pour être relancée. */
+    tache.dh = Taches.dhRetry(tache)
+    tache.exc = ''
+    await this.db.setTache(tache)
+
+    /* L'opération va être lancée N fois, jusqu'à ce qu'elle indique
+    qu'elle a épuisé son travail.
+    L'argument args indique
+    - tache: l'objet tache (son op, id, ids ...)
+    - fini: true quand l'opération a épuisé ce qu'elle avait à faire
+    */
+    while(!args.fini) {
+      const nom = Taches.OPNOMS[tache.op]
+      try {
+        const op = new cl(nom)
+        await op.run(args, this.dbp, this.storage)
+        if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
+          if (!tache.estGC) // La tache est supprimée
+            await this.db.delTache(tache.op, tache.ns, tache.id, tache.ids)
+          else // La tache est déjà inscrite pour sa prochaine exécution: set dhf
+            await this.db.recTache(tache.op, tache.ns, tache.id, tache.ids, Date.now(), args.nb || 0)
+          break
+        }
+      } catch (e) { // Opération sortie en exception
+        // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
+        tache.exc = e.message + (e.stack ? '\n' + e.stack : '')
+        await this.db.setTache(tache)
+        const al = config.alertes
+        if (al) {
+          const al1 = al['admin']
+          if (al1)
+            await sendAlMail(config.run.site, op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
+        }
+      }
     }
   }
 
@@ -311,7 +315,7 @@ operations.TRA = class TRA extends Operation {
         if (esp) {
           const idi = ID.court(id)        
           await this.storage.delFiles(esp.org, idi, [idf])
-          await this.db.purgeTransferts(this, id, idf)
+          await this.db.purgeTransferts(id, idf)
         }
       }
     }
