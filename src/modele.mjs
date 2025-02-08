@@ -54,7 +54,7 @@ export class Esp {
 
   static inactifs () {
     const l = []
-    Esp.map.forEach(e => { if (e.notif && e.notif.nr === 2) l.push(e.id) })
+    Esp.map.forEach(e => { if (e.notif && e.notif.nr >= 2) l.push(e.id) })
     return l
   }
 
@@ -64,6 +64,13 @@ export class Esp {
     const espace = compile(Esp.map.get(ns))
     op.ns = ns
     op.org = espace.org
+    return espace
+  }
+
+  static getEspSync (op, ns) {
+    const espace = compile(Esp.map.get(ns))
+    op.ns = ns
+    op.org = espace ? espace.org : ''
     return espace
   }
 
@@ -463,10 +470,6 @@ class GD {
     d = compile(await this.op.getRowChat(id, ids))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 5, [k]) }
-    /* BUG contourné
-    if (d.st === 12) 
-      d.st = 11
-    */
     this.sdocs.set(k, d)
     return d
   }
@@ -790,12 +793,19 @@ export class Operation {
   static maxdh = new Date('2099-12-31').getTime()
 
   /* Initialisé APRES constructor() dans l'invocation d'une opération
-    this... isGet, db, storage, args, dh
+  authMode:
+    0 : pas de contrainte d'accès (public)
+    1 : le compte doit être authentifié
+    2 : et ça doit être le comptable
+    3 : administrateur technique requis
+  excFige: (toujours 0 si authMode 3)
+    1 : pas d'exception à l'authentification si figé. Lecture seulement ou estFige testé dans l'opération
+    2 : exception à l'authentification si figé
   */
   constructor (nomop, authMode, excFige) { 
     this.nomop = nomop
     this.authMode = authMode
-    this.excFige = excFige || 1
+    this.excFige = authMode === 3 ? 0 : (excFige || 1)
     this.dh = Date.now()
     this.ns = 0
     this.org = ''
@@ -1079,15 +1089,7 @@ export class Operation {
 
   async phase3 () { return }
 
-  /* Authentification *************************************************************
-  authMode:
-    0 : pas de contrainte d'accès (public)
-    1 : le compte doit être authentifié
-    2 : et ça doit être le comptable
-    3 : administrateur technique requis
-  excFige: (toujours 0 si authMode 3)
-    1 : pas d'exception si figé. Lecture seulement ou estFige testé dans l'opération
-    2 : exception si figé
+  /* Authentification ****************************************************
   Après authentification, sont disponibles:
     - this.id this.ns this.estA
     - this.compte this.compta
@@ -1215,29 +1217,26 @@ export class Operation {
   }
   */
 
-  async checkEspaceOrg (org, fige) {
+  async checkEspaceOrg (org) {
     // espace seulement pour checking
     const espace = await Esp.getEspOrg(this, org, true, this.nomop + '-checkEspace') // set this.ns
     espace.excFerme()
-    if (fige) espace.excFerme()
     this.ns = Esp.orgs.get(org)
     this.org = org
     return espace
   }
 
-  async checkEspaceNs (ns, fige) {
+  async checkEspaceNs (ns) {
     // espace seulement pour checking
     const espace = await Esp.getEsp(this, ns, true, this.nomop + '-checkEspace') // set this.ns
     espace.excFerme()
-    if (fige) espace.excFerme()
     this.ns = ns
     this.org = espace.org
     return espace
   }
 
-  async setEspaceOrg (org, fige) {
+  async setEspaceOrg (org) {
     const espace = await Esp.getEspOrg(this, org, false, this.nomop + '-checkEspace') // set this.ns
-    if (fige) espace.excFerme()
     this.gd.setEspace(espace)
     this.ns = Esp.orgs.get(org)
     this.org = org
@@ -1247,7 +1246,7 @@ export class Operation {
   async setEspaceNs (ns, fige) {
     const espace = await Esp.getEsp(this, ns, false, this.nomop + '-checkEspace') // set this.ns
     if (!this.estAdmin) espace.excFerme()
-    if (fige) espace.excFerme()
+    if (fige) espace.excFige()
     this.gd.setEspace(espace)
     this.ns = ns
     this.org = espace.org

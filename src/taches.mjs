@@ -260,9 +260,35 @@ operations.ProchTache = class ProchTache extends Operation {
 
 }
 
+class OperationT extends Operation {
+  constructor (nom) {
+    super(nom, 3); this.SYS = true
+  }
+
+  // set: ns, idcourt, espace, fige
+  checkNs (id) {
+    this.idcourt = ID.court(id)
+    this.espace = Esp.getEspSync(this, ID.ns(id)) // set this.ns this.org
+    this.fige = this.espace ? this.espace.fige : true
+  }
+
+  checkNs2 (tache) {
+    const id = tache.id
+    this.alias = tache.ids
+    this.ns = tache.ns
+    this.idlong = ID.long(id, ns)
+    this.espace = Esp.getEspSync(this, ns) // set this.ns this.org
+    this.org = this.espace ? this.espace.org : ''
+    this.fige = this.espace ? this.espace.fige : true
+  }
+
+  get phase1 () { return null }
+
+}
+
 // détection des groupes en fin d'hébergement
-operations.DFH = class DFH extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+operations.DFH = class DFH extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
@@ -274,15 +300,17 @@ operations.DFH = class DFH extends Operation {
     if (!args.lst.length) { args.fini = true; return }
 
     const idg = args.lst.pop()
-    this.ns = ID.ns(idg)
-    const groupe = await this.gd.getGR(ID.court(idg))
-    await this.supprGroupe(groupe) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    this.checkNs (idg)
+    if (!this.fige) {
+      const groupe = await this.gd.getGR(this.idcourt)
+      await this.supprGroupe(groupe) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    }
   }
 }
 
 // détection des comptes au dela de leur DLV
-operations.DLV = class DLV extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+operations.DLV = class DLV extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer
@@ -293,15 +321,19 @@ operations.DLV = class DLV extends Operation {
     if (!args.lst.length) { args.fini = true; return }
 
     const id = args.lst.pop()
-    this.ns = ID.ns(id)
-    const c = await this.gd.getCO(ID.court(id))
-    if (c) await this.resilCompte(c) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    this.checkNs (id)
+    if (!this.fige) {
+      const c = await this.gd.getCO(this.idcourt)
+      if (c) await this.resilCompte(c) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    }
   }
 }
 
-// récupération des transferts inachevés
-operations.TRA = class TRA extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+/* récupération des transferts inachevés
+IGNORE le fait que l'espace soit figé ou non: c'est une purge brutale.
+*/
+operations.TRA = class TRA extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
     // Récupération des couples [id, idf] des transferts à solder
@@ -309,14 +341,10 @@ operations.TRA = class TRA extends Operation {
     args.nb = lst.length
     for (const [id, idf] of lst) {
       if (id && idf) {
-        const ns = ID.ns(id)
-        let esp
-        try { esp = await this.checkEspaceNs(ns) } catch(e) { /* */ }
-        if (esp) {
-          const idi = ID.court(id)        
-          await this.storage.delFiles(esp.org, idi, [idf])
-          await this.db.purgeTransferts(id, idf)
-        }
+        checkNs (id)
+        if (this.org)
+          await this.storage.delFiles(this.org, this.idcourt, [idf])
+        await this.db.purgeTransferts(id, idf)
       }
     }
     args.fini = true
@@ -327,9 +355,10 @@ operations.TRA = class TRA extends Operation {
 a empêché:
 - soit un seul fichier d'une note (remplacement / suppression),
 - soit tous les fichiers (nominativement) d'une note supprimée
+IGNORE le fait que l'espace soit figé ou non: c'est une purge brutale.
 */
-operations.FPU = class FPU extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+operations.FPU = class FPU extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
     /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
@@ -337,14 +366,11 @@ operations.FPU = class FPU extends Operation {
     args.nb = 0
     for (const fpurge of lst) {
       if (fpurge.id && fpurge.alias && fpurge.lidf) {
+        this.checkNs (fpurge.id)
         args.nb += fpurge.lidf.length
-        const ns = ID.ns(fpurge.id)
-        let esp
-        try { esp = await this.setEspace(ns) } catch (e) { /* */ }
-        if (esp) {
-          await this.storage.delFiles(esp.org, fpurge.alias, fpurge.lidf)
-          await this.db.unsetFpurge(fpurge.id)
-        }
+        if (this.org)
+          await this.storage.delFiles(this.org, fpurge.alias, fpurge.lidf)
+        await this.db.unsetFpurge(fpurge.id)
       }
     }
     args.fini = true
@@ -354,9 +380,10 @@ operations.FPU = class FPU extends Operation {
 /* Purges des sponsorings et versions ayant dépassé,
 - leur dlv pour sponsorings,
 - leur suppr pour versions.
+IGNORE le fait que l'espace soit figé ou non: c'est une purge brutale.
 */
-operations.VER = class VER extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+operations.VER = class VER extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
     args.nb = 0
@@ -371,17 +398,17 @@ operations.VER = class VER extends Operation {
 /* statistique "mensuelle" des comptas (avec purges) et des tickets
 - todo : liste des stats à calculer. { org, ns, t: 'C' ou 'T', mr, mois }
 */
-operations.STA = class STA extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+operations.STA = class STA extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
     if (!args.todo) {
       const mc = Math.floor(AMJ.amjUtc() / 100) // Mois courant
-
       args.todo = []
       await Esp.load(this.db)
       for (const [ns, row] of Esp.map) {
         const esp = compile(row)
+        if (esp.fige) continue
         /* 
         - `creation` : date de création.
         - `moisStat` : dernier mois de calcul de la statistique des comptas.
@@ -415,11 +442,9 @@ operations.STA = class STA extends Operation {
     // args.todo.forEach(s => {console.log(JSON.stringify(s))}); args.todo.length = 0
 
     if (!args.todo.length) { args.fini = true; return }
+
     const s = args.todo.pop()
-    const espace = await this.setEspaceOrg(s.org, true)
-
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
-
     if (s.t === 'C') {
       espace.setMoisStat(s.mois)
       await this.creationC(s.org, s.ns, cleES, s.mois, s.mr)
@@ -437,48 +462,48 @@ operations.STA = class STA extends Operation {
 * Taches NON GC : GRM AGN AVC
 */
 
-// purge des membres d'un groupe supprimé
-operations.GRM = class GRM extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+/* purge des membres d'un groupe supprimé
+IGNORE le fait que l'espace soit figé ou non: c'est une purge brutale.
+*/
+operations.GRM = class GRM extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
-    const id = args.tache.id
-    this.ns = args.tache.ns
-    args.nb = await this.db.delScoll('membres', ID.long(id, this.ns))
+    this.checkNs2(args.tache)
+    args.nb = await this.db.delScoll('membres', this.idlong)
     args.fini = true
   }
 }
 
-// purge des notes d'un groupe ou avatar supprimé et des fichiers attachés
-operations.AGN = class AGN extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+/* purge des notes d'un groupe ou avatar supprimé et des fichiers attachés
+IGNORE le fait que l'espace soit figé ou non: c'est une purge brutale.
+*/
+operations.AGN = class AGN extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
-    const id = args.tache.id
-    const alias = args.tache.ids
-    this.ns = args.tache.ns
-    args.nb = await this.db.delScoll('notes', ID.long(id, this.ns))
-    let esp
-    try { esp = await this.setEspaceNs(this.ns) } catch (e) { /* */ }
-    if (esp) 
-      await this.storage.delId(esp.org, alias)
+    this.checkNs2(args.tache)
+    args.nb = await this.db.delScoll('notes', this.idlong)
+    if (this.org) 
+      await this.storage.delId(this.org, this.alias)
     args.fini = true
   }
 }
 
 // gestion et purges des chats de l'avatar
-operations.AVC = class AVC extends Operation {
-  constructor (nom) { super(nom, 3); this.SYS = true }
+operations.AVC = class AVC extends OperationT {
+  constructor (nom) { super(nom) }
 
   async phase2(args) {
-    const id = args.tache.id
-    this.ns = args.tache.ns
-    for (const row of await this.db.scoll('chats', ID.long(id, this.ns), 0)) {
-      const chI = compile(row)
-      const chE = await this.gd.getCAV(chI.idE, chI.idsE)
-      if (chE) chE.chEdisp()
+    this.checkNs2(args.tache)
+    if (!this.fige) {
+      for (const row of await this.db.scoll('chats', this.idlong, 0)) {
+        const chI = compile(row)
+        const chE = await this.gd.getCAV(chI.idE, chI.idsE)
+        if (chE) chE.chEdisp()
+      }
+      args.nb = await this.db.delScoll('chats', this.idlong)
     }
-    args.nb = await this.db.delScoll('chats', ID.long(id, this.ns))
     args.fini = true
   }
 }
@@ -497,7 +522,8 @@ operations.ComptaStat = class ComptaStat extends Operation {
   constructor (nom) { super(nom, 0); this.SYS = true }
 
   async phase2 (args) {
-    const espace = await this.setEspaceOrg(args.org, true)
+    const espace = await this.setEspaceOrg(args.org)
+    espace.excFige()
 
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (args.mr < 0 || args.mr > 2) args.mr = 1
@@ -531,7 +557,8 @@ operations.TicketsStat = class TicketsStat extends Operation {
   constructor () { super('TicketsStat'); this.SYS = true }
 
   async phase2 (args) {
-    const espace = await this.setEspaceOrg(args.org, true)
+    const espace = await this.setEspaceOrg(args.org)
+    espace.excFige()
 
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
 

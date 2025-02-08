@@ -48,7 +48,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
 /* SetEspaceDlvat : changement de dlvat par l'administrateur */
 operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
   constructor (nom) { 
-    super(nom, 1, 0)
+    super(nom, 3)
     this.targs = { 
       ns: { t: 'ns'}, // ns de l'espace concerné
       dlvat: { t: 'date' } // aaaammjj : date limite fixée par l'administrateur technique
@@ -58,12 +58,10 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
   async phase2 (args) {
     const espace = await this.setEspaceNs(args.ns, true)
     espace.setDlvat(args.dlvat)
-    // const dla = espace.dlvat ? espace.dlvat : AMJ.max
-    // await Taches.nouvelle(this, Taches.ESP, this.ns, dla)
   }
 }
 
-/* Ajout d\'un sponsoring */
+/* Ajout d'un sponsoring */
 operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
   constructor (nom) { 
     super(nom, 1, 2) 
@@ -281,7 +279,7 @@ Retour:
 */
 operations.NouveauChat = class NouveauChat extends OperationCh {
   constructor (nom) { 
-    super(nom, 1)
+    super(nom, 1, 2)
     this.targs = {
       idI: { t: 'ida' }, // id de l'vatar du chat "interne"
       idE: { t: 'ida' }, // id de l'vatar du chat "externe"
@@ -583,7 +581,7 @@ Exception générique:
 */
 operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
   constructor (nom) { 
-    super(nom, 1, 2)
+    super(nom, 1)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar
       lch: { t: 'array' }, // liste des chats: [{ ids, idE, vcv } ...]
@@ -607,7 +605,11 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
       const av = await this.gd.getAAVCV(idE, vcv)
       if (av) {
         const ch = await this.gd.getCAV(args.id, ids)
-        if (ch) { nc++; nv++; ch.setCvE(av.cvA)  }
+        if (ch && !this.fige) { 
+          nc++
+          nv++
+          ch.setCvE(av.cvA)  
+        }
       }
     }
 
@@ -616,7 +618,10 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
       const av = await this.gd.getAAVCV(ida, vcv)
       if (av) {
         const mb = await this.gd.getMBR(id, im)
-        if (mb) { nc++; mb.setCvA(av.cvA) }
+        if (mb && !this.fige) { 
+          nc++
+          mb.setCvA(av.cvA) 
+        }
       }
     }
 
@@ -633,7 +638,7 @@ Exception générique:
 */
 operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
   constructor (nom) { 
-    super(nom, 1, 2) 
+    super(nom, 1) 
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
       lmb: { t: 'array' } // liste des membres: [{ id, im, ida, vcv} ...]
@@ -654,7 +659,11 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
       const { av } = await this.gd.getAAVCV(ida, vcv)
       if (av) {
         const mb = await this.gd.getMBR(id, im)
-        if (mb) { nv++; mb.setCvA(av.cvA); nc++ }
+        if (mb && !this.fige) { 
+          nv++
+          mb.setCvA(av.cvA)
+          nc++ 
+        }
       }
     }
     
@@ -817,6 +826,39 @@ operations.SetCodePart = class SetCodePart extends Operation {
   }
 }
 
+/*  MuterCompteAauto: Auto mutation du compte O en compte A
+Mutation d'un compte `c` O de la partition `p` en compte A
+- augmente `syntheses.qtA`.
+- diminue `partition[p].mcpt[c].q` ce qui se répercute sur `syntheses.tsp[p].qt`.
+- bloqué si l'augmentation de `syntheses.qtA` fait dépasser `syntheses.qA`.
+*/
+operations.MuterCompteAauto = class MuterCompteAauto extends Operation {
+  constructor (nom) { 
+    super(nom, 1, 2)
+    this.targs = {
+      quotas: { t: 'q' } // quotas: { qc, qn, qv }   
+    }
+  }
+
+  async phase2 (args) {
+    if (!this.compte.idp || this.estComptable) 
+      throw new AppExc(A_SRV, 352)
+
+    this.compta.setIdp('')
+    this.compta.quotas(args.quotas)
+
+    const synth = await this.gd.getSY()
+    synth.ajoutCompteA(args.quotas) // peut lever Exwc de blocage
+
+    const part = await this.gd.getPA(this.compte.idp, 'MuterCompteAauto-4')
+    part.retraitCompte(this.compte.id)
+
+    // Maj du compte
+    this.compte.chgPart(null)
+  }
+}
+
+/* classe abstraite ********************************/
 operations.MuterCompte = class MuterCompte extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
@@ -854,38 +896,6 @@ operations.MuterCompte = class MuterCompte extends Operation {
   }
 }
 
-/*  MuterCompteAauto: Auto mutation du compte O en compte A
-Mutation d'un compte `c` O de la partition `p` en compte A
-- augmente `syntheses.qtA`.
-- diminue `partition[p].mcpt[c].q` ce qui se répercute sur `syntheses.tsp[p].qt`.
-- bloqué si l'augmentation de `syntheses.qtA` fait dépasser `syntheses.qA`.
-*/
-operations.MuterCompteAauto = class MuterCompteAauto extends operations.MuterCompte {
-  constructor (nom) { 
-    super(nom, 1, 2)
-    this.targs = {
-      quotas: { t: 'q' } // quotas: { qc, qn, qv }   
-    }
-  }
-
-  async phase2 (args) {
-    if (!this.compte.idp || !this.compte.del || this.estComptable) 
-      throw new AppExc(A_SRV, 243)
-
-    this.compta.setIdp('')
-    this.compta.quotas(args.quotas)
-
-    const synth = await this.gd.getSY()
-    synth.ajoutCompteA(args.quotas) // peut lever Exwc de blocage
-
-    const part = await this.gd.getPA(this.compte.idp, 'MuterCompteAauto-4')
-    part.retraitCompte(this.compte.id)
-
-    // Maj du compte
-    this.compte.chgPart(null)
-  }
-}
-
 /*  MuterCompteA: Mutation du compte O en compte A
 Mutation d'un compte `c` O de la partition `p` en compte A
 - augmente `syntheses.qtA`.
@@ -894,7 +904,7 @@ Mutation d'un compte `c` O de la partition `p` en compte A
 */
 operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
   constructor (nom) { 
-    super(nom, 1, 2)
+    super(nom)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant A
       ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
@@ -936,7 +946,7 @@ Mutation d'un compte `c` A en compte O de la partition `p`
 */
 operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
   constructor (nom) { 
-    super(nom, 1, 2)
+    super(nom)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant O
       quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
@@ -974,8 +984,8 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
 /* FixerQuotasA: Attribution par le Comptable de quotas globaux pour les comptes A */
 operations.FixerQuotasA = class FixerQuotasA extends Operation {
   constructor (nom) { 
-    super(nom, 1, 2)
-    thgis.targs = {
+    super(nom, 2, 2)
+    this.targs = {
       quotas: { t: 'q' } // quotas: { qc, qn, qv }   
     }
   }
@@ -1050,7 +1060,8 @@ operations.SetNotifP = class SetNotifP extends Operation {
   async phase2 (args) {
     const ec = this.estComptable
     const ed = !ec && this.compte.del
-    if ((!ec && !ed) || (ed && this.compte.idp !== args.idp)) throw new AppExc(A_SRV, 235)
+    if ((!ec && !ed) || (ed && this.compte.idp !== args.idp)) 
+      throw new AppExc(A_SRV, 235)
     
     const espace = await this.gd.getEspace()
     const ntf = espace.tnotifP[args.idp]
@@ -1183,7 +1194,7 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
   }
 }
 
-/* MajCv : Mise à jour de la carte de visite d\'un avatar */
+/* MajCv : Mise à jour de la carte de visite d\'un avatar ou d'un groupe*/
 operations.MajCv = class MajCv extends Operation {
   constructor (nom) { 
     super(nom, 1, 2)
@@ -1214,48 +1225,70 @@ operations.MajCv = class MajCv extends Operation {
   }
 }
 
-/* GetCv : Obtention de la carte de visite d\'un avatar
+/* GetCv : Obtention de la carte de visite d'un avatar OU d'un groupe
+- id : id du people ou du groupe
+- r : A quel titre le PEOPLE id est contact du compte ?
+  { del: true } : parce que id est délégué de la partition du compte
+  { id, ids } : parce qu'il a un chat id / ids avec l'avatar id du compte
+  { idg, imp, ida, ima } : parce qu'il est membre d'indice imp du groupe idg
+    dont le compte a un avatar ida / ima ayant accès aux membres
+- r : A quel titre le GROUPE id est visible du compte ?
+  { ida, ima }:  parce que l'avatar ida indice ima dans le groupe id a accès aux membres
 Retour:
 - cv: si trouvée
 */
 operations.GetCv = class GetCv extends Operation {
   constructor (nom) { 
     super(nom, 1, 2)
-    this.targs = {
-      id: { t: 'ida' }, // id du people ou du groupe
-      ch: { t: 'idch', n: true } // [id, ids] id d'un chat d'un des avatars du compte avec le people
-    }
   }
 
   async phase2(args) {
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
-
+    
+    const r = args.r || { }
     if (!ID.estGroupe(args.id)) {
-      if (args.ch) {
-        if (this.compte.mav[args.ch[0]]) {
-          const chat = await this.getRowChat(args.ch[0], args.ch[1])
-          if (!chat) throw new AppExc(A_SRV, 244)
-        } else throw new AppExc(A_SRV, 244)
-      } else {
-        if (!this.compte.mav[args.id]) {
-          if (!this.compte.idp) throw new AppExc(A_SRV, 335)
-          // OK si délégué de la partition du compte
-          const p = await this.gd.getPA(this.compte.idp, 'GetCv-1')
-          const e = p.mcpt[args.id]
-          if (!e || !e.del) throw new AppExc(A_SRV, 335)
+      let ok = false
+      if (r.del) {
+        const part = await this.gd.getPA(this.compte.idp)
+        const x = part ? part.mcpt[args.id] : null
+        if (x && x.del) ok = true
+      } else if (r.id && r.ids) {
+        if (this.compte.mav[r.id]) {
+          const ch = await this.gd.getCAV(r.id, r.ids)
+          if (ch && ch.idE === args.id) ok = true
+        }
+      } else if (r.idg && r.imp && r.ima && r.ida) {
+        if (this.compte.mav[r.ida]) {
+          const g = await this.gd.getGR(r.idg)
+          if (g) {
+            if (g.tid[r.imp] === args.id) {
+              if (g.tid[r.ima] === r.ida) {
+                const f = g.flags[r.ima] || 0
+                if (f & FLAGS.AM) ok = true
+              }
+            }
+          }
         }
       }
-      const avatar = await this.gd.getAV(args.id, 'GetCv-2')
-      this.setRes('cv', avatar.cvA)
-    } else {
-      const e = this.compte.mpg[args.id]
-      if (!e) throw new AppExc(A_SRV, 243)
-      const groupe = await this.gd.getGR(args.id, 'GetCv-3')
-      let ok = false
-      for(const ida of e.lav)
-        if (groupe.mmb.get(ida)) ok = true
-      if (!ok) throw new AppExc(A_SRV, 243)
-      this.setRes('cv', groupe.cvG)
+      if (ok) {
+        const avatar = await this.gd.getAV(args.id, 'GetCv-2')
+        this.setRes('cv', avatar.cvA)
+      }
+      return 
+    }
+
+    if (r.ida && r.ima) {
+      if (this.compte.mav[r.ida]) {
+        const g = await this.gd.getGR(args.id)
+        if (g) {
+          if (g.tid[r.ima] === r.ida) {
+            const f = g.flags[r.ima] || 0
+            if (f & FLAGS.AM) {
+              this.setRes('cv', g.cvG)
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -2327,7 +2360,7 @@ Retour:
 */
 operations.GetUrlNf = class GetUrl extends OperationNo {
   constructor (nom) { 
-    super(nom, 1, 2)
+    super(nom, 1, 0)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note

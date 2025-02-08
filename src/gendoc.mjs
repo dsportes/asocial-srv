@@ -216,7 +216,7 @@ export class Espaces extends GenDoc {
 
   excFige() { if (this.fige) throw new AppExc(F_SRV, 101, this.fige); return this }
 
-  get fige () { return this.notifE && this.notifE.nr === 2 }
+  get fige () { return this.notifE && this.notifE.nr >= 2 }
 
   get clos () { const n = this.notifE
     return n && n.nr === 3 ? [n.texte, n.dh] : null

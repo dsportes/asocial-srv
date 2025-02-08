@@ -239,7 +239,7 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 */
 operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation {
   constructor (nom) { 
-    super(nom, 0)
+    super(nom, 0, 2)
     this.targs = {
       org: { t: 'org' }, // organisation
       // subJSON: { t: 'string' }, // subscription de la session
@@ -364,7 +364,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
 */
 operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { 
-    super(nom, 0)
+    super(nom, 0, 2)
     this.targs = {
       org: { t: 'org'},
       id: { t: 'ida' }, // identifiant du sponsor
@@ -674,6 +674,8 @@ operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
 }
 
 /* SetNotifE : déclaration d'une notification à un espace par l'administrateur
+Echappe aux contrôles espace figé / clos, puisque justement
+c'est CETTE OPERATION qui positionne fige / clos.
 */
 operations.SetNotifE = class SetNotifE extends Operation {
   constructor (nom) { 
@@ -789,7 +791,7 @@ Création des rows:
 */
 operations.CreationComptable = class CreationComptable extends Operation {
   constructor (nom) { 
-    super(nom, 0) 
+    super(nom, 0, 2) 
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
       idp: { t: 'idp' }, // ID de la partition primitive
@@ -812,7 +814,7 @@ operations.CreationComptable = class CreationComptable extends Operation {
 
   async phase2(args) {
     const cfg = config.creationComptable
-    const espace = await this.setEspaceOrg(args.org, false)
+    const espace = await this.setEspaceOrg(args.org)
 
     if (!espace.hTC) {
       await sleep(config.D1)
