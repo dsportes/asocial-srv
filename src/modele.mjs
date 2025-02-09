@@ -661,13 +661,21 @@ class GD {
         compte.flags = fl
         compte._maj = true
       }
-      const dqv = c.deltaQV(compte.qv)
-      if (dqv) {
-        compte.qv = c.qv
+      const ap = c.qv
+      const av = compte.qv
+      if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) {
+        compte.qv = { ...c.qv }
         compte._maj = true
-        if (!compte.estA) { // maj partition
+      }
+      if (!compte.estA) {
+        const dqv = c.deltaQV(compte.qv)
+        if (dqv) {
+          const x = { ...c.qv }
+          compte.qv = x
+          compte._maj = true
+          // maj partition
           const p = await this.getPA(compte.idp)
-          p.majQC(compte.id, c.qv)
+          p.majQC(compte.id, x)
         }
       }
       if (compta.v === 1) this.op.insert(compta.toRow(this.op)); else this.op.update(compta.toRow(this.op))
@@ -905,6 +913,14 @@ export class Operation {
         }
         if (this.nhb !== undefined) 
           this.setRes('nhb', { sessionId: this.sessionId, nhb: this.nhb, op: this.nomop })
+
+        if (this.compta) {
+          const c = this.compta.compteurs
+          const x = { nl: this.nl, ne: this.ne, vd: this.vd, vm: this.vm }
+          x.qv = { ...c.qv }
+          x.qv.version = this.compta.v
+          this.setRes('conso', x)
+        }
       }
 
       if (this.aTaches) 

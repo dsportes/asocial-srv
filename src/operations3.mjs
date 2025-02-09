@@ -673,18 +673,27 @@ operations.Sync = class Sync extends Operation {
       this.compte.flags = fl
       this.compte._maj = true
     }
-    /* Evite de modifier le compte à chaque sync
-    pour cause de faible augmentation de consommation */
-    // const dqv = true
-    const dqv = c.deltaQV(this.compte.qv)
-    if (dqv) {
-      // Maj du compte
-      this.compte.qv = c.qv
+
+    const ap = c.qv
+    const av = this.compte.qv
+    if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) {
+      this.compte.qv = { ...c.qv }
       this.compte._maj = true
-      if (!this.compte.estA) { 
+    }
+
+    if (!this.compte.estA) { 
+      /* Evite de modifier le partition / synthses à chaque sync
+      pour cause de faible augmentation de consommation.
+      compte.qv : compta.qv remonté à partition et synthèse */
+      const dqv = c.deltaQV(this.compte.qv)
+      if (dqv) {
+        // Maj du compte
+        const x = { ...c.qv }
+        this.compte.qv = x
+        this.compte._maj = true
         // Maj partition
         part = await this.gd.getPA(this.compte.idp)
-        part.majQC(this.compte.id, c.qv)
+        part.majQC(this.compte.id, x)
         // Maj synthese
         synth = await this.gd.getSY()
         synth.setPartition(part)

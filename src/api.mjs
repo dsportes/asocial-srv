@@ -967,7 +967,6 @@ export class Compteurs {
   deltaQV (av) {
     // assertQv(av, 'deltaQV')
     const ap = this.qv
-    if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) return true
     function d5 (x) { 
       if (av[x] === ap[x]) return false
       if ((av[x] && !ap[x]) || (!av[x] && ap[x])) return true

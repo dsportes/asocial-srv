@@ -1362,7 +1362,6 @@ export class Comptas extends GenDoc {
     const c = new Compteurs(this.serialCompteurs, null, x)
     this.serialCompteurs = c.serial
     this._maj = true
-    op.setRes('conso', conso)
   }
 
 }
