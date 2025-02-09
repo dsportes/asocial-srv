@@ -1,4 +1,4 @@
-import { AppExc, A_SRV, F_SRV, ID } from './api.mjs'
+import { AppExc, A_SRV, F_SRV, ID, Compteurs } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypter, crypterSrv, decrypterSrv } from './util.mjs'
@@ -565,7 +565,12 @@ operations.Sync = class Sync extends Operation {
   }
 
   async phase2(args) {
-    if (!args.datasync) {
+    this.subJSON = args.subJSON || null
+    this.nhb = args.nhb || 0
+    this.premTour = args.dataSync ? false : true
+    this.loginSync = this.subJSON ? true : false
+
+    if (this.premTour) {
       const espace = await Esp.getEspOrg (this, this.org)
       if (!espace) throw new AppExc(A_SRV, 344, [this.org])
       if (espace.dlvat && espace.dlvat < this.auj) {
@@ -573,9 +578,7 @@ operations.Sync = class Sync extends Operation {
       }
     }
 
-    if (!args.dataSync) this.setRes('tarifs', Tarif.tarifs)
-    this.subJSON = args.subJSON || null
-    this.nhb = args.nhb || 0
+    if (this.loginSync) this.setRes('tarifs', Tarif.tarifs)
 
     this.mgr = new Map() // Cache locale des groupes acquis dans l'opération
 
@@ -584,16 +587,13 @@ operations.Sync = class Sync extends Operation {
 
     this.ds.compte.vb = this.compte.v
 
-    if (!args.dataSync || (this.ds.compte.vs < this.compte.v))
-      this.setRes('rowCompte', this.compte.toShortRow(this))
-
-    if (!args.dataSync || (this.ds.compte.vs < this.compte.vci)) {
+    if (this.premTour || (this.ds.compte.vs < this.compte.vci)) {
       let rowCompti = Cache.aVersion(this, 'comptis', this.compte.id, this.compte.vci) // déjà en cache ?
       if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
       this.setRes('rowCompti', compile(rowCompti).toShortRow(this))
     }
 
-    if (!args.dataSync || (this.ds.compte.vs < this.compte.vin)) {
+    if (this.premTour || (this.ds.compte.vs < this.compte.vin)) {
       let rowInvit = Cache.aVersion(this, 'invits', this.compte.id, this.compte.vin) // déjà en cache ?
       if (!rowInvit) rowInvit = await this.getRowInvit(this.compte.id)
       this.setRes('rowInvit', compile(rowInvit).toShortRow(this))
@@ -606,7 +606,7 @@ operations.Sync = class Sync extends Operation {
     */
     this.compte.majPerimetreDataSync(this.ds)  
 
-    if (!args.dataSync || args.full) {
+    if (this.premTour || args.full) {
       // Recherche des versions vb de TOUS les avatars requis
       for(const [ida,] of this.ds.avatars) await this.setAv(ida)
       // Recherche des versions vb de TOUS les groupes requis
@@ -620,7 +620,7 @@ operations.Sync = class Sync extends Operation {
       }
     }
 
-    if (args.dataSync) { // Charge les avatars et groupes dont le vs < vb
+    if (!this.premTour) { // Charge les avatars et groupes dont le vs < vb
       const n = this.nl
       for(const [ida, x] of this.ds.avatars) {
         x.chg = false
@@ -647,8 +647,81 @@ operations.Sync = class Sync extends Operation {
       }
     }
 
+    if (this.fige) { // PAS de maj de la compta
+      if (this.premTour || (this.ds.compte.vs < this.compte.v))
+        this.setRes('rowCompte', this.compte.toShortRow(this))
+    } else await this.majCompta()
+
     // Sérialisation et retour de dataSync
     this.setRes('dataSync', this.ds.serial(this.ns))
+    console.log('Fin Sync: ', this.sessionId, this.id, this.ds.compte.vb, this.ds.compte.vs)
+  }
+
+  async majCompta () {
+    let part
+    let synth
+    const x = { nl: this.nl, ne: 0, vd: 0, vm: 0 }
+    const c = new Compteurs(this.compta.serialCompteurs, null, x)
+    this.compta.serialCompteurs = c.serial
+    this.compta._maj = true
+    const esp = await this.gd.getEspace()
+    const maj = this.compte.majDlv(c, esp, this.dh)
+    if (maj) this.compte._maj = true
+
+    const fl = c.flags
+    if (this.compte.flags !== fl) { 
+      this.compte.flags = fl
+      this.compte._maj = true
+    }
+    /* Evite de modifier le compte à chaque sync
+    pour cause de faible augmentation de consommation */
+    // const dqv = true
+    const dqv = c.deltaQV(this.compte.qv)
+    if (dqv) {
+      // Maj du compte
+      this.compte.qv = c.qv
+      this.compte._maj = true
+      if (!this.compte.estA) { 
+        // Maj partition
+        part = await this.gd.getPA(this.compte.idp)
+        part.majQC(this.compte.id, c.qv)
+        // Maj synthese
+        synth = await this.gd.getSY()
+        synth.setPartition(part)
+      }
+    }
+
+    if (this.compta._maj) {
+      this.compta._vav = this.compta.v
+      this.compta.v++
+      this.update(this.compta.toRow(this))
+    }
+
+    if (part && part._maj) {
+      part._vav = part.v
+      part.v++
+      this.update(part.toRow(this))
+    }
+
+    if (synth && synth._maj) {
+      synth._vav = synth.v
+      synth.v++
+      this.update(synth.toRow(this))
+    }
+
+    if (this.compte._maj) {
+      this.compte._vav = this.compte.v
+      this.compte.v++
+      const p = this.premTour ? this.compte.perimetre : this.compte.perimetreChg
+      if (p) this.compte.vpe = this.compte.v
+      this.update(this.compte.toRow(this))
+      this.gd.trLog.setCpt(this.compte, p)
+      this.ds.compte.vb = this.compte.v
+      // this.ds.compte.vs = this.compte.v
+      this.setRes('rowCompte', this.compte.toShortRow(this))
+    } else if (this.premTour || (this.ds.compte.vs < this.compte.v))
+      this.setRes('rowCompte', this.compte.toShortRow(this))
+    
   }
 }
 

@@ -755,6 +755,7 @@ export class Comptes extends GenDoc {
     return this
   }
 
+  /* Retourne le périmètre SEULEMENT s'il a changé, sinon false */
   get perimetreChg () { 
     const p = this.perimetre
     const pav = this.perimetreAv
@@ -840,38 +841,38 @@ export class Comptes extends GenDoc {
     }
   }
 
-  // Maj de la DLV du compte en fin d'opération
-  async majDlv (compta, gd) {
+  // Maj de la DLV du compte en fin d'opération: c: compta.compteurs
+  majDlv (c, espace, dh) {
+    let maj = false
     if (this._estComptable) {
-      if (this.dlv !== AMJ.max) { this.dlv = AMJ.max; this._maj = true }
-      return
-    } 
-    const c = compta.compteurs
+      if (this.dlv !== AMJ.max) { this.dlv = AMJ.max; maj = true }
+      return maj
+    }
     if (c.soldeCourant < 0) {
       if (this.dharS !== c.ddsn) {
         this.dharS = c.ddsn
-        this.dhopS = gd.op.dh
-        this._maj = true
+        this.dhopS = dh
+        maj = true
       }
     } else {
       if (this.dharS) {
         this.dharS = 0
         this.dhopS = 0
-        this._maj = true
+        maj = true
       }
     }
     let dharM = this.dharF
     if (dharM < this.dharC) dharM = this.dharC
     if (dharM < this.dharS) dharM = this.dharS
-    const e = await gd.getEspace()
     let amj 
-    if (dharM) amj = AMJ.amjTPlusNbj(dharM, e.nbmi * 15)
-    else amj = AMJ.amjTPlusNbj(gd.op.dh, e.nbmi * 30)
+    if (dharM) amj = AMJ.amjTPlusNbj(dharM, espace.nbmi * 15)
+    else amj = AMJ.amjTPlusNbj(dh, espace.nbmi * 30)
     const dlv = AMJ.djMois(amj)
     if (dlv !== this.dlv){
       this.dlv = dlv
-      this._maj = true
+      maj = true
     }
+    return maj
   }
 
   setZombi () {

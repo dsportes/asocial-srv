@@ -657,12 +657,15 @@ class GD {
       const compte = await this.getCO(compta.id)
       const c = compta.compteurs
       const fl = c.flags
-      const dqv = c.deltaQV(compte.qv)
-      if (compte._maj || compte.flags !== fl || dqv) {
+      if (compte.flags !== fl) {
         compte.flags = fl
+        compte._maj = true
+      }
+      const dqv = c.deltaQV(compte.qv)
+      if (dqv) {
         compte.qv = c.qv
         compte._maj = true
-        if (!compte.estA && dqv) { // maj partition
+        if (!compte.estA) { // maj partition
           const p = await this.getPA(compte.idp)
           p.majQC(compte.id, c.qv)
         }
@@ -766,7 +769,9 @@ class GD {
       const compta = await this.getCA(compte.id)
       await compta.incorpConso(this.op)
       await this.majCompta(compta)
-      await compte.majDlv(compta, this)
+      const esp = await this.getEspace()
+      const maj = compte.majDlv(compta.compteurs, esp, this.op.dh)
+      if (maj) compte._maj = true
     }
 
     // maj compte courant
@@ -833,7 +838,7 @@ export class Operation {
       await this.auth2() // this.compta est accessible (si authentifié)
     if (this.phase2) {
       await this.phase2(this.args)
-      if (!AL.has(this.flags, AL.FIGE))
+      if (this.nomop !== 'Sync' && !AL.has(this.flags, AL.FIGE))
         await this.gd.maj()
     }
   }
@@ -887,7 +892,9 @@ export class Operation {
           else
             await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
               this.compte.perimetre, this.compte.vpe)
-        } else if (this.gd.trLog._maj) {
+        }
+        
+        if (this.gd.trLog._maj) {
           this.gd.trLog.fermer()
           const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
           if (sc) this.setRes('trlog', sc)
@@ -1144,19 +1151,6 @@ export class Operation {
     if (!this.compte || this.compte.hXC !== this.authData.hXC) { 
       await sleep(config.D1); throw new AppExc(F_SRV, 998) 
     }
-
-    /* La dlv a été calculée à la fin de l'opération précédente, potentiellement des mois avant
-    A cette date, elle a été fixée, d'après la date-heure de connexion et
-    pour un compte A à la ddsn (date de début de solde négatif). 
-    Celle-ci a été estimée en supposant aucune consommation, seulement sur l'impact
-    du coût journalier d'abonnement sur le solde.
-    Donc cette dlv (calculée peut-être il y a longtemps) est VALIDE maintenant.
-    */
-    /*
-    if (this.compte.dlv < this.auj) { 
-      await sleep(config.D1); throw new AppExc(F_SRV, 997) 
-    }
-    */
 
     this.id = this.compte.id
     this.estComptable = ID.estComptable(this.id)
