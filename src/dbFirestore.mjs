@@ -355,8 +355,8 @@ class Connx {
 
   /* Retourne l'array des id des comptes ayant passé leur dlv 
   */
-  async getComptesDlv (dlvmax) {
-    const q = this.fs.collection(FirestoreProvider._collPath('comptes')).where('dlv', '<', dlvmax) 
+  async getComptasDlv (dlvmax) {
+    const q = this.fs.collection(FirestoreProvider._collPath('comptas')).where('dlv', '<', dlvmax) 
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     const r = []
     if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id')) })

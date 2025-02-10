@@ -310,8 +310,8 @@ class Connx {
   }
   
   /* Retourne l'array des id des comptes ayant passé leur dlv */
-  async getComptesDlv (dlvmax) {
-    const st = this._stmt('SELCDLV', 'SELECT id FROM comptes WHERE dlv < @dlvmax')
+  async getComptasDlv (dlvmax) {
+    const st = this._stmt('SELCDLV', 'SELECT id FROM comptas WHERE dlv < @dlvmax')
     const rows = st.all({ dlvmax })
     const r = []
     if (rows) rows.forEach(row => { r.push(row.id)})

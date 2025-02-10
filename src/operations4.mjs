@@ -201,20 +201,6 @@ operations.GetComptaQv = class GetComptaQv extends Operation {
   }
 }
 
-/* SetDhvuCompte : enregistrement de la date-heure de _vue_ des notifications dans une session */
-operations.SetDhvuCompte = class SetDhvuCompte extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 2) 
-    this.targs = {
-      dhvu: { t: 'u8' } // date-heure cryptée par la clé K.
-    } 
-  }
-
-  async phase2 (args) {
-    this.compte.setDhvu(args.dhvu)
-  }
-}
-
 /* GetAvatarPC: Récupération d\'un avatar par sa phrase de contact
 Retour:
 - cleAZC : clé A cryptée par ZC (PBKFD de la phrase de contact complète)
@@ -691,7 +677,7 @@ operations.SetQuotas = class SetQuotas extends Operation {
       const part = await this.gd.getPA(args.idp, 'SetQuotas-2')
       part.checkUpdateQ(args.idc, args.q) // peut lever une Exc si insuffisance de quotas
     }
-    compta.quotas(args.q) // répercutera in fine dans partition et synthese (si compte O)
+    compta.setQuotasC(args.q) // répercutera in fine dans partition et synthese (si compte O)
   }
 }
 
@@ -845,7 +831,7 @@ operations.MuterCompteAauto = class MuterCompteAauto extends Operation {
       throw new AppExc(A_SRV, 352)
 
     this.compta.setIdp('')
-    this.compta.quotas(args.quotas)
+    this.compta.setQuotasC(args.quotas)
 
     const synth = await this.gd.getSY()
     synth.ajoutCompteA(args.quotas) // peut lever Exwc de blocage
@@ -922,7 +908,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     const compta = await this.gd.getCA(args.id, 'MuterCompteA-3')
     compta.setIdp('')
     const q = compta.qv
-    compta.quotas({ qc: q.qc, qn: q.qn, qv: q.qv })
+    compta.setQuotasC({ qc: q.qc, qn: q.qn, qv: q.qv })
 
     const synth = await this.gd.getSY()
     synth.ajoutCompteA(compte.qv) // peut lever Exwc de blocage
@@ -969,7 +955,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
 
     const compta = await this.gd.getCA(args.id, 'MuterCompteO-3')
     compta.setIdp(idp)
-    compta.quotas(args.quotas)
+    compta.setQuotasC(args.quotas)
 
     const synth = await this.gd.getSY()
     synth.retraitCompteA(compte.qv)
@@ -1109,6 +1095,9 @@ operations.SetNotifC = class SetNotifC extends Operation {
     }
 
     compte.setNotif(args.notif || null)
+
+    const compta = this.compta.id === args.idc ? this.compta : await this.gd.getCA(args.idc, 'SetNotifC-2')
+    compta.setNotifC(args.notif || null)
 
     const partition = await this.gd.getPA(compte.idp, 'SetNotifC-3')
     partition.setNotifC(args.idc, args.notif || null)

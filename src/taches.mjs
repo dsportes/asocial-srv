@@ -315,7 +315,7 @@ operations.DLV = class DLV extends OperationT {
   async phase2(args) {
     // Récupération de la liste des id des comptes à supprimer
     if (!args.lst) {
-      args.lst = await this.db.getComptesDlv(this.auj)
+      args.lst = await this.db.getComptasDlv(this.auj)
       args.nb = args.lst.length
     }
     if (!args.lst.length) { args.fini = true; return }

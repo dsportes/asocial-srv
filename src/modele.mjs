@@ -191,8 +191,9 @@ class TrLog {
     this.op = op
     if (!op.SYS) {
       this._maj = false
-      this.vcpt = 0 // compte pas mis à jour
-      this.vesp = 0 // espace du ns pas mis à jour
+      this.vcpt = 0 // version du compte
+      this.vesp = 0 // version de espace
+      this.vadq = 0 // version de compta quand adq a changé
       this.avgr = new Map() // clé: ID de av / gr, valeur: version
       this.perimetres = new Map() // clé: ID du compte, valeur: {v, p} -version, périmètre
     }
@@ -204,7 +205,7 @@ class TrLog {
   }
 
   get x () {
-    const x = { vcpt: this.vcpt, vesp: this.vesp }
+    const x = { vcpt: this.vcpt, vesp: this.vesp, vadq: this.vadq }
     const y = []
     for(const [id ,v] of this.avgr) 
       y.push([id, v])
@@ -227,9 +228,13 @@ class TrLog {
     return encode(x)
   }
 
+  setNs (ns, vesp) { this.ns = ns; this.vesp = vesp; this._maj = true }
+
   addAvgr (ag, v) { if (!this.op.SYS) { this.avgr.set(ag, v.v); this._maj = true } }
 
   setEsp (vesp) { if (!this.op.SYS) { this.vesp = vesp; this._maj = true } }
+  
+  setAdq (vcompta) { if (!this.op.SYS) { this.vadq = vcompta; this._maj = true } }
 
   setCpt (cpt, p) {
     if (!this.op.SYS) {
@@ -315,7 +320,6 @@ class GD {
 
   nouvCO (args, sp, quotas, don) {
     const c = Comptes.nouveau(args, sp)
-    c.mdcnx = Math.floor(AMJ.amjUtcDeT(this.op.dh) / 100)
     this.comptes.set(c.id, c)
     const compta = Comptas.nouveau(c.id, quotas, don || 0, c.idp || '')
     this.comptas.set(c.id, compta)
@@ -639,43 +643,34 @@ class GD {
       const ins = d.v === 0
       d._vav = d.v
       d.v++
-      this.trLog.setEsp(d.v)
+      if (this.op.estAdmin)
+        this.trLog.setNs(this.op.ns, d.v)
+      else
+        this.trLog.setEsp(d.v)
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
 
-  async majCompta (compta) { // ET report dans compte -> partition
+  async majCompta (compta) { // ET report éventuel dans partition / synthese
     if (compta._suppr) {
       this.op.delete({ _nom: 'comptas', id: ID.long(compta.id, this.op.ns) })
-    } else if (compta._maj) {
+    } else {
       compta._vav = compta.v
       compta.v++
-      /* Report de compta.compteurs SSI
-      compte était déjà en maj, 
-      OU chgt des compteurs.qv significatif
-      OU flags ont chnagé */
-      const compte = await this.getCO(compta.id)
-      const c = compta.compteurs
-      const fl = c.flags
-      if (compte.flags !== fl) {
-        compte.flags = fl
-        compte._maj = true
-      }
-      const ap = c.qv
-      const av = compte.qv
-      if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) {
-        compte.qv = { ...c.qv }
-        compte._maj = true
-      }
-      if (!compte.estA) {
-        const dqv = c.deltaQV(compte.qv)
-        if (dqv) {
-          const x = { ...c.qv }
-          compte.qv = x
-          compte._maj = true
-          // maj partition
-          const p = await this.getPA(compte.idp)
-          p.majQC(compte.id, x)
+      // compta du compte courant
+      if (this.op.compte.id === compta.id) {
+        const esp = await this.getEspace()
+        const { chgAdq, chgQv } = compta.finOp(this.op, esp)
+        if (chgAdq) {
+          this.trLog.setAdq(compta.v)
+          if (compta.idp && chgQv) {
+            // Maj partition
+            const part = await this.gd.getPA(compta.idp)
+            part.majQC(compta.id, compta.adq.qv)
+            // Maj synthese
+            const synth = await this.gd.getSY()
+            synth.setPartition(part)
+          }
         }
       }
       if (compta.v === 1) this.op.insert(compta.toRow(this.op)); else this.op.update(compta.toRow(this.op))
@@ -762,30 +757,16 @@ class GD {
     if (this.espace) await this.majesp(this.espace)
     if (this.transferts.length) for(const x of this.transferts) 
       await this.op.insert(x.toRow(this.op))
+    for(const [id, d] of this.comptes) await this.majCompte(d)
 
     // comptas SAUF celle du compte courant
-    for(const [id, d] of this.comptas) 
+    for(const [id, d] of this.comptas)
       if (id !== this.op.id) await this.majCompta(d)
 
-    // comptes SAUF le compte courant
-    for(const [id, d] of this.comptes) 
-      if (id !== this.op.id) await this.majCompte(d)
+    // compta du compte courant: fin op
+    if (!this.op.SYS && this.op.compta) await this.majCompta(this.op.compta)
 
-    // Incorporation de la consommation dans compta courante
-    if (!this.op.SYS && this.op.compte) {
-      const compte = this.op.compte
-      const compta = await this.getCA(compte.id)
-      await compta.incorpConso(this.op)
-      await this.majCompta(compta)
-      const esp = await this.getEspace()
-      const maj = compte.majDlv(compta.compteurs, esp, this.op.dh)
-      if (maj) compte._maj = true
-    }
-
-    // maj compte courant
-    if (this.op.compte) await this.majCompte(this.op.compte)
-
-    // maj partitions (possiblement affectées aussi par maj des comptes O)
+    // maj partitions (possiblement affectées aussi par maj de compta)
     for(const [,d] of this.partitions) await this.majpart(d)
     
     // maj syntheses possiblement affectées par maj des partitions
@@ -833,7 +814,7 @@ export class Operation {
       config.logger.info(this.nomop + ' : ' + new Date(this.dh).toISOString())
     this.flags = 0
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
-    this.result = { dh: this.dh }
+    this.result = { }
     this.toInsert = []
     this.toUpdate = []
     this.toDelete = []
@@ -846,8 +827,7 @@ export class Operation {
       await this.auth2() // this.compta est accessible (si authentifié)
     if (this.phase2) {
       await this.phase2(this.args)
-      if (this.nomop !== 'Sync' && !AL.has(this.flags, AL.FIGE))
-        await this.gd.maj()
+      if (!this.fige) await this.gd.maj()
     }
   }
 
@@ -904,7 +884,7 @@ export class Operation {
         
         if (this.gd.trLog._maj) {
           this.gd.trLog.fermer()
-          const sc = this.gd.trLog.court // sc: { vcpt, vesp, lag }
+          const sc = this.gd.trLog.court // sc: { vcpt, vesp, vadq, lag }
           if (sc) this.setRes('trlog', sc)
           
           const sl = this.gd.trLog.serialLong
@@ -916,10 +896,18 @@ export class Operation {
 
         if (this.compta) {
           const c = this.compta.compteurs
-          const x = { nl: this.nl, ne: this.ne, vd: this.vd, vm: this.vm }
-          x.qv = { ...c.qv }
-          x.qv.version = this.compta.v
-          this.setRes('conso', x)
+          const adq = {
+            dh: this.dh,
+            v: this.compta.v,
+            flags: this.compta.flags,
+            dlv: this.compta.dlv,
+            nl: this.nl, 
+            ne: this.ne,
+            vd: this.vd, 
+            vm: this.vm,
+            qv: { ...c.qv }
+          }
+          this.setRes('adq', adq)
         }
       }
 
@@ -1173,7 +1161,7 @@ export class Operation {
     this.estA = !this.compte.idp
 
     // Opération du seul Comptable
-    if (this.authMode === 2 && !this.estComptable) { 
+    if (this.authMode === 2 && !this.estComptable) {
       await sleep(config.D1); throw new AppExc(F_SRV, 104) 
     }
 
@@ -1183,7 +1171,8 @@ export class Operation {
 
     // Recherche des restrictions dans compte
     if (!this.estComptable && this.compte.idp) {
-      const np = espace.tnotifP[this.compte.idp]
+      const np = espace.getNotifP(this.compte.idp)
+      this.compta.setNotifP(np || null)
       let x = np ? np.nr : 0
       const nc = this.compte.notif
       if (nc && nc.nr > x) x = nc.nr
@@ -1192,6 +1181,8 @@ export class Operation {
         if (x === 3) AL.add(this.flags, AL.ARNTF)
       }
     }
+
+    this.fige = AL.has(this.flags, AL.FIGE)
   }
 
   async alerte (sub) {

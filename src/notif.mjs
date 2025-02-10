@@ -87,7 +87,7 @@ class Session {
   }
 
   // Emet une notification à la session enregistrée
-  async sendNotification (sessionId, subJSON, trLog) { // trlog est un objet { vcpt, vesp, lag }
+  async sendNotification (sessionId, subJSON, trLog) { // trlog est un objet { vcpt, vesp, vadq, lag }
     try {
       const p = { sessionId: sessionId, trLog }
       const b = u8ToB64(encode(p))
@@ -103,50 +103,77 @@ class Session {
   - s : session à notifier
   - id : ID d'un avatar / compte du périmètre de son compte ayant changé
   - v : version correspondante
+  - vesp : version de l'espace (si chnagée)
   - sid : SI notif a été invoquée depuis un compte (pas GC pas admin) sessionId
-    - cid :  ID de ce compte
-    - vesp : version de l'espace
-    - vcpt : version du compte cid
+    - cptid :  ID de ce compte
+    - vcpt : version du compte cptid
+    - vadq : version de compta
   */
-  setTrlog (trlogs, s, id, v, sid, cptid, vcpt, vesp) {
+  setTrlog (trlogs, s, id, v, sid, cptid, vcpt, vesp, vadq) {
     const sessionId = s.rnd + '.' + s.nc
     if (sessionId === sid) return // On ne notifie pas la session appelante
     let e = trlogs.get(sessionId)
     if (!e) { 
-      const trlog = { lag: []}
+      const trlog = { }
+      if (vesp) trlog.vesp = vesp // version de l'espace ns (si changée)
       if (sid) {
-        if (vesp) trlog.vesp = vesp // version de l'espace ns (si changée)
+        trlog.lag = []
+        if (vadq) trlog.vadq = vadq // version de l'espace ns (si changée)
         // Peut concerner une autre session du même compte que l'appelant
         if (cptid === s.cid && vcpt) trlog.vcpt = vcpt // si version du compte a changé
       }
       e = { subscription: s.subscription, trlog }
       trlogs.set(sessionId, e)
     }
-    if (id) e.trlog.lag.push([id, v])
+    if (id && sid) e.trlog.lag.push([id, v])
   }
 
   // Traitement des notifications aux sessions sur fin d'une opération de maj
-  notif (sid, log) { // log: { vcpt, vesp, lag, lp } - sid null (admin, GC)
-    // lag : [[id, v] ...]
-    // lp : [[compteId, {v, vpe, p}]]
+  notif (sid, log) { 
+    /*
+    sid = null - On ne drait pas être là - IGNORER
+    sid = $ns : Maj de l'espace ns, log: vesp: version de l'espace
+    sid = sessionId.nc
+      log: { vcpt, vesp, vadq, lag, lp } 
+      lag : [[id, v] ...]
+      lp : [[compteId, {v, vpe, p}]]
+    */
+    if (!sid) return
+
     const dlv = Date.now()
+    // Notications à pousser ()
+    const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, vadq, lag }
+
+    if (sid.startsWtih('$')) {
+      const ns = sid.substring(1)
+      const vesp = log.vesp
+      const session = Session.toutes.get(ns)
+      if (!session) return 0
+
+      for(const [rnd, s] of session.sessions) { // s: { rnd, nc, subscription, cid, nhb, dlv }
+        this.setTrlog (trlogs, s, 0, 0, null, null, 0, vesp, 0)
+      }
+
+      if (trlogs.size) setTimeout(async () => { 
+        for (const [sessionId, e] of trlogs) {
+          await this.sendNotification(sessionId, e.subscription, e.trlog) 
+        }
+      }, 1)
+      return 0
+    }
+    
     const perimetres = new Map()
     if (log.lp) log.lp.forEach(x => { perimetres.set(x[0], x[1]) })
 
-    // préparation des notications à pousser ()
-    const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, lag }
-
-    let s = null
     let nhbav = -1
     let cptid = null, vcpt = 0
     const vesp = log.vesp || 0
+    const vadq = log.vadq || 0
 
-    if (sid) {
-      const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
-      s = this.sessions.get(rnd)
-      if (s) { cptid = s.cid; vcpt = log.vcpt }
-      if (s && s.nc === nc) nhbav = s.nhb
-    }
+    const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
+    const s = this.sessions.get(rnd)
+    if (s) { cptid = s.cid; vcpt = log.vcpt }
+    if (s && s.nc === nc) nhbav = s.nhb
 
     // Maj des périmètres modifiés des comptes
     for (const [cid, x] of perimetres) { // x: { v, vpe, p}
@@ -154,18 +181,26 @@ class Session {
       if (c) { 
         if (x.p) this.majPerimetreC(c, x.vpe, x.p)
         c.sessions.forEach(rnd => {
-          const s = this.sessions.get(rnd)
-          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) {
-            this.setTrlog(trlogs, s, null, 0, sid, cid, x.v, 0)
+          const s2 = this.sessions.get(rnd)
+          if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) {
+            this.setTrlog(trlogs, s2, null, 0, sid, cid, x.v, 0)
           }
         })
       }
     }
 
     if (vesp) {
-      this.sessions.forEach(s => {
-        if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) {
-          this.setTrlog(trlogs, s, null, 0, sid, null, 0, vesp)
+      this.sessions.forEach(s2 => {
+        if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) {
+          this.setTrlog(trlogs, s2, null, 0, sid, null, 0, vesp, 0)
+        }
+      })
+    }
+
+    if (vadq) {
+      this.sessions.forEach(s2 => {
+        if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) {
+          this.setTrlog(trlogs, s2, null, 0, sid, null, 0, 0, vadq)
         }
       })
     }
@@ -177,20 +212,20 @@ class Session {
       if (scids) scids.forEach(cid => {
         const c = this.comptes.get(cid)
         if (c) c.sessions.forEach(rnd => {
-          const s = this.sessions.get(rnd)
-          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) 
-            this.setTrlog(trlogs, s, id, v, sid, cptid, vcpt, vesp)
+          const s2 = this.sessions.get(rnd)
+          if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) 
+            this.setTrlog(trlogs, s2, id, v, sid, cptid, vcpt, vesp)
         })
       })
     })
 
-    if (cptid && (vcpt || vesp)) {
+    if (cptid && (vcpt || vesp || vadq)) {
       const c = this.comptes.get(cptid)
       if (c) {
         c.sessions.forEach(rnd => {
-          const s = this.sessions.get(rnd)
-          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) 
-            this.setTrlog(trlogs, s, null, 0, sid, cptid, vcpt, vesp)
+          const s2 = this.sessions.get(rnd)
+          if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) 
+            this.setTrlog(trlogs, s2, null, 0, sid, cptid, vcpt, vesp, vadq)
         })
       }
     }

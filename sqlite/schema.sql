@@ -48,20 +48,20 @@ CREATE TABLE IF NOT EXISTS "comptes" (
   "id" TEXT,
   "v" INTEGER,
   "hk" TEXT,
-  "dlv"  INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 );
 CREATE INDEX "comptes_id_v" ON "comptes" ( "id", "v" );
-CREATE INDEX "comptes_dlv" ON "comptes" ( "dlv" );
 CREATE INDEX "comptes_hk" ON "comptes" ( "hk" );
 CREATE TABLE IF NOT EXISTS "comptas" (
   "id" TEXT,
   "v" INTEGER,
+  "dlv" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 );
 CREATE INDEX "comptas_id_v" ON "comptas" ( "id", "v" );
+CREATE INDEX "comptas_dlv" ON "comptas" ( "dlv" );
 CREATE TABLE IF NOT EXISTS "comptis" (
   "id" TEXT,
   "v" INTEGER,

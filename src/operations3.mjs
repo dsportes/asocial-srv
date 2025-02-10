@@ -93,9 +93,7 @@ Retour:
 - espaces : array de row espaces
 */
 operations.GetEspaces = class GetEspaces extends Operation {
-  constructor (nom) { 
-    super(nom, 3, 0) 
-  }
+  constructor (nom) { super(nom, 3, 0); this.SYS = true }
 
   async phase2() {
     await Esp.load(this.db)
@@ -309,12 +307,12 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     // Compte O : partition: ajout d'un compte (si quotas suffisants)
     const pid = sp.partitionId || ''
     if (pid) {
-      const partition = await this.gd.getPA(pid) // assert si n'existe pas
-      partition.checkUpdateQ(pid, sp.quotas) // peut lever une Exc si insuffisance de quotas
+      const partition = await this.gd.getPA(pid, 'AcceptationSponsoring-1') // assert si n'existe pas
+      partition.checkUpdateQ(compte.id, sp.quotas) // lève une Exc si insuffisance de quotas
       partition.ajoutCompteO(compta, args.cleAP, sp.del)
     } else {
       const synth = await this.gd.getSY()
-      synth.updQuotasA({ qn: 0, qv: 0, qc: 0 }, sp.quotas) // peut lever une Exc si insuffisance de quotas
+      synth.updQuotasA({ qn: 0, qv: 0, qc: 0 }, sp.quotas) // Maj mais lève une Exc si insuffisance de quotas
     }
     
     /* Création chat */
@@ -437,6 +435,7 @@ operations.GetPartition = class GetPartition extends Operation {
 }
 
 /* GetEspace : retourne certaines propriétés de l'espace
+Enregistre la notification éventuelle dans la compta du demandeur
 Retour:
 - rowEspace s'il existe
 */
@@ -457,6 +456,8 @@ operations.GetEspace = class GetEspace extends Operation {
     const ns = !this.isAdmin ? this.ns : args.ns
     const espace = await Esp.getEsp (this, ns, false)
     espace.excFerme()
+    const ntf = espace.getNotifP()
+    this.compta.setNotifP(ntf || null)
     this.setRes('rowEspace', espace.toShortRow(this, ns))
   }
 }
@@ -647,91 +648,23 @@ operations.Sync = class Sync extends Operation {
       }
     }
 
-    if (this.fige) { // PAS de maj de la compta
-      if (this.premTour || (this.ds.compte.vs < this.compte.v))
-        this.setRes('rowCompte', this.compte.toShortRow(this))
-    } else await this.majCompta()
+    if (this.premTour || (this.ds.compte.vs < this.compte.v))
+      this.setRes('rowCompte', this.compte.toShortRow(this))
 
     // Sérialisation et retour de dataSync
     this.setRes('dataSync', this.ds.serial(this.ns))
+
+    if (this.loginSync) this.compta.setDhdc(this.dh)
+
     console.log('Fin Sync: ', this.sessionId, this.id, this.ds.compte.vb, this.ds.compte.vs)
   }
 
-  async majCompta () {
-    let part
-    let synth
-    const x = { nl: this.nl, ne: 0, vd: 0, vm: 0 }
-    const c = new Compteurs(this.compta.serialCompteurs, null, x)
-    this.compta.serialCompteurs = c.serial
-    this.compta._maj = true
-    const esp = await this.gd.getEspace()
-    const maj = this.compte.majDlv(c, esp, this.dh)
-    if (maj) this.compte._maj = true
+}
 
-    const fl = c.flags
-    if (this.compte.flags !== fl) { 
-      this.compte.flags = fl
-      this.compte._maj = true
-    }
-
-    const ap = c.qv
-    const av = this.compte.qv
-    if (ap.qc !== av.qc || av.qn != ap.qn || av.qv !== ap.qv) {
-      this.compte.qv = { ...c.qv }
-      this.compte._maj = true
-    }
-
-    if (!this.compte.estA) { 
-      /* Evite de modifier le partition / synthses à chaque sync
-      pour cause de faible augmentation de consommation.
-      compte.qv : compta.qv remonté à partition et synthèse */
-      const dqv = c.deltaQV(this.compte.qv)
-      if (dqv) {
-        // Maj du compte
-        const x = { ...c.qv }
-        this.compte.qv = x
-        this.compte._maj = true
-        // Maj partition
-        part = await this.gd.getPA(this.compte.idp)
-        part.majQC(this.compte.id, x)
-        // Maj synthese
-        synth = await this.gd.getSY()
-        synth.setPartition(part)
-      }
-    }
-
-    if (this.compta._maj) {
-      this.compta._vav = this.compta.v
-      this.compta.v++
-      this.update(this.compta.toRow(this))
-    }
-
-    if (part && part._maj) {
-      part._vav = part.v
-      part.v++
-      this.update(part.toRow(this))
-    }
-
-    if (synth && synth._maj) {
-      synth._vav = synth.v
-      synth.v++
-      this.update(synth.toRow(this))
-    }
-
-    if (this.compte._maj) {
-      this.compte._vav = this.compte.v
-      this.compte.v++
-      const p = this.premTour ? this.compte.perimetre : this.compte.perimetreChg
-      if (p) this.compte.vpe = this.compte.v
-      this.update(this.compte.toRow(this))
-      this.gd.trLog.setCpt(this.compte, p)
-      this.ds.compte.vb = this.compte.v
-      // this.ds.compte.vs = this.compte.v
-      this.setRes('rowCompte', this.compte.toShortRow(this))
-    } else if (this.premTour || (this.ds.compte.vs < this.compte.v))
-      this.setRes('rowCompte', this.compte.toShortRow(this))
-    
-  }
+/* Adq ne fait "rien" mais récupère adq *******************************************/
+operations.Adq = class Adq extends Operation {
+  constructor (nom) { super(nom, 1, 1) }
+  async phase2 () { }
 }
 
 /*******************************************************************************
