@@ -204,6 +204,12 @@ export class AL {
     return s.join(' ')
   }
 
+  static fl2array (f) {
+    const s = new Array(7)
+    this.libs.forEach((l, i) => { s[i] = (f & (1 << i)) ? true : false })
+    return s 
+  }
+
   /* Taux de ralentissement: pourcentage (de 0 à 100) de **dépassement** d'un quota de calcul au delà de 100 
   S'applique à tous les "qv", de compta comme de compte */
   static txRal (qv) { 

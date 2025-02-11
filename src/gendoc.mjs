@@ -212,11 +212,17 @@ _data_ :
 export class Espaces extends GenDoc { 
   constructor () { super('espaces') } 
 
-  excFerme() { if (this.clos) throw new AppExc(A_SRV, 999, this.clos); return this }
+  excFerme () { if (this.clos) throw new AppExc(A_SRV, 999, this.clos); return this }
 
-  excFige() { if (this.fige) throw new AppExc(F_SRV, 101, this.fige); return this }
+  excFige (op) { 
+    if (this.fige) 
+      throw new AppExc(F_SRV, 101, [op.nomop])
+    return this 
+  }
 
-  get fige () { return this.notifE && this.notifE.nr >= 2 }
+  get fige () { 
+    return this.notifE && this.notifE.nr >= 2 
+  }
 
   get clos () { const n = this.notifE
     return n && n.nr === 3 ? [n.texte, n.dh] : null

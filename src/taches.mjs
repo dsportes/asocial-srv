@@ -523,7 +523,7 @@ operations.ComptaStat = class ComptaStat extends Operation {
 
   async phase2 (args) {
     const espace = await this.setEspaceOrg(args.org)
-    espace.excFige()
+    espace.excFige(this)
 
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (args.mr < 0 || args.mr > 2) args.mr = 1
@@ -558,7 +558,7 @@ operations.TicketsStat = class TicketsStat extends Operation {
 
   async phase2 (args) {
     const espace = await this.setEspaceOrg(args.org)
-    espace.excFige()
+    espace.excFige(this)
 
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
 

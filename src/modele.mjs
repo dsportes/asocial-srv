@@ -282,7 +282,7 @@ class GD {
 
   async getEspace () { 
     if (!this.espace)
-      this.espace = await this.op.setEspaceNs(this.op.ns, true)
+      this.espace = await this.op.setEspaceNs(this.op.ns, false)
     return this.espace
   }
 
@@ -1141,8 +1141,8 @@ export class Operation {
     const espace = await Esp.getEspOrg (this, this.org, true)
     if (!espace) { await sleep(config.D1); throw new AppExc(F_SRV, 996) }
     espace.excFerme()
-    if (this.excFige === 2) espace.excFige()
-    if (espace.fige) AL.add(this.flags, AL.FIGE)
+    if (this.excFige === 2) espace.excFige(this)
+    if (espace.fige) this.flags = AL.add(this.flags, AL.FIGE)
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, this.authData.hXR)
@@ -1171,8 +1171,8 @@ export class Operation {
       const nc = this.compte.notif
       if (nc && nc.nr > x) x = nc.nr
       if (x) {
-        if (x === 2) AL.add(this.flags, AL.LSNTF)
-        if (x === 3) AL.add(this.flags, AL.ARNTF)
+        if (x === 2) this.flags = AL.add(this.flags, AL.LSNTF)
+        if (x === 3) this.flags = AL.add(this.flags, AL.ARNTF)
       }
     }
 
@@ -1206,12 +1206,6 @@ export class Operation {
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
 
-  /*
-  idsChat (idI, idE) {
-    return Cles.hash9(crypterSrv(this.db.appKey, Buffer.from(idI + '/' + idE)))
-  }
-  */
-
   async checkEspaceOrg (org) {
     // espace seulement pour checking
     const espace = await Esp.getEspOrg(this, org, true, this.nomop + '-checkEspace') // set this.ns
@@ -1241,7 +1235,7 @@ export class Operation {
   async setEspaceNs (ns, fige) {
     const espace = await Esp.getEsp(this, ns, false, this.nomop + '-checkEspace') // set this.ns
     if (!this.estAdmin) espace.excFerme()
-    if (fige) espace.excFige()
+    if (fige) espace.excFige(this)
     this.gd.setEspace(espace)
     this.ns = ns
     this.org = espace.org
