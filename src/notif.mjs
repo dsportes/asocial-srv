@@ -114,10 +114,9 @@ class Session {
     if (sessionId === sid) return // On ne notifie pas la session appelante
     let e = trlogs.get(sessionId)
     if (!e) { 
-      const trlog = { }
+      const trlog = { lag: [] }
       if (vesp) trlog.vesp = vesp // version de l'espace ns (si changée)
       if (sid) {
-        trlog.lag = []
         if (vadq) trlog.vadq = vadq // version de l'espace ns (si changée)
         // Peut concerner une autre session du même compte que l'appelant
         if (cptid === s.cid && vcpt) trlog.vcpt = vcpt // si version du compte a changé

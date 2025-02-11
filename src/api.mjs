@@ -168,15 +168,15 @@ Toggle un ou des flags: n ^= FLAGS.HE ^ FLAGS.DN
 
 export class AL {
   // Source: compta.compteurs
-  static RAL = 1 << 1 // Ralentissement des opérations
-  static NRED = 1 << 2 // Nombre de notes / chats /groupes en réduction
-  static VRED = 1 << 3 // Volume de fichier en réduction
-  static ARSN = 1 << 4 // Accès restreint par solde négatif
+  static RAL = 1 << 1 // 2 Ralentissement des opérations
+  static NRED = 1 << 2 // 4 Nombre de notes / chats /groupes en réduction
+  static VRED = 1 << 3 // 8 Volume de fichier en réduction
+  static ARSN = 1 << 4 // 16 Accès restreint par solde négatif
   // Source: notif compte OU notif partition dans espace
-  static LSNTF = 1 << 5 // Lecture seule par notification de compte / partition
-  static ARNTF = 1 << 6 // Accès restreint par notification pour compte O (actions d'urgence seulement)
+  static LSNTF = 1 << 5 // 32 Lecture seule par notification de compte / partition
+  static ARNTF = 1 << 6 // 64 Accès restreint par notification pour compte O (actions d'urgence seulement)
   // Source: espace
-  static FIGE = 1 << 7 // Espace figé en lecture
+  static FIGE = 1 << 7 // 128 Espace figé en lecture
 
   static libs = ['RAL', 'NRED', 'VRED', 'ARSN', 'LSNTF', 'ARNTF', 'FIGE']
 
@@ -199,14 +199,16 @@ export class AL {
     if (!f) return ''
     const s = []
     this.libs.forEach((l, i) => {
-      if (f & (1 << i)) s.push(l)
+      if (f & (1 << (i + 1))) s.push(l)
     })
     return s.join(' ')
   }
 
   static fl2array (f) {
     const s = new Array(7)
-    this.libs.forEach((l, i) => { s[i] = (f & (1 << i)) ? true : false })
+    this.libs.forEach((l, i) => { 
+      if (f & (1 << (i + 1))) s[i] = true; else s[i] = false
+    })
     return s 
   }
 

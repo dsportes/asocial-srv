@@ -1204,6 +1204,7 @@ export class Comptas extends GenDoc {
     const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
     const c = new Compteurs(this.serialCompteurs, null, x)
     this.serialCompteurs = c.serial
+    const idp = c.idp || ''
 
     this.flags = op.flags
 
@@ -1225,7 +1226,7 @@ export class Comptas extends GenDoc {
     if (this.dlv !== this.adq.dlv) { this.adq.dlv = this.dlv; chgAdq = true }
     if (this.flags !== this.adq.flags) { this.adq.flags = this.flags; chgAdq = true }
     if (this.chgQv()) { this.adq.qv = { ...this.qv}; chgAdq = true; chgQv = true }
-    return { chgAdq, chgQv, idp: c.idp || '' }
+    return { chgAdq, chgQv, idp }
   }
 
   /* PRIVATE : retourne true SSI qv de Compteurs 

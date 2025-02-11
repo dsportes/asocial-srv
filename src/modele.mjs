@@ -755,8 +755,19 @@ class GD {
     for(const [id, d] of this.comptas)
       if (id !== this.op.id) await this.majCompta(d)
 
-    // compta du compte courant: fin op
-    if (!this.op.SYS && this.op.compta) await this.majCompta(this.op.compta)
+    /* compta du compte courant: fin de l'opération
+    Le plus tard possible pour accumuler dans la compta le maximum de
+    lectures / écritures.
+    Les mises à jour de partition et synthese PEUVENT résulter de la fin
+    d'opération enregistrée dans compta et figurent donc après:
+    leurs coûts ne sont pas comptabilisés (par commodité).
+    */
+    if (!this.op.SYS && this.op.compta) {
+      // anticipation des coûts d'écriture
+      this.op.ne += (this.fpurges.length + this.transfertsApurger.length)
+      this.op.compta._maj = true
+      await this.majCompta(this.op.compta)
+    }
 
     // maj partitions (possiblement affectées aussi par maj de compta)
     for(const [,d] of this.partitions) await this.majPart(d)
@@ -893,7 +904,7 @@ export class Operation {
           const adq = {
             dh: this.dh,
             v: this.compta.v,
-            flags: this.compta.flags,
+            flags: this.flags,
             dlv: this.compta.dlv,
             nl: this.nl, 
             ne: this.ne,
