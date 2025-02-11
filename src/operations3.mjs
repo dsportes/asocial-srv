@@ -676,6 +676,7 @@ operations.Adq = class Adq extends Operation {
 operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   constructor (nom) { 
     super(nom, 3)
+    this.SYS = true
     this.targs = {
       ns: { t: 'ns' }, // id de l'espace modifié
       quotas: { t: 'q' } // quotas globaux
@@ -683,7 +684,8 @@ operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   }
 
   async phase2 (args) {
-    const espace = await this.setEspaceNs(args.ns, true)
+    this.ns = args.ns
+    const espace = await this.gd.getEspace()
     espace.setQuotas(args.quotas)
   }
 }
@@ -746,6 +748,7 @@ Création des rows espace, synthese
 operations.CreationEspace = class CreationEspace extends Operation {
   constructor (nom) { 
     super(nom, 3)
+    this.SYS = true
     this.targs = {
       ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
       org: { t: 'org' }, // code de l'organisation
@@ -781,6 +784,7 @@ operations.CreationEspace = class CreationEspace extends Operation {
 operations.MajSponsEspace = class MajSponsEspace extends Operation {
   constructor (nom) { 
     super(nom, 3) 
+    this.SYS = true
     this.targs = {
       ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
       org: { t: 'org' }, // code de l'organisation
@@ -807,6 +811,7 @@ Création des rows:
 operations.CreationComptable = class CreationComptable extends Operation {
   constructor (nom) { 
     super(nom, 0, 2) 
+    this.SYS = true
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
       idp: { t: 'idp' }, // ID de la partition primitive
@@ -849,6 +854,7 @@ operations.CreationComptable = class CreationComptable extends Operation {
     const quotas = { qc: cfg.qc, qn: cfg.qn, qv: cfg.qv }
     const {compte, compta} = this.gd.nouvCO(args, null, quotas, cfg.cr)
     this.compte = compte
+    this.compta = compta
 
     partition.ajoutCompteO(compta, args.cleAP, true)
 

@@ -189,14 +189,12 @@ Une opération de GC non notifiée n'enregistra pas de trLog.
 class TrLog {
   constructor (op) {
     this.op = op
-    if (!op.SYS) {
-      this._maj = false
-      this.vcpt = 0 // version du compte
-      this.vesp = 0 // version de espace
-      this.vadq = 0 // version de compta quand adq a changé
-      this.avgr = new Map() // clé: ID de av / gr, valeur: version
-      this.perimetres = new Map() // clé: ID du compte, valeur: {v, p} -version, périmètre
-    }
+    this._maj = false
+    this.vcpt = 0 // version du compte
+    this.vesp = 0 // version de espace
+    this.vadq = 0 // version de compta quand adq a changé
+    this.avgr = new Map() // clé: ID de av / gr, valeur: version
+    this.perimetres = new Map() // clé: ID du compte, valeur: {v, p} -version, périmètre
   }
 
   fermer () {
@@ -204,22 +202,21 @@ class TrLog {
       this.vcpt = this.op.compte.v
   }
 
-  get x () {
-    const x = { vcpt: this.vcpt, vesp: this.vesp, vadq: this.vadq }
-    const y = []
-    for(const [id ,v] of this.avgr) 
-      y.push([id, v])
-    x.lag = y
+  get court () {
+    const x = { }
+    if (this.vcpt) x.vcpt = this.vcpt
+    if (this.vesp) x.vesp = this.vesp
+    if (this.vadq) x.vadq = this.vadq
+    if (this.avgr.size) {
+      const y = []
+      for(const [id ,v] of this.avgr) y.push([id, v])
+      x.lag = y
+    }
     return x
   }
 
-  get court () { 
-    return !this.op.SYS ? this.x : null
-  }
-
   get serialLong () {
-    if (this.op.SYS) return null
-    const x = this.x
+    const x = { ...this.court }
     if (this.op.id) x.cid = this.op.id
     if (this.perimetres.size) {
       const y = []; for(const e of this.perimetres) y.push(e)
@@ -228,18 +225,16 @@ class TrLog {
     return encode(x)
   }
 
-  setNs (ns, vesp) { this.ns = ns; this.vesp = vesp; this._maj = true }
-
   addAvgr (ag, v) { if (!this.op.SYS) { this.avgr.set(ag, v.v); this._maj = true } }
 
-  setEsp (vesp) { if (!this.op.SYS) { this.vesp = vesp; this._maj = true } }
+  setEsp (vesp) { this.vesp = vesp; this._maj = true }
   
   setAdq (vcompta) { if (!this.op.SYS) { this.vadq = vcompta; this._maj = true } }
 
   setCpt (cpt, p) {
     if (!this.op.SYS) {
-      this._maj = true
       this.perimetres.set(cpt.id, { v: cpt.v, vpe: p ? cpt.v : 0, p: p})
+      this._maj = true
     }
   }
 
@@ -613,7 +608,7 @@ class GD {
     return v.v
   }
 
-  async majdoc (d) {
+  async majDoc (d) {
     if (d._suppr) { 
       if (d.ids) { // pour membres, notes, chats, sponsorings, tickets
         await this.majV(d.id)
@@ -638,15 +633,12 @@ class GD {
     }
   }
 
-  async majesp (d) {
+  async majEsp (d) {
     if (d._maj) {
       const ins = d.v === 0
       d._vav = d.v
       d.v++
-      if (this.op.estAdmin)
-        this.trLog.setNs(this.op.ns, d.v)
-      else
-        this.trLog.setEsp(d.v)
+      this.trLog.setEsp(d.v)
       if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
     }
   }
@@ -660,15 +652,15 @@ class GD {
       // compta du compte courant
       if (this.op.compte.id === compta.id) {
         const esp = await this.getEspace()
-        const { chgAdq, chgQv } = compta.finOp(this.op, esp)
+        const { chgAdq, chgQv, idp } = compta.finOp(this.op, esp)
         if (chgAdq) {
           this.trLog.setAdq(compta.v)
-          if (compta.idp && chgQv) {
+          if (idp && chgQv) {
             // Maj partition
-            const part = await this.gd.getPA(compta.idp)
+            const part = await this.getPA(idp, 'modele.majCompta')
             part.majQC(compta.id, compta.adq.qv)
             // Maj synthese
-            const synth = await this.gd.getSY()
+            const synth = await this.getSY()
             synth.setPartition(part)
           }
         }
@@ -727,7 +719,7 @@ class GD {
     }
   }
 
-  async majpart (p) {
+  async majPart (p) {
     if (p._suppr) {
       this.op.delete({ _nom: 'partitions', id: ID.long(p.id, this.op.ns) })
     } else if (p._maj) {
@@ -739,7 +731,7 @@ class GD {
     }
   }
 
-  async majsynth () {
+  async majSynth () {
     const s = this.synthese
     if (s && s._maj) {
       s._vav = s.v
@@ -749,12 +741,12 @@ class GD {
   }
 
   async maj () {
-    for(const [,d] of this.avatars) await this.majdoc(d)
-    for(const [,d] of this.groupes) await this.majdoc(d)
-    for(const [,d] of this.sdocs) await this.majdoc(d)
+    for(const [,d] of this.avatars) await this.majDoc(d)
+    for(const [,d] of this.groupes) await this.majDoc(d)
+    for(const [,d] of this.sdocs) await this.majDoc(d)
     for(const [,d] of this.comptis) await this.majCompti(d)
     for(const [,d] of this.invits) await this.majInvit(d)
-    if (this.espace) await this.majesp(this.espace)
+    if (this.espace) await this.majEsp(this.espace)
     if (this.transferts.length) for(const x of this.transferts) 
       await this.op.insert(x.toRow(this.op))
     for(const [id, d] of this.comptes) await this.majCompte(d)
@@ -767,10 +759,10 @@ class GD {
     if (!this.op.SYS && this.op.compta) await this.majCompta(this.op.compta)
 
     // maj partitions (possiblement affectées aussi par maj de compta)
-    for(const [,d] of this.partitions) await this.majpart(d)
+    for(const [,d] of this.partitions) await this.majPart(d)
     
     // maj syntheses possiblement affectées par maj des partitions
-    if (this.synthese) await this.majsynth()
+    if (this.synthese) await this.majSynth()
     
     // PLUS DE LECTURES A PARTIR D'ICI
     if (this.fpurges.length) for(const x of this.fpurges) 
@@ -888,10 +880,12 @@ export class Operation {
           if (sc) this.setRes('trlog', sc)
           
           const sl = this.gd.trLog.serialLong
-          if (sl)
-            this.nhb = await genNotif(this.ns, this.sessionId || null, sl)
+          if (sl) {
+            const sid = this.SYS ? null : (this.sessionId || null)
+            this.nhb = await genNotif(this.ns, sid, sl)
+          }
         }
-        if (this.nhb !== undefined) 
+        if (this.nhb !== undefined && this.nhb !== -1) 
           this.setRes('nhb', { sessionId: this.sessionId, nhb: this.nhb, op: this.nomop })
 
         if (this.compta) {

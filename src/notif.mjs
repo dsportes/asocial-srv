@@ -103,11 +103,11 @@ class Session {
   - s : session à notifier
   - id : ID d'un avatar / compte du périmètre de son compte ayant changé
   - v : version correspondante
-  - vesp : version de l'espace (si chnagée)
+  - vesp : version de l'espace
   - sid : SI notif a été invoquée depuis un compte (pas GC pas admin) sessionId
-    - cptid :  ID de ce compte
-    - vcpt : version du compte cptid
+    - cid :  ID de ce compte
     - vadq : version de compta
+    - vcpt : version du compte cid
   */
   setTrlog (trlogs, s, id, v, sid, cptid, vcpt, vesp, vadq) {
     const sessionId = s.rnd + '.' + s.nc
@@ -125,55 +125,32 @@ class Session {
       e = { subscription: s.subscription, trlog }
       trlogs.set(sessionId, e)
     }
-    if (id && sid) e.trlog.lag.push([id, v])
+    if (id) e.trlog.lag.push([id, v])
   }
 
   // Traitement des notifications aux sessions sur fin d'une opération de maj
-  notif (sid, log) { 
-    /*
-    sid = null - On ne drait pas être là - IGNORER
-    sid = $ns : Maj de l'espace ns, log: vesp: version de l'espace
-    sid = sessionId.nc
-      log: { vcpt, vesp, vadq, lag, lp } 
-      lag : [[id, v] ...]
-      lp : [[compteId, {v, vpe, p}]]
-    */
-    if (!sid) return
-
+  notif (sid, log) { // log: { vcpt, vesp, vadq, lag, lp } - sid null (admin, GC)
+    // lag : [[id, v] ...]
+    // lp : [[compteId, {v, vpe, p}]]
     const dlv = Date.now()
-    // Notications à pousser ()
-    const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, vadq, lag }
-
-    if (sid.startsWtih('$')) {
-      const ns = sid.substring(1)
-      const vesp = log.vesp
-      const session = Session.toutes.get(ns)
-      if (!session) return 0
-
-      for(const [rnd, s] of session.sessions) { // s: { rnd, nc, subscription, cid, nhb, dlv }
-        this.setTrlog (trlogs, s, 0, 0, null, null, 0, vesp, 0)
-      }
-
-      if (trlogs.size) setTimeout(async () => { 
-        for (const [sessionId, e] of trlogs) {
-          await this.sendNotification(sessionId, e.subscription, e.trlog) 
-        }
-      }, 1)
-      return 0
-    }
-    
     const perimetres = new Map()
     if (log.lp) log.lp.forEach(x => { perimetres.set(x[0], x[1]) })
 
+    // préparation des notications à pousser ()
+    const trlogs = new Map() // cle sid, valeur trlog : { vcpt, vesp, vadq, lag }
+
+    let s = null
     let nhbav = -1
     let cptid = null, vcpt = 0
     const vesp = log.vesp || 0
     const vadq = log.vadq || 0
 
-    const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
-    const s = this.sessions.get(rnd)
-    if (s) { cptid = s.cid; vcpt = log.vcpt }
-    if (s && s.nc === nc) nhbav = s.nhb
+    if (sid) {
+      const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
+      s = this.sessions.get(rnd)
+      if (s) { cptid = s.cid; vcpt = log.vcpt }
+      if (s && s.nc === nc) nhbav = s.nhb
+    }
 
     // Maj des périmètres modifiés des comptes
     for (const [cid, x] of perimetres) { // x: { v, vpe, p}
@@ -181,40 +158,40 @@ class Session {
       if (c) { 
         if (x.p) this.majPerimetreC(c, x.vpe, x.p)
         c.sessions.forEach(rnd => {
-          const s2 = this.sessions.get(rnd)
-          if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) {
-            this.setTrlog(trlogs, s2, null, 0, sid, cid, x.v, 0)
+          const s = this.sessions.get(rnd)
+          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) {
+            this.setTrlog(trlogs, s, null, 0, sid, cid, x.v, 0)
           }
         })
       }
     }
 
     if (vesp) {
-      this.sessions.forEach(s2 => {
-        if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) {
-          this.setTrlog(trlogs, s2, null, 0, sid, null, 0, vesp, 0)
+      this.sessions.forEach(s => {
+        if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) {
+          this.setTrlog(trlogs, s, null, 0, sid, null, 0, vesp, 0)
         }
       })
     }
 
     if (vadq) {
-      this.sessions.forEach(s2 => {
-        if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) {
-          this.setTrlog(trlogs, s2, null, 0, sid, null, 0, 0, vadq)
+      this.sessions.forEach(s => {
+        if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) {
+          this.setTrlog(trlogs, s, null, 0, sid, null, 0, 0, vadq)
         }
       })
     }
 
-    log.lag.forEach(x => { // [id, v]
+    if (log.lag) log.lag.forEach(x => { // [id, v]
       const v = x[1]
       const id = x[0]
       const scids = this.xrefs.get(id)
       if (scids) scids.forEach(cid => {
         const c = this.comptes.get(cid)
         if (c) c.sessions.forEach(rnd => {
-          const s2 = this.sessions.get(rnd)
-          if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) 
-            this.setTrlog(trlogs, s2, id, v, sid, cptid, vcpt, vesp)
+          const s = this.sessions.get(rnd)
+          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) 
+            this.setTrlog(trlogs, s, id, v, sid, cptid, vcpt, vesp)
         })
       })
     })
@@ -223,9 +200,9 @@ class Session {
       const c = this.comptes.get(cptid)
       if (c) {
         c.sessions.forEach(rnd => {
-          const s2 = this.sessions.get(rnd)
-          if (s2 && (s2.dlv > dlv || Session.NOPURGESESSIONS)) 
-            this.setTrlog(trlogs, s2, null, 0, sid, cptid, vcpt, vesp, vadq)
+          const s = this.sessions.get(rnd)
+          if (s && (s.dlv > dlv || Session.NOPURGESESSIONS)) 
+            this.setTrlog(trlogs, s, null, 0, sid, cptid, vcpt, vesp, vadq)
         })
       }
     }

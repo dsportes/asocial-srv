@@ -291,13 +291,13 @@ export class Espaces extends GenDoc {
     this._maj = true
   }
 
-  setNotifP (ntf, id) {
-    this.tnotifP[id] = ntf
+  setNotifP (ntf, idp) {
+    this.tnotifP[idp] = ntf
     this._maj = true
   }
 
   getNotifP (idp) {
-    return this.tnotifP[id]
+    return this.tnotifP[idp]
   }
 
   setNotifE (ntf) {
@@ -1151,14 +1151,14 @@ _data_:
 export class Comptas extends GenDoc { 
   constructor() { super('comptas') } 
 
-  static nouveau (id, quotas, don, estA) {
+  static nouveau (id, quotas, don, idp) {
     const qv0 = { qc: 0, qn: 0, qv: 0, nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
     const qv = { ...qv0 }
     qv.qc = quotas.qc || 0
     qv.qn = quotas.qn || 0
     qv.qv = quotas.qv || 0 
     assertQv(qv, 'Comptas.nouveau')
-    const c = new Compteurs(null, qv, null, estA, don)
+    const c = new Compteurs(null, qv, null, idp, don)
     const x = new Comptas().init({
       _maj: true, v: 0, 
       id: id,
@@ -1219,7 +1219,7 @@ export class Comptas extends GenDoc {
     if (this.dlv !== this.adq.dlv) { this.adq.dlv = this.dlv; chgAdq = true }
     if (this.flags !== this.adq.flags) { this.adq.flags = this.flags; chgAdq = true }
     if (this.chgQv()) { this.adq.qv = { ...this.qv}; chgAdq = true; chgQv = true }
-    return { chgAdq, chgQv }
+    return { chgAdq, chgQv, idp: c.idp || '' }
   }
 
   /* PRIVATE : retourne true SSI qv de Compteurs 
