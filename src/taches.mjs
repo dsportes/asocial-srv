@@ -440,8 +440,6 @@ operations.STA = class STA extends OperationT {
       args.nb = args.todo.length
     }
 
-    // args.todo.forEach(s => {console.log(JSON.stringify(s))}); args.todo.length = 0
-
     if (!args.todo.length) { args.fini = true; return }
 
     const s = args.todo.pop()

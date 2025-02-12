@@ -493,12 +493,9 @@ export class AMJ {
   static t0avap (t) { // t0 du début du mois, nombre de ms du début du mois à t, de t à la fin du mois
     const [a, m] = AMJ.am(t)
     const t0 = Date.UTC(a, m - 1, 1, 0, 0, 0) // t0 du début du mois
-    // console.log(new Date(t0).toISOString())
-    // console.log(new Date(t).toISOString())
     const a2 = m === 12 ? a + 1 : a
     const m2 = m === 12 ? 0 : m
     const t1 = Date.UTC(a2, m2, 1, 0, 0, 0) // t1 du premier du mois suivant
-    // console.log(new Date(t1).toISOString())
     return [t0, t - t0, t1 - t]
   }
 
@@ -519,7 +516,6 @@ export function assertQv (qv, src) {
   else {
     for (const f of lqv) {
       const v = qv[f]
-      // if (f === 'cjm') console.log('cjm ', v)
       if (v === null) { c = 'null'; x = f; break }
       if (v === undefined) { c = 'undefined'; x = f; break }
       if (isNaN(v)) { 

@@ -95,7 +95,6 @@ class Session {
       await webPush.sendNotification(subscription, b, { TTL: 0 })
     } catch (error) {
       Session.logger.error('sendNotification: ' + error.toString())
-      // console.log(error)
     }
   }
 

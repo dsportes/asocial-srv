@@ -18,7 +18,7 @@ export function assertKO (src, code, args) {
   const x = args && args.length ? JSON.stringify(args) : ''
   const msg = `ASSERT : ${src} - ${x} - ${code}`
   const t = new Date().toISOString()
-  console.error(t + ' ' + msg)
+  config.logger(msg)
   if (args) args.unshift(src)
   return new AppExc(A_SRV, code, !args ? [src || '???'] : args)
 }
@@ -747,8 +747,11 @@ class GD {
     for(const [,d] of this.comptis) await this.majCompti(d)
     for(const [,d] of this.invits) await this.majInvit(d)
     if (this.espace) await this.majEsp(this.espace)
-    if (this.transferts.length) for(const x of this.transferts) 
-      await this.op.insert(x.toRow(this.op))
+    if (this.transferts.length) 
+      for(const x of this.transferts) {
+        const row = x.toRow(this.op)
+        await this.op.insert(row)
+      }
     for(const [id, d] of this.comptes) await this.majCompte(d)
 
     // comptas SAUF celle du compte courant
@@ -878,11 +881,12 @@ export class Operation {
 
       if (this.phase2) {
         if (this.subJSON) { // de Sync exclusivement
-          if (this.subJSON.startsWith('???'))
-            console.log('subJSON=', this.subJSON)
-          else
-            await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
-              this.compte.perimetre, this.compte.vpe)
+          if (this.subJSON.startsWith('???')) {
+            if (config.mondebug) config.logger.error('subJSON=' + this.subJSON)
+            } else {
+              await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
+                this.compte.perimetre, this.compte.vpe)
+            }
         }
         
         if (this.gd.trLog._maj) {
@@ -1502,8 +1506,6 @@ export class Operation {
     )
     const buf = Buffer.from(lignes.join('\n'))
     const buf2 = crypter(cleES, buf)
-    // const buf3 = decrypter(cleES, buf2)
-    // console.log('' + buf3)
     await this.storage.putFile(org, ID.duComptable(), 'C_' + mois, buf2)
   }
 
@@ -1542,8 +1544,6 @@ export class Operation {
     )
     const buf = Buffer.from(lignes.join('\n'))
     const buf2 = crypter(cleES, buf)
-    // const buf3 = decrypter(this.cleES, buf2)
-    // console.log('' + buf3)
     await this.storage.putFile(org, ID.duComptable(), 'T_' + mois, buf2)
   }
 }

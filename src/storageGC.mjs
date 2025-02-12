@@ -49,7 +49,6 @@ export class GcProvider {
   async getUrl (org, id, idf) {
     if (this.emulator) {
       const url = this.storageUrlGenerique(org, id, idf)
-      // console.log(url)
       return url  
     }
     const fileName = org + '/' + id + '/' + idf
@@ -61,14 +60,12 @@ export class GcProvider {
     }
     // Get a v4 signed URL for the file
     const [url] = await this.bucket.file(fileName).getSignedUrl(options)
-    // console.log(url)
     return url
   }
 
   async putUrl (org, id, idf) {
     if (this.emulator) {
       const url = this.storageUrlGenerique(org, id, idf)
-      // console.log(url)
       return url  
     }
     const fileName = org + '/' + id + '/' + idf
@@ -82,7 +79,6 @@ export class GcProvider {
     }
     // Get a v4 signed URL for uploading file
     const [url] = await this.bucket.file(fileName).getSignedUrl(options)
-    // console.log(url)
     return url
     /* You can use this URL with any user agent, for example:
     curl -X PUT -H 'Content-Type: application/octet-stream' --upload-file my-file ${url}

@@ -476,6 +476,7 @@ operations.Sync = class Sync extends Operation {
     this.targs = {
       subJSON: { t: 'string', n: true }, // subscription de la session
       nhb: { t: 'int', n: true}, // numéro de HB pour un login / relogin
+      nbIter: { t: 'int' },
       dataSync: { t: 'u8', n: true }, // sérialisation de l'état de synchro de la session
       // null : C'EST UNE PREMIERE CONNEXION - Création du DataSync
       // recherche des versions "base" de TOUS les sous-arbres du périmètre, inscription en DataSync
@@ -656,7 +657,9 @@ operations.Sync = class Sync extends Operation {
 
     if (this.loginSync) this.compta.setDhdc(this.dh)
 
-    console.log('Fin Sync: ', this.sessionId, this.id, this.ds.compte.vb, this.ds.compte.vs)
+    if (config.mondebug) 
+      config.logger.info('Fin Sync: ' + this.sessionId + ' id:' + this.id + ' nbIter:' +
+        args.nbIter + ' vb:' + this.ds.compte.vb + ' vs:' + this.ds.compte.vs)
   }
 
 }
