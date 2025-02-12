@@ -911,7 +911,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     compta.setQuotasC({ qc: q.qc, qn: q.qn, qv: q.qv })
 
     const synth = await this.gd.getSY()
-    synth.ajoutCompteA(compte.qv) // peut lever Exwc de blocage
+    synth.ajoutCompteA(q) // peut lever Exwc de blocage
 
     const part = await this.gd.getPA(compte.idp, 'MuterCompteA-4')
     part.retraitCompte(args.id)
@@ -958,7 +958,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
     compta.setQuotasC(args.quotas)
 
     const synth = await this.gd.getSY()
-    synth.retraitCompteA(compte.qv)
+    synth.retraitCompteA(compta.qv)
 
     const part = await this.gd.getPA(idp, 'MuterCompteO-4')
     part.ajoutCompteO(compta, args.cleAP, false) // Peut lever Exc de quotas
@@ -2394,7 +2394,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
 
   async phase2 (args) {
     await this.checkNoteId()
-    if (!this.note) assertKO('GetUrlNf-1', 13, [id + '/NOT' + ids])
+    if (!this.note) assertKO('PutUrlNf-1', 13, [id + '/NOT' + ids])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     this.alias = avgr.alias
     if (ID.estGroupe(args.id)) {
@@ -2418,7 +2418,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
         if (this.groupe.vf - this.note.vf + nv > this.groupe.qv * UNITEV) 
           throw new AppExc(F_SRV, 66, [this.vf, this.qv * UNITEV])
         compta = this.groupe.idh === this.id ? this.compta : 
-          await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
+          await this.gd.getCA(this.groupe.idh, 'PutUrlNf-2')
       } else { // Pas d'hébergeur, le volume doit baisser
         if (nv > this.note.vf) throw new AppExc(A_SRV, 312)
       }

@@ -568,7 +568,7 @@ class GD {
   }
 
   setTransfertsApurger (alias, idf) {
-    this.transfertsApurger.push({ alias, idf })
+    this.transfertsApurger.push({ alias: ID.long(alias, this.op.ns), idf })
   }
   
   async getV (id) {

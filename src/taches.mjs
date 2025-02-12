@@ -232,7 +232,7 @@ operations.ProchTache = class ProchTache extends Operation {
     - tache: l'objet tache (son op, id, ids ...)
     - fini: true quand l'opération a épuisé ce qu'elle avait à faire
     */
-    while(!args.fini) {
+    for(let i = 0; i < 100; i++) {
       const nom = Taches.OPNOMS[tache.op]
       try {
         const op = new cl(nom)
@@ -254,6 +254,7 @@ operations.ProchTache = class ProchTache extends Operation {
           if (al1)
             await sendAlMail(config.run.site, op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
         }
+        break
       }
     }
   }
@@ -341,7 +342,7 @@ operations.TRA = class TRA extends OperationT {
     args.nb = lst.length
     for (const [id, idf] of lst) {
       if (id && idf) {
-        checkNs (id)
+        this.checkNs(id)
         if (this.org)
           await this.storage.delFiles(this.org, this.idcourt, [idf])
         await this.db.purgeTransferts(id, idf)
