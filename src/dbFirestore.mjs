@@ -28,8 +28,8 @@ export class FirestoreProvider {
 
   /* path des collections et sous collections */
   static _collPath (nom, id) {
-    if (!id) return nom + '/'
-    return 'versions/' + id + '/' + nom + '/'
+    if (!id) return nom
+    return 'versions/' + id + '/' + nom
   }
 
 }

@@ -93,7 +93,7 @@ Retour:
 - espaces : array de row espaces
 */
 operations.GetEspaces = class GetEspaces extends Operation {
-  constructor (nom) { super(nom, 3, 0); this.SYS = true }
+  constructor (nom) { super(nom, 3, 0) }
 
   async phase2() {
     await Esp.load(this.db)
@@ -679,7 +679,6 @@ operations.Adq = class Adq extends Operation {
 operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   constructor (nom) { 
     super(nom, 3)
-    this.SYS = true
     this.targs = {
       ns: { t: 'ns' }, // id de l'espace modifié
       quotas: { t: 'q' } // quotas globaux
@@ -751,7 +750,6 @@ Création des rows espace, synthese
 operations.CreationEspace = class CreationEspace extends Operation {
   constructor (nom) { 
     super(nom, 3)
-    this.SYS = true
     this.targs = {
       ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
       org: { t: 'org' }, // code de l'organisation
@@ -787,7 +785,6 @@ operations.CreationEspace = class CreationEspace extends Operation {
 operations.MajSponsEspace = class MajSponsEspace extends Operation {
   constructor (nom) { 
     super(nom, 3) 
-    this.SYS = true
     this.targs = {
       ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
       org: { t: 'org' }, // code de l'organisation
@@ -814,7 +811,6 @@ Création des rows:
 operations.CreationComptable = class CreationComptable extends Operation {
   constructor (nom) { 
     super(nom, 0, 2) 
-    this.SYS = true
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
       idp: { t: 'idp' }, // ID de la partition primitive

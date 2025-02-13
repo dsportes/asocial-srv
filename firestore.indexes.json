@@ -6,8 +6,8 @@
       "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "v", "order": "ASCENDING" } ] },
     { "collectionGroup": "comptes", "queryScope": "COLLECTION",
     "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "v", "order": "ASCENDING" } ] },
-    { "collectionGroup": "comptes", "queryScope": "COLLECTION",
-    "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "dlv", "order": "ASCENDING" } ] },
+    { "collectionGroup": "comptas", "queryScope": "COLLECTION",
+    "fields": [ { "fieldPath": "dlv", "order": "ASCENDING" }, { "fieldPath": "id", "order": "ASCENDING" } ] },
     { "collectionGroup": "comptas", "queryScope": "COLLECTION",
     "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "v", "order": "ASCENDING" } ] },
     { "collectionGroup": "comptis", "queryScope": "COLLECTION",
@@ -56,7 +56,6 @@
 
     { "collectionGroup": "comptas", "fieldPath": "id", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "comptas", "fieldPath": "v",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
-    { "collectionGroup": "comptas", "fieldPath": "dlv",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "comptas", "fieldPath": "_data_", "indexes": [] },
 
     { "collectionGroup": "comptis", "fieldPath": "id", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },

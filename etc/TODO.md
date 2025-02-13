@@ -16,3 +16,20 @@ Déploiements:
 - GAE
 - CF OP
 - CF PUBSUB
+
+# Scénarios de tes
+
+## Init-0
+- Base vide
+- Login admin (#1)
+  - init. des tâches GC
+  - création espace 1 demo
+  - allocation de quotas
+- Login création Comptable demo
+  - page espace
+    - autorisation comptes A
+    - création de deux partitions
+    - sponsor d'un compte O délégué
+    - sponsor d'un compte A avec don
+
+Export -> sqlite-b

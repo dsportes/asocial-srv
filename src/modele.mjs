@@ -891,8 +891,10 @@ export class Operation {
         
         if (this.gd.trLog._maj) {
           this.gd.trLog.fermer()
-          const sc = this.gd.trLog.court // sc: { vcpt, vesp, vadq, lag }
-          if (sc) this.setRes('trlog', sc)
+          if (!this.estAdmin) { // sessions ADMIN ne reçoivent jamais de synchro
+            const sc = this.gd.trLog.court // sc: { vcpt, vesp, vadq, lag }
+            if (sc) this.setRes('trlog', sc)
+          }
           
           const sl = this.gd.trLog.serialLong
           if (sl) {

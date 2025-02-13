@@ -37,7 +37,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     { am: 202506, cu: [0.65, 0.10, 8, 15, 15, 15] }
   ],
   creationComptable: { qn: 5, qv: 5, qc: 5, cr: 100, pqn: 10, pqv: 10, pqc: 10 },
-  D1: 2000, // Délai d'attente sur exception et opérations non auth
+  D1: 2000, // Délai d'attente sur exception et opérations non authentifiées
 
   // Paramètres fonctionnel
   gccode: '1234azerty', // Code d'habilitation du lancement du GC
@@ -70,7 +70,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     site: 'A', // Donne sa clé de cryptage DB
     // origins: new Set(['http://localhost:8080']),
 
-    nom: 'test asocial-sql',
+    nom: 'test asocial-g',
     // URL du serveur
     // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
     rooturl: 'http://test.sportes.fr:8443',
@@ -86,8 +86,8 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     // db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
     // storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
 
-    db_provider: 'sqlite_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
-    storage_provider: 'fs_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
+    db_provider: 'sqlite_b', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    storage_provider: 'fs_b' // Provider Storage : service OP - 'gc_a', 'fs_a'
   }
 }
 // croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
