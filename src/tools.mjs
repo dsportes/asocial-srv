@@ -2,6 +2,7 @@
 Exemple export-db:
 node src/tools.mjs export-db --in 1,demo,sqlite_a,A --out 2,demo2,sqlite_b,B
 node src/tools.mjs export-db --in 1,demo,sqlite_a,A --out 1,demo,firestore_a,A
+node src/tools.mjs export-db --in 1,demo,sqlite_b,A --out 1,demo,firestore_a,A
 node src/tools.mjs export-db --in 1,demo,firestore_a,A --out 1,demo,sqlite_b,A
 
 node src/tools.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A

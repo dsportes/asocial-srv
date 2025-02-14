@@ -17,7 +17,87 @@ Déploiements:
 - CF OP
 - CF PUBSUB
 
-# Scénarios de tes
+# Développement Firestore
+
+Il y a une dualité entre Firebase et GCP (Google Cloud Platform):
+- `firestore, storage, functions` sont _effectivement_ hébergés sur GCP.
+- la console Firebase propose une vue et des fonctions plus simples d'accès mais moins complètes.
+- il faut donc parfois retourner à la console GCP pour certaines opérations.
+
+Consoles:
+
+    https://console.cloud.google.com/
+    https://console.firebase.google.com/
+
+## CLI Firebase
+https://firebase.google.com/docs/cli
+
+Installation ou mise à jour de l'installation
+
+    npm install -g firebase-tools
+
+### Authentification
+
+    firebase login
+
+**MAIS ça ne suffit pas toujours,** il faut régulièrement se ré-authentifier:
+
+    firebase login --reauth
+
+
+### Delete ALL collections
+Aide: firebase firestore:delete -
+
+    firebase firestore:delete --all-collections -r -f
+
+### Déploiement des index et rules
+Les fichiers sont:
+- `firestore.indexes.json`
+- `firestore.rules`
+
+    Déploiement (import)
+    firebase deploy --only firestore:indexes
+
+    Export des index dans firestore.indexes.json
+    firebase firestore:indexes > firestore.indexes.EXP.json
+
+### Emulator
+Dans `src/config.mjs` remplir la section `env:`
+
+    env: {
+       // On utilise env pour EMULATOR
+      STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
+      FIRESTORE_EMULATOR_HOST: 'localhost:8080'
+    },
+
+Remarques:
+- Pour storage: 
+  - le nom de variable a changé au cours du temps. C'est bien STORAGE_...
+  - il faut `http://` devant le host sinon il tente https
+- Pour Firestore il choisit le port 8080. Conflit éventuel avec app par exemple.
+- En cas de message `cannot determine the project_id ...`
+  `export GOOGLE_CLOUD_PROJECT="asocial-test1"`
+
+**Commandes usuelles:**
+
+    Lancement avec mémoire vide:
+    firebase emulators:start --project asocial-test1
+
+    Lancement avec chargée depuis un import:
+    firebase emulators:start --import=./emulators/bk1
+
+    Le terminal reste ouvert. Arrêt par CTRL-C (la mémoire est perdue)
+
+En cours d'exécution, on peut faire un export depuis un autre terminal:
+
+    firebase emulators:export ./emulators/bk2 -f
+
+**Consoles Web sur les données:**
+
+    http://127.0.0.1:4000/firestore
+    http://127.0.0.1:4000/storage
+
+# Scénarios de test
 
 ## Init-0
 - Base vide
@@ -28,8 +108,18 @@ Déploiements:
 - Login création Comptable demo
   - page espace
     - autorisation comptes A
-    - création de deux partitions
-    - sponsor d'un compte O délégué
-    - sponsor d'un compte A avec don
+    - création de deux partitions P1 P2
+    - sponsor d'un compte O délégué de P1 (T)
+    - sponsor d'un compte A avec don (D)
 
 Export -> sqlite-b
+
+## Scénario-1 : changement de partition, dons
+- Base 0
+- C sponsorise M sur P1
+- M doit voir T sur chats d'urgence - créé un chat avec T
+- C bouge T sur P2, change statut sponsor, remet sur P1
+- M : annonce de crédits, reçu par C
+- M : s'auto-mute en compte A
+- M demande à T par chat de devenir compte 0 sur P1
+
