@@ -18,6 +18,8 @@
     "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "v", "order": "ASCENDING" } ] },
     { "collectionGroup": "avatars", "queryScope": "COLLECTION",
     "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "v", "order": "ASCENDING" } ] },
+    { "collectionGroup": "avatars", "queryScope": "COLLECTION",
+    "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "vcv", "order": "ASCENDING" } ] },
     { "collectionGroup": "groupes", "queryScope": "COLLECTION",
     "fields": [ { "fieldPath": "id", "order": "ASCENDING" }, { "fieldPath": "v", "order": "ASCENDING" } ] }
   ],
@@ -73,7 +75,7 @@
 
     { "collectionGroup": "avatars", "fieldPath": "id", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "avatars", "fieldPath": "v",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
-    { "collectionGroup": "avatars", "fieldPath": "vcv",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
+    { "collectionGroup": "avatars", "fieldPath": "vcv",  "indexes": [] },
     { "collectionGroup": "avatars", "fieldPath": "hk",  "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION" }] },
     { "collectionGroup": "avatars", "fieldPath": "_data_", "indexes": [] },
 

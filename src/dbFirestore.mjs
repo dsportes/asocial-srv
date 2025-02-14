@@ -298,10 +298,12 @@ class Connx {
   Sur avatars: index sur vcv
   */
   async getAvatarVCV (id, vcv) {
-    const q = this.fs.collection(FirestoreProvider._collPath('avatars', id)).where('vcv', '>', vcv)
+    const q = this.fs.collection(FirestoreProvider._collPath('avatars'))
+      .where('id', '==', id).where('vcv', '>', vcv)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()
+    row._nom = 'avatars'
     this.op.nl++
     return compile(await decryptRow(this.appKey, row))
   }

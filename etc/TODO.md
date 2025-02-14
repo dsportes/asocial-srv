@@ -120,6 +120,19 @@ Export -> sqlite-b
 - M doit voir T sur chats d'urgence - créé un chat avec T
 - C bouge T sur P2, change statut sponsor, remet sur P1
 - M : annonce de crédits, reçu par C
-- M : s'auto-mute en compte A
-- M demande à T par chat de devenir compte 0 sur P1
+- M : demande à T de le muter en compte A
+- M : demande à T par chat de devenir compte 0 sur P1
+
+## Scenario-2 : CV, contacts, restrictions compte O
+- Base 1
+- D : phrase de contact
+- M : liste contacts - ajoute D par sa phrase
+- CV de T, HT / commentaire de T pour M
+- M : liste contacts, rafraîchir CV
+
+Restrictions sur compte O
+- M demande à muter O, T exécute
+- T : (dé) bloque M en lecture / en accès restreint : vérification des accès
+- C : (dé) bloque M en lecture / en accès restreint : vérification des accès
+
 

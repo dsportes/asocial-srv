@@ -355,7 +355,8 @@ export class Espaces extends GenDoc {
     if (op.compte && op.compte.idp) {
       if (!op.compte.del) {
         const x = this.tnotifP[op.compte.idp]
-        cl.tnotifP = x ? { x } : { }
+        cl.tnotifP = { }
+        cl.tnotifP[op.compte.idp] = x
       } else {
         cl.tnotifP = this.tnotifP
       }

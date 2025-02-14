@@ -13,7 +13,7 @@ node src/tools.mjs export-st --in demo,gc_a --out demo,fs_b
 
 Exemple purge-db
 node src/tools.mjs purge-db --in 2,coltes,firebase_b,A
-node src/tools.mjs purge-db --in 2,coltes,sqlite_b,B
+node src/tools.mjs purge-db --in 1,demo,sqlite_b,A
 
 Exemple purge-st
 node src/tools.mjs purge-st --in demo2,fs_b
