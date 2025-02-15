@@ -23,6 +23,7 @@ export class FirestoreProvider {
   /* path pour tous les documents (sauf singletons)*/
   static _path (nom, id, ids) {
     if (!ids) return nom + '/' + id
+    if (nom === 'transferts') return 'transferts/' + id + '_' + ids
     return 'versions/' + id + '/' + nom + '/' + ids
   }
 
@@ -111,15 +112,18 @@ class Connx {
       const q = this.fs.collection(nom).where('id', '>=', min).where('id', '<', max)
       const qs = await q.get()
       let n = 0
-      for (const qds of qs) {
+      for (const ds of qs.docs) {
         n++
         if (nom === 'versions') {
-          const id = qds.get('id')
-          const cref = this.fs.collection('versions/' + id)
-          const bw = this.fs.bulkWriter()
-          await this.fs.recursiveDelete(cref, bw)
-        } else
-          qds.delete()
+          const id = ds.get('id')
+          for (const scol of GenDoc.sousColls) {
+            const cref = this.fs.collection('versions/' + id + '/' + scol)
+            const bw = this.fs.bulkWriter()
+            await this.fs.recursiveDelete(cref, bw)
+          }
+          await this.fs.doc('versions/' + id).delete()
+         } else
+          ds.ref.delete()
       }
       // log(`delete ${nom} - ${n} rows`)
     }
@@ -548,7 +552,7 @@ class Connx {
 
   async purgeVER (suppr) { // nom: sponsorings, versions
     let n = 0
-    const q = this.fs.collection('versions').where('dlv', '>', 0).where('dlv', '<', suppr)
+    const q = this.fs.collectionGroup('versions').where('dlv', '>', 0).where('dlv', '<', suppr)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
@@ -559,7 +563,7 @@ class Connx {
 
   async purgeSPO (dlv) { // nom: sponsorings, versions
     let n = 0
-    const q = this.fs.collection(FirestoreProvider._collPath('sponsorings')).where('dlv', '<', dlv)
+    const q = this.fs.collectionGroup(FirestoreProvider._collPath('sponsorings')).where('dlv', '<', dlv)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
@@ -586,16 +590,9 @@ class Connx {
   async setRows (rows) {
     for (const row of rows) {
       const r = await prepRow(this.appKey, row)
-      /*
-      if (GenDoc.majeurs.has(row._nom)) {
-        r.id = row.id
-        r.v = row.v
-        if (row.vcv !== undefined) r.vcv = row.vcv
-      }
-      */
-      const dr = this.fs.doc(FirestoreProvider._path(row._nom, r.id, r.ids))
+      const dr = this.fs.doc(FirestoreProvider._path(row._nom, r.id, r.ids || r.idf))
       if (this.transaction)
-        await this.transaction.set(dr, r)
+        this.transaction.set(dr, r)
       else
         await dr.set(r)
     }

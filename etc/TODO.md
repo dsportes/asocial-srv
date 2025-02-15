@@ -97,6 +97,20 @@ En cours d'exécution, on peut faire un export depuis un autre terminal:
     http://127.0.0.1:4000/firestore
     http://127.0.0.1:4000/storage
 
+# Import / export
+
+node src/tools.mjs export-db --in 1,demo,sqlite_b,A --out 1,demo,firestore_a,A
+
+node src/tools.mjs export-db --in 1,demo,firestore_a,A --out 1,demo,sqlite_b,A
+
+node src/tools.mjs export-st --in demo,fs_b --out demo,gc_a
+
+node src/tools.mjs export-st --in demo,gc_a --out demo,fs_b
+
+node src/tools.mjs purge-db --in 1,demo,sqlite_b,A
+
+node src/tools.mjs purge-db --in 1,demo,firestore_a,A
+
 # Scénarios de test
 
 ## Init-0
@@ -135,4 +149,20 @@ Restrictions sur compte O
 - T : (dé) bloque M en lecture / en accès restreint : vérification des accès
 - C : (dé) bloque M en lecture / en accès restreint : vérification des accès
 
+Restriction pour solde négatif:
+- api.mjs (serveur) : ligne 966: AL;ARSN sur soldecourant < 1
+- connexion D : vérification blocage AR
+- rétablir api.mjs - reconnexion, blocage AR disparu
 
+## Scenario-3 : transferts / sponsorings
+- Base 2
+- D crée une note et un fichier : vérification affichable (test transferts et purge)
+- Debug : point d'arrêt validerUpload
+- D crée une révision. Serveur tué sur point d'arrêt. Vérifier qau'il existe un transfert en attente
+- Enlève le point d'arrêt.
+- Changement dlv du transfert en attente
+- relance serveur, login admin: relance tâche TRA. Vérification de la suppression du transfert
+- Changement de dlv d'un des sponsorings
+- relance tâche VER: vérification de la suppression du sponsoring 
+
+Scenario : alertes RAL NRED VRED, max n/v de groupe

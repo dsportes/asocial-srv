@@ -1178,7 +1178,7 @@ export class Operation {
 
     // Recherche des restrictions dans compta: ajout de celles-ci dans this.flags
     this.compta = await this.gd.getCA(this.id)
-    this.compta.compteurs.addFlags(this.flags)
+    this.flags = this.compta.compteurs.addFlags(this.flags)
 
     // Recherche des restrictions dans compte
     if (!this.estComptable && this.compte.idp) {
