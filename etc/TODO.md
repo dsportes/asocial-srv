@@ -166,3 +166,8 @@ Restriction pour solde négatif:
 - relance tâche VER: vérification de la suppression du sponsoring 
 
 Scenario : alertes RAL NRED VRED, max n/v de groupe
+
+Reste à vérifier avec Firestore:
+- comptas dlv
+- groupes dfh
+- versions dlv
