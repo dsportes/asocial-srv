@@ -1,5 +1,5 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, Cles, ESPTO, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, assertQv, AL, idTkToL6, AMJ } from './api.mjs'
+import { ID, Cles, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, AL, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'
@@ -26,6 +26,7 @@ export function assertKO (src, code, args) {
 /* Cache ************************************************************************
 Cache des objets majeurs "tribus comptas avatars groupes" 
 */
+/*
 export class Esp {
   static map = new Map()
 
@@ -99,9 +100,11 @@ export class Esp {
   }
 
 }
+*/
 
 export class Cache {
   static MAX_CACHE_SIZE = 1000
+  static LAZY_MS = 3000
 
   static map = new Map()
 
@@ -112,20 +115,21 @@ export class Cache {
   certes la transaction peut échouer, mais au pire on a lu une version,
   pas forcément la dernière, mais plus récente.
   */
-  static async getRow (op, nom, idc) {
+  static async getRow (op, nom, id, lazy) {
     if (this.map.size > Cache.MAX_CACHE_SIZE) Cache._purge()
     const now = Date.now()
-    const id = ID.long(idc, op.ns)
-    const k = nom + '/' + id
+    const k = nom + '/' + op.org + '/' + id
     const x = Cache.map.get(k)
     if (x) {
-      // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
-      const n = await op.db.getV(nom, id, x.row.v)
-      x.lru = now
-      if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
+      if (!lazy || (now - x.lru > Cache.LAZY_MS)) {
+        // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
+        const n = await op.db.getV(nom, op.org, id, x.row.v)
+        x.lru = now
+        if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
+      }
       return x.row
     }
-    const n = await op.db.getV(nom, id, 0)
+    const n = await op.db.getV(nom, op.org, id, 0)
     if (n) { // dernière version si elle existe
       const y = { lru: now, row: n }
       this.map.set(k, y)
@@ -134,9 +138,8 @@ export class Cache {
   }
 
   /* La cache a-t-elle une version supérieure ou égale à v pour le document nom/id */
-  static aVersion (op, nom, idc, v) {
-    const id = ID.long(idc, op.ns)
-    const k = nom + '/' + id
+  static aVersion (op, nom, id, v) {
+    const k = nom + '/' + op.org + '/' + id
     const x = Cache.map.get(k)
     return x && x.v >= v ? x : null
   }
@@ -147,19 +150,21 @@ export class Cache {
   Enrichissement de la cache APRES le commit de la transaction avec
   tous les rows créés, mis à jour ou accédés (en ayant obtenu la "dernière")
   */
-  static update (newRows, delRowPaths) { // set des path des rows supprimés
-    for(const row of newRows) {
-      if (GenDoc.sousColls.has(row._nom)) continue
-      const k = row._nom + '/' + row.id
-      const x = Cache.map.get(k)
-      if (x) {
-        if (x.row.v < row.v) x.row = row
-      } else {
-        this.map.set(k, { lru: Date.now(), row: row })
+  static update (op, newRows, delRowPaths) { // set des path des rows supprimés
+    if (op && op.org) {
+      for(const row of newRows) {
+        if (GenDoc.sousColls.has(row._nom)) continue
+        const k = row._nom + '/' + op.org + '/' + row.id
+        const x = Cache.map.get(k)
+        if (x) {
+          if (x.row.v < row.v) x.row = row
+        } else {
+          this.map.set(k, { lru: Date.now(), row: row })
+        }
       }
-    }
-    if (delRowPaths && delRowPaths.size) {
-      delRowPaths.forEach(p => { Cache.map.delete(p) })
+      if (delRowPaths && delRowPaths.size) {
+        delRowPaths.forEach(p => { Cache.map.delete(p) })
+      }
     }
   }
 
@@ -288,7 +293,7 @@ class GD {
 
   async getSY () {
     if (!this.synthese) {
-      this.synthese = compile(await Cache.getRow(this.op, 'syntheses', ''))
+      this.synthese = this.op.db.document(await Cache.getRow(this.op, 'syntheses', ''))
       if (!this.synthese) throw assertKO('getSy', 16, [this.op.ns])
     }
     return this.synthese
@@ -306,7 +311,7 @@ class GD {
   async getPA (idp, assert) {
     let p = this.partitions.get(idp)
     if (p) return p
-    p = compile(await this.op.getRowPartition(idp))
+    p = this.op.db.document(await this.op.getRowPartition(idp))
     if (!p) {
       if (!assert) return null; assertKO(assert, 2, [idp]) }
     this.partitions.set(idp, p)
@@ -330,9 +335,10 @@ class GD {
     let t = false
     if (id) {
       c = this.comptes.get(id)
-      if (c) t = true; else c = compile(await this.op.getRowCompte(id))
+      if (c) t = true
+      else c = this.op.db.document(await this.op.getRowCompte(id))
     } else
-      c = compile(await this.op.db.getCompteHk(ID.long(hXR, this.op.ns)))
+      c = this.op.db.document(await this.op.db.getCompteHk(hXR))
     if (!c) { 
       if (!assert) return null; else assertKO(assert, 4, [c.id]) }
     if (!t) this.comptes.set(c.id, c)
@@ -343,7 +349,7 @@ class GD {
     let c
     if (id) c = this.comptis.get(id)
     if (c) return c
-    c = compile(await this.op.getRowCompti(id))
+    c = this.op.db.document(await this.op.getRowCompti(id))
     if (!c || !await this.getCO(c.id)) { 
       if (!assert) return null; else assertKO(assert, 12, [c.id]) }
     this.comptis.set(id, c)
@@ -354,9 +360,9 @@ class GD {
     let c
     if (id) c = this.invits.get(id)
     if (c) return c
-    c = compile(await this.op.getRowInvit(id))
+    c = this.op.db.document(await this.op.getRowInvit(id))
     if (!c || !await this.getCO(c.id)) { 
-      if (!assert) return null; else assertKO(assert, 11, [id]) }
+      if (!assert) return null; else assertKO(assert, 11, [this.org + '@' + id]) }
     this.invits.set(id, c)
     return c
   }
@@ -364,7 +370,7 @@ class GD {
   async getCA (id, assert) {
     let c = this.comptas.get(id)
     if (c) return c
-    c = compile(await this.op.getRowCompta(id))
+    c = this.op.db.document(await this.op.getRowCompta(id))
     if (!c || !await this.getCO(c.id)) { 
       if (!assert) return null; else assertKO(assert, 3, [c.id]) }
     this.comptas.set(id, c)
@@ -383,9 +389,9 @@ class GD {
   async getAV (id, assert) {
     let a = this.avatars.get(id)
     if (a) return a
-    a = compile(await this.op.getRowAvatar(id))
+    a = this.op.db.document(await this.op.getRowAvatar(id))
     if (!a) { 
-      if (!assert) return null; else assertKO(assert, 8, [id]) }
+      if (!assert) return null; else assertKO(assert, 8, [this.org + '@' + id]) }
     this.avatars.set(id, a)
     return a
   }
@@ -396,7 +402,7 @@ class GD {
   async getAAVCV (id, vcv) {
     let av = this.avatars.get(id)
     if (!av)
-      av = await this.op.db.getAvatarVCV(ID.long(id, this.op.ns) , vcv)
+      av = GenDoc.compile(await this.op.db.getAvatarVCV(id , vcv))
     return av && av.vcv > vcv ? av : null
   }
 
@@ -414,7 +420,7 @@ class GD {
   async getGR (id, assert) {
     let g = this.groupes.get(id)
     if (g) return g
-    g = compile(await this.op.getRowGroupe(id))
+    g = this.op.db.document(await this.op.getRowGroupe(id))
     if (!g) { 
       if (!assert) return null; else assertKO(assert, 9, [g.id]) }
     this.groupes.set(id, g)
@@ -425,7 +431,7 @@ class GD {
     const k = id + '/CGR/'
     let d = this.sdocs.get(k)
     if (d) return d
-    d = compile(await this.op.getRowChatgr(id))
+    d = this.op.db.document(await this.op.getRowChatgr(id))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 17, [k]) }
     this.sdocs.set(k, d)
@@ -446,7 +452,7 @@ class GD {
     const k = id + '/MBR/' + im
     let d = this.sdocs.get(k)
     if (d) return d
-    d = compile(await this.op.getRowMembre(id, im))
+    d = this.op.db.document(await this.op.getRowMembre(id, im))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 10, [k]) }
     this.sdocs.set(k, d)
@@ -466,7 +472,7 @@ class GD {
     const k = id + '/CAV/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = compile(await this.op.getRowChat(id, ids))
+    d = this.op.db.document(await this.op.getRowChat(id, ids))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 5, [k]) }
     this.sdocs.set(k, d)
@@ -475,11 +481,11 @@ class GD {
 
   async getAllCAV (id) {
     const l = []
-    for (const row of await this.op.db.scoll('chats', ID.long(id, this.op.ns), 0)) {
+    for (const row of await this.op.db.scoll('chats', id, 0)) {
       const k = id + '/CAV/' + row.ids
       let d = this.sdocs.get(k)
       if (!d) {
-        d = compile(row)
+        d = this.op.db.document(row)
         await this.getV(d.id)
         this.sdocs.set(k, d)
       }
@@ -506,7 +512,7 @@ class GD {
     const k = idc + '/TKT/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = compile(await this.op.getRowTicket(idc, ids))
+    d = this.op.db.document(await this.op.getRowTicket(idc, ids))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 15, [k]) }
     this.sdocs.set(idc + '/TKT/' + ids, d)
@@ -527,7 +533,7 @@ class GD {
     const k = id + '/SPO/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = compile(await this.op.getRowSponsoring(id, ids))
+    d = this.op.db.document(await this.op.getRowSponsoring(id, ids))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
@@ -547,7 +553,7 @@ class GD {
     const k = id + '/NOT/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = compile(await this.op.getRowNote(id, ids))
+    d = this.op.db.document(await this.op.getRowNote(id, ids))
     if (!d || !await this.getV(d.id)) { 
       if (!assert) return null; else assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
@@ -567,14 +573,14 @@ class GD {
     return id
   }
 
-  setTransfertsApurger (alias, idf) {
-    this.transfertsApurger.push({ alias: ID.long(alias, this.op.ns), idf })
+  setTransfertsApurger (id, idf) {
+    this.transfertsApurger.push({ id, idf })
   }
   
   async getV (id) {
     let v = this.versions.get(id)
     if (!v) {
-      v = compile(await this.op.getRowVersion(id))
+      v = this.op.db.document(await this.op.getRowVersion(id))
       if (v) this.versions.set(id, v)
     }
     return !v || v.dlv ? null : v
@@ -591,7 +597,7 @@ class GD {
     let v = this.versions.get(id)
     if (!v) {
       v = await this.getV(id)
-      if (!v) assertKO('majV', 20, [id])
+      if (!v) assertKO('majV', 20, [this.org + '@' + id])
     }
     if (!v._maj) {
       v._vav = v.v
@@ -601,8 +607,7 @@ class GD {
         v.dlv = this.op.auj
         v._zombi = true
       }
-      const rv = v.toRow(this.op)
-      if (v.v === 1) this.op.insert(rv); else this.op.update(rv)
+      if (v.v === 1) this.op.insert(v); else this.op.update(v)
       this.trLog.addAvgr(id, v)  
     }
     return v.v
@@ -612,10 +617,10 @@ class GD {
     if (d._suppr) { 
       if (d.ids) { // pour membres, notes, chats, sponsorings, tickets
         await this.majV(d.id)
-        this.op.delete({ _nom: d._nom, id: ID.long(d.id, this.op.ns), ids: ID.long(d.ids, this.op.ns) })
+        this.op.delete({ _nom: d._nom, id: d.id, ids: d.ids })
       } else { // pour groupes, avatars, comptes, comptas, invits, comptis
         await this.majV(d.id, true)
-        this.op.delete({ _nom: d._nom, id: ID.long(d.id, this.op.ns) })
+        this.op.delete({ _nom: d._nom, id: d.id })
       }
     } else if (d._maj) {
       const ins = d.v === 0
@@ -628,8 +633,8 @@ class GD {
       } else if (d._nom === 'chats') {
         if (d.cvE) d.vcv = d.cvE.v
       }
-      if (ins) this.op.insert(d.toRow(this.op))
-      else this.op.update(d.toRow(this.op))
+      if (ins) this.op.insert(d)
+      else this.op.update(d)
     }
   }
 
@@ -639,13 +644,13 @@ class GD {
       d._vav = d.v
       d.v++
       this.trLog.setEsp(d.v)
-      if (ins) this.op.insert(d.toRow(this.op)); else this.op.update(d.toRow(this.op))
+      if (ins) this.op.insert(d); else this.op.update(d)
     }
   }
 
   async majCompta (compta) { // ET report éventuel dans partition / synthese
     if (compta._suppr) {
-      this.op.delete({ _nom: 'comptas', id: ID.long(compta.id, this.op.ns) })
+      this.op.delete({ _nom: 'comptas', id: compta.id })
     } else {
       compta._vav = compta.v
       compta.v++
@@ -665,7 +670,8 @@ class GD {
           }
         }
       }
-      if (compta.v === 1) this.op.insert(compta.toRow(this.op)); else this.op.update(compta.toRow(this.op))
+      if (compta.v === 1) this.op.insert(compta)
+      else this.op.update(compta)
     }
   }
 
@@ -687,7 +693,7 @@ class GD {
 
   async majCompte (compte) {
     if (compte._suppr) {
-      this.op.delete({ _nom: 'comptes', id: ID.long(compte.id, this.op.ns) })
+      this.op.delete({ _nom: 'comptes', id: compte.id })
     } else if (compte._maj) {
       compte._vav = compte.v
       let compti, invit, p
@@ -697,23 +703,23 @@ class GD {
         compti = await this.getCI(compte.id); compti.v = 1
         invit = await this.getIN(compte.id); invit.v = 1
         compte.vci = 1; compte.vpe = 1; compte.vci = 1; compte.vin = 1
-        this.op.insert(compte.toRow(this.op))
-        this.op.insert(compti.toRow(this.op))
-        this.op.insert(invit.toRow(this.op))
+        this.op.insert(compte)
+        this.op.insert(compti)
+        this.op.insert(invit)
       } else {
         p = compte.perimetreChg
         if (p) compte.vpe = compte.v
         if (compte._majci) {
           compti = await this.getCI(compte.id); compti.v = compte.v
           compte.vci = compte.v
-          this.op.update(compti.toRow(this.op))
+          this.op.update(compti)
         }
         if (compte._majin) {
           invit = await this.getIN(compte.id); invit.v = compte.v
           compte.vin = compte.v
-          this.op.update(invit.toRow(this.op))
+          this.op.update(invit)
         }
-        this.op.update(compte.toRow(this.op))
+        this.op.update(compte)
       }
       this.trLog.setCpt(compte, p)
     }
@@ -721,11 +727,12 @@ class GD {
 
   async majPart (p) {
     if (p._suppr) {
-      this.op.delete({ _nom: 'partitions', id: ID.long(p.id, this.op.ns) })
+      this.op.delete({ _nom: 'partitions', id: p.id })
     } else if (p._maj) {
       p._vav = p.v
       p.v++
-      if (p.v === 1) this.op.insert(p.toRow(this.op)); else this.op.update(p.toRow(this.op))
+      if (p.v === 1) this.op.insert(p)
+      else this.op.update(p)
       const s = await this.getSY()
       s.setPartition(p)
     }
@@ -736,7 +743,8 @@ class GD {
     if (s && s._maj) {
       s._vav = s.v
       s.v++
-      if (s.v === 1) this.op.insert(s.toRow(this.op)); else this.op.update(s.toRow(this.op))
+      if (s.v === 1) this.op.insert(s)
+      else this.op.update(s)
     }
   }
 
@@ -748,10 +756,9 @@ class GD {
     for(const [,d] of this.invits) await this.majInvit(d)
     if (this.espace) await this.majEsp(this.espace)
     if (this.transferts.length) 
-      for(const x of this.transferts) {
-        const row = x.toRow(this.op)
-        await this.op.insert(row)
-      }
+      for(const x of this.transferts)
+        await this.op.insert(x)
+    
     for(const [id, d] of this.comptes) await this.majCompte(d)
 
     // comptas SAUF celle du compte courant
@@ -873,7 +880,7 @@ export class Operation {
         this.toInsert.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
         this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
         this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
-        Cache.update(updated, deleted)
+        Cache.update(this.op, updated, deleted)
         if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
       }
 
@@ -1112,10 +1119,13 @@ export class Operation {
   async phase3 () { return }
 
   /* Authentification ****************************************************
-  Après authentification, sont disponibles:
-    - this.id this.ns this.estA
-    - this.compte this.compta
-    - this.flags : set des restictions
+  Après auth1 sont disponibles:
+    - this.id this.org this.estAdmin this.sessionId
+    - this.espace (LAZY)
+    - this.fige this.flags (FIGE seulement)
+  Après auth2 sont disponibles
+    - this.compte this.compta this.estA this.estComptable
+    - this.flags: set des restictions
   */
   async auth1 () {
     const app_keys = config.app_keys
@@ -1138,28 +1148,38 @@ export class Operation {
       if (this.authData.shax) {
         try {
           const shax64 = Buffer.from(this.authData.shax).toString('base64')
-          if (app_keys.admin.indexOf(shax64) !== -1) {
+          if (app_keys.admin.indexOf(shax64) !== -1) 
             this.estAdmin = true
-            this.ns = ''
-          }
         } catch (e) { /* */ }
       }
-      this.org = this.authData.org
+      await this.getEspaceOrg (this.authData.org, config.D1, excFige)
+      /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     } catch (e) { 
       await sleep(config.D1)
       throw new AppExc(F_SRV, 206, [e.message])
     }
   }
 
+  async getEspaceOrg (org, delai, excFige) {
+    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
+    this.org = org
+    this.espace = GenDoc.compile(await Cache.getRow(this, 'espaces', '', true))
+    if (!this.espace) { 
+      if (delai) await sleep(delai)
+      throw new AppExc(F_SRV, 996) 
+    }
+    let cf = this.espace.clos
+    if (cf) throw new AppExc(A_SRV, 999, [cf.texte || '?'])
+    cf = this.espace.fige
+    if (excFige === 2 && cf) 
+      throw new AppExc(F_SRV, 101, [op.nomop, cf.texte || '?'])
+    if (cf) this.flags = AL.add(this.flags, AL.FIGE)
+    this.fige = AL.has(this.flags, AL.FIGE)
+  }
+
   async auth2 () {
     this.flags = 0
-
-    /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    const espace = await Esp.getEspOrg (this, this.org, true)
-    if (!espace) { await sleep(config.D1); throw new AppExc(F_SRV, 996) }
-    espace.excFerme()
-    if (this.excFige === 2) espace.excFige(this)
-    if (espace.fige) this.flags = AL.add(this.flags, AL.FIGE)
+    if (this.fige) this.flags = AL.add(this.flags, AL.FIGE)
     
     /* Compte */
     this.compte = await this.gd.getCO(0, null, this.authData.hXR)
@@ -1173,7 +1193,8 @@ export class Operation {
 
     // Opération du seul Comptable
     if (this.authMode === 2 && !this.estComptable) {
-      await sleep(config.D1); throw new AppExc(F_SRV, 104) 
+      await sleep(config.D1)
+      throw new AppExc(F_SRV, 104) 
     }
 
     // Recherche des restrictions dans compta: ajout de celles-ci dans this.flags
@@ -1182,7 +1203,7 @@ export class Operation {
 
     // Recherche des restrictions dans compte
     if (!this.estComptable && this.compte.idp) {
-      const np = espace.getNotifP(this.compte.idp)
+      const np = this.espace.getNotifP(this.compte.idp)
       this.compta.setNotifP(np || null)
       let x = np ? np.nr : 0
       const nc = this.compte.notif
@@ -1192,8 +1213,6 @@ export class Operation {
         if (x === 3) this.flags = AL.add(this.flags, AL.ARNTF)
       }
     }
-
-    this.fige = AL.has(this.flags, AL.FIGE)
   }
 
   async alerte (sub) {
@@ -1269,7 +1288,7 @@ export class Operation {
 
   async getRowPartition (id, assert) {
     const p = await Cache.getRow(this, 'partitions', id)
-    if (assert && !p) throw assertKO('getRowPartition/' + assert, 2, [id])
+    if (assert && !p) throw assertKO('getRowPartition/' + assert, 2, [this.org + '@' + id])
     return p
   }
 
@@ -1285,90 +1304,79 @@ export class Operation {
 
   async getRowCompte (id, assert) {
     const cp = await Cache.getRow(this, 'comptes', id)
-    if (assert && !cp) throw assertKO('getRowCompte/' + assert, 4, [id])
+    if (assert && !cp) throw assertKO('getRowCompte/' + assert, 4, [this.org + '@' + id])
     return cp
   }
 
   async getRowCompta (id, assert) {
     const cp = await Cache.getRow(this, 'comptas', id)
-    if (assert && !cp) throw assertKO('getRowCompta/' + assert, 3, [id])
+    if (assert && !cp) throw assertKO('getRowCompta/' + assert, 3, [this.org + '@' + id])
     return cp
   }
 
   async getRowCompti (id, assert) {
     const cp = await Cache.getRow(this, 'comptis', id)
-    if (assert && !cp) throw assertKO('getRowCompti/' + assert, 12, [id])
+    if (assert && !cp) throw assertKO('getRowCompti/' + assert, 12, [this.org + '@' + id])
     return cp
   }
 
   async getRowInvit (id, assert) {
     const cp = await Cache.getRow(this, 'invits', id)
-    if (assert && !cp) throw assertKO('getRowInvit/' + assert, 12, [id])
+    if (assert && !cp) throw assertKO('getRowInvit/' + assert, 12, [this.org + '@' + id])
     return cp
   }
 
   async getRowVersion (id, assert) {
     const v = await Cache.getRow(this, 'versions', id)
-    if (assert && !v) throw assertKO('getRowVersion/' + assert, 14, [id])
+    if (assert && !v) throw assertKO('getRowVersion/' + assert, 14, [this.org + '@' + id])
     return v
   }
 
   async getRowAvatar (id, assert) {
     const av = await Cache.getRow(this, 'avatars', id)
-    if (assert && !av) throw assertKO('getRowAvatar/' + assert, 8, [id])
+    if (assert && !av) throw assertKO('getRowAvatar/' + assert, 8, [this.org + '@' + id])
     return av
   }
 
   async getRowGroupe (id, assert) {
     const rg = await Cache.getRow(this, 'groupes', id)
-    if (assert && !rg) throw assertKO('getRowGroupe/' + assert, 9, [id])
+    if (assert && !rg) throw assertKO('getRowGroupe/' + assert, 9, [this.org + '@' + id])
     return rg
   }
 
-  // HELPERS d'accès à la base
-  // async delAvGr (id) { await this.db.delAvGr(this, id)}
-
-  // async coll (nom) { return await this.db.coll(this, nom) }
-
-  // async collNs (nom, ns) { return this.db.collNs(nom, ns) }
-
-  // async scoll (nom, id, v) { return this.db.scoll(nom, id, v) }
-
-  // async delScoll (nom, id) { return this.db.delScollSql(this, nom, id) }
-
   async getRowNote (id, ids, assert) {
-    const rs = await this.db.get('notes', ID.long(id, this.ns), ID.long(ids, this.ns))
-    if (assert && !rs) throw assertKO('getRowNote/' + assert, 7, [ID.long(id, this.ns), ID.long(ids, this.ns)])
+    const rs = await this.db.get('notes', id, ids)
+    if (assert && !rs) throw assertKO('getRowNote/' + assert, 7, [this.org + '@' + id, ids])
     return rs
   }
 
   async getRowChat (id, ids, assert) {
-    const rc = await this.db.get('chats', ID.long(id, this.ns), ID.long(ids, this.ns))
-    if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [ID.long(id, this.ns), ID.long(ids, this.ns)])
+    const rc = await this.db.get('chats', id, ids)
+    if (assert && !rc) throw assertKO('getRowChat/' + assert, 12, [this.org + '@' + id, ids])
     return rc
   }
  
   async getRowTicket (id, ids, assert) {
-    const rc = await this.db.get('tickets', ID.long(id, this.ns), ID.long(ids, this.ns))
-    if (assert && !rc) throw assertKO('getRowTicket/' + assert, 17, [ID.long(id, this.ns), ID.long(ids, this.ns)])
+    const rc = await this.db.get('tickets', id, ids)
+    if (assert && !rc) throw assertKO('getRowTicket/' + assert, 17, [this.org + '@' + id, ids])
     return rc
   }
 
   async getRowSponsoring (id, ids, assert) {
-    const rs = await this.db.get('sponsorings', ID.long(id, this.ns), ID.long(ids, this.ns))
-    if (assert && !rs) throw assertKO('getRowSponsoring/' + assert, 13, [ID.long(id, this.ns), ID.long(ids, this.ns)])
+    const rs = await this.db.get('sponsorings', id, ids)
+    if (assert && !rs) throw assertKO('getRowSponsoring/' + assert, 13, [this.org + '@' + id, ids])
     return rs
   }
 
   async getRowMembre (id, ids, assert) {
-    const rm = await this.db.get('membres', ID.long(id, this.ns), ID.long(ids, this.ns))
-    if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [ID.long(id, this.ns), ID.long(ids, this.ns)])
+    const rm = await this.db.get('membres', id, ids)
+    if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [this.org + '@' + id, ids])
     return rm
   }
 
   async getRowChatgr (id, assert) {
-    const rc = await this.db.get('chatgrs', ID.long(id, this.ns), ID.long(1, this.ns))
-    if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [ID.long(id, this.ns), 1])
+    const rc = await this.db.get('chatgrs', id, ids)
+    if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [this.org + '@' + id, 1])
     return rc
   }
 
@@ -1497,13 +1505,13 @@ export class Operation {
   }
 
   // Création d'un fichier CSV d'une compta
-  async creationC (org, ns, cleES, mois, mr) {
+  async creationC (org, cleES, mois) {
     const sep = ','
     const lignes = []
     lignes.push(Compteurs.CSVHDR(sep))
-    await this.db.collNs(
+    await this.db.collOrg(
       'comptas', 
-      ns, 
+      org, 
       (data) => { Compteurs.CSV(lignes, mois, sep, data) }
     )
     const buf = Buffer.from(lignes.join('\n'))
@@ -1512,7 +1520,7 @@ export class Operation {
   }
 
   // Création d'un fichier CSV des tickets d'un mois
-  async creationT (org, ns, cleES, mois) {
+  async creationT (org, cleES, mois) {
     const cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
     const sep = ','
     const lignes = []
@@ -1528,8 +1536,8 @@ export class Operation {
     - `refc` : texte court (32c) facultatif du Comptable à la réception.
     */
     await this.db.selTickets(
-      ID.duComptable(ns), 
-      ns,
+      ID.duComptable(), 
+      org,
       mois,
       (data) => { 
         const d = decode(data)

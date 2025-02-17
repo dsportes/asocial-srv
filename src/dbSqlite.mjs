@@ -11,15 +11,15 @@ import path from 'path'
 import { existsSync } from 'node:fs'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
-// import { app_keys } from './keys.mjs'
-import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
+import { GenConnx, GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 
 export class SqliteProvider {
   constructor (site, code) {
     const app_keys = config.app_keys
     this.type = 'sqlite'
     this.code = code
-    this.appKey = Buffer.from(app_keys.sites[site], 'base64')
+    this.site = app_keys.sites[site]
+    this.appKey = Buffer.from(this.site.k, 'base64')
     this.path = path.resolve(config[code].path)
     if (!existsSync(this.path)) {
       config.logger.info('Path DB inaccessible= [' + this.path + ']')
@@ -35,15 +35,14 @@ export class SqliteProvider {
   }
 }
 
-class Connx {
+class Connx extends GenConnx {
 
   // Méthode PUBLIQUE de coonexion: retourne l'objet de connexion à la base
   async connect (op, provider) {
-    this.op = op
-    this.provider = provider
+    super.connect(op, provider)
+
     this.lastSql = []
     this.cachestmt = { }
-    this.appKey = provider.appKey
     this.options = {
       verbose: (msg) => {
         if (config.debugsql) config.logger.debug(msg)
@@ -119,13 +118,13 @@ class Connx {
   }
 
   /** PUBLIQUES POUR EXPORT / PURGE ******************************************/
-  async deleteNS(log, ns) {
-    const min = ns
-    const max = ns + '{'
+  async deleteOrg(log) {
+    const min = this.cOrg + '@'
+    const max = this.cOrg + '@{'
     const dels = {}
     GenDoc.collsExp1.forEach(nom => {
       dels[nom] = this.sql.prepare(
-        `DELETE FROM ${nom} WHERE id = '${ns}';`)
+        `DELETE FROM ${nom} WHERE id = '${this.cOrg}';`)
     })
     GenDoc.collsExp2.forEach(nom => {
       dels[nom] = this.sql.prepare(
@@ -152,44 +151,45 @@ class Connx {
   /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, ns, id, ids, dh, exc, dhf, nb) VALUES (@op, @ns, @id, @ids, @dh, @exc, 0, 0) ON CONFLICT (op, ns, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
+      'INSERT INTO taches (op, org, id, ids, dh, exc, dhf, nb) VALUES (@op, @ns, @id, @ids, @dh, @exc, 0, 0) ON CONFLICT (op, ns, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
     st.run({ 
       op: t.op,
-      ns: t.ns, 
-      id: t.id || '', 
-      ids: t.ids || '',
+      org: this.cryptedOrg(t.org),
+      id: this.cryptedId(t.id), 
+      ids: this.cryptedId(t.ids),
       dh: t.dh, 
       exc: t.exc })
   }
 
-  async delTache (op, ns, id, ids) {
-    if (ids) {
-      const st = this._stmt('DELTACHE1', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
-      st.run({ op, ns, id, ids })
-    } else {
-      const st = this._stmt('DELTACHE2', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id')
-      st.run({ op, ns, id })
-    }
+  async delTache (op, org, id, ids) {
+    const arg = { op, org: this.cryptedOrg(org), id: this.cryptedId(id), ids: this.cryptedId(ids) }
+    let st
+    if (ids) st = this._stmt('DELTACHE1', 'DELETE FROM taches WHERE op = @op AND org = @org AND id = @id AND ids = @ids')
+    else st = this._stmt('DELTACHE2', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id')
+    st.run(arg)
   }
 
-  async recTache (op, ns, id, ids, dhf, nb) {
-    const st = this._stmt('UPDTACHE', 'UPDATE taches SET dhf = @dhf, nb = @nb WHERE op = @op AND ns = @ns AND id = @id AND ids = @ids')
-    st.run({ op, ns, id, ids, dhf, nb })
+  async recTache (op, org, id, ids, dhf, nb) {
+    const arg = { op, org: this.cryptedOrg(org), id: this.cryptedId(id), ids: this.cryptedId(ids), dhf, nb }
+    const st = this._stmt('UPDTACHE', 'UPDATE taches SET dhf = @dhf, nb = @nb WHERE op = @op AND org = @org AND id = @id AND ids = @ids')
+    st.run(arg)
   }
 
-  async prochTache (dh, lst) {
-    const lst2 = []
-    lst.forEach(x => { lst2.push('\'' + x + '\'') } )
-    const lns = '\'\'' + (lst2.length ? ',' + lst2.join(',') : '')
-    const st = this._stmt('PROCHTACHE' + lns, 
-      'SELECT * FROM taches WHERE dh < @dh AND ns IN (' + lns + ') ORDER BY dh DESC LIMIT 1')
+  async prochTache (dh) {
+    const st = this._stmt('PROCHTACHE', 'SELECT * FROM taches WHERE dh < @dh ORDER BY dh DESC LIMIT 1')
     const rows = st.all({ dh })
-    return !rows.length ? null : rows[0]
+    if (!rows.length) return null
+    const r = rows[0]
+    if (r.org) r.org = this.decryptedOrg(r.org)
+    if (r.id) r.id = this.decryptedId(r.id)
+    if (r.ids) r.ids = this.decryptedId(r.ids)
+    return r
   }
 
-  async nsTaches (ns) {
-    const st = this._stmt('NSTACHES', 'SELECT * FROM taches WHERE ns = @ns')
-    return st.all({ ns })
+  async orgTaches (org) {
+    const arg = { org: this.cryptedOrg(org) }
+    const st = this._stmt('NSTACHES', 'SELECT * FROM taches WHERE org = @org')
+    return st.all(arg)
   }
 
   async toutesTaches () {
@@ -197,29 +197,30 @@ class Connx {
     return st.all()
   }
 
-  async getRowEspaces (v) {
+  async getRowEspaces () {
     const code = 'SELESP'
-    const st = this._stmt(code, 'SELECT * FROM espaces WHERE v > @v')
-    const rows = st.all({ v })
+    const st = this._stmt(code, 'SELECT * FROM espaces')
+    const rows = st.all()
     const r = []
     for (const row of rows) {
-      const x = await decryptRow(this.appKey, row)
-      x._nom = 'espaces'
-      r.push(row)
+      row._nom = 'espaces'
+      this.op.nl++
+      r.push(this.decryptRow(row))
     }
     return r
   }
 
-  /* Retourne le row d'une collection de nom / id si sa version est postérieure à v
+  /* Retourne le row d'une collection de nom / / org / id si sa version est postérieure à v
   */
   async getV (nom, id, v) {
+    const idLong = GenDoc.collsExp1.has(nom) ? this.cryptedOrg(id) : this.idLong(id)
     const code = 'SELV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND v > @v')
-    const row = st.get({ id : id, v: v })
+    const row = st.get({ id : idLong, v: v })
     if (row) {
       row._nom = nom
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
@@ -227,13 +228,14 @@ class Connx {
   /* Retourne le row d'une collection de nom / id (sans version))
   */
   async getNV (nom, id) {
+    const idLong = GenDoc.collsExp1.has(nom) ? this.cryptedOrg(id) : this.idLong(id)
     const code = 'SELNV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id')
-    const row = st.get({ id : id})
+    const row = st.get({ id : idLong})
     if (row) {
       row._nom = nom
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
@@ -242,11 +244,11 @@ class Connx {
   async get (nom, id, ids) {
     const code = 'SEL' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND ids = @ids')
-    const row = st.get({ id : id, ids: ids })
+    const row = st.get({ id : this.idLong(id), ids: this.idLong(ids) })
     if (row) {
       row._nom = nom
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
@@ -255,46 +257,44 @@ class Connx {
   */
   async getAvatarVCV (id, vcv) {
     const st = this._stmt('SELCV', 'SELECT * FROM avatars WHERE id = @id AND vcv > @vcv')
-    const row = st.get({ id : id, vcv: vcv })
+    const row = st.get({ id : this.idLong(id), vcv: vcv })
     if (row) {
       row._nom = 'avatars'
       this.op.nl++
-      const b = await decryptRow(this.appKey, row)
-      const a = compile(b)
-      return a
+      return this.decryptRow(row)
     }
     return null
   }
 
   async getCompteHk (hk) {
     const st = this._stmt('SELHPS1', 'SELECT * FROM comptes WHERE hk = @hk')
-    const row = st.get({ hk })
+    const row = st.get({ hk: this.idLong(hk) })
     if (row) {
       row._nom = 'comptes'
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
   
   async getAvatarHk (hk) {
     const st = this._stmt('SELHPC', 'SELECT * FROM avatars WHERE hk = @hk')
-    const row = st.get({ hk })
+    const row = st.get({ hk: this.idLong(hk) })
     if (row) {
       row._nom = 'avatars'
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
   
   async getSponsoringIds (ids) {
     const st = this._stmt('SELSPIDS', 'SELECT * FROM sponsorings WHERE ids = @ids')
-    const row = st.get({ ids })
+    const row = st.get({ ids: this.cryptedId(ids) })
     if (row) {
       row._nom = 'sponsorings'
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
@@ -322,35 +322,37 @@ class Connx {
   async coll (nom) {
     const code = 'COLV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom)
-    const rows = st.all({ })
+    const rows = st.all()
     if (!rows) return []
     const r = []
     for (const row of rows) {
       row._nom = nom
-      r.push(await decryptRow(this.appKey, row))
+      this.op.nl++
+      r.push(this.decryptRow(row))
     }
-    this.op.nl += r.length
     return r
   }
   
-  /* Retourne la collection de nom 'nom' 
+  /* Retourne la collection de nom 'nom' d'une org
   SI la fonction "fnprocess" est présente 
   elle est invoquée à chaque row pour traiter son _data_
   plutôt que d'accumuler les rows.
   */
-  async collNs (nom, ns, fnprocess) {
-    const ns1 = ns
-    const ns2 = ns + '{'
+  async collOrg (nom, org, fnprocess) {
+    const c = this.cryptedOrg(org)
+    const min = c + '@'
+    const max = c + '@{'
     const code = 'COLNS' + nom
-    const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id >= @ns1 AND id < @ns2')
-    const rows = st.all({ ns1, ns2 })
+    const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id >= @min AND id < @max')
+    const rows = st.all({ min, max })
     if (!rows) return []
     const r = []
     for (const row of rows) {
       row._nom = nom
-      const rx = await decryptRow(this.appKey, row)
+      const rx = this.decryptRow(row)
       this.op.nl++
-      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
+      if (!fnprocess) r.push(rx)
+      else fnprocess(rx._data_)
     }
     return !fnprocess ? r : null
   }
@@ -361,12 +363,12 @@ class Connx {
   async scoll (nom, id, v) {
     const code = (v ? 'SCOLV' : 'SCOLB') + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id = @id' + (v ? ' AND v > @v' : ''))
-    const rows = st.all({ id: id, v: v })
+    const rows = st.all({ id: this.idLong(id), v: v })
     if (!rows) return []
     const r = []
     for (const row of rows) {
       row._nom = nom
-      r.push(await decryptRow(this.appKey, row))
+      r.push(this.decryptRow(row))
     }
     this.op.nl += r.length
     return r
@@ -374,17 +376,18 @@ class Connx {
   
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
   */
-  async selTickets (id, ns, aamm, fnprocess) {
-    const mx = ns + (aamm % 10000) + '99999999'
+  async selTickets (id, aamm, fnprocess) {
+    const mx = (aamm % 10000) + '99999999' // ids pas crypté
     const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND ids <= @mx')
-    const rows = st.all({ id, mx })
+    const rows = st.all({ id: this.idLong(id), mx })
     if (!rows) return []
     const r = []
     for (const row of rows) {
       row._nom = 'tickets'
-      const rx = await decryptRow(this.appKey, row)
+      const rx = this.decryptRow(row)
       this.op.nl++
-      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
+      if (!fnprocess) r.push(rx)
+      else fnprocess(rx._data_)
     }
     return !fnprocess ? r : null
   }
@@ -392,16 +395,16 @@ class Connx {
   async delScoll (nom, id) {
     const code = 'DELSCOL'+ nom
     const st = this._stmt(code, 'DELETE FROM ' + nom + ' WHERE id = @id')
-    const info = st.run({id : id})
+    const info = st.run({id: this.idLong(id)})
     this.op.ne += info.changes
     return info.changes
   }
 
-  async delTickets (id, ns, aamm) {
-    const mx = ns + (aamm % 10000) + '9999999999'
+  async delTickets (id, aamm) {
+    const mx = (aamm % 10000) + '9999999999' // ids pas crypté
     const code = 'DELTKT'
     const st = this._stmt(code, 'DELETE FROM tickets WHERE id = @id AND ids <= @mx')
-    const info = st.run({id, mx})
+    const info = st.run({id: this.idLong(id), mx})
     this.op.ne += info.changes
     return info.changes
   }
@@ -424,9 +427,11 @@ class Connx {
     const st = this._stmt('SELFPURGES', 'SELECT _data_ FROM fpurges')
     const rows = st.all({ })
     if (rows) rows.forEach(row => {
+      row._nom = 'Fpurges'
+      const rx = this.decryptRow(row)
+      this.op.nl++
       r.push(decode(row._data_))
     })
-    this.op.nl += r.length
     return r
   }
 

@@ -2,7 +2,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, Esp, trace } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, E_SRV, A_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
+import { AMJ, ID, F_SRV, E_SRV, A_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
 import { sleep, decrypterSrv, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -203,7 +203,7 @@ operations.ProchTache = class ProchTache extends Operation {
       const lnsinac = Esp.inactifs()
       const dh = Taches.dh(Date.now())
 
-      const proch = await this.db.prochTache(dh, lnsac, lnsinac)
+      const proch = await this.db.prochTache(dh)
       if (proch) {
         await this.doit(new Taches(proch))
         Taches.demon = false
@@ -239,20 +239,22 @@ operations.ProchTache = class ProchTache extends Operation {
         await op.run(args, this.dbp, this.storage)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!tache.estGC) // La tache est supprimée
-            await this.db.delTache(tache.op, tache.ns, tache.id, tache.ids)
+            await this.db.delTache(tache.op, tache.org, tache.id, tache.ids)
           else // La tache est déjà inscrite pour sa prochaine exécution: set dhf
-            await this.db.recTache(tache.op, tache.ns, tache.id, tache.ids, Date.now(), args.nb || 0)
+            await this.db.recTache(tache.op, tache.org, tache.id, tache.ids, Date.now(), args.nb || 0)
           break
         }
       } catch (e) { // Opération sortie en exception
         // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
         tache.exc = e.message + (e.stack ? '\n' + e.stack : '')
         await this.db.setTache(tache)
-        const al = config.alertes
-        if (al) {
-          const al1 = al['admin']
-          if (al1)
-            await sendAlMail(config.run.site, op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
+        if (tache.exc.code !== 8995) {
+          const al = config.alertes
+          if (al) {
+            const al1 = al['admin']
+            if (al1)
+              await sendAlMail(config.run.site, op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
+          }
         }
         break
       }
@@ -263,7 +265,16 @@ operations.ProchTache = class ProchTache extends Operation {
 
 class OperationT extends Operation {
   constructor (nom) {
-    super(nom, 3); this.SYS = true
+    super(nom, 3)
+    this.SYS = true
+  }
+
+  async checkOrg (org) {
+    if (!org) return
+    this.org = org
+    this.espace = await Cache.getRow(this, 'espaces', '', true)
+    if (!this.espace || this.espace.clos || this.espace.fige)
+      throw new AppExc(F_SRV, 995)
   }
 
   // set: ns, idcourt, espace, fige
@@ -397,7 +408,7 @@ operations.VER = class VER extends OperationT {
 }
 
 /* statistique "mensuelle" des comptas (avec purges) et des tickets
-- todo : liste des stats à calculer. { org, ns, t: 'C' ou 'T', mr, mois }
+- todo : liste des stats à calculer. { org, t: 'C' ou 'T', mr, mois }
 */
 operations.STA = class STA extends OperationT {
   constructor (nom) { super(nom) }
@@ -446,9 +457,9 @@ operations.STA = class STA extends OperationT {
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (s.t === 'C') {
       espace.setMoisStat(s.mois)
-      await this.creationC(s.org, s.ns, cleES, s.mois, s.mr)
+      await this.creationC(s.org, cleES, s.mois)
     } else if (s.t === 'T') {
-      await this.creationT(s.org, s.ns, cleES, s.mois)
+      await this.creationT(s.org, cleES, s.mois)
       espace.setMoisStatT(s.mois)
       await this.db.delTickets(ID.duComptable(s.ns), s.ns, s.mois)
     }
@@ -518,11 +529,13 @@ Le dernier mois de disponibilté de la statistique comptable est enregistrée da
 l'espace s'il est supérieur à celui existant.
 */
 operations.ComptaStat = class ComptaStat extends Operation {
-  constructor (nom) { super(nom, 0); this.SYS = true }
+  constructor (nom) { 
+    super(nom, 0)
+    this.SYS = true
+  }
 
   async phase2 (args) {
-    const espace = await this.setEspaceOrg(args.org)
-    espace.excFige(this)
+    await this.getEspaceOrg(args.org, 0, true)
 
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
     if (args.mr < 0 || args.mr > 2) args.mr = 1
@@ -533,12 +546,12 @@ operations.ComptaStat = class ComptaStat extends Operation {
     const idC = ID.duComptable() // 100000...
     this.setRes('getUrl', await this.storage.getUrl(args.org, idC, 'C_' + mois))
 
-    if (espace.moisStat && espace.moisStat >= mois) {
+    if (this.espace.moisStat && this.espace.moisStat >= mois) {
       this.setRes('creation', false)
     } else {
       this.setRes('creation', true)
-      if (args.mr !== 0) espace.setMoisStat(mois)
-      await this.creationC(args.org, this.ns, cleES, mois, args.mr)
+      if (args.mr !== 0) this.espace.setMoisStat(mois)
+      await this.creationC(args.org, cleES, mois, args.mr)
     }
   }
 }
@@ -553,11 +566,13 @@ l'espace s'il est supérieur à celui existant.
 Purge des tickets archivés
 */
 operations.TicketsStat = class TicketsStat extends Operation {
-  constructor () { super('TicketsStat'); this.SYS = true }
+  constructor (nom) { 
+    super(nom, 0)
+    this.SYS = true
+  }
 
   async phase2 (args) {
-    const espace = await this.setEspaceOrg(args.org)
-    espace.excFige(this)
+    await this.getEspaceOrg(args.org, 0, true)
 
     const cleES = decrypterSrv(this.db.appKey, espace.cleES)
 
@@ -567,13 +582,13 @@ operations.TicketsStat = class TicketsStat extends Operation {
 
     this.setRes('getUrl', await this.storage.getUrl(args.org, ID.duComptable(), 'T_' + mois))
     this.setRes('mois', mois)
-    if (espace.moisStatT && espace.moisStatT >= mois) {
+    if (this.espace.moisStatT && this.espace.moisStatT >= mois) {
       this.setRes('creation', false)
     } else {
       this.setRes('creation', true)
       await this.creationT(args.org, ns, cleES, mois)
       if (!espace.fige && args.mr > 3) {
-        espace.setMoisStatT(mois)
+        this.espace.setMoisStatT(mois)
         await this.db.delTickets(ID.duComptable(ns), ns, mois)
       }
     }

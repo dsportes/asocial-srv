@@ -40,8 +40,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   }
 
   async phase2 (args) {
-    const espace = await this.setEspaceOrg(this.org)
-    espace.setOptions(args.optionA, args.nbmi)
+    this.espace.setOptions(args.optionA, args.nbmi)
   }
 }
 
@@ -93,7 +92,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
     if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 308)
 
-    if (await this.db.getSponsoringIds(ID.long(args.hYR, this.ns))) 
+    if (await this.db.getSponsoringIds(args.hYR)) 
       throw new AppExc(F_SRV, 207)
 
     const q = args.quotas
@@ -217,7 +216,7 @@ operations.GetAvatarPC = class GetAvatarPC extends Operation {
   }
 
   async phase2 (args) {
-    const av = compile(await this.db.getAvatarHk(ID.long(args.hZR, this.ns)))
+    const av = GenDoc.compile(await this.db.getAvatarHk(args.hZR))
     if (!av) return
     const avatar = await this.gd.getAV(av.id, 'GetAvatarPC')
     if (avatar && avatar.hZC === args.hZC) {
@@ -518,7 +517,7 @@ operations.ChangementPC = class ChangementPC extends Operation {
   }
 
   async phase2 (args) { 
-    if (args.hZR && await this.db.getAvatarHk(ID.long(args.hZR, this.ns))) 
+    if (args.hZR && await this.db.getAvatarHk(args.hZR)) 
       throw new AppExc(F_SRV, 26) // trop proche existante
 
     if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 224)
@@ -1398,7 +1397,6 @@ operations.NouveauContact = class NouveauContact extends Operation {
     const avatar = await this.gd.getAV(args.ida)
     if (!avatar) throw new AppExc(F_SRV, 1)
 
-    // const groupe = compile(await this.getRowGroupe(args.idg, 'NouveauContact-1'))
     let ok = false
     for(const idav in this.compte.mav) {
       const im = groupe.mmb.get(idav)

@@ -1,58 +1,87 @@
 import { encode, decode } from '@msgpack/msgpack'
+import { toByteArray, fromByteArray } from './base64.mjs'
 import { FLAGS, F_SRV, A_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, lqv, qv0, assertQv, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
-/* GenDoc **************************************************
-Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
-est le contenu compilé d'un document.
-- la fonction compile(row) => doc prend un row issu de la base (ou du réseau)
-et retourne un objet de class appropriée héreitant de GenDoc.
-- la méthode toRow() => row retourne un row (format DB / réseau)
-depuis un objet.
-
-compile / toRow forme un couple de désérilisation / sérialisation.
-
-***********************************************************/
 const ROWSENCLAIR = new Set(['versions'])
 
-export function compile (row) {
-  if (!row) return null
-  const d = GenDoc._new(row._nom)
-  if (!row._data_ || !row._data_.length) {
-    d._zombi = true
-    d.id = ID.court(row.id)
-    if (row.ids !== undefined) d.ids = ID.court(row.ids)
-    if (row.idf !== undefined) d.idf = row.idf
-    if (row.hk !== undefined) d.hk = ID.court(row.hk)
-    if (row.v !== undefined) d.v = row.v
-    if (row.vcv !== undefined) d.vcv = row.vcv
-    if (row.dlv !== undefined) d.dlv = row.dlv
-    if (row.dfh !== undefined) d.dfh = row.dfh
-    if (row.org !== undefined) d.org = row.org
-  } else {
-    const obj = decode(Buffer.from(row._data_))
-    for (const [key, value] of Object.entries(obj)) d[key] = value
+// Classe abstraite de connexion à une DB
+export class GenConnx {
+  async connect (op, provider) {
+    this.op = op
+    this.provider = provider
+    this.appKey = provider.appKey
+    this.crOrg = provider.site.org || false
+    this.crId = provider.site.id || false
+    this.crData = provider.site.data || false
+    this.cOrg = this.cryptedOrg(this.op.org)
   }
-  return d.compile()
-}
 
-export function decryptRow (appKey, row) {
-  if (!row || ROWSENCLAIR.has(row._nom)) return row
-  const d = row._data_
-  if (!d || d.length < 4) return row
-  const dc = decrypterSrv(appKey, d)
-  row._data_ = new Uint8Array(dc)
-  return row
-}
+  // crypte un texte UTF-8 et retourne son base64
+  txt2B64 (txt) {
+    return fromByteArray(crypterSrv(this.appKey, Buffer.from(txt)))
+  }
 
-export function prepRow (appKey, row) {
-  const r = { ...row }
-  if (row._data_ !== null && !ROWSENCLAIR.has(row._nom)) 
-    r._data_ = crypterSrv(appKey, row._data_)
-  delete r._nom
-  delete r._vav
-  return r
+  // decrypte un base64 et retourne son texte UTF-8
+  b642Txt (b64) {
+    return decrypterSrv(this.appKey, toByteArray(b64)).toString('utf-8')
+  }
+
+  decryptRow (row) {
+    if (!row) return null
+    // Reconstruction des _data_ dont tous les attributs
+    // sont externalisés
+    if (row._nom === 'notes' || row._nom === 'chats') {
+      row._data_ = {
+        id: this.idCourt(row.id),
+        ids: this.decryptedId(row.ids)
+      }
+    } else if (row._nom === 'versions') {
+      row._data_ = {
+        id: this.idCourt(row.id),
+        dlv: row.dlv,
+        v: row.v
+      }
+    } else if (row._data_ && this.crData)
+      row._data_ = new Uint8Array(decrypterSrv(this.appKey, row._data_))
+    return row
+  }
+  
+  prepRow (obj) {
+    const r = { }
+
+    if (obj.v !== undefined) r.v = obj.v
+    if (obj.vcv !== undefined) r.vcv = obj.vcv
+    if (obj.dlv !== undefined) r.dlv = obj.dlv
+    if (obj.dfh !== undefined) r.dfh = obj.dfh
+
+    if (obj._nom === 'Fpurges' || obj._nom === 'Transferts') r.id = obj.i
+    else r.id = obj.id ? this.idLong(obj.id) : this.cOrg
+    if (obj.ids !== undefined) r.ids = obj._nom === 'Tickets' ? obj.ids : this.cryptedId(obj.ids)
+    if (obj.hk !== undefined) r.hk = this.idLong(obj.hk)
+    
+    const data = obj._zombi || obj._nom !== 'versions' ? null : obj.toData()
+    r._data_ = !data ? null : (this.crData ? crypterSrv(this.appKey, data) : data)
+  
+    return r
+  }
+
+  cryptedOrg (org) { return this.crOrg && org ? this.txt2B64(org) : (org || '') }
+
+  decryptedOrg (org) { return this.crOrg && org ? this.b642Txt(org) : (org || '') }
+
+  cryptedId (id) { return this.crId && id ? this.txt2B64(id) : (id || '') }
+
+  decryptedId (id) { return this.crId && id ? this.b642Txt(id) : (id || '') }
+
+  idLong (id) { return this.cOrg + '@' + this.cryptedId(id) }
+
+  idCourt (id) {
+    const i = id.indexOf('@')
+    const s = i === -1 ? id : id.substring(i + 1)
+    return !s ? '' : this.b642Txt(s)
+  }
 }
 
 /* Pour transcoder les rows dans un export-db */
@@ -83,7 +112,10 @@ export class NsOrg {
 
 }
 
-/* Classe GenDoc **************************************************/
+/* GenDoc **************************************************
+Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
+est le contenu compilé d'un document.
+***********************************************************/
 export class GenDoc {
   /* Descriptifs des collections et sous-collection pour l'export*/
   static collsExp1 = ['espaces', 'syntheses']
@@ -94,14 +126,14 @@ export class GenDoc {
 
   static collsExpG = ['notes', 'membres', 'chatgrs']
 
-  // Gérés en Cache - Pour Firestore gère une propriété id_V (A REVOIR)
+  // Gérés en Cache
   static majeurs = new Set(['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'versions', 'avatars', 'groupes'])
 
-  static sousColls = new Set(['notes', 'sponsorings', 'chats', 'membres', 'chatgrs', 'tickets'])
+  static sousColls = new Set(['notes', 'chats', 'membres', 'chatgrs', 'tickets'])
 
   /* Liste des attributs des (sous)collections- sauf singletons */
   static _attrs = {
-    espaces: ['id', 'org', 'v', '_data_'],
+    espaces: ['id', 'v', '_data_'],
     fpurges: ['id', '_data_'],
     partitions: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
@@ -112,7 +144,7 @@ export class GenDoc {
     versions: ['id', 'v', 'dlv', '_data_'],
     avatars: ['id', 'v', 'vcv', 'hk', '_data_'],
     notes: ['id', 'ids', 'v', '_data_'],
-    transferts: ['id', 'idf', 'dlv', '_data_'],
+    transferts: ['id', 'dlv', '_data_'],
     sponsorings: ['id', 'ids', 'v', 'dlv', '_data_'],
     chats: ['id', 'ids', 'v', '_data_'],
     tickets: ['id', 'ids', 'v', '_data_'],
@@ -160,32 +192,26 @@ export class GenDoc {
     return this
   }
 
-  /* Constitue un "row" depuis un objet:
-    - en ignorant les attributs META (dont le nom commence par _)
-    - en calculant les attributs calculés : iv ivb dhb icv
-    - en produisant un _data_ null si l'objet n'a pas d'attributs NON META ou est _zombi
-  */
-  toRow (op) {
-    const row = { _nom: this._nom, _vav: this._vav }
-    row.id = ID.long(this.id, op.ns)
-    if (this.ids !== undefined) row.ids = ID.long(this.ids, op.ns)
-    if (this.idf !== undefined) row.idf = this.idf
-    if (this.hk !== undefined) row.hk = ID.long(this.hk, op.ns)
-    if (this.v !== undefined) row.v = this.v
-    if (this.vcv !== undefined) row.vcv = this.vcv
-    if (this.dlv !== undefined) row.dlv = this.dlv
-    if (this.dfh !== undefined) row.dfh = this.dfh
-    if (this.org !== undefined) row.org = this.org
-    if (this.idf !== undefined) row.idf = this.idf
-    // le row est "zombi", c'est à dire sans _data_ quand son flag _zombi est à true
-    if (!this._zombi) {
-      const d = {}
-      for (const [key, value] of Object.entries(this)) if (!key.startsWith('_')) d[key] = value
-      d._nom = this._nom
-      row._data_ = Buffer.from(encode(d))
-    } else 
-      row._data_ = null
-    return row
+  static compile (row) {
+    if (!row) return null
+    const d = GenDoc._new(row._nom)
+    if (!row._data_ || !row._data_.length) d._zombi = true
+    else {
+      const obj = decode(Buffer.from(row._data_))
+      for (const [key, value] of Object.entries(obj)) d[key] = value
+    }
+    if (row._nom === 'espaces') 
+      d.org = this.decryptedOrg(row.id)
+    return d.compile()
+  }
+
+  toData () {
+    if (this._zombi || this.nom === 'versions') return null
+    const d = {}
+    for (const [key, value] of Object.entries(this)) 
+      if (!key.startsWith('_')) d[key] = value
+    d._nom = this._nom
+    return Buffer.from(encode(d))
   }
 
   compile () { return this }
@@ -212,7 +238,7 @@ _data_ :
 export class Espaces extends GenDoc { 
   constructor () { super('espaces') } 
 
-  excFerme () { if (this.clos) throw new AppExc(A_SRV, 999, this.clos); return this }
+  excFerme () { if (this.clos) throw new AppExc(A_SRV, 995, this.clos.texte || '?'); return this }
 
   excFige (op) { 
     if (this.fige) 
@@ -220,8 +246,8 @@ export class Espaces extends GenDoc {
     return this 
   }
 
-  get fige () { 
-    return this.notifE && this.notifE.nr >= 2 
+  get fige () { const n = this.notifE
+    return n && n.nr === 2 ? [n.texte, n.dh] : null
   }
 
   get clos () { const n = this.notifE
@@ -244,10 +270,6 @@ export class Espaces extends GenDoc {
       nbmi: 12,
       tnotifP: {}
     })
-  }
-
-  compile () {
-    return this
   }
 
   cloneCourt () {
@@ -334,19 +356,18 @@ export class Espaces extends GenDoc {
     - Délégués : dlvat, nbmi, pas stats ...
     - tous comptes: dlvat, nbmi et la notification de _leur_ partition sera seule lisible.
   */
-  toShortRow (op, ns) {
+  toShortData (op) {
     const cl = this.cloneCourt()
-    cl.ns = ns
 
     if (op.estAdmin) {
       cl.cleES = decrypterSrv(op.db.appKey, this.cleES)
       cl.hTC = this.hTC
-      return cl.toRow(op)._data_
+      return cl.toData()
     }
 
     if (op.estComptable) {
       cl.tnotifP = this.tnotifP
-      return cl.toRow(op)._data_
+      return cl.toData()
     }
 
     delete cl.moisStat
@@ -363,7 +384,7 @@ export class Espaces extends GenDoc {
     } else { // par exemple depuis SyncSp
       delete cl.tnotifP
     }
-    return cl.toRow(op)._data_
+    return cl.toData()
   }
 }
 
@@ -433,11 +454,12 @@ export class Tickets extends GenDoc {
     }
   }
 
-  toShortRow (op) {
-    const idc = this.idc; delete this.idc
-    const row = this.toRow(op)._data_
+  toShortData (op) {
+    const idc = this.idc
+    delete this.idc
+    const data = this.toData()
     this.idc = idc
-    return row
+    return data
   }
 }
 
@@ -480,8 +502,8 @@ export class Partitions extends GenDoc {
     return this
   }
 
-  toShortRow (op, compte) {
-    if (ID.estComptable(compte.id)) return this.toRow(op)._data_
+  toShortData (op, compte) {
+    if (ID.estComptable(compte.id)) return this.toData()
     const sv = this.mcpt
     const m = {}
     for(const idx in this.mcpt) {
@@ -496,9 +518,9 @@ export class Partitions extends GenDoc {
       m[idx] = x
     }
     this.mcpt = m
-    const row = this.toRow(op)._data_
+    const data = this.toData()
     this.mcpt = sv
-    return row
+    return data
   }
 
   setZombi () {
@@ -682,7 +704,6 @@ export class Syntheses extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op)._data_}
 }
 
 /* Comptes ************************************************************
@@ -733,10 +754,6 @@ export class Comptes extends GenDoc {
   setZombi () {
     this._suppr = true
     this._maj = true
-  }
-
-  toShortRow (op) {
-    return this.toRow(op)._data_
   }
 
   get perimetre () {
@@ -1012,7 +1029,6 @@ export class Comptis extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { return this.toRow(op)._data_ }
 }
 
 /* Invits *************************************************
@@ -1047,8 +1063,6 @@ export class Invits extends GenDoc {
     this._suppr = true
     this._maj = true
   }
-
-  toShortRow (op) { return this.toRow(op)._data_ }
 
   setDesGroupes(ida, s) {
     this.invits.forEach(i => { if (i.ida !== ida) s.add(i.idg)})
@@ -1179,16 +1193,12 @@ export class Comptas extends GenDoc {
       flags: 0,
       adq: { dlv: AMJ.max, flags: 0, qv: { ...qv0 } }
     })
-    return x.compile()
+    return x
   }
 
   setZombi () {
     this._suppr = true
     this._maj = true
-  }
-
-  toShortRow (op, idp) { 
-    return this.toRow(op)._data_ 
   }
 
   get compteurs () { return new Compteurs(this.serialCompteurs) }
@@ -1456,8 +1466,6 @@ export class Avatars extends GenDoc {
     }
     this._maj = true
   }
-
-  toShortRow (op) { return this.toRow(op)._data_ }
 }
 
 /* Classe Notes *****************************************************
@@ -1511,7 +1519,7 @@ export class Notes extends GenDoc {
     return n
   }
 
-  toShortRow (op, idc) { //idc : id du compte demandeur
+  toShortData (op, idc) { //idc : id du compte demandeur
     if (this._zombi) {
       const x = { _nom: 'notes', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
@@ -1522,9 +1530,9 @@ export class Notes extends GenDoc {
       if (ht) this.ht = ht
       delete this.htm
     }
-    const r = this.toRow(op)._data_
+    const data = this.toData()
     this.htm = htmx
-    return r
+    return data
   }
 
   setZombi () {
@@ -1676,8 +1684,6 @@ export class Sponsorings extends GenDoc {
     this.ardYC = args.ardYC
     this._maj = true
   }
-
-  toShortRow (op) { return this.toRow(op)._data_ }
 }
 
 /** Chat ************************************************************
@@ -1818,12 +1824,12 @@ export class Chats extends GenDoc {
 
   get estPassif () { return this.stI === 0 }
 
-  toShortRow (op) { 
+  toShortData (op) { 
     if (this._zombi) {
       const x = { _nom: 'chats', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
     }
-    return this.toRow(op)._data_
+    return this.toData()
   }
 }
 
@@ -2119,8 +2125,8 @@ export class Groupes extends GenDoc {
   /* Sérialisation en row après avoir enlevé 
   les champs non pertinents selon l'accès aux membres.
   Pas accès membre: tid ne contient que les entrées des avatars du compte */
-  toShortRow (op, c, m) { // c : compte, m: le compte à accès aux membres
-    let row
+  toShortData (op, c, m) { // c : compte, m: le compte à accès aux membres
+    let data
     const idh = this.idh; delete this.idh
     if (!m) {
       const tid = this.tid, lng = this.lng, lnc = this.lnc
@@ -2132,14 +2138,18 @@ export class Groupes extends GenDoc {
         if (im) s.add(im)
       }
       for (let im = 0; im < tid.length; im++) tidn[im] = s.has(im) ? tid[im] : 0
-      this.tid = tidn; delete this.lng; delete this.lnc
-      row = this.toRow(op)._data_
-      this.tid = tid; this.lnc = lnc; this.lng = lng
+      this.tid = tidn
+      delete this.lng
+      delete this.lnc
+      data = this.toData()
+      this.tid = tid
+      this.lnc = lnc
+      this.lng = lng
     } else {
-      row = this.toRow(op)._data_
+      data = this.toData()
     }
     this.idh = idh
-    return row
+    return data
   }
 
   am (im) {
@@ -2288,12 +2298,12 @@ export class Membres extends GenDoc {
     this._maj = true
   }
 
-  toShortRow (op) { 
+  toShortData (op) { 
     if (this._zombi) {
       const x = { _nom: 'membres', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
     }
-    return this.toRow(op)._data_
+    return this.toData()
   }
 }
 
@@ -2317,8 +2327,6 @@ export class Chatgrs extends GenDoc {
       id: idg, ids: '1', items: []
     })
   }
-
-  toShortRow (op) { return this.toRow(op)._data_ }
 
   get dh () {
     let t = 0

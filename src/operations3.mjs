@@ -96,11 +96,11 @@ operations.GetEspaces = class GetEspaces extends Operation {
   constructor (nom) { super(nom, 3, 0) }
 
   async phase2() {
-    await Esp.load(this.db)
+    const rows = await this.db.getRowEspaces()
     const espaces = []
-    for(const [ns, row] of Esp.map) {
-      const esp = compile(row)
-      espaces.push(esp.toShortRow(this, ns))
+    for(const row of rows) {
+      const esp = GenDoc.compile(row) // A ajouté esp.org depuis row.id décrypté
+      espaces.push(esp.toShortRow(this))
     }
     this.setRes('espaces', espaces)
   }
@@ -143,7 +143,7 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
   }
 
   async phase2 (args) {
-    await this.checkEspaceOrg(args.org)
+    await this.getEspaceOrg (args.org, 0, false) 
     
     const avatar = await this.gd.getAV(args.id, 'getPub')
     if (!avatar.pub) await sleep(config.D1)
@@ -166,14 +166,17 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   } 
 
   async phase2 (args) {
-    const espace = await this.setEspaceOrg(args.org)
+    await this.getEspaceOrg (args.org, 0, false)
 
-    if (espace.hTC) { // Compte du Comptable pas encore créé
-      if (espace.hTC !== args.hTC) await sleep(config.D1)
-      this.setRes('cleET', espace.hTC === args.hTC ? espace.cleET : false)
+    if (this.espace.hTC) { // Compte du Comptable pas encore créé
+      if (this.espace.hTC !== args.hTC) await sleep(config.D1)
+      this.setRes('cleET', this.espace.hTC === args.hTC ? this.espace.cleET : false)
     } else {
-      const sp = compile(await this.db.getSponsoringIds(ID.long(args.hps1, this.ns)))
-      if (!sp) { await sleep(config.D1); throw new AppExc(F_SRV, 11) }
+      const sp = GenDoc.compile(await this.db.getSponsoringIds(args.hps1))
+      if (!sp) { 
+        await sleep(config.D1)
+        throw new AppExc(F_SRV, 11)
+      }
       this.setRes('rowSponsoring', sp.toShortRow(this))
       this.setRes('ns', this.ns)  
     }
@@ -194,9 +197,9 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   }
 
   async phase2 (args) {
-    await this.checkEspaceOrg(args.org)
+    await this.getEspaceOrg (args.org, 0, false)
 
-    if (await this.db.getCompteHk(ID.long(args.hps1, this.ns))) {
+    if (await this.db.getCompteHk(args.hps1)) {
       this.setRes('existe', true)
       await sleep(config.D1)
     }
@@ -220,12 +223,12 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 
   async phase2 (args) {
     if (args.t === 2) {
-      if (await this.db.getSponsoringIds(ID.long(args.hps1, this.ns))) {
+      if (await this.db.getSponsoringIds(args.hps1)) {
         this.setRes('existe', true)
         return
       }
     } if (args.t === 3) {
-      if (await this.db.getAvatarHk(ID.long(args.hps1, this.ns))) {
+      if (await this.db.getAvatarHk(args.hps1)) {
         this.setRes('existe', true)
         return
       }
@@ -237,7 +240,7 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 */
 operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation {
   constructor (nom) { 
-    super(nom, 0, 2)
+    super(nom, 0)
     this.targs = {
       org: { t: 'org' }, // organisation
       // subJSON: { t: 'string' }, // subscription de la session
@@ -270,7 +273,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 
   async phase2 (args) {
-    await this.setEspaceOrg(args.org) // set this.ns et this.org
+    await this.getEspaceOrg (args.org, 0, true)
 
     const avsponsor = await this.gd.getAV(args.idsp)
     if (!avsponsor) {
@@ -362,7 +365,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
 */
 operations.RefusSponsoring = class RefusSponsoring extends Operation {
   constructor (nom) { 
-    super(nom, 0, 2)
+    super(nom, 0)
     this.targs = {
       org: { t: 'org'},
       id: { t: 'ida' }, // identifiant du sponsor
@@ -373,7 +376,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   }
 
   async phase2(args) {
-    await this.setEspaceOrg(args.org)
+    await this.getEspaceOrg (args.org, 0, true)
 
     const avsponsor = await this.gd.getAV(args.id)
     if (!avsponsor) {
@@ -429,7 +432,7 @@ operations.GetPartition = class GetPartition extends Operation {
   async phase2 (args) {
     if (this.compte._estA) throw new AppExc(F_SRV, 220)
     const id = !this.estComptable ? this.compte.idp : args.id
-    const partition = compile(await this.getRowPartition(id, 'GetPartition'))
+    const partition = GenDoc.compile(await this.getRowPartition(id, 'GetPartition'))
     this.setRes('rowPartition', partition.toShortRow(this, this.compte))
   }
 }
@@ -438,7 +441,7 @@ operations.GetPartition = class GetPartition extends Operation {
 Enregistre la notification éventuelle dans la compta du demandeur
 Retour:
 - rowEspace s'il existe
-*/
+
 operations.GetEspace = class GetEspace extends Operation {
   constructor (nom) { 
     super(nom, 1, 1) 
@@ -448,11 +451,10 @@ operations.GetEspace = class GetEspace extends Operation {
   }
 
   async phase2 (args) {
-    /* **Propriétés accessibles :**
-    - administrateur technique : toutes de tous les espaces.
-    - Comptable : toutes de _son_ espace.
-    - autres : sauf moisStat moisStatT nbmi
-    */
+    // **Propriétés accessibles :**
+    // - administrateur technique : toutes de tous les espaces.
+    // - Comptable : toutes de _son_ espace.
+    // - autres : sauf moisStat moisStatT nbmi
     const ns = !this.isAdmin ? this.ns : args.ns
     const espace = await Esp.getEsp (this, ns, false)
     espace.excFerme()
@@ -461,6 +463,7 @@ operations.GetEspace = class GetEspace extends Operation {
     this.setRes('rowEspace', espace.toShortRow(this, ns))
   }
 }
+*/
 
 /*******************************************************************************
 * Opérations AVEC connexion (donc avec contrôle de l'espace)
@@ -489,7 +492,7 @@ operations.Sync = class Sync extends Operation {
   async getGr (idg) {
     let g = this.mgr.get(idg)
     if (g === undefined) {
-      g = compile(await this.getRowGroupe(idg)) || null
+      g = GenDoc.compile(await this.getRowGroupe(idg)) || null
       this.mgr.set(idg, g)
     }
     return g
@@ -498,7 +501,7 @@ operations.Sync = class Sync extends Operation {
   async getGrRows1 (ida, x) { 
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
-    if (!gr) gr = compile(await this.db.getV('groupes', ID.long(ida, this.ns), x.vs))
+    if (!gr) gr = GenDoc.compile(await this.db.getV('groupes', ida, x.vs))
     if (gr) this.addRes('rowGroupes', gr.toShortRow(this, this.compte, x.m))
   }
 
@@ -506,35 +509,33 @@ operations.Sync = class Sync extends Operation {
     if (x.m) {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
       SINON chargement initial de puis 0 */
-      for (const row of await this.db.scoll('membres', ID.long(ida, this.ns), x.ms ? x.vs : 0))
-        this.addRes('rowMembres', compile(row).toShortRow(this))
-      for (const row of await this.db.scoll('chatgrs', ID.long(ida, this.ns), x.ms ? x.vs : 0))
-        this.addRes('rowChatgrs', compile(row).toShortRow(this))
+      for (const row of await this.db.scoll('membres', ida, x.ms ? x.vs : 0))
+        this.addRes('rowMembres', GenDoc.compile(row).toShortRow(this))
+      for (const row of await this.db.scoll('chatgrs', ida, x.ms ? x.vs : 0))
+        this.addRes('rowChatgrs', GenDoc.compile(row).toShortRow(this))
     }
 
     /* SI la session avait des notes chargées, chargement incrémental depuis vs
     SINON chargement initial de puis 0 */
-    if (x.n) for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.ns ? x.vs : 0))
-      this.addRes('rowNotes', compile(row).toShortRow(this, this.id))
+    if (x.n) for (const row of await this.db.scoll('notes', ida, x.ns ? x.vs : 0))
+      this.addRes('rowNotes', GenDoc.compile(row).toShortRow(this, this.id))
   }
   
   async getAvRows1 (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
-    const row = await this.db.getV('avatars', ID.long(ida, this.ns), x.vs)
-    if (row) this.addRes('rowAvatars', compile(row).toShortRow(this))
+    const row = await this.db.getV('avatars', ida, x.vs)
+    if (row) this.addRes('rowAvatars', GenDoc.compile(row).toShortRow(this))
   }
 
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
-    for (const row of await this.db.scoll('notes', ID.long(ida, this.ns), x.vs)) {
-      const x = compile(row)
-      this.addRes('rowNotes', x.toShortRow(this))
-    }
-    for (const row of await this.db.scoll('chats', ID.long(ida, this.ns), x.vs))
-      this.addRes('rowChats', compile(row).toShortRow(this))
-    for (const row of await this.db.scoll('sponsorings', ID.long(ida, this.ns), x.vs))
-      this.addRes('rowSponsorings', compile(row).toShortRow(this))
+    for (const row of await this.db.scoll('notes', ida, x.vs))
+      this.addRes('rowNotes', GenDoc.compile(row).toShortRow(this))
+    for (const row of await this.db.scoll('chats', ida, x.vs))
+      this.addRes('rowChats', GenDoc.compile(row).toShortRow(this))
+    for (const row of await this.db.scoll('sponsorings', ida, x.vs))
+      this.addRes('rowSponsorings', GenDoc.compile(row).toShortRow(this))
     if (ID.estComptable(this.id)) 
-      for (const row of await this.db.scoll('tickets', ID.long(ida, this.ns), x.vs))
-        this.addRes('rowTickets', compile(row).toShortRow(this))
+      for (const row of await this.db.scoll('tickets', ida, x.vs))
+        this.addRes('rowTickets', GenDoc.compile(row).toShortRow(this))
   }
 
   async setAv (ida) {
@@ -592,13 +593,13 @@ operations.Sync = class Sync extends Operation {
     if (this.premTour || (this.ds.compte.vs < this.compte.vci)) {
       let rowCompti = Cache.aVersion(this, 'comptis', this.compte.id, this.compte.vci) // déjà en cache ?
       if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
-      this.setRes('rowCompti', compile(rowCompti).toShortRow(this))
+      this.setRes('rowCompti', GenDoc.compile(rowCompti).toShortRow(this))
     }
 
     if (this.premTour || (this.ds.compte.vs < this.compte.vin)) {
       let rowInvit = Cache.aVersion(this, 'invits', this.compte.id, this.compte.vin) // déjà en cache ?
       if (!rowInvit) rowInvit = await this.getRowInvit(this.compte.id)
-      this.setRes('rowInvit', compile(rowInvit).toShortRow(this))
+      this.setRes('rowInvit', GenDoc.compile(rowInvit).toShortRow(this))
     }
 
     /* Mise à niveau des listes avatars / groupes du dataSync
@@ -810,7 +811,7 @@ Création des rows:
 */
 operations.CreationComptable = class CreationComptable extends Operation {
   constructor (nom) { 
-    super(nom, 0, 2) 
+    super(nom, 0) 
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
       idp: { t: 'idp' }, // ID de la partition primitive
@@ -833,13 +834,13 @@ operations.CreationComptable = class CreationComptable extends Operation {
 
   async phase2(args) {
     const cfg = config.creationComptable
-    const espace = await this.setEspaceOrg(args.org)
+    await this.getEspaceOrg(args.org, 0, true)
 
-    if (!espace.hTC) {
+    if (!this.espace.hTC) {
       await sleep(config.D1)
       throw new AppExc(F_SRV, 105)
     }
-    if (espace.hTC !== args.hTC) {
+    if (this.espace.hTC !== args.hTC) {
       await sleep(config.D1)
       throw new AppExc(F_SRV, 106)
     }

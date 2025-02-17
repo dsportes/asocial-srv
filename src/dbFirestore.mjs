@@ -1,8 +1,7 @@
-import { Firestore, Filter } from '@google-cloud/firestore'
+import { Firestore } from '@google-cloud/firestore'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
-// import { app_keys, service_account } from './keys.mjs'
-import { GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
+import { GenConnx, GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
 
 export class FirestoreProvider {
   constructor (site, codeProvider) {
@@ -11,7 +10,8 @@ export class FirestoreProvider {
     this.service_account = config[kn]
     const app_keys = config.app_keys
     this.type = 'firestore'
-    this.appKey = Buffer.from(app_keys.sites[site], 'base64')
+    this.site = app_keys.sites[site]
+    this.appKey = Buffer.from(this.site.k, 'base64')
     this.emulator = config.env.FIRESTORE_EMULATOR_HOST
   }
 
@@ -35,14 +35,13 @@ export class FirestoreProvider {
 
 }
 
-class Connx {
+class Connx extends GenConnx {
 
   // Méthode PUBLIQUE de coonexion: retourne l'objet de connexion à la base
   async connect (op, provider) {
-    this.op = op
-    this.provider = provider
+    super.connect(op, provider)
+
     const sa = this.provider.service_account
-    this.appKey = provider.appKey
     this.fs = new Firestore({ 
       projectId : sa.project_id,
       credentials: sa
