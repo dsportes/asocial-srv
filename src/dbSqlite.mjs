@@ -205,7 +205,9 @@ class Connx extends GenConnx {
     for (const row of rows) {
       row._nom = 'espaces'
       this.op.nl++
-      r.push(this.decryptRow(row))
+      const x = this.decryptRow(row)
+      x._org = this.decryptedOrg(row.id)
+      r.push(x)
     }
     return r
   }
@@ -430,7 +432,7 @@ class Connx extends GenConnx {
       row._nom = 'Fpurges'
       const rx = this.decryptRow(row)
       this.op.nl++
-      r.push(decode(row._data_))
+      r.push(decode(rx._data_))
     })
     return r
   }
@@ -441,15 +443,18 @@ class Connx extends GenConnx {
     const st = this._stmt('SELTRADLV', 'SELECT * FROM transferts WHERE dlv <= @dlv')
     const rows = st.all({ dlv })
     if (rows) rows.forEach(row => {
-      r.push([row.id, row.idf])
+      row._nom = 'Transferts'
+      const rx = this.decryptRow(row)
+      this.op.nl++
+      r.push(decode(rx._data_))
     })
     this.op.nl += r.length
     return r
   }
 
-  async purgeTransferts (id, idf) {
-    const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id AND idf = @idf')
-    st.run({ id, idf })
+  async purgeTransferts (id) {
+    const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id')
+    st.run({ id })
     this.op.ne++
   }
 

@@ -99,7 +99,7 @@ operations.GetEspaces = class GetEspaces extends Operation {
     const rows = await this.db.getRowEspaces()
     const espaces = []
     for(const row of rows) {
-      const esp = GenDoc.compile(row) // A ajouté esp.org depuis row.id décrypté
+      const esp = GenDoc.compile(row) // A ajouté esp.org 
       espaces.push(esp.toShortRow(this))
     }
     this.setRes('espaces', espaces)
@@ -441,29 +441,18 @@ operations.GetPartition = class GetPartition extends Operation {
 Enregistre la notification éventuelle dans la compta du demandeur
 Retour:
 - rowEspace s'il existe
+*/
 
 operations.GetEspace = class GetEspace extends Operation {
   constructor (nom) { 
     super(nom, 1, 1) 
-    this.targs = {
-      ns: { t: 'ns', n: true } // id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
-    }
   }
 
   async phase2 (args) {
-    // **Propriétés accessibles :**
-    // - administrateur technique : toutes de tous les espaces.
-    // - Comptable : toutes de _son_ espace.
-    // - autres : sauf moisStat moisStatT nbmi
-    const ns = !this.isAdmin ? this.ns : args.ns
-    const espace = await Esp.getEsp (this, ns, false)
-    espace.excFerme()
-    const ntf = espace.getNotifP()
-    this.compta.setNotifP(ntf || null)
-    this.setRes('rowEspace', espace.toShortRow(this, ns))
+    this.setRes('rowEspace', this.espace.toShortRow(this))
   }
 }
-*/
+
 
 /*******************************************************************************
 * Opérations AVEC connexion (donc avec contrôle de l'espace)
@@ -573,13 +562,8 @@ operations.Sync = class Sync extends Operation {
     this.premTour = args.dataSync ? false : true
     this.loginSync = this.subJSON ? true : false
 
-    if (this.premTour) {
-      const espace = await Esp.getEspOrg (this, this.org)
-      if (!espace) throw new AppExc(A_SRV, 344, [this.org])
-      if (espace.dlvat && espace.dlvat < this.auj) {
-        new AppExc(F_SRV, 14, [AMJ.editDeAmj(espace.dlvat)])
-      }
-    }
+    if (this.premTour)
+      this.setRes('rowEspace', this.espace.toShortRow(this))
 
     if (this.loginSync) this.setRes('tarifs', Tarif.tarifs)
 
@@ -681,14 +665,14 @@ operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   constructor (nom) { 
     super(nom, 3)
     this.targs = {
-      ns: { t: 'ns' }, // id de l'espace modifié
+      org: { t: 'org' }, // id de l'espace modifié
       quotas: { t: 'q' } // quotas globaux
     }
   }
 
   async phase2 (args) {
-    this.ns = args.ns
-    const espace = await this.gd.getEspace()
+    this.org = args.org
+    const espace = await this.gd.getEspace('SetEspaceQuotas-1')
     espace.setQuotas(args.quotas)
   }
 }
@@ -701,15 +685,14 @@ operations.SetNotifE = class SetNotifE extends Operation {
   constructor (nom) { 
     super(nom, 3) 
     this.targs = {
-      ns: { t: 'ns' }, // id de l'espace notifié
+      org: { t: 'org' }, // id de l'espace notifié
       ntf: { t: 'ntfesp', n: true } // sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base
     }
   }
 
   async phase2 (args) {
-    // C'est une opération "admin", elle échappe aux contrôles espace figé / clos.
-    // Elle n'écrit QUE dans espaces.
-    const espace = await this.setEspaceNs(args.ns, false)
+    this.org = args.org
+    const espace = await this.gd.getEspace('SetNotifE-1')
 
     if (args.ntf) args.ntf.dh = this.dh
     espace.setNotifE(args.ntf || null)
@@ -752,7 +735,6 @@ operations.CreationEspace = class CreationEspace extends Operation {
   constructor (nom) { 
     super(nom, 3)
     this.targs = {
-      ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
       org: { t: 'org' }, // code de l'organisation
       TC: { t: 'u8' }, // PBKFD de la phrase de sponsoring du Comptable par l'AT
       hTC: { t: 'ids' } // hash de TC
@@ -760,25 +742,15 @@ operations.CreationEspace = class CreationEspace extends Operation {
   }
 
   async phase2(args) {
-    let espace
-    try { espace = await this.setEspaceNs(args.ns, false) } catch (e) { /* */ }
-    if (espace && !espace.cleET) 
-      throw new AppExc(F_SRV, 203, [args.ns, args.org])
+    await this.getEspaceOrg (args.org, 0, false)
+    if (this.espace)
+      throw new AppExc(F_SRV, 203, [args.org])
 
-    const e2 = await Esp.getEspOrg(this, args.org)
-    if (e2 && e2.id !== args.ns)
-      throw new AppExc(F_SRV, 204, [args.ns, args.org])
-
-    let cleE
-    if (!espace) {
-      cleE = Cles.espace(args.ns)
-      const cleES = crypterSrv(this.db.appKey, cleE)
-      espace = this.gd.nouvES(args.ns, args.org, cleES)
-    } else {
-      cleE = decrypterSrv(this.db.appKey, espace.cleES)
-    }
+    this.org = args.org
+    const cleE = Cles.espace()
+    const cleES = crypterSrv(this.db.appKey, cleE)
     const cleET = crypter(args.TC, cleE)
-    espace.reset(cleET, args.hTC)
+    this.gd.nouvES(cleES, cleET, args.hTC)
   }
 }
 

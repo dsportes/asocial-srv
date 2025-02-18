@@ -719,9 +719,9 @@ operations.SupprPartition = class SupprPartition extends Operation {
     if (!vide) throw new AppExc(A_SRV, 271)
       p.setZombi()
     this.compte.supprPartition(args.idp)
-    const espace = await this.gd.getEspace()
+    const espace = await this.gd.getEspace('SupprPartition-2')
     espace.supprPartition(args.idp)
-    const s = await this.gd.getSY(this.ns)
+    const s = await this.gd.getSY()
     s.supprPartition(args.idp)
   }
 }
@@ -747,7 +747,7 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
     const synth = await this.gd.getSY()
     const e = synth.tsp[args.idp]
     const q = e ? e.q : {qc: 0, qn:0, qv: 0}
-    const esp = await this.gd.getEspace()
+    const esp = await this.gd.getEspace('SetQuotasPart-1')
     const qe = esp.quotas
     const qpt = synth.tsp['0'].q
     const rqn = qe.qn - qpt.qn + q.qn
@@ -782,7 +782,7 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
     */
     const synth = await this.gd.getSY()
     const q = synth.qA // quotas actuels
-    const esp = await this.gd.getEspace()
+    const esp = await this.gd.getEspace('SetQuotasA-1')
     const qe = esp.quotas
     const qpt = synth.tsp['0'].q
     const rqn = qe.qn - qpt.qn + q.qn
@@ -1048,7 +1048,7 @@ operations.SetNotifP = class SetNotifP extends Operation {
     if ((!ec && !ed) || (ed && this.compte.idp !== args.idp)) 
       throw new AppExc(A_SRV, 235)
     
-    const espace = await this.gd.getEspace()
+    const espace = await this.gd.getEspace('SetNotifP-1')
     const ntf = espace.tnotifP[args.idp]
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
@@ -1999,9 +1999,8 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     av.setZombi()
     await this.db.delScoll('sponsorings', av.id)
 
-    await Taches.nouvelle(this, Taches.AVC, av.id, 0)
-    // Pour AGN, ids est l'alias de l'avatar
-    await Taches.nouvelle(this, Taches.AGN, av.id, av.alias)
+    await Taches.nouvelle(this, Taches.AVC, av.id, '')
+    await Taches.nouvelle(this, Taches.AGN, av.id, '')
   }
 }
 
@@ -2359,7 +2358,7 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
     await this.checkNoteId()
     if (!this.note) assertKO('GetUrlNf-1', 13, [id + '/NOT' + ids])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
-    this.alias = avgr.alias
+    this.avgrid = avgr.id
     this.f = this.note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
     if (!this.f) throw new AppExc(A_SRV, 307)
     this.vd += this.f.lg // décompte du volume descendant
@@ -2368,7 +2367,7 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
   async phase3 (args) {
     // Ralentissement éventuel
     await this.attente(this.f.lg / 1000000)
-    const url = await this.storage.getUrl(this.org, this.alias, args.idf)
+    const url = await this.storage.getUrl(this.org, this.avgrid, args.idf)
     this.setRes('url', url)
   }
 }
@@ -2394,7 +2393,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     await this.checkNoteId()
     if (!this.note) assertKO('PutUrlNf-1', 13, [id + '/NOT' + ids])
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
-    this.alias = avgr.alias
+    this.avgrid = avgr.id
     if (ID.estGroupe(args.id)) {
       // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
       if (!this.idxAvc) throw new AppExc(A_SRV, 314)
@@ -2429,12 +2428,12 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       throw new AppExc(F_SRV, 56, [x, compta.qv.qn * UNITEV])
 
     this.idf = ID.fic()
-    this.gd.nouvTRA(avgr.alias, this.idf)
+    this.gd.nouvTRA(avgr.id, this.idf)
   }
 
   async phase3 (args) {
     await this.attente(args.lg / 1000000)
-    const url = await this.storage.getUrl(this.org, this.alias, this.idf)
+    const url = await this.storage.getUrl(this.org, this.avgrid, this.idf)
     this.setRes('url', url)
     this.setRes('idf', this.idf)
   }
@@ -2495,17 +2494,17 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     }
     
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
-    this.alias = avgr.alias
+    this.avgrid = avgr.id
 
-    this.gd.setTransfertsApurger(this.alias, args.fic.idf)
+    this.gd.setTransfertsApurger(this.avgrid, args.fic.idf)
 
     if (args.lidf && args.lidf.length) 
-      this.idfp = this.gd.setFpurge(this.alias, args.lidf)
+      this.idfp = this.gd.setFpurge(this.avgrid, args.lidf)
   }
 
   async phase3 (args) {
     if (this.idfp) try {
-      await this.storage.delFiles(this.org, this.alias, args.lidf)
+      await this.storage.delFiles(this.org, this.avgrid, args.lidf)
       await this.db.unsetFpurge(this.idfp)
     } catch (e) { 
       trace('ValiderUpload-phase3', args.id, e.message)
@@ -2566,7 +2565,7 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
       compta.exV()
     }
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
-    args.alias = avgr.alias
+    this.avgrid = avgr.id
 
     // APRES toutes les 
     this.idfp = this.gd.setFpurge(args.id, [args.idf])
@@ -2574,7 +2573,7 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
 
   async phase3 (args) {
     try {
-      await this.storage.delFiles(this.org, args.alias, [args.idf])
+      await this.storage.delFiles(this.org, this.avgrid, [args.idf])
       await this.db.unsetFpurge(this.idfp)
     } catch (e) { 
       trace('SupprFichier-phase3', args.id, e.message)

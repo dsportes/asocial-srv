@@ -273,28 +273,24 @@ class GD {
   }
 
   /* Création conjointe de espace et synthese */
-  nouvES (ns, org, cleES) {
-    const e = Espaces.nouveau(org, this.op.auj, cleES)
+  nouvES (cleES, cleET, hTC) {
+    const e = Espaces.nouveau(this.op.auj, cleES, cleET, hTC)
     this.espace = e
-    this.synthese = Syntheses.nouveau(ns)
+    this.synthese = Syntheses.nouveau()
     return e
   }
 
-  // Depuis Authentification : l'espace a été obtenu depuis org et non son id
-  setEspace (espace) {
+  async getEspace (assert) { // Pour mise à jour
+    const espace = GenDoc.compile(await Cache.getRow(this.op, 'espaces', ''))
+    if (!espace && assert) throw assertKO(assert, 15, [this.op.org])
     this.espace = espace
-  }
-
-  async getEspace () { 
-    if (!this.espace)
-      this.espace = await this.op.setEspaceNs(this.op.ns, false)
-    return this.espace
+    return espace
   }
 
   async getSY () {
     if (!this.synthese) {
-      this.synthese = this.op.db.document(await Cache.getRow(this.op, 'syntheses', ''))
-      if (!this.synthese) throw assertKO('getSy', 16, [this.op.ns])
+      this.synthese = GenDoc.compile(await Cache.getRow(this.op, 'syntheses', ''))
+      if (!this.synthese) throw assertKO('getSy', 16, [this.op.org])
     }
     return this.synthese
   }
@@ -311,9 +307,11 @@ class GD {
   async getPA (idp, assert) {
     let p = this.partitions.get(idp)
     if (p) return p
-    p = this.op.db.document(await this.op.getRowPartition(idp))
+    p = GenDoc.compile(await this.op.getRowPartition(idp))
     if (!p) {
-      if (!assert) return null; assertKO(assert, 2, [idp]) }
+      if (!assert) return null
+      throw assertKO(assert, 2, [idp]) 
+    }
     this.partitions.set(idp, p)
     return p
   }
@@ -336,11 +334,12 @@ class GD {
     if (id) {
       c = this.comptes.get(id)
       if (c) t = true
-      else c = this.op.db.document(await this.op.getRowCompte(id))
+      else c = GenDoc.compile(await this.op.getRowCompte(id))
     } else
-      c = this.op.db.document(await this.op.db.getCompteHk(hXR))
+      c = GenDoc.compile(await this.op.db.getCompteHk(hXR))
     if (!c) { 
-      if (!assert) return null; else assertKO(assert, 4, [c.id]) }
+      if (!assert) return null
+      else throw assertKO(assert, 4, [c.id]) }
     if (!t) this.comptes.set(c.id, c)
     return c
   }
@@ -349,9 +348,10 @@ class GD {
     let c
     if (id) c = this.comptis.get(id)
     if (c) return c
-    c = this.op.db.document(await this.op.getRowCompti(id))
+    c = GenDoc.compile(await this.op.getRowCompti(id))
     if (!c || !await this.getCO(c.id)) { 
-      if (!assert) return null; else assertKO(assert, 12, [c.id]) }
+      if (!assert) return null
+      else throw assertKO(assert, 12, [c.id]) }
     this.comptis.set(id, c)
     return c
   }
@@ -360,9 +360,10 @@ class GD {
     let c
     if (id) c = this.invits.get(id)
     if (c) return c
-    c = this.op.db.document(await this.op.getRowInvit(id))
+    c = GenDoc.compile(await this.op.getRowInvit(id))
     if (!c || !await this.getCO(c.id)) { 
-      if (!assert) return null; else assertKO(assert, 11, [this.org + '@' + id]) }
+      if (!assert) return null
+      else throw assertKO(assert, 11, [this.org + '@' + id]) }
     this.invits.set(id, c)
     return c
   }
@@ -370,9 +371,10 @@ class GD {
   async getCA (id, assert) {
     let c = this.comptas.get(id)
     if (c) return c
-    c = this.op.db.document(await this.op.getRowCompta(id))
+    c = GenDoc.compile(await this.op.getRowCompta(id))
     if (!c || !await this.getCO(c.id)) { 
-      if (!assert) return null; else assertKO(assert, 3, [c.id]) }
+      if (!assert) return null
+      else throw assertKO(assert, 3, [c.id]) }
     this.comptas.set(id, c)
     return c
   }
@@ -389,9 +391,10 @@ class GD {
   async getAV (id, assert) {
     let a = this.avatars.get(id)
     if (a) return a
-    a = this.op.db.document(await this.op.getRowAvatar(id))
+    a = GenDoc.compile(await this.op.getRowAvatar(id))
     if (!a) { 
-      if (!assert) return null; else assertKO(assert, 8, [this.org + '@' + id]) }
+      if (!assert) return null
+      else throw assertKO(assert, 8, [this.org + '@' + id]) }
     this.avatars.set(id, a)
     return a
   }
@@ -420,9 +423,10 @@ class GD {
   async getGR (id, assert) {
     let g = this.groupes.get(id)
     if (g) return g
-    g = this.op.db.document(await this.op.getRowGroupe(id))
+    g = GenDoc.compile(await this.op.getRowGroupe(id))
     if (!g) { 
-      if (!assert) return null; else assertKO(assert, 9, [g.id]) }
+      if (!assert) return null
+      else throw assertKO(assert, 9, [g.id]) }
     this.groupes.set(id, g)
     return g
   }
@@ -431,9 +435,10 @@ class GD {
     const k = id + '/CGR/'
     let d = this.sdocs.get(k)
     if (d) return d
-    d = this.op.db.document(await this.op.getRowChatgr(id))
+    d = GenDoc.compile(await this.op.getRowChatgr(id))
     if (!d || !await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 17, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 17, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -452,9 +457,10 @@ class GD {
     const k = id + '/MBR/' + im
     let d = this.sdocs.get(k)
     if (d) return d
-    d = this.op.db.document(await this.op.getRowMembre(id, im))
+    d = GenDoc.compile(await this.op.getRowMembre(id, im))
     if (!d || !await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 10, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 10, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -463,7 +469,8 @@ class GD {
     const k = args.id + '/CAV/' + args.ids
     const d = Chats.nouveau(args)
     if (!await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 5, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 5, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -472,9 +479,10 @@ class GD {
     const k = id + '/CAV/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = this.op.db.document(await this.op.getRowChat(id, ids))
+    d = GenDoc.compile(await this.op.getRowChat(id, ids))
     if (!d || !await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 5, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 5, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -485,7 +493,7 @@ class GD {
       const k = id + '/CAV/' + row.ids
       let d = this.sdocs.get(k)
       if (!d) {
-        d = this.op.db.document(row)
+        d = GenDoc.compile(row)
         await this.getV(d.id)
         this.sdocs.set(k, d)
       }
@@ -502,7 +510,8 @@ class GD {
     d.id = idc
     d.dg = this.op.auj
     if (!await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 15, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 15, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -512,9 +521,10 @@ class GD {
     const k = idc + '/TKT/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = this.op.db.document(await this.op.getRowTicket(idc, ids))
+    d = GenDoc.compile(await this.op.getRowTicket(idc, ids))
     if (!d || !await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 15, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 15, [k]) }
     this.sdocs.set(idc + '/TKT/' + ids, d)
     return d
   }
@@ -524,7 +534,8 @@ class GD {
     const d = Sponsorings.nouveau(args, ids)
     d.dh = this.op.dh
     if (!await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 13, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -533,9 +544,10 @@ class GD {
     const k = id + '/SPO/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = this.op.db.document(await this.op.getRowSponsoring(id, ids))
+    d = GenDoc.compile(await this.op.getRowSponsoring(id, ids))
     if (!d || !await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 13, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -544,7 +556,8 @@ class GD {
     const k = id + '/NOT/' + ids
     const d = Notes.nouveau(id, ids, par)
     if (!await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 13, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
   }
@@ -553,34 +566,35 @@ class GD {
     const k = id + '/NOT/' + ids
     let d = this.sdocs.get(k)
     if (d) return d
-    d = this.op.db.document(await this.op.getRowNote(id, ids))
+    d = GenDoc.compile(await this.op.getRowNote(id, ids))
     if (!d || !await this.getV(d.id)) { 
-      if (!assert) return null; else assertKO(assert, 13, [k]) }
+      if (!assert) return null
+      else throw assertKO(assert, 13, [k]) }
     this.sdocs.set(k, d)
     return d
   }
 
-  async nouvTRA (alias, idf) {
+  async nouvTRA (avgrid, idf) {
     const dlv = AMJ.amjUtcPlusNbj(this.op.auj, 1)
-    const tr = new Transferts().init({ id: alias, idf, dlv })
+    const tr = Transferts.nouveau(avgrid, idf, dlv)
     this.transferts.push(tr)
   }
 
-  setFpurge (alias, lidf) {
-    const id = this.op.ns + ID.rnd()
-    const _data_ = new Uint8Array(encode({ id, alias, lidf }))
+  setFpurge (avgrid, lidf) {
+    const id = ID.rnd()
+    const _data_ = new Uint8Array(encode({ id, avgrid, lidf }))
     this.fpurges.push({ id, _data_ })
     return id
   }
 
-  setTransfertsApurger (id, idf) {
-    this.transfertsApurger.push({ id, idf })
+  setTransfertsApurger (avgrid, idf) {
+    this.transfertsApurger.push(avgrid + '_' + idf)
   }
   
   async getV (id) {
     let v = this.versions.get(id)
     if (!v) {
-      v = this.op.db.document(await this.op.getRowVersion(id))
+      v = GenDoc.compile(await this.op.getRowVersion(id))
       if (v) this.versions.set(id, v)
     }
     return !v || v.dlv ? null : v
@@ -597,7 +611,7 @@ class GD {
     let v = this.versions.get(id)
     if (!v) {
       v = await this.getV(id)
-      if (!v) assertKO('majV', 20, [this.org + '@' + id])
+      if (!v) throw assertKO('majV', 20, [this.org + '@' + id])
     }
     if (!v._maj) {
       v._vav = v.v
@@ -757,7 +771,7 @@ class GD {
     if (this.espace) await this.majEsp(this.espace)
     if (this.transferts.length) 
       for(const x of this.transferts)
-        await this.op.insert(x)
+        await this.op.insert(x.toRow())
     
     for(const [id, d] of this.comptes) await this.majCompte(d)
 
@@ -788,8 +802,8 @@ class GD {
     // PLUS DE LECTURES A PARTIR D'ICI
     if (this.fpurges.length) for(const x of this.fpurges) 
       await this.op.db.setFpurge(x)
-    if (this.transfertsApurger.length) for(const x of this.transfertsApurger)
-      await this.op.db.purgeTransferts(x.alias, x.idf)
+    if (this.transfertsApurger.length) for(const id of this.transfertsApurger)
+      await this.op.db.purgeTransferts(id)
   }
 
 }
@@ -1152,7 +1166,9 @@ export class Operation {
             this.estAdmin = true
         } catch (e) { /* */ }
       }
-      await this.getEspaceOrg (this.authData.org, config.D1, excFige)
+      this.org = this.authData.org
+      if (this.org)
+        await this.getEspaceOrg (this.authData.org, config.D1, excFige)
       /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     } catch (e) { 
       await sleep(config.D1)
@@ -1162,7 +1178,6 @@ export class Operation {
 
   async getEspaceOrg (org, delai, excFige) {
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
-    this.org = org
     this.espace = GenDoc.compile(await Cache.getRow(this, 'espaces', '', true))
     if (!this.espace) { 
       if (delai) await sleep(delai)
@@ -1241,48 +1256,6 @@ export class Operation {
 
   /* Inscrit row dans les rows à détruire en phase finale d'écritue, juste après la phase2 */
   delete (row) { if (row) this.toDelete.push(row); return row }
-
-  async checkEspaceOrg (org) {
-    // espace seulement pour checking
-    const espace = await Esp.getEspOrg(this, org, true, this.nomop + '-checkEspace') // set this.ns
-    espace.excFerme()
-    this.ns = Esp.orgs.get(org)
-    this.org = org
-    return espace
-  }
-
-  async checkEspaceNs (ns) {
-    // espace seulement pour checking
-    const espace = await Esp.getEsp(this, ns, true, this.nomop + '-checkEspace') // set this.ns
-    espace.excFerme()
-    this.ns = ns
-    this.org = espace.org
-    return espace
-  }
-
-  async setEspaceOrg (org) {
-    const espace = await Esp.getEspOrg(this, org, false, this.nomop + '-checkEspace') // set this.ns
-    this.gd.setEspace(espace)
-    this.ns = Esp.orgs.get(org)
-    this.org = org
-    return espace
-  }
-
-  async setEspaceNs (ns, fige) {
-    const espace = await Esp.getEsp(this, ns, false, this.nomop + '-checkEspace') // set this.ns
-    if (!this.estAdmin) espace.excFerme()
-    if (fige) espace.excFige(this)
-    this.gd.setEspace(espace)
-    this.ns = ns
-    this.org = espace.org
-    return espace
-  }
-
-  /*
-  decrypt (k, x) { return decode(decrypterSrv(k, Buffer.from(x))) }
-
-  crypt (k, x) { return crypterSrv(k, Buffer.from(encode(x))) }
-  */
 
   /* Helper d'accès depuis Cache */
 
@@ -1410,9 +1383,8 @@ export class Operation {
     gr.setZombi() // suppression du groupe et de son chatgrs
     this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
     // tâches de suppression de tous les membres et des notes
-    await Taches.nouvelle(this, Taches.GRM, gr.id, 0)
-    // Pour AGN, ids est l'alias du groupe
-    await Taches.nouvelle(this, Taches.AGN, gr.id, gr.alias)
+    await Taches.nouvelle(this, Taches.GRM, gr.id, '')
+    await Taches.nouvelle(this, Taches.AGN, gr.id, '')
   }
 
   /* Méthode de mise à jour des CV des membres d'un groupe */

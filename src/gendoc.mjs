@@ -12,9 +12,10 @@ export class GenConnx {
     this.op = op
     this.provider = provider
     this.appKey = provider.appKey
-    this.crOrg = provider.site.org || false
-    this.crId = provider.site.id || false
-    this.crData = provider.site.data || false
+    const x = provider.site.db
+    this.crOrg = (x && x[0]) || false
+    this.crId = (x && x[1]) || false
+    this.crData = (x && x[2]) || false
     this.cOrg = this.cryptedOrg(this.op.org)
   }
 
@@ -56,7 +57,7 @@ export class GenConnx {
     if (obj.dlv !== undefined) r.dlv = obj.dlv
     if (obj.dfh !== undefined) r.dfh = obj.dfh
 
-    if (obj._nom === 'Fpurges' || obj._nom === 'Transferts') r.id = obj.i
+    if (obj._nom === 'Fpurges' || obj._nom === 'Transferts') r.id = obj.id
     else r.id = obj.id ? this.idLong(obj.id) : this.cOrg
     if (obj.ids !== undefined) r.ids = obj._nom === 'Tickets' ? obj.ids : this.cryptedId(obj.ids)
     if (obj.hk !== undefined) r.hk = this.idLong(obj.hk)
@@ -84,7 +85,7 @@ export class GenConnx {
   }
 }
 
-/* Pour transcoder les rows dans un export-db */
+/* Pour transcoder les rows dans un export-db 
 export class NsOrg {
   constructor (cin, cout) {
     this.ns = cout.ns
@@ -111,11 +112,13 @@ export class NsOrg {
   }
 
 }
+*/
 
 /* GenDoc **************************************************
 Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)
 est le contenu compilé d'un document.
 ***********************************************************/
+
 export class GenDoc {
   /* Descriptifs des collections et sous-collection pour l'export*/
   static collsExp1 = ['espaces', 'syntheses']
@@ -152,7 +155,7 @@ export class GenDoc {
     membres: ['id', 'ids', 'v', '_data_'],
     chatgrs: ['id', 'ids', 'v', '_data_']
   }
-
+  
   get _attrs () { return GenDoc._attrs[this._nom] }
 
   static _new (nom) {
@@ -181,10 +184,12 @@ export class GenDoc {
     return obj
   }
 
+  static defVals = { id: '', ids: '', hk: '', v:0, dlv: 0, dfh: 0, vcv: 0 }
+
   constructor (nom) { 
     const la = GenDoc._attrs[nom]
     this._nom = nom
-    la.forEach(a => { this[a] = a === '_data_' ? null : (a === 'org' ? '' : 0) })
+    la.forEach(a => { const v = GenDoc.defVals[a]; if (v !== undefined) this[a] = v })
   }
 
   init (d) {
@@ -200,8 +205,7 @@ export class GenDoc {
       const obj = decode(Buffer.from(row._data_))
       for (const [key, value] of Object.entries(obj)) d[key] = value
     }
-    if (row._nom === 'espaces') 
-      d.org = this.decryptedOrg(row.id)
+    if (row._org) d.org = row._org
     return d.compile()
   }
 
@@ -254,13 +258,14 @@ export class Espaces extends GenDoc {
     return n && n.nr === 3 ? [n.texte, n.dh] : null
   }
 
-  static nouveau (org, auj, cleES) {
+  static nouveau (auj, cleES, cleET, hTC) {
     return new Espaces().init({
       _maj: true, v: 0,
       id: '',
-      org: org,
       creation: auj,
       cleES: cleES,
+      cleET: cleET,
+      hTC: hTC,
       moisStat: 0,
       moisStatT: 0,
       quotas: { qc: 0, qn: 0, qv: 0},
@@ -275,7 +280,7 @@ export class Espaces extends GenDoc {
   cloneCourt () {
     return new Espaces().init({
       id: '',
-      org: this.org,
+      org: this._org,
       creation: this.creation,
       moisStat: this.moisStat,
       moisStatT: this.moisStatT,
@@ -283,8 +288,7 @@ export class Espaces extends GenDoc {
       notifE: this.notifE,
       dlvat: this.dlvat,
       opt: this.opt,
-      nbmi: this.nbmi,
-      tnotifP: {}
+      nbmi: this.nbmi
     })
   }
 
@@ -351,7 +355,7 @@ export class Espaces extends GenDoc {
 
   /* Restriction pour les délégués de la partition idp
   **Propriétés accessibles :**
-    - administrateur technique : toutes de tous les espaces.
+    - administrateur technique : toutes de tous les espaces SAUF notifP.
     - Comptable : toutes de _son_ espace.
     - Délégués : dlvat, nbmi, pas stats ...
     - tous comptes: dlvat, nbmi et la notification de _leur_ partition sera seule lisible.
@@ -362,28 +366,25 @@ export class Espaces extends GenDoc {
     if (op.estAdmin) {
       cl.cleES = decrypterSrv(op.db.appKey, this.cleES)
       cl.hTC = this.hTC
+      cl.moisStat = this.moisStat
+      cl.moisStatT = this.moisStatT
       return cl.toData()
     }
 
     if (op.estComptable) {
       cl.tnotifP = this.tnotifP
+      cl.moisStat = this.moisStat
+      cl.moisStatT = this.moisStatT
       return cl.toData()
     }
 
-    delete cl.moisStat
-    delete cl.moisStatT
-
     if (op.compte && op.compte.idp) {
       if (!op.compte.del) {
-        const x = this.tnotifP[op.compte.idp]
-        cl.tnotifP = { }
-        cl.tnotifP[op.compte.idp] = x
-      } else {
-        cl.tnotifP = this.tnotifP
-      }
-    } else { // par exemple depuis SyncSp
-      delete cl.tnotifP
+        cl.tnotifP = {}
+        cl.tnotifP[op.compte.idp] = this.tnotifP[op.compte.idp]
+      } else cl.tnotifP = this.tnotifP
     }
+
     return cl.toData()
   }
 }
@@ -623,7 +624,7 @@ export class Syntheses extends GenDoc {
 
   static l1 = ['qc', 'qn', 'qv']
 
-  static nouveau (/* ns */) { 
+  static nouveau () { 
     return new Syntheses().init({
       _maj: true, v: 0,
       qA: { qc: 0, qn: 0, qv: 0 },
@@ -1433,7 +1434,6 @@ export class Avatars extends GenDoc {
     return new Avatars().init({ 
       _maj: true, v: 0,
       id: args.id,
-      alias: ID.rnd(),
       pub: args.pub,
       privK: args.privK,
       vcv: 1,
@@ -1604,6 +1604,15 @@ export class Notes extends GenDoc {
 
 export class Transferts extends GenDoc { 
   constructor() { super('transferts') } 
+
+  static nouveau (avgrid, idf, dlv) {
+    const tr = new Transferts().init({
+      id: avgrid + '_' + idf,
+      avgrid: avgrid,
+      idf: idf,
+      dlv: dlv,
+    })
+  }
 }
 
 export class Sponsorings extends GenDoc { 
@@ -1872,7 +1881,6 @@ export class Groupes extends GenDoc {
     return new Groupes().init({
       _maj: true, v: 0,
       id: args.idg, // id du groupe
-      alias: ID.rnd(),
       tid: [null, args.ida], // id de l'avatar fondateur
       msu: args.msu ? null : [], // mode simple (true) / unanime
       qn: args.quotas.qn,  // quotas.qn

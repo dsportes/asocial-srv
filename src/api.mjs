@@ -17,10 +17,6 @@ export class Cles {
     return s.replace(/=/g, '').replace(/\+/g, '0').replace(/\//g, '1')
   }
 
-  static ns = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-
-  static nsToInt (ns) { return Cles.ns.indexOf(ns)}
-
   static espace() { const rnd = random(32); rnd[0] = 1; return rnd }
   static partition () { const rnd = random(32); rnd[0] = 2; return rnd }
   static comptable() { const rnd = new Uint8Array(32); rnd[0] = 3; return rnd }
@@ -78,10 +74,6 @@ export class ID {
   static estNoteGr (id) { return id.charAt(0) === '6' }
   static estNoteLoc (id) { return id.charAt(0) === '7' }
   static estFic (id) { return id.charAt(0) === '8' }
-
-  static long (id, ns) { return ns + id}
-  static court (id) { return id.substring(1)}
-  static ns (id) { return id.substring(0, 1)}
 
   static rnd () {
     const s = fromByteArray(random(9))
