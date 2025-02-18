@@ -4,10 +4,48 @@ import { FLAGS, F_SRV, A_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, lqv, qv0, assertQv, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
 
-const ROWSENCLAIR = new Set(['versions'])
+// Classe abstraite pour méthodes communes à GenStProvider et GenConnx
+class GenStDb {
+  // crypte un texte UTF-8 et retourne son base64
+  txt2B64 (txt) {
+    return fromByteArray(crypterSrv(this.appKey, Buffer.from(txt)))
+  }
+
+  // decrypte un base64 et retourne son texte UTF-8
+  b642Txt (b64) {
+    return decrypterSrv(this.appKey, toByteArray(b64)).toString('utf-8')
+  }
+
+  cryptedOrg (org) { return this.crOrg && org ? this.txt2B64(org) : (org || '') }
+
+  decryptedOrg (org) { return this.crOrg && org ? this.b642Txt(org) : (org || '') }
+
+  cryptedId (id) { return this.crId && id ? this.txt2B64(id) : (id || '') }
+
+  decryptedId (id) { return this.crId && id ? this.b642Txt(id) : (id || '') }
+
+  cryptedIdf (idf) { return this.crIdf && idf ? this.txt2B64(idf) : (idf || '') }
+
+  decryptedIdf (idf) { return this.crIdf && idf ? this.b642Txt(idf) : (idf || '') }
+
+}
+
+// Classe abstraite de provider de Storga
+export class GenStProvider extends GenStDb {
+  constructor (site, code) {
+    const app_keys = config.app_keys
+    this.code = code
+    const s = app_keys.sites[site]
+    const x = provider.site.st
+    this.appKey = Buffer.from(s.k, 'base64')
+    this.crOrg = (x && x[0]) || false
+    this.crId = (x && x[1]) || false
+    this.crIdf = (x && x[2]) || false
+  }
+}
 
 // Classe abstraite de connexion à une DB
-export class GenConnx {
+export class GenConnx extends GenStDb {
   async connect (op, provider) {
     this.op = op
     this.provider = provider
@@ -17,16 +55,6 @@ export class GenConnx {
     this.crId = (x && x[1]) || false
     this.crData = (x && x[2]) || false
     this.cOrg = this.cryptedOrg(this.op.org)
-  }
-
-  // crypte un texte UTF-8 et retourne son base64
-  txt2B64 (txt) {
-    return fromByteArray(crypterSrv(this.appKey, Buffer.from(txt)))
-  }
-
-  // decrypte un base64 et retourne son texte UTF-8
-  b642Txt (b64) {
-    return decrypterSrv(this.appKey, toByteArray(b64)).toString('utf-8')
   }
 
   decryptRow (row) {
@@ -49,6 +77,7 @@ export class GenConnx {
     return row
   }
   
+  // Depuis un document compilé
   prepRow (obj) {
     const r = { }
 
@@ -68,14 +97,6 @@ export class GenConnx {
     return r
   }
 
-  cryptedOrg (org) { return this.crOrg && org ? this.txt2B64(org) : (org || '') }
-
-  decryptedOrg (org) { return this.crOrg && org ? this.b642Txt(org) : (org || '') }
-
-  cryptedId (id) { return this.crId && id ? this.txt2B64(id) : (id || '') }
-
-  decryptedId (id) { return this.crId && id ? this.b642Txt(id) : (id || '') }
-
   idLong (id) { return this.cOrg + '@' + this.cryptedId(id) }
 
   idCourt (id) {
@@ -83,36 +104,49 @@ export class GenConnx {
     const s = i === -1 ? id : id.substring(i + 1)
     return !s ? '' : this.b642Txt(s)
   }
+
 }
 
-/* Pour transcoder les rows dans un export-db 
-export class NsOrg {
+/* Pour transcoder les rows dans un export-db */
+export class MuterRow {
   constructor (cin, cout) {
-    this.ns = cout.ns
-    this.org = cout.org
-    this.ch = cin.ns !== this.ns || cin.org !== this.org
-    this.kin = cin.dbp.appKey
-    this.kout = cout.dbp.appKey
+    this.cin = cin
+    this.cout = cout
   }
 
-  chRow (row) {
-    if (this.ch) {
-      row.id = ID.long(ID.court(row.id), this.ns)
-      if (row.ids !== undefined) row.ids = ID.long(ID.court(row.ids), this.ns)
-      if (row.idf !== undefined) row.idf = row.idf
-      if (row.hk !== undefined) row.hk = ID.long(ID.court(row.hk), this.ns)
-      if (row.org !== undefined) row.org = this.org
+  idCourt (row) {
+    const i = row.id.indexOf('@')
+    const s = i === -1 ? row.id : row.id.substring(i + 1) 
+    return this.cin.decryptedId(s)
+  }
+
+  mute (row) {
+    if (row._nom !== 'Fpurges' && row._nom === 'Transferts') {
+      const id = this.idCourt(row)
+      row.id = this.cout.idLong(id)
     }
-    if (row._nom === 'espaces') {
-      const r = compile(row)
-      r.org = this.org
-      row = r.toRow(this) // this ne sert qu'à récupérer ns
+
+    if (row.ids !== undefined) {
+      if (row._nom !== 'Tickets') {
+        const ids = this.cin.decryptedId(row.ids)
+        row.ids = this.cout.cryptedId(ids)
+      }
     }
-    return row
+
+    if (row.hk !== undefined) {
+      const i = row.hk.indexOf('@')
+      const s = i === -1 ? row.hk : row.hk.substring(i + 1) 
+      const hk = this.cin.decryptedId(s)
+      row.hk = this.cout.idLong(hk)
+    }
+
+    const data = row._data_ && this.cin.crData ? 
+      new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : (row._data_ || null)
+    row._data = data && this.cout.crData ? 
+      new Uint8Array(crypterSrv(this.cout.appKey, data)) : (data || null)
   }
 
 }
-*/
 
 /* GenDoc **************************************************
 Chaque instance d'une des classes héritant de GenDoc (Avatars, Groupes etc.)

@@ -771,7 +771,7 @@ class GD {
     if (this.espace) await this.majEsp(this.espace)
     if (this.transferts.length) 
       for(const x of this.transferts)
-        await this.op.insert(x.toRow())
+        await this.op.insert(x)
     
     for(const [id, d] of this.comptes) await this.majCompte(d)
 

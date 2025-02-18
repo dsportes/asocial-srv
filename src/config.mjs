@@ -113,13 +113,13 @@ class Logger {
 config.logger = new Logger()
 
 /*******************************************************************/
-export async function getStorageProvider (codeProvider) {
+export async function getStorageProvider (codeProvider, site) {
   config.logger.info('Storage= [' + config.run.storage_provider + ']')
   let storage
   switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
-  case 'fs' : { storage = FsProvider ? new FsProvider(codeProvider) : null; break }
-  case 's3' : { storage = S3Provider ? new S3Provider(codeProvider) : null; break }
-  case 'gc' : { storage = GcProvider ? new GcProvider(codeProvider) : null; break }
+  case 'fs' : { storage = FsProvider ? new FsProvider(codeProvider, site) : null; break }
+  case 's3' : { storage = S3Provider ? new S3Provider(codeProvider, site) : null; break }
+  case 'gc' : { storage = GcProvider ? new GcProvider(codeProvider, site) : null; break }
   }
   if (!storage) {
     config.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
@@ -136,8 +136,8 @@ export async function getDBProvider (codeProvider, site) {
   config.logger.info('DB= [' + codeProvider + ']')
   let dbp
   switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
-  case 'sqlite' : { dbp = SqliteProvider ? new SqliteProvider(site, codeProvider) : null; break }
-  case 'firestore' : { dbp = FirestoreProvider ? new FirestoreProvider(site, codeProvider) : null; break }
+  case 'sqlite' : { dbp = SqliteProvider ? new SqliteProvider(codeProvider, site) : null; break }
+  case 'firestore' : { dbp = FirestoreProvider ? new FirestoreProvider(codeProvider, site) : null; break }
   }
   if (!dbp || dbp.ko) {
     config.logger.error('DB provider non trouvé:' + codeProvider)

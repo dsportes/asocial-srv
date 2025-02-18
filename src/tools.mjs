@@ -1,19 +1,19 @@
 /*
 Exemple export-db:
-node src/tools.mjs export-db --in 1,demo,sqlite_a,A --out 2,demo2,sqlite_b,B
-node src/tools.mjs export-db --in 1,demo,sqlite_a,A --out 1,demo,firestore_a,A
-node src/tools.mjs export-db --in 1,demo,sqlite_b,A --out 1,demo,firestore_a,A
-node src/tools.mjs export-db --in 1,demo,firestore_a,A --out 1,demo,sqlite_b,A
+node src/tools.mjs export-db --in demo,sqlite_a,A --out demo2,sqlite_b,B
+node src/tools.mjs export-db --in demo,sqlite_a,A --out demo,firestore_a,A
+node src/tools.mjs export-db --in demo,sqlite_b,A --out demo,firestore_a,A
+node src/tools.mjs export-db --in demo,firestore_a,A --out demo,sqlite_b,A
 
-node src/tools.mjs export-db --in 32,doda,firestore_a,A --out 32,doda,sqlite_b,A
+node src/tools.mjs export-db --in doda,firestore_a,A --out doda,sqlite_b,A
 
 Exemple export-st:
-node src/tools.mjs export-st --in demo,fs_a --out demo,gc_a
-node src/tools.mjs export-st --in demo,gc_a --out demo,fs_b
+node src/tools.mjs export-st --in demo,fs_a,A --out demo,gc_a,A
+node src/tools.mjs export-st --in demo,gc_a,A --out demo,fs_b,A
 
 Exemple purge-db
-node src/tools.mjs purge-db --in 2,coltes,firebase_b,A
-node src/tools.mjs purge-db --in 1,demo,sqlite_b,A
+node src/tools.mjs purge-db --in coltes,firebase_b,A
+node src/tools.mjs purge-db --in demo,sqlite_b,A
 
 Exemple purge-st
 node src/tools.mjs purge-st --in demo2,fs_b
@@ -26,8 +26,8 @@ import path from 'path'
 import { writeFileSync } from 'node:fs'
 
 import { config, getStorageProvider, getDBProvider } from './config.mjs'
-import { AMJ, ID, Cles } from './api.mjs'
-import { GenDoc, NsOrg } from './gendoc.mjs'
+import { AMJ, ID } from './api.mjs'
+import { GenDoc, MuterRow } from './gendoc.mjs'
 import { genVapidKeys } from './notif.mjs'
 
 const cmdargs = parseArgs({
@@ -54,7 +54,8 @@ function prompt (q) {
 }
 
 class OpSimple {
-  constructor (storage) {
+  constructor (storage, org) {
+    this.org = org
     this.nl = 0
     this.ne = 0
     this.auj = AMJ.amjUtc()
@@ -137,26 +138,22 @@ export class Outils {
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
     
-    if (x.length !== 4) 
-      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: N,asso,sqlite_a,A + ( ns,org,provider,site)'
-    
-    e.ns = x[0]
-    if (Cles.nsToInt(e.ns) === -1)
-      throw 'Argument --' + io + ' : Attendu: N,org,provider,site : N [' + e.ns + ']: doit être 0..1 OU a..z OU A..Z'
-    
-    e.org = x[1]
+    if (x.length !== 3) 
+      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: org1,sqlite_a,A + ( org,provider,site)'
+        
+    e.org = x[0]
     if (!e.org || e.org.length < 4 || e.org.length > 8)
-      throw 'Argument --' + io + ' : Attendu: N,org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
+      throw 'Argument --' + io + ' : Attendu: org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
 
-    e.site = x[3]
+    e.site = x[2]
     e.appKey = app_keys.sites[e.site]
     if (!e.appKey)
-      throw 'Argument --' + io + ' : Attendu: N,org,provider,site . site [' + e.site + '] inconnu'
+      throw 'Argument --' + io + ' : Attendu: org,provider,site . site [' + e.site + '] inconnu'
 
-    e.pname = x[2]
+    e.pname = x[1]
     e.dbp = await getDBProvider(e.pname, e.site)
     if (!e.dbp || e.dbp.ko)
-      throw 'Argument --' + io + ' : Attendu: N,org,provider,site : provider [' + e.pname + ']: non trouvé'
+      throw 'Argument --' + io + ' : Attendu: org,provider,site : provider [' + e.pname + ']: non trouvé'
 
     this.cfg[io] = e
   }
@@ -166,15 +163,19 @@ export class Outils {
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
-    if (x.length !== 2) 
-      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: doda,fs_a'
+    if (x.length !== 3) 
+      throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: doda,fs_a,A'
     e.org = x[0]
     if (!e.org || e.org.length < 4 || e.org.length > 12)
-      throw 'Argument --' + io + ' : Attendu: org,provider : org [' + e.org + ']: est un code de 4 à 12 caractères'
+      throw 'Argument --' + io + ' : Attendu: org,provider,site : org [' + e.org + ']: est un code de 4 à 12 caractères'
+    e.site = x[2]
+    e.appKey = app_keys.sites[e.site]
+    if (!e.appKey)
+      throw 'Argument --' + io + ' : Attendu: org,provider,site . site [' + e.site + '] inconnu'
     e.pname = x[1]
     e.storage = await getStorageProvider(x[1])
     if (e.storage.ko)
-      throw 'Argument --' + io + ' : Attendu: org,provider : provider [' + x[1] + ']: non trouvé'
+      throw 'Argument --' + io + ' : Attendu: org,provider,site : provider [' + x[1] + ']: non trouvé'
     this.cfg[io] = e
   }
 
@@ -183,41 +184,42 @@ export class Outils {
     const cout = this.cfg.out
     if (cin.dbp.type === 'firestore' && cout.dbp.type === 'firestore' && cin.dbp.code !== cout.dbp.code)
       throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre Firestore' 
-    if ((cin.ns === cout.ns) && (cin.dbp.code === cout.dbp.code)) 
-      throw 'Il n\'est pas possible d\'exporter un ns d\'une base dans la même base sans changer de ns' 
+    if ((cin.org === cout.org) && (cin.dbp.code === cout.dbp.code)) 
+      throw 'Il n\'est pas possible d\'exporter une organisation d\'une base dans la même base sans changer son nom' 
 
-    const opin = new OpSimple(null)
+    const opin = new OpSimple(null, cin.org)
     await cin.dbp.connect(opin)
-    const opout = new OpSimple(null)
+    const opout = new OpSimple(null, cout.org)
     await cout.dbp.connect(opout)
  
     let msg = 'export-db:'
-    msg += cin.ns === cout.ns ? ' ns:' + cin.ns : ' ns:' + cin.ns + '=>' + cout.ns
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
     msg += cin.site === cout.site ? ' site:' + cin.site : ' site:' + cin.site + '=>' + cout.site
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
+    const muteur = new MuterRow(opin.db, opout.db)
+
     // Opérations fake qui permettent de passer appKey aux méthodes decryptRow / preoRow
     // const opin = { db: {appKey: cin.prov.appKey }, nl: 0, ne: 0, fake: true}
     // const opout = { db: {appKey: cout.prov.appKey }, nl: 0, ne: 0, fake: true}
     const scollIds = []
-    const ch = new NsOrg(cin, cout)
+    // const ch = new NsOrg(cin, cout)
 
     for (const nom of GenDoc.collsExp1) {
-      const row = await opin.db.getNV(nom, cin.ns)
-      if (!this.simu) await opout.db.batchInsertRows([ch.chRow(row)])
+      const row = await opin.db.getNV(nom, '')
+      if (!this.simu) await opout.db.batchInsertRows([muteur.mute(row)])
       this.log(`export ${nom}`)
     }
 
     for (const nom of GenDoc.collsExp2) {
       const v = nom === 'versions'
-      const rows = await opin.db.collNs(nom, cin.ns)
+      const rows = await opin.db.collOrg(nom, null, true)
       const lstRows = []
       for (const row of rows) {
-        if (v) scollIds.push(row.id)
-        lstRows.push(ch.chRow(row))
+        if (v) scollIds.push(muteur.idCourt(row))
+        lstRows.push(muteur.mute(row))
       }
       if (!this.simu) await opout.db.batchInsertRows(lstRows)
       this.log(`export ${nom} - ${rows.length}`)
@@ -228,9 +230,9 @@ export class Outils {
     GenDoc.sousColls.forEach(nom => { stats[nom] = 0 })
     for (const id of scollIds) {
       n++
-      const sc = ID.estGroupe(ID.court(id)) ? GenDoc.collsExpG : GenDoc.collsExpA
+      const sc = ID.estGroupe(id) ? GenDoc.collsExpG : GenDoc.collsExpA
       for (const nom of sc) {
-        const rows = await opin.db.scoll(nom, id, 0)
+        const rows = await opin.db.scoll(nom, id, 0, true)
         const lstRows = []
         for (const row of rows) {
           stats[nom]++
@@ -301,7 +303,7 @@ export class Outils {
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
 
-    await opin.db.deleteNS(this.log, cin.ns)
+    await opin.db.deleteOrg(this.log)
   }
 
   async purgeSt() {

@@ -30,7 +30,7 @@ try {
   dbp = await getDBProvider(config.run.db_provider, config.run.site)
   if (!dbp || dbp.ko) exit(1)
   
-  storage = await getStorageProvider(config.run.storage_provider)
+  storage = await getStorageProvider(config.run.storage_provider, config.run.site)
   if (!storage || storage.ko) exit(1)
 
   loadTaches()

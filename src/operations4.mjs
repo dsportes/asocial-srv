@@ -174,7 +174,7 @@ operations.GetCompta = class GetCompta extends Operation {
     }
     const compte = await this.gd.getCO(args.id, 'GetCompta-3')
     const compta = await this.gd.getCA(args.id, 'GetCompta-1')
-    this.setRes('rowCompta', compta.toShortRow(this))
+    this.setRes('rowCompta', compta.toShortData(this))
   }
 }
 
@@ -319,7 +319,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     const idsE = ID.rnd() // this.idsChat(args.idE, args.idI)
 
     let chI = await this.gd.getCAV(args.idI, idsI)
-    if (chI) { this.setRes('rowChat', chI.toShortRow(this)); return}
+    if (chI) { this.setRes('rowChat', chI.toShortData(this)); return}
 
     chI = await this.gd.nouvCAV({ 
       id: args.idI,
@@ -332,7 +332,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
       cleEC: args.ch.cleE2C,
       items: [{a: 0, dh: this.dh, t: args.ch.txt}]
     })
-    this.setRes('rowChat', chI.toShortRow(this))
+    this.setRes('rowChat', chI.toShortData(this))
     this.compta.ncPlus(1)
 
     const chE = await this.gd.nouvCAV({
@@ -1126,7 +1126,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
   }
 
   phase3() {
-    this.setRes('rowCompta', this.compta.toShortRow(this))
+    this.setRes('rowCompta', this.compta.toShortData(this))
   }
 }
 
@@ -1150,7 +1150,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
   }
 
   phase3() {
-    this.setRes('rowCompta', this.compta.toShortRow(this))
+    this.setRes('rowCompta', this.compta.toShortData(this))
   }
 }
 

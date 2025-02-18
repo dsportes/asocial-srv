@@ -100,7 +100,7 @@ operations.GetEspaces = class GetEspaces extends Operation {
     const espaces = []
     for(const row of rows) {
       const esp = GenDoc.compile(row) // A ajouté esp.org 
-      espaces.push(esp.toShortRow(this))
+      espaces.push(esp.toShortData(this))
     }
     this.setRes('espaces', espaces)
   }
@@ -177,7 +177,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
         await sleep(config.D1)
         throw new AppExc(F_SRV, 11)
       }
-      this.setRes('rowSponsoring', sp.toShortRow(this))
+      this.setRes('rowSponsoring', sp.toShortData(this))
       this.setRes('ns', this.ns)  
     }
   }
@@ -338,7 +338,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
         cleEC: args.ch.cleE1C,
         items: [{a: 1, dh: dhsp, t: args.ch.t1c}, {a: 0, dh: this.dh, t: args.ch.t2c}]
       })
-      // this.setRes('rowChat', chI.toShortRow(this))
+      // this.setRes('rowChat', chI.toShortData(this))
       this.compta.ncPlus(1)
 
       await this.gd.nouvCAV({
@@ -413,7 +413,7 @@ operations.GetSynthese = class GetSynthese extends Operation {
   async phase2 (args) {
     if (this.estAdmin) this.ns = args.ns
     const synthese = await this.gd.getSY() 
-    this.setRes('rowSynthese', synthese.toShortRow(this))
+    this.setRes('rowSynthese', synthese.toShortData(this))
   }
 }
 
@@ -433,7 +433,7 @@ operations.GetPartition = class GetPartition extends Operation {
     if (this.compte._estA) throw new AppExc(F_SRV, 220)
     const id = !this.estComptable ? this.compte.idp : args.id
     const partition = GenDoc.compile(await this.getRowPartition(id, 'GetPartition'))
-    this.setRes('rowPartition', partition.toShortRow(this, this.compte))
+    this.setRes('rowPartition', partition.toShortData(this, this.compte))
   }
 }
 
@@ -449,7 +449,7 @@ operations.GetEspace = class GetEspace extends Operation {
   }
 
   async phase2 (args) {
-    this.setRes('rowEspace', this.espace.toShortRow(this))
+    this.setRes('rowEspace', this.espace.toShortData(this))
   }
 }
 
@@ -491,7 +491,7 @@ operations.Sync = class Sync extends Operation {
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
     if (!gr) gr = GenDoc.compile(await this.db.getV('groupes', ida, x.vs))
-    if (gr) this.addRes('rowGroupes', gr.toShortRow(this, this.compte, x.m))
+    if (gr) this.addRes('rowGroupes', gr.toShortData(this, this.compte, x.m))
   }
 
   async getGrRows (ida, x) { 
@@ -499,32 +499,32 @@ operations.Sync = class Sync extends Operation {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
       SINON chargement initial de puis 0 */
       for (const row of await this.db.scoll('membres', ida, x.ms ? x.vs : 0))
-        this.addRes('rowMembres', GenDoc.compile(row).toShortRow(this))
+        this.addRes('rowMembres', GenDoc.compile(row).toShortData(this))
       for (const row of await this.db.scoll('chatgrs', ida, x.ms ? x.vs : 0))
-        this.addRes('rowChatgrs', GenDoc.compile(row).toShortRow(this))
+        this.addRes('rowChatgrs', GenDoc.compile(row).toShortData(this))
     }
 
     /* SI la session avait des notes chargées, chargement incrémental depuis vs
     SINON chargement initial de puis 0 */
     if (x.n) for (const row of await this.db.scoll('notes', ida, x.ns ? x.vs : 0))
-      this.addRes('rowNotes', GenDoc.compile(row).toShortRow(this, this.id))
+      this.addRes('rowNotes', GenDoc.compile(row).toShortData(this, this.id))
   }
   
   async getAvRows1 (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
     const row = await this.db.getV('avatars', ida, x.vs)
-    if (row) this.addRes('rowAvatars', GenDoc.compile(row).toShortRow(this))
+    if (row) this.addRes('rowAvatars', GenDoc.compile(row).toShortData(this))
   }
 
   async getAvRows (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
     for (const row of await this.db.scoll('notes', ida, x.vs))
-      this.addRes('rowNotes', GenDoc.compile(row).toShortRow(this))
+      this.addRes('rowNotes', GenDoc.compile(row).toShortData(this))
     for (const row of await this.db.scoll('chats', ida, x.vs))
-      this.addRes('rowChats', GenDoc.compile(row).toShortRow(this))
+      this.addRes('rowChats', GenDoc.compile(row).toShortData(this))
     for (const row of await this.db.scoll('sponsorings', ida, x.vs))
-      this.addRes('rowSponsorings', GenDoc.compile(row).toShortRow(this))
+      this.addRes('rowSponsorings', GenDoc.compile(row).toShortData(this))
     if (ID.estComptable(this.id)) 
       for (const row of await this.db.scoll('tickets', ida, x.vs))
-        this.addRes('rowTickets', GenDoc.compile(row).toShortRow(this))
+        this.addRes('rowTickets', GenDoc.compile(row).toShortData(this))
   }
 
   async setAv (ida) {
@@ -563,7 +563,7 @@ operations.Sync = class Sync extends Operation {
     this.loginSync = this.subJSON ? true : false
 
     if (this.premTour)
-      this.setRes('rowEspace', this.espace.toShortRow(this))
+      this.setRes('rowEspace', this.espace.toShortData(this))
 
     if (this.loginSync) this.setRes('tarifs', Tarif.tarifs)
 
@@ -577,13 +577,13 @@ operations.Sync = class Sync extends Operation {
     if (this.premTour || (this.ds.compte.vs < this.compte.vci)) {
       let rowCompti = Cache.aVersion(this, 'comptis', this.compte.id, this.compte.vci) // déjà en cache ?
       if (!rowCompti) rowCompti = await this.getRowCompti(this.compte.id)
-      this.setRes('rowCompti', GenDoc.compile(rowCompti).toShortRow(this))
+      this.setRes('rowCompti', GenDoc.compile(rowCompti).toShortData(this))
     }
 
     if (this.premTour || (this.ds.compte.vs < this.compte.vin)) {
       let rowInvit = Cache.aVersion(this, 'invits', this.compte.id, this.compte.vin) // déjà en cache ?
       if (!rowInvit) rowInvit = await this.getRowInvit(this.compte.id)
-      this.setRes('rowInvit', GenDoc.compile(rowInvit).toShortRow(this))
+      this.setRes('rowInvit', GenDoc.compile(rowInvit).toShortData(this))
     }
 
     /* Mise à niveau des listes avatars / groupes du dataSync
@@ -635,7 +635,7 @@ operations.Sync = class Sync extends Operation {
     }
 
     if (this.premTour || (this.ds.compte.vs < this.compte.v))
-      this.setRes('rowCompte', this.compte.toShortRow(this))
+      this.setRes('rowCompte', this.compte.toShortData(this))
 
     // Sérialisation et retour de dataSync
     this.setRes('dataSync', this.ds.serial(this.ns))

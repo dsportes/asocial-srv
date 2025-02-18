@@ -141,19 +141,19 @@ class Connx extends GenConnx {
   /*********************************************************************/
   // Retourne un dr (document reference)
   tacheP (top, ns, id, ids) {
-    return this.fs.doc('taches/' + top + ';' + ns + ';' + id + (ids ? ';' + ids : ''))
+    return this.fs.doc('taches/' + top + ';' + org + ';' + id + (ids ? ';' + ids : ''))
   }
 
   async setTache (t) {
     const r = { 
       op: t.op,
-      ns: t.ns, 
+      org: t.org, 
       id: t.id || '', 
       ids: t.ids || '',
       dh: t.dh, 
       exc: t.exc
     }
-    const dr = this.tacheP(r.op, r.ns, r.id, r.ids)
+    const dr = this.tacheP(r.op, r.org, r.id, r.ids)
     await dr.set(r)
   }
 

@@ -11,10 +11,10 @@ import path from 'path'
 import { existsSync } from 'node:fs'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
-import { GenConnx, GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
+import { GenConnx, GenDoc } from './gendoc.mjs'
 
 export class SqliteProvider {
-  constructor (site, code) {
+  constructor (code, site) {
     const app_keys = config.app_keys
     this.type = 'sqlite'
     this.code = code
@@ -151,7 +151,7 @@ class Connx extends GenConnx {
   /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, org, id, ids, dh, exc, dhf, nb) VALUES (@op, @ns, @id, @ids, @dh, @exc, 0, 0) ON CONFLICT (op, ns, id, ids) DO UPDATE SET ns = excluded.ns, dh = excluded.dh, exc = excluded.exc')
+      'INSERT INTO taches (op, org, id, ids, dh, exc, dhf, nb) VALUES (@op, @org, @id, @ids, @dh, @exc, 0, 0) ON CONFLICT (op, org, id, ids) DO UPDATE SET org = excluded.org, dh = excluded.dh, exc = excluded.exc')
     st.run({ 
       op: t.op,
       org: this.cryptedOrg(t.org),
@@ -229,7 +229,7 @@ class Connx extends GenConnx {
   
   /* Retourne le row d'une collection de nom / id (sans version))
   */
-  async getNV (nom, id) {
+  async getNV (nom, id, exportDb) {
     const idLong = GenDoc.collsExp1.has(nom) ? this.cryptedOrg(id) : this.idLong(id)
     const code = 'SELNV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id')
@@ -237,7 +237,7 @@ class Connx extends GenConnx {
     if (row) {
       row._nom = nom
       this.op.nl++
-      return this.decryptRow(row)
+      return exportDb ? row : this.decryptRow(row)
     }
     return null
   }
@@ -340,8 +340,8 @@ class Connx extends GenConnx {
   elle est invoquée à chaque row pour traiter son _data_
   plutôt que d'accumuler les rows.
   */
-  async collOrg (nom, org, fnprocess) {
-    const c = this.cryptedOrg(org)
+  async collOrg (nom, fnprocess, exportDb) {
+    const c = this.cryptedOrg(this.op.org)
     const min = c + '@'
     const max = c + '@{'
     const code = 'COLNS' + nom
@@ -351,10 +351,13 @@ class Connx extends GenConnx {
     const r = []
     for (const row of rows) {
       row._nom = nom
-      const rx = this.decryptRow(row)
-      this.op.nl++
-      if (!fnprocess) r.push(rx)
-      else fnprocess(rx._data_)
+      if (exportDb) r.push(row)
+      else {
+        const rx = this.decryptRow(row)
+        this.op.nl++
+        if (!fnprocess) r.push(rx)
+        else fnprocess(rx._data_)
+      }
     }
     return !fnprocess ? r : null
   }
@@ -362,7 +365,7 @@ class Connx extends GenConnx {
   /* Retourne la sous-collection de 'nom' du document majeur id
   Si v est donnée, uniquement les documents de version supérieurs à v.
   */
-  async scoll (nom, id, v) {
+  async scoll (nom, id, v, exportDb) {
     const code = (v ? 'SCOLV' : 'SCOLB') + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + ' WHERE id = @id' + (v ? ' AND v > @v' : ''))
     const rows = st.all({ id: this.idLong(id), v: v })
@@ -370,7 +373,7 @@ class Connx extends GenConnx {
     const r = []
     for (const row of rows) {
       row._nom = nom
-      r.push(this.decryptRow(row))
+      r.push(exportDb ? row : this.decryptRow(row))
     }
     this.op.nl += r.length
     return r
@@ -485,7 +488,7 @@ class Connx extends GenConnx {
 
   async insertRows (rows) {
     for (const row of rows) {
-      const r = await prepRow(this.appKey, row)
+      const r = await this.prepRow(row)
       const code = 'INS' + row._nom
       const st = this._stmt(code, this._insStmt(row._nom))
       st.run(r)
@@ -496,7 +499,7 @@ class Connx extends GenConnx {
     for (const row of rows) {
       const code = 'UPD' + row._nom
       const st = this._stmt(code, this._updStmt(row._nom))
-      const r = await prepRow(this.appKey, row)
+      const r = await this.prepRow(row)
       st.run(r)
     }
   }

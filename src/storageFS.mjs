@@ -4,11 +4,13 @@ import path from 'path'
 
 import { encode3 } from './util.mjs'
 import { config } from './config.mjs'
+import { GenStProvider } from './gendoc.mjs'
 
 /* FsProvider ********************************************************************/
-export class FsProvider {
-  constructor (codeProvider) {
-    this.rootpath = config[codeProvider].rootpath
+export class FsProvider extends GenStProvider {
+  constructor (code, site) {
+    super(code, site)
+    this.rootpath = config[code].rootpath
     if (!existsSync(this.rootpath)) {
       config.logger.info('Path FsStorage inaccessible= [' + this.rootpath + ']')
       this.ko = true
@@ -35,8 +37,11 @@ export class FsProvider {
 
   putUrl (org, id, idf) { return this.storageUrlGenerique(org, id, idf) }
 
-  async getFile (org, id, idf) {
+  async getFile (porg, pid, pidf) {
     try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
+      const idf = this.cryptedIdf(pidf)
       const p = path.resolve(this.rootpath, ''+org, ''+id, ''+idf)
       return await readFile(p)
     } catch (err) {
@@ -45,20 +50,26 @@ export class FsProvider {
     }
   }
 
-  async putFile (org, id, idf, data) {
+  async putFile (porg, pid, pidf, data) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const idf = this.cryptedIdf(pidf)
     const dir = path.resolve(this.rootpath, ''+org, ''+id)
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     const p = path.resolve(dir, ''+idf)
     await writeFile(p, Buffer.from(data))
   }
 
-  async delFiles (org, id, lidf) {
+  async delFiles (porg, pid, lidf) {
     if (!lidf || !lidf.length) return
     try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
       const dir = path.resolve(this.rootpath, ''+org, ''+id)
       if (existsSync(dir)) {
         for (let i = 0; i < lidf.length; i++) {
-          const p = path.resolve(dir, '' + lidf[i])
+          const idf = this.cryptedIdf(lidf[i])
+          const p = path.resolve(dir, '' + idf)
           try {
             unlinkSync(p)
           } catch (e) { /* rien*/ }
@@ -70,8 +81,10 @@ export class FsProvider {
     }
   }
 
-  async delId (org, id) {
+  async delId (porg, pid) {
     try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
       const dir = path.resolve(this.rootpath, ''+org, ''+id)
       if (existsSync(dir)) {
         rmSync(dir, { recursive: true, force: true })
@@ -82,8 +95,9 @@ export class FsProvider {
     }
   }
 
-  async delOrg (org) {
+  async delOrg (porg) {
     try {
+      const org = this.cryptedOrg(porg)
       const dir = path.resolve(this.rootpath, ''+org)
       if (existsSync(dir)) {
         rmSync(dir, { recursive: true, force: true })
@@ -94,13 +108,18 @@ export class FsProvider {
     }
   }
 
-  async listFiles (org, id) {
+  async listFiles (porg, pid) {
     try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
       const lst = []
       const dir = path.resolve(this.rootpath, ''+org, ''+id)
       if (existsSync(dir)) {
         const files = readdirSync(dir)
-        if (files && files.length) files.forEach(name => { lst.push(name) })
+        if (files && files.length) files.forEach(name => { 
+          const dname = this.decryptedIdf(name)
+          lst.push(dname) 
+        })
       }
       return lst
     } catch (err) {
@@ -109,13 +128,17 @@ export class FsProvider {
     }
   }
 
-  async listIds (org) {
+  async listIds (porg) {
     try {
       const lst = []
+      const org = this.cryptedOrg(porg)
       const dir = path.resolve(this.rootpath, ''+org)
       if (existsSync(dir)) {
         const files = readdirSync(dir)
-        if (files && files.length) files.forEach(name => { lst.push(name) })
+        if (files && files.length) files.forEach(name => { 
+          const dname = this.decryptedId(name)
+          lst.push(dname) 
+        })
       }
       return lst
     } catch (err) {
