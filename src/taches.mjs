@@ -379,64 +379,67 @@ operations.VER = class VER extends OperationT {
 }
 
 /* statistique "mensuelle" des comptas (avec purges) et des tickets
-- todo : liste des stats à calculer. { org, t: 'C' ou 'T', mr, mois }
+- todo : liste des espaces ayant des stats à calculer.
 */
 operations.STA = class STA extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
     if (!args.todo) {
-      const mc = Math.floor(AMJ.amjUtc() / 100) // Mois courant
       args.todo = []
-      await Esp.load(this.db)
-      for (const [ns, row] of Esp.map) {
-        const esp = compile(row)
-        if (esp.fige) continue
+
+      const rows = await this.db.getRowEspacesCalc(this.auj)
+      for(const row of rows) {
+        const esp = GenDoc.compile(row)
+        if (esp.fige || esp.clos) continue
         /* 
         - `creation` : date de création.
         - `moisStat` : dernier mois de calcul de la statistique des comptas.
         - `moisStatT` : dernier mois de calcul de la statistique des tickets.
         */
         const mcre = Math.floor(esp.creation / 100) // Mois de création
-        // mois relatif du dernier calcul C / T
-        const mrC = AMJ.nbMois(mc, esp.moisStat || AMJ.moisMoins(mcre, 1))
-        const mrT = AMJ.nbMois(mc, esp.moisStatT || AMJ.moisMoins(mcre, 1))
+        const mauj = Math.floor(this.auj / 100) // Mois courant
 
-        if (mrC > 1) { // Il y a un ou plusieurs mois à calculer C
-          for(let mr = 3; mr > 0; mr--) {
-            const mois = AMJ.moisMoins(mc, mr)
-            if (mois >= mcre)
-              args.todo.push({ org: esp.org, ns, t: 'C', mr, mois })
-          } 
+        let mois = esp.moisStat || mcre // dernier mois de statC calculé
+        while (mois < mauj) {
+          args.todo.push({ org: esp.org, t: 'C', mois })
+          mois = AMJ.moisPlus(mois, 1)
         }
 
-        // Nombre de mois de calcul T à effectuer
-        const nbmct = mrT - NBMOISENLIGNETKT - 1
-        if (nbmct > 0) { // Il y a au moins un calcul T à effectuer
-          for (let n = nbmct; n > 0; n--) {
-            const mois = AMJ.moisMoins(mc, n + NBMOISENLIGNETKT)
-            args.todo.push({ org: esp.org, ns, t: 'T', mois })
-          }
+        mois = esp.moisStatT || mcre // dernier mois de statT calculé
+        while (mois < mauj) {
+          const mr = AL.nbMois(mauj, mois)
+          // calcul possible seulement dans les 3 derniers mois
+          if (mr <= NBMOISENLIGNETKT)
+            args.todo.push({ org: esp.org, t: 'C', mois })
+          mois = AMJ.moisPlus(mois, 1)
         }
+        args.nb = args.todo.length
       }
-      args.nb = args.todo.length
     }
 
-    if (!args.todo.length) { args.fini = true; return }
+    if (!args.todo.length) { 
+      args.fini = true
+      return 
+    }
 
     const s = args.todo.pop()
-    const cleES = decrypterSrv(this.db.appKey, espace.cleES)
+    await getEspaceOrg(s.org, 0, false, true)
+    const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
     if (s.t === 'C') {
-      espace.setMoisStat(s.mois)
-      await this.creationC(s.org, cleES, s.mois)
-    } else if (s.t === 'T') {
-      await this.creationT(s.org, cleES, s.mois)
-      espace.setMoisStatT(s.mois)
-      await this.db.delTickets(ID.duComptable(s.ns), s.ns, s.mois)
+      const buf = await this.creationC(s.org, cleES, s.mois)
+      await this.storage.putFile(s.org, ID.duComptable(), 'C_' + s.mois, buf)
+      this.espace.setMoisStat(s.mois)
+    } else {
+      const buf = await this.creationT(s.org, cleES, s.mois)
+      await this.storage.putFile(s.org, ID.duComptable(), 'T_' + s.mois, buf)
+      this.espace.setMoisStatT(s.mois)
+      await this.db.delTickets(ID.duComptable(), s.mois)
     }
 
     args.fini = !args.todo.length
   }
+
 }
 
 /********************************************
@@ -607,7 +610,7 @@ args.token: éléments d'authentification du compte.
 args.org : 
 args.mois :
 args.cs : code statistique C ou T
-*/
+
 operations.GetUrlStat = class GetUrlStat extends Operation {
   constructor (nom) { super(nom, 1) }
 
@@ -617,6 +620,7 @@ operations.GetUrlStat = class GetUrlStat extends Operation {
     this.setRes('getUrl', url)
   }
 }
+*/
 
 /*************************************************/
 Taches.OPCLZ = {

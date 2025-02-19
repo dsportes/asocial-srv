@@ -255,7 +255,7 @@ export class GenDoc {
 _data_ :
 - `id` : de l'espace de 10 à 89.
 - `v` : 1..N
-- `org` : code de l'organisation propriétaire.
+- `dpt` : date du prochain traitement (mensuel).
 
 - `creation` : date de création.
 - `moisStat` : dernier mois de calcul de la statistique des comptas.
@@ -293,6 +293,7 @@ export class Espaces extends GenDoc {
       _maj: true, v: 0,
       id: '',
       creation: auj,
+      dpt: AMJ.pjMoisSuiv(auj),
       cleES: cleES,
       cleET: cleET,
       hTC: hTC,
@@ -310,6 +311,7 @@ export class Espaces extends GenDoc {
   cloneCourt () {
     return new Espaces().init({
       id: '',
+      dpt: this.dpt,
       org: this._org,
       creation: this.creation,
       moisStat: this.moisStat,
@@ -344,6 +346,7 @@ export class Espaces extends GenDoc {
   }
 
   setMoisStat (m) {
+    this.dpt = AMJ.pjMoisSuiv((m * 100) + 1)
     this.moisStat = m
     this._maj = true
   }

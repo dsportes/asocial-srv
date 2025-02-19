@@ -209,6 +209,21 @@ class Connx extends GenConnx {
     return r
   }
 
+  async getRowEspacesCalc (dpt) {
+    const code = 'SELESPCALC'
+    const st = this._stmt(code, 'SELECT * FROM espaces where dpt <= @dpt')
+    const rows = st.all({ dpt })
+    const r = []
+    for (const row of rows) {
+      row._nom = 'espaces'
+      this.op.nl++
+      const x = this.decryptRow(row)
+      x._org = this.decryptedOrg(row.id)
+      r.push(x)
+    }
+    return r
+  }
+
   /* Retourne le row d'une collection de nom / / org / id si sa version est postérieure à v
   */
   async getV (nom, id, v) {
