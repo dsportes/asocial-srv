@@ -49,14 +49,14 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
   constructor (nom) { 
     super(nom, 3)
     this.targs = { 
-      ns: { t: 'ns'}, // ns de l'espace concerné
+      org: { t: 'org'}, // ns de l'espace concerné
       dlvat: { t: 'date' } // aaaammjj : date limite fixée par l'administrateur technique
     }
   }
 
   async phase2 (args) {
-    const espace = await this.setEspaceNs(args.ns, true)
-    espace.setDlvat(args.dlvat)
+    await this.getEspaceOrg (args.org, 0, false)
+    this.espace.setDlvat(args.dlvat)
   }
 }
 
@@ -1050,7 +1050,7 @@ operations.SetNotifP = class SetNotifP extends Operation {
     
     const espace = await this.gd.getEspace('SetNotifP-1')
     const ntf = espace.tnotifP[args.idp]
-    const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
+    const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable()) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
     if (args.notif) {
       args.notif.idDel = this.id
@@ -1083,7 +1083,7 @@ operations.SetNotifC = class SetNotifC extends Operation {
     if ((!ec && !ed) || (ed && this.compte.idp !== compte.idp)) throw new AppExc(A_SRV, 238)
 
     const ntf = compte.notif
-    const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable(this.ns)) : null
+    const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable()) : null
     if (aut && ed && ID.estComptable(aut)) throw new AppExc(A_SRV, 237)
 
     if (args.notif) {
@@ -1999,8 +1999,8 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     av.setZombi()
     await this.db.delScoll('sponsorings', av.id)
 
-    await Taches.nouvelle(this, Taches.AVC, av.id, '')
-    await Taches.nouvelle(this, Taches.AGN, av.id, '')
+    await Taches.nouvelle(this, Taches.AVC, av.id)
+    await Taches.nouvelle(this, Taches.AGN, av.id)
   }
 }
 
@@ -2235,13 +2235,13 @@ operations.SupprNote = class SupprNote extends OperationNo {
     this.note.setZombi()
 
     if (this.lidf.length) 
-      this.idfp = this.gd.setFpurge(args.id, this.lidf)
+      this.idfp = this.gd.nouvFPU(args.id, this.lidf)
   }
 
   async phase3 (args) {
     if (this.lidf.length) try {
       await this.storage.delFiles(this.org, args.id, this.lidf)
-      await this.db.unsetFpurge(this.idfp)
+      await this.db.purgeFpurge(this.idfp)
     } catch (e) { 
       trace('SupprNote-phase3', args.id, e.message)
     }
@@ -2499,13 +2499,13 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     this.gd.setTransfertsApurger(this.avgrid, args.fic.idf)
 
     if (args.lidf && args.lidf.length) 
-      this.idfp = this.gd.setFpurge(this.avgrid, args.lidf)
+      this.idfp = this.gd.nouvFPU(this.avgrid, args.lidf)
   }
 
   async phase3 (args) {
     if (this.idfp) try {
       await this.storage.delFiles(this.org, this.avgrid, args.lidf)
-      await this.db.unsetFpurge(this.idfp)
+      await this.db.purgeFpurge(this.idfp)
     } catch (e) { 
       trace('ValiderUpload-phase3', args.id, e.message)
     }
@@ -2568,13 +2568,13 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
     this.avgrid = avgr.id
 
     // APRES toutes les 
-    this.idfp = this.gd.setFpurge(args.id, [args.idf])
+    this.idfp = this.gd.nouvFPU(args.id, [args.idf])
   }
 
   async phase3 (args) {
     try {
       await this.storage.delFiles(this.org, this.avgrid, [args.idf])
-      await this.db.unsetFpurge(this.idfp)
+      await this.db.purgeFpurge(this.idfp)
     } catch (e) { 
       trace('SupprFichier-phase3', args.id, e.message)
     }

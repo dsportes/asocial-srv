@@ -2,8 +2,8 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, Esp, trace } from './modele.mjs'
 import { compile } from './gendoc.mjs'
-import { AMJ, ID, F_SRV, E_SRV, A_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
-import { sleep, decrypterSrv, sendAlMail } from './util.mjs'
+import { AMJ, ID, F_SRV, E_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
+import { decrypterSrv, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches () {
@@ -69,7 +69,7 @@ export class Taches {
       op: top, 
       id: id || '',
       ids: ids || '', 
-      ns: oper.ns, 
+      org: oper.org, 
       dh: Taches.dh(oper.dh), 
       exc: ''})
     oper.db.setTache(t)
@@ -89,8 +89,8 @@ export class Taches {
     }, 1)
   }
 
-  constructor ({op, id, ids, ns, dh, exc}) {
-    this.op = op; this.id = id; this.ids = ids; this.ns = ns; this.dh = dh; this.exc = exc
+  constructor ({op, id, ids, org, dh, exc}) {
+    this.op = op; this.id = id; this.ids = ids; this.org = org; this.dh = dh; this.exc = exc
   }
 
 }
@@ -108,7 +108,7 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase1() {
-    const rows = await this.db.nsTaches('')
+    const rows = await this.db.orgTaches('')
     const s = new Set()
     Taches.OPSGC.forEach(t => { s.add(t)})
     rows.forEach(r => { s.delete(r.op) })
@@ -126,18 +126,18 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
 /*****************************************
 GetTaches : retourne la liste des tâches en cours
 args.token: éléments d'authentification du compte.
-args.ns : 
-  - null: toutes
+args.org : 
+  - '*' : toutes taches
   - '' : GC
-  - 'x' : du ns x
+  - 'org' : 
 */
 operations.GetTaches = class GetTaches extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase1 (args) {
     let taches
-    if (args.ns === '*') taches = await this.db.toutesTaches()
-    else taches = await this.db.nsTaches(args.ns)
+    if (args.org === '*') taches = await this.db.toutesTaches()
+    else taches = await this.db.orgTaches(args.org)
     this.setRes('taches', taches)
   }
 
@@ -153,7 +153,7 @@ operations.DelTache = class DelTache extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase1 (args) {
-    await this.db.delTache(args.op, args.ns, args.id, args.ids)
+    await this.db.delTache(args.op, args.org, args.id, args.ids)
   }
 
   get phase2() { return null }
@@ -168,9 +168,9 @@ operations.GoTache = class GoTache extends Operation {
   constructor (nom) { super(nom, 3); this.SYS = true }
 
   async phase1 (args) {
-    this.ns = args.ns
-    await this.db.delTache(args.op, args.ns, args.id, args.ids)
-    await Taches.nouvelle(this, args.op, args.id, args.ids)
+    this.setOrg(args.org)
+    await this.db.delTache(args.op, args.org, args.id)
+    await Taches.nouvelle(this, args.op, args.id)
   }
 
   get phase2() { return null }
@@ -198,9 +198,6 @@ operations.ProchTache = class ProchTache extends Operation {
 
     try {
       Taches.demon = true
-      await Esp.load(this.db)
-      const lnsac = Esp.actifs()
-      const lnsinac = Esp.inactifs()
       const dh = Taches.dh(Date.now())
 
       const proch = await this.db.prochTache(dh)
@@ -269,31 +266,6 @@ class OperationT extends Operation {
     this.SYS = true
   }
 
-  async checkOrg (org) {
-    if (!org) return
-    this.org = org
-    this.espace = await Cache.getRow(this, 'espaces', '', true)
-    if (!this.espace || this.espace.clos || this.espace.fige)
-      throw new AppExc(F_SRV, 995)
-  }
-
-  // set: ns, idcourt, espace, fige
-  checkNs (id) {
-    this.idcourt = ID.court(id)
-    this.espace = Esp.getEspSync(this, ID.ns(id)) // set this.ns this.org
-    this.fige = this.espace ? this.espace.fige : true
-  }
-
-  checkNs2 (tache) {
-    const id = tache.id
-    this.alias = tache.ids
-    this.ns = tache.ns
-    this.idlong = ID.long(id, ns)
-    this.espace = Esp.getEspSync(this, ns) // set this.ns this.org
-    this.org = this.espace ? this.espace.org : ''
-    this.fige = this.espace ? this.espace.fige : true
-  }
-
   get phase1 () { return null }
 
 }
@@ -311,11 +283,13 @@ operations.DFH = class DFH extends OperationT {
     }
     if (!args.lst.length) { args.fini = true; return }
 
-    const idg = args.lst.pop()
-    this.checkNs (idg)
-    if (!this.fige) {
-      const groupe = await this.gd.getGR(this.idcourt)
-      await this.supprGroupe(groupe) // bouclera sur le suivant de hb jusqu'à épuisement de hb
+    const [org, idg] = args.lst.pop()
+    await getEspaceOrg(org, 0, false, true)
+    // Les espaces clos finiront par être purgés de la base (et n'apparaîtront plus en DFH)
+    // Les espaces figés sont ignorés. Ils réapparaîtront jusqu'à ce qu'ils ne soient plus figés
+    if (this.espace && !this.espace.clos && !this.espace.fige) {
+      const groupe = await this.gd.getGR(idg)
+      await this.supprGroupe(groupe)
     }
   }
 }
@@ -332,10 +306,10 @@ operations.DLV = class DLV extends OperationT {
     }
     if (!args.lst.length) { args.fini = true; return }
 
-    const id = args.lst.pop()
-    this.checkNs (id)
-    if (!this.fige) {
-      const c = await this.gd.getCO(this.idcourt)
+    const [org, idc] = args.lst.pop()
+    await getEspaceOrg(org, 0, false, true)
+    if (this.espace && !this.espace.clos && !this.espace.fige) {
+      const c = await this.gd.getCO(idc)
       if (c) await this.resilCompte(c) // bouclera sur le suivant de hb jusqu'à épuisement de hb
     }
   }
@@ -348,15 +322,14 @@ operations.TRA = class TRA extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    // Récupération des couples [id, idf] des transferts à solder
+    // Récupération des documents { org, id, avgrid, idf } des transferts à solder
     const lst = await this.db.listeTransfertsDlv(this.auj) 
     args.nb = lst.length
-    for (const [id, idf] of lst) {
-      if (id && idf) {
-        this.checkNs(id)
-        if (this.org)
-          await this.storage.delFiles(this.org, this.idcourt, [idf])
-        await this.db.purgeTransferts(id, idf)
+    for (const d of lst) {
+      await getEspaceOrg(d.org, 0, false, true)
+      if (this.espace && !this.espace.clos && !this.espace.fige) {
+        await this.storage.delFiles(d.org, d.avgrid, [d.idf])
+        await this.db.purgeTransferts(d.id)
       }
     }
     args.fini = true
@@ -373,16 +346,14 @@ operations.FPU = class FPU extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
+    /* Retourne une liste d'objets  { org, id, avgrid, lidf } */
     const lst = await this.db.listeFpurges(this)
     args.nb = 0
-    for (const fpurge of lst) {
-      if (fpurge.id && fpurge.alias && fpurge.lidf) {
-        this.checkNs (fpurge.id)
-        args.nb += fpurge.lidf.length
-        if (this.org)
-          await this.storage.delFiles(this.org, fpurge.alias, fpurge.lidf)
-        await this.db.unsetFpurge(fpurge.id)
+    for (const d of lst) {
+      await getEspaceOrg(d.org, 0, false, true)
+      if (this.espace && !this.espace.clos && !this.espace.fige) {
+        await this.storage.delFiles(d.org, d.avgrid, d.lidf)
+        await this.db.purgeFpurge(d.id)
       }
     }
     args.fini = true
@@ -472,15 +443,14 @@ operations.STA = class STA extends OperationT {
 * Taches NON GC : GRM AGN AVC
 */
 
-/* purge des membres d'un groupe supprimé
-IGNORE le fait que l'espace soit figé ou non: c'est une purge brutale.
-*/
+/* purge des membres d'un groupe supprimé */
 operations.GRM = class GRM extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    this.checkNs2(args.tache)
-    args.nb = await this.db.delScoll('membres', this.idlong)
+    await getEspaceOrg(args.tache.org, 0, false, true)
+    if (this.espace && !this.espace.clos && !this.espace.fige)
+      args.nb = await this.db.delScoll('membres', args.tache.id)
     args.fini = true
   }
 }
@@ -492,10 +462,10 @@ operations.AGN = class AGN extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    this.checkNs2(args.tache)
-    args.nb = await this.db.delScoll('notes', this.idlong)
-    if (this.org) 
-      await this.storage.delId(this.org, this.alias)
+    await getEspaceOrg(tache.org, 0, false, true)
+    if (this.espace && !this.espace.clos && !this.espace.fige)
+      args.nb = await this.db.delScoll('notes', args.tache.id)
+    await this.storage.delId(this.org, args.tache.id)
     args.fini = true
   }
 }
@@ -505,61 +475,94 @@ operations.AVC = class AVC extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    this.checkNs2(args.tache)
-    if (!this.fige) {
-      for (const row of await this.db.scoll('chats', this.idlong, 0)) {
-        const chI = compile(row)
+    await getEspaceOrg(tache.org, 0, false, true)
+    if (this.espace && !this.espace.clos && !this.espace.fige) {
+      for (const row of await this.db.scoll('chats', args.tache.id, 0)) {
+        const chI = GenDoc.compile(row)
         const chE = await this.gd.getCAV(chI.idE, chI.idsE)
         if (chE) chE.chEdisp()
       }
-      args.nb = await this.db.delScoll('chats', this.idlong)
+      args.nb = await this.db.delScoll('chats', args.tache.id)
     }
     args.fini = true
   }
 }
 
-/* OP_ComptaStat : 'Enregistre en storage la statistique de comptabilité'
-du mois M-1 ou M-2 ou M-3 pour l'organisation org.
-args.org: code de l'organisation
-args.mr: de 1 à 3, mois relatif à la date du jour.
+/* OP_ComptaStat : 'Retourne la statistique de comptabilité de org d\'un mois relatif de 0 à -11'
+Si déjà calculée, retourne juste son URL
+Sinon la calcule et,
+- la stocke si elle est d'un mois figé (pas M), que l'espace n'est pas figé
+  et si c'est la suivante de la dernière calculée.
 Retour:
 - URL d'accès au fichier dans le storage
+*/ 
+class ComptaStat extends Operation {
+  constructor (nom, m) { super(nom, m, 0) }
 
-Le dernier mois de disponibilté de la statistique comptable est enregistrée dans
-l'espace s'il est supérieur à celui existant.
-*/
-operations.ComptaStat = class ComptaStat extends Operation {
-  constructor (nom) { 
-    super(nom, 0)
-    this.SYS = true
+  numMois (m) {
+    if (m === 0) return 0
+    return (Math.floor(m / 100) * 12) + (m % 100)
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg(args.org, 0, true)
+    await this.getEspaceOrg(this.org, 0, true)
 
-    const cleES = decrypterSrv(this.db.appKey, espace.cleES)
-    if (args.mr < 0 || args.mr > 2) args.mr = 1
+    const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
     const m = AMJ.djMoisN(this.auj, - args.mr)
     const mois = Math.floor(m / 100)
     this.setRes('mois', mois)
 
     const idC = ID.duComptable() // 100000...
-    this.setRes('getUrl', await this.storage.getUrl(args.org, idC, 'C_' + mois))
+    this.setRes('getUrl', await this.storage.getUrl(this.org, idC, 'C_' + mois))
 
     if (this.espace.moisStat && this.espace.moisStat >= mois) {
+      // Demande d'une stat déjà calculée par le traitement mensuel
       this.setRes('creation', false)
-    } else {
-      this.setRes('creation', true)
-      if (args.mr !== 0) this.espace.setMoisStat(mois)
-      await this.creationC(args.org, cleES, mois, args.mr)
+      return
     }
+
+    this.setRes('creation', true)
+    const buf = await this.creationC(this.org, cleES, mois)
+    await this.storage.putFile(org, idC, 'C_' + mois, buf)
+
+    const moisSuivant = this.numMois(mois) === (this.numMois(this.espace.moisStat) + 1)
+    // Enregistre par avance une stat mensuelle qui n'a pas encore été calculée par le GC
+    if (args.mr !== 0 && !this.espace.fige && moisSuivant)
+      this.espace.setMoisStat(mois)
+  }
+
+}
+
+operations.ComptaStatC = class ComptaStatC extends ComptaStat {
+  constructor (nom) { 
+    super(nom, 2)
+    this.targs = {
+      mr: { t: 'int', min: 0, max: 11 } //  mois relatif à la date du jour.
+    }
+  }
+
+  phase1 (args) {
+    super.phase1(args)
+  }
+}
+
+operations.ComptaStatA = class ComptaStatA extends ComptaStat {
+  constructor (nom) { 
+    super(nom, 3)
+    this.targs = {
+      org: { t: 'org' }, // code de l'organisation
+      mr: { t: 'int', min: 0, max: 11 } //  mois relatif à la date du jour.
+    }
+  }
+
+  phase1 (args) {
+    super.phase1(args)
+    this.setOrg(args.org)
   }
 }
 
 /* OP_TicketsStat : 'Enregistre en storage la liste des tickets de M-3 désormais invariables'
 args.token: éléments d'authentification du compte.
-args.org: code de l'organisation
-args.mr: mois relatif
 
 Le dernier mois de disponibilté de la statistique est enregistré dans
 l'espace s'il est supérieur à celui existant.
@@ -567,30 +570,32 @@ Purge des tickets archivés
 */
 operations.TicketsStat = class TicketsStat extends Operation {
   constructor (nom) { 
-    super(nom, 0)
-    this.SYS = true
+    super(nom, 2)
+    this.targs = {
+      mr: { t: 'int', min: 0, max: 3 } //  mois relatif à la date du jour.
+    }
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg(args.org, 0, true)
+    await this.getEspaceOrg(this.org, 0, true)
 
-    const cleES = decrypterSrv(this.db.appKey, espace.cleES)
+    const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
 
-    const ns = espace.ns
     const moisauj = Math.floor(this.auj / 100)
     const mois = AMJ.moisMoins(moisauj, args.mr)
 
-    this.setRes('getUrl', await this.storage.getUrl(args.org, ID.duComptable(), 'T_' + mois))
+    this.setRes('getUrl', await this.storage.getUrl(this.org, ID.duComptable(), 'T_' + mois))
     this.setRes('mois', mois)
     if (this.espace.moisStatT && this.espace.moisStatT >= mois) {
       this.setRes('creation', false)
     } else {
       this.setRes('creation', true)
-      await this.creationT(args.org, ns, cleES, mois)
+      const buf = await this.creationT(this.org, cleES, mois)
       if (!espace.fige && args.mr > 3) {
         this.espace.setMoisStatT(mois)
-        await this.db.delTickets(ID.duComptable(ns), ns, mois)
+        await this.db.delTickets(ID.duComptable(), mois)
       }
+      await this.storage.putFile(this.org, ID.duComptable(), 'T_' + mois, buf)
     }
   }
 }

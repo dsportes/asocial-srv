@@ -151,27 +151,25 @@ class Connx extends GenConnx {
   /** Méthodes PUBLIQUES FONCTIONNELLES ****************************************/
   async setTache (t) {
     const st = this._stmt('SETTACHE',
-      'INSERT INTO taches (op, org, id, ids, dh, exc, dhf, nb) VALUES (@op, @org, @id, @ids, @dh, @exc, 0, 0) ON CONFLICT (op, org, id, ids) DO UPDATE SET org = excluded.org, dh = excluded.dh, exc = excluded.exc')
+      'INSERT INTO taches (op, org, id, dh, exc, dhf, nb) VALUES (@op, @org, @id, @dh, @exc, 0, 0) ON CONFLICT (op, org, id) DO UPDATE SET dh = excluded.dh, exc = excluded.exc')
     st.run({ 
       op: t.op,
       org: this.cryptedOrg(t.org),
-      id: this.cryptedId(t.id), 
-      ids: this.cryptedId(t.ids),
+      id: this.cryptedId(t.id),
       dh: t.dh, 
-      exc: t.exc })
+      exc: t.exc
+    })
   }
 
-  async delTache (op, org, id, ids) {
-    const arg = { op, org: this.cryptedOrg(org), id: this.cryptedId(id), ids: this.cryptedId(ids) }
-    let st
-    if (ids) st = this._stmt('DELTACHE1', 'DELETE FROM taches WHERE op = @op AND org = @org AND id = @id AND ids = @ids')
-    else st = this._stmt('DELTACHE2', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id')
+  async delTache (op, org, id) {
+    const arg = { op, org: this.cryptedOrg(org), id: this.cryptedId(id) }
+    const st = this._stmt('DELTACHE2', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id')
     st.run(arg)
   }
 
-  async recTache (op, org, id, ids, dhf, nb) {
-    const arg = { op, org: this.cryptedOrg(org), id: this.cryptedId(id), ids: this.cryptedId(ids), dhf, nb }
-    const st = this._stmt('UPDTACHE', 'UPDATE taches SET dhf = @dhf, nb = @nb WHERE op = @op AND org = @org AND id = @id AND ids = @ids')
+  async recTache (op, org, id, dhf, nb) {
+    const arg = { op, org: this.cryptedOrg(org), id: this.cryptedId(id), dhf, nb }
+    const st = this._stmt('UPDTACHE', 'UPDATE taches SET dhf = @dhf, nb = @nb WHERE op = @op AND org = @org AND id = @id')
     st.run(arg)
   }
 
@@ -182,13 +180,12 @@ class Connx extends GenConnx {
     const r = rows[0]
     if (r.org) r.org = this.decryptedOrg(r.org)
     if (r.id) r.id = this.decryptedId(r.id)
-    if (r.ids) r.ids = this.decryptedId(r.ids)
     return r
   }
 
   async orgTaches (org) {
     const arg = { org: this.cryptedOrg(org) }
-    const st = this._stmt('NSTACHES', 'SELECT * FROM taches WHERE org = @org')
+    const st = this._stmt('ORGTACHES', 'SELECT * FROM taches WHERE org = @org')
     return st.all(arg)
   }
 
@@ -301,22 +298,25 @@ class Connx extends GenConnx {
     return null
   }
   
-  /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
-  est inférieure à dfh */
+  /* Retourne l'array des [org, id] des "groupes" dont la fin d'hébergement est inférieure à dfh */
   async getGroupesDfh (dfh) {
     const st = this._stmt('SELGDFH', 'SELECT id FROM groupes WHERE dfh > 0 AND dfh < @dfh')
     const rows = st.all({ dfh })
     const r = []
-    if (rows) rows.forEach(row => { r.push(row.id)})
+    if (rows) rows.forEach(row => {
+      r.push(this.orgId(row.id))
+    })
     return r
   }
   
-  /* Retourne l'array des id des comptes ayant passé leur dlv */
+  /* Retourne l'array des [org, id] des comptes ayant passé leur dlv */
   async getComptasDlv (dlvmax) {
     const st = this._stmt('SELCDLV', 'SELECT id FROM comptas WHERE dlv < @dlvmax')
     const rows = st.all({ dlvmax })
     const r = []
-    if (rows) rows.forEach(row => { r.push(row.id)})
+    if (rows) rows.forEach(row => { 
+      r.push(this.orgId(row.id))
+    })
     return r
   }
 
@@ -414,50 +414,46 @@ class Connx extends GenConnx {
     return info.changes
   }
 
-  async setFpurge (r) {
-    const st = this._stmt('INSFPURGE', 'INSERT INTO fpurges (id, _data_) VALUES (@id, @_data_)')
-    st.run(r)
-    this.op.ne++
-  }
-
-  async unsetFpurge (id) {
-    const st = this._stmt('DELFPURGE', 'DELETE FROM fpurges WHERE id = @id')
-    st.run({ id })
-    this.op.ne++
-  }
-
-  /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
+  /* Retourne une liste d'objets  { org, id, idag, lidf } */
   async listeFpurges () {
     const r = []
     const st = this._stmt('SELFPURGES', 'SELECT _data_ FROM fpurges')
     const rows = st.all({ })
     if (rows) rows.forEach(row => {
       row._nom = 'Fpurges'
-      const rx = this.decryptRow(row)
+      const d = GenDoc.compile(this.decryptRow(row))
+      d.org = this.orgId(row.id)[0]
       this.op.nl++
-      r.push(decode(rx._data_))
+      r.push(d)
     })
     return r
   }
 
-  /* Retourne une liste de couples [id, ids] PAS de rows */
+  /* Retourne une liste de {org, id, ids} des transferts hors date (à purger) */
   async listeTransfertsDlv (dlv) {
     const r = []
     const st = this._stmt('SELTRADLV', 'SELECT * FROM transferts WHERE dlv <= @dlv')
     const rows = st.all({ dlv })
     if (rows) rows.forEach(row => {
       row._nom = 'Transferts'
-      const rx = this.decryptRow(row)
+      const d = GenDoc.compile(this.decryptRow(row))
+      d.org = this.orgId(row.id)[0]
       this.op.nl++
-      r.push(decode(rx._data_))
+      r.push(d)
     })
     this.op.nl += r.length
     return r
   }
 
+  async purgeFpurge (id) {
+    const st = this._stmt('DELFPU', 'DELETE FROM fpurges WHERE id = @id')
+    st.run({ id: this.idLong(id) })
+    this.op.ne++
+  }
+
   async purgeTransferts (id) {
     const st = this._stmt('DELTRA', 'DELETE FROM transferts WHERE id = @id')
-    st.run({ id })
+    st.run({ id: this.idLong(id) })
     this.op.ne++
   }
 
@@ -488,7 +484,7 @@ class Connx extends GenConnx {
 
   async insertRows (rows) {
     for (const row of rows) {
-      const r = await this.prepRow(row)
+      const r = this.prepRow(row)
       const code = 'INS' + row._nom
       const st = this._stmt(code, this._insStmt(row._nom))
       st.run(r)

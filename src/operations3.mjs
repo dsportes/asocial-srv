@@ -178,7 +178,6 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
         throw new AppExc(F_SRV, 11)
       }
       this.setRes('rowSponsoring', sp.toShortData(this))
-      this.setRes('ns', this.ns)  
     }
   }
 }
@@ -406,12 +405,12 @@ operations.GetSynthese = class GetSynthese extends Operation {
   constructor (nom) { 
     super(nom, 1, 1)
     this.targs = {
-      ns: { t: 'ns', n: true } // id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
+      org: { t: 'org', n: true } // id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
     }
   }
 
   async phase2 (args) {
-    if (this.estAdmin) this.ns = args.ns
+    if (this.estAdmin) this.org = args.org
     const synthese = await this.gd.getSY() 
     this.setRes('rowSynthese', synthese.toShortData(this))
   }
@@ -638,7 +637,7 @@ operations.Sync = class Sync extends Operation {
       this.setRes('rowCompte', this.compte.toShortData(this))
 
     // Sérialisation et retour de dataSync
-    this.setRes('dataSync', this.ds.serial(this.ns))
+    this.setRes('dataSync', this.ds.serial())
 
     if (this.loginSync) this.compta.setDhdc(this.dh)
 
@@ -759,7 +758,6 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
   constructor (nom) { 
     super(nom, 3) 
     this.targs = {
-      ns: { t: 'ns' }, // ID de l'espace [0-9][a-z][A-Z]
       org: { t: 'org' }, // code de l'organisation
       TC: { t: 'u8' }, // PBKFD de la phrase de sponsoring du Comptable par l'AT
       hTC: { t: 'ids' } // hash de TC
@@ -767,12 +765,12 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
   }
 
   async phase2(args) {
-    const espace = await this.setEspaceNs(args.ns, false)
+    await this.getEspaceOrg (args.org, 0, false)
 
-    if (!espace.cleET) throw new AppExc(F_SRV, 316)
-    const cleE = decrypterSrv(this.db.appKey, espace.cleES)
+    if (!this.espace.cleET) throw new AppExc(F_SRV, 316)
+    const cleE = decrypterSrv(this.db.appKey, this.espace.cleES)
     const cleET = crypter(args.TC, cleE)
-    espace.reset(cleET, args.hTC)
+    this.espace.reset(cleET, args.hTC)
   }
 }
 

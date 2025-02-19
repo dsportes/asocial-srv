@@ -218,7 +218,7 @@ export class Outils {
       const rows = await opin.db.collOrg(nom, null, true)
       const lstRows = []
       for (const row of rows) {
-        if (v) scollIds.push(muteur.idCourt(row))
+        if (v) scollIds.push(opin.db.orgId(row.id)[1])
         lstRows.push(muteur.mute(row))
       }
       if (!this.simu) await opout.db.batchInsertRows(lstRows)
@@ -298,7 +298,7 @@ export class Outils {
     const opin = new OpSimple(null)
     await cin.dbp.connect(opin)
     let msg = 'purge-db:'
-    msg += ' ns:' + cin.ns
+    msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'

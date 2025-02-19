@@ -54,55 +54,66 @@ export class GenConnx extends GenStDb {
     this.crOrg = (x && x[0]) || false
     this.crId = (x && x[1]) || false
     this.crData = (x && x[2]) || false
-    this.cOrg = this.cryptedOrg(this.op.org)
+    this.cOrg = null
+  }
+
+  setOrg (org) {
+    this.cOrg = this.cryptedOrg(org)
   }
 
   decryptRow (row) {
     if (!row) return null
-    // Reconstruction des _data_ dont tous les attributs
-    // sont externalisés
-    if (row._nom === 'notes' || row._nom === 'chats') {
-      row._data_ = {
-        id: this.idCourt(row.id),
-        ids: this.decryptedId(row.ids)
+    // Reconstruction des _data_ dont tous les attributs sont externalisés ou zombies
+    if (!row._data_) { // versions et zombies
+      if (row._nom === 'notes' || row._nom === 'chats') {
+        row._data_ = {
+          id: this.orgId(row.id)[1],
+          ids: this.decryptedId(row.ids)
+        }
+      } else if (row._nom === 'versions') {
+        row._data_ = {
+          id: this.orgId(row.id)[1],
+          dlv: row.dlv,
+          v: row.v
+        }
       }
-    } else if (row._nom === 'versions') {
-      row._data_ = {
-        id: this.idCourt(row.id),
-        dlv: row.dlv,
-        v: row.v
-      }
-    } else if (row._data_ && this.crData)
-      row._data_ = new Uint8Array(decrypterSrv(this.appKey, row._data_))
+    } else if (this.crData)
+        row._data_ = new Uint8Array(decrypterSrv(this.appKey, row._data_))
     return row
   }
   
   // Depuis un document compilé
   prepRow (obj) {
-    const r = { }
+    const r = { 
+      id: obj.id ? this.idLong(obj.id) : this.cOrg
+    }
 
+    if (obj.hk !== undefined) r.hk = this.idLong(obj.hk)
+
+    if (obj.ids !== undefined) 
+      r.ids = obj._nom === 'Tickets' ? obj.ids : this.cryptedId(obj.ids)
+  
     if (obj.v !== undefined) r.v = obj.v
     if (obj.vcv !== undefined) r.vcv = obj.vcv
     if (obj.dlv !== undefined) r.dlv = obj.dlv
     if (obj.dfh !== undefined) r.dfh = obj.dfh
 
-    if (obj._nom === 'Fpurges' || obj._nom === 'Transferts') r.id = obj.id
-    else r.id = obj.id ? this.idLong(obj.id) : this.cOrg
-    if (obj.ids !== undefined) r.ids = obj._nom === 'Tickets' ? obj.ids : this.cryptedId(obj.ids)
-    if (obj.hk !== undefined) r.hk = this.idLong(obj.hk)
-    
-    const data = obj._zombi || obj._nom !== 'versions' ? null : obj.toData()
-    r._data_ = !data ? null : (this.crData ? crypterSrv(this.appKey, data) : data)
+    if (obj._zombi || obj._nom !== 'versions') 
+      r._data_ = null
+    else 
+      r._data_ = this.crData ? crypterSrv(this.appKey, obj.toData()) : obj.toData()
   
     return r
   }
 
   idLong (id) { return this.cOrg + '@' + this.cryptedId(id) }
 
-  idCourt (id) {
+  // Retourne le couple [org, id] d'une id cryptée de org@id
+  orgId (id) {
     const i = id.indexOf('@')
-    const s = i === -1 ? id : id.substring(i + 1)
-    return !s ? '' : this.b642Txt(s)
+    const s0 = i === -1 ? id : id.substring(0, i)
+    const s1 = i === -1 ? '' : id.substring(i + 1)
+    return [this.decryptedOrg(s0), this.decryptedId(s1)]
   }
 
 }
@@ -114,36 +125,21 @@ export class MuterRow {
     this.cout = cout
   }
 
-  idCourt (row) {
-    const i = row.id.indexOf('@')
-    const s = i === -1 ? row.id : row.id.substring(i + 1) 
-    return this.cin.decryptedId(s)
-  }
-
   mute (row) {
-    if (row._nom !== 'Fpurges' && row._nom === 'Transferts') {
-      const id = this.idCourt(row)
-      row.id = this.cout.idLong(id)
+    row.id = this.cout.idLong(this.cin.orgId(row.id)[1])
+
+    if (row.ids !== undefined && row._nom !== 'Tickets') {
+      const ids = this.cin.decryptedId(row.ids)
+      row.ids = this.cout.cryptedId(ids)
     }
 
-    if (row.ids !== undefined) {
-      if (row._nom !== 'Tickets') {
-        const ids = this.cin.decryptedId(row.ids)
-        row.ids = this.cout.cryptedId(ids)
-      }
-    }
+    if (row.hk !== undefined) 
+      row.hk = this.cout.idLong(this.cin.orgId(row.hk)[1])
 
-    if (row.hk !== undefined) {
-      const i = row.hk.indexOf('@')
-      const s = i === -1 ? row.hk : row.hk.substring(i + 1) 
-      const hk = this.cin.decryptedId(s)
-      row.hk = this.cout.idLong(hk)
+    if (row._data_) {
+      const data = this.cin.crData ? new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : row._data_ 
+      row._data = this.cout.crData ? new Uint8Array(crypterSrv(this.cout.appKey, data)) : data
     }
-
-    const data = row._data_ && this.cin.crData ? 
-      new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : (row._data_ || null)
-    row._data = data && this.cout.crData ? 
-      new Uint8Array(crypterSrv(this.cout.appKey, data)) : (data || null)
   }
 
 }
@@ -498,7 +494,18 @@ export class Tickets extends GenDoc {
   }
 }
 
-export class Fpurges extends GenDoc {constructor () { super('fpurges') } }
+export class Fpurges extends GenDoc {
+  constructor () { super('fpurges') } 
+
+  nouveau (id, avgrid, lidf) {
+    return new Fpurges().init({
+      _maj: true, v: 0,
+      id,
+      avgrid,
+      lidf
+    })
+  }
+}
 
 /** Partitions ********************************************
 _data_:

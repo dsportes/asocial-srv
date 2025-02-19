@@ -56,9 +56,7 @@ export function decrypterSrv (k, b) {
 class Session {
   static toutes = new Map()
 
-  static orgs = new Map() // donne le ns d'une org
-
-  static getSession (ns) { return Session.toutes.get(ns) ||  new Session(ns) }
+  static getSession (org) { return Session.toutes.get(org) ||  new Session(org) }
 
   static purge (boot) {
     if (!boot) {
@@ -78,9 +76,9 @@ class Session {
       }, HBINSECONDS * 1500)
   }
 
-  constructor (ns) {
-    this.ns = ns
-    Session.toutes.set(ns, this)
+  constructor (org) {
+    this.org = org
+    Session.toutes.set(org, this)
     this.sessions = new Map() // cle: rnd, valeur: { rnd, nc, subscription, cid, nhb, dlv }
     this.comptes = new Map() // clé: cid, valeur: {cid, vpe, perimetre, sessions: Set(rnd)}
     this.xrefs = new Map() // cle: id du sous-arbre, valeur: Set des cid l'ayant en périmètre 
@@ -325,7 +323,7 @@ async function post (fn, args) {
 
 // Appel de fonction locale OU post au service PUBSUB
 // Retourne le numéro de HB courant ou 0 si service NON joignable
-export async function genNotif(ns, sid, trlogLong) {
+export async function genNotif(org, sid, trlogLong) {
   const log = decode(trlogLong)
   if (!Session.pubsubURL)
     return Session.getSession(ns).notif(sid, log)
@@ -334,19 +332,17 @@ export async function genNotif(ns, sid, trlogLong) {
 
 // Appel de fonction locale OU post au service PUBSUB
 // Retourne le numéro de HB courant ou 0 si service NON joignable
-export async function genLogin(ns, org, sid, subscription, nhb, cid, perimetre, vpe) {
+export async function genLogin(org, sid, subscription, nhb, cid, perimetre, vpe) {
   if (!Session.pubsubURL) {
-    Session.orgs.set(org, ns)
     return Session.getSession(ns).login(sid, subscription, nhb, cid, perimetre, vpe)
   }
-  return await post('login', { ns, org, sid, subscription, nhb, cid, perimetre, vpe })
+  return await post('login', { org, sid, subscription, nhb, cid, perimetre, vpe })
 }
 
 // Appel de fonction locale OU post au service PUBSUB
 // Retourne le numéro de HB courant ou 0 si service NON joignable
 export async function genHeartbeat(org, sid, nhb) {
-  const ns = Session.orgs.get(org)
-  return Session.getSession(ns).heartbeat(sid, nhb)
+  return Session.getSession(org).heartbeat(sid, nhb)
 }
 
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
@@ -366,19 +362,17 @@ export async function pubsub (req, res) {
     }
     case 'heartbeat' : {
       const args = decode(req.rawBody)
-      const ns = Session.orgs.get(args.org)
-      result = await Session.getSession(ns).heartbeat(args.sid, args.nhb)
+      result = await Session.getSession(args.org).heartbeat(args.sid, args.nhb)
       break
     }
     case 'login' : {
       const args = decode(decrypterSrv(Session.appKey, req.rawBody))
-      Session.orgs.set(args.org, args.ns)
-      result = await Session.getSession(args.ns).login(args.sid, args.subscription, args.nhb, args.cid, args.perimetre, args.vpe)
+      result = await Session.getSession(args.org).login(args.sid, args.subscription, args.nhb, args.cid, args.perimetre, args.vpe)
       break
     }
     case 'notif' : {
       const args = decode(decrypterSrv(Session.appKey, req.rawBody))
-      result = await Session.getSession(args.ns).notif(args.sid, args.log)
+      result = await Session.getSession(args.org).notif(args.sid, args.log)
       break
     }
     }

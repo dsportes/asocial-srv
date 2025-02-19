@@ -1055,7 +1055,7 @@ export class DataSync {
     return ds
   }
 
-  serial () { // ns: donné côté serveur
+  serial () {
     const x = {
       compte: this.compte || { ...DataSync.vide },
       avatars: [],

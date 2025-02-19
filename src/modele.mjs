@@ -26,82 +26,6 @@ export function assertKO (src, code, args) {
 /* Cache ************************************************************************
 Cache des objets majeurs "tribus comptas avatars groupes" 
 */
-/*
-export class Esp {
-  static map = new Map()
-
-  static orgs = new Map()
-
-  static v = 0
-
-  static dh = 0
-
-  static async load (db) {
-    const l = await db.getRowEspaces(Esp.v)
-    l.forEach(r => {
-      const ns = r.id
-      Esp.map.set(ns, r)
-      Esp.orgs.set(r.org, ns)
-      if (r.v > Esp.v) Esp.v = r.v
-    })
-    Esp.dh = Date.now()
-  }
-
-  static actifs () {
-    const l = []
-    Esp.map.forEach(e => { if (!e.notif || e.notif.nr < 2) l.push(e.id) })
-    return l
-  }
-
-  static inactifs () {
-    const l = []
-    Esp.map.forEach(e => { if (e.notif && e.notif.nr >= 2) l.push(e.id) })
-    return l
-  }
-
-  static async getEsp (op, ns, lazy, assert) {
-    if (!lazy || (Date.now() - Esp.dh > ESPTO * 60000)) await Esp.load(op.db)
-    if (!ns) { if (!assert) return null; assertKO(assert, 1, [op.ns]) }
-    const espace = compile(Esp.map.get(ns))
-    op.ns = ns
-    op.org = espace.org
-    return espace
-  }
-
-  static getEspSync (op, ns) {
-    const espace = compile(Esp.map.get(ns))
-    op.ns = ns
-    op.org = espace ? espace.org : ''
-    return espace
-  }
-
-  static async getNsOrg (op, org, lazy) {
-    if (!lazy || (Date.now() - Esp.dh > ESPTO * 60000)) await Esp.load(op.db)
-    return Esp.orgs.get(org)
-  }
-
-  static async getEspOrg (op, org, lazy, assert) {
-    const ns = await Esp.getNsOrg(op, org, lazy)
-    if (!ns) { if (!assert) return null; assertKO(assert, 1, [ns]) }
-    op.ns = ns
-    op.org = org
-    const e = compile(Esp.map.get(ns))
-    e.ns = ns
-    return e
-  }
-
-  static updEsp(op, e) {
-    const x = Esp.map.get(op.ns)
-    if (!x || x.v < e.v) {
-      const r = e.toRow(op)
-      Esp.map.set(op.ns, r)
-      Esp.orgs.set(e.org, op.ns)
-    }
-  }
-
-}
-*/
-
 export class Cache {
   static MAX_CACHE_SIZE = 1000
   static LAZY_MS = 3000
@@ -267,8 +191,9 @@ class GD {
     this.comptas = new Map()
     this.partitions = new Map()
 
-    this.fpurges = []
-    this.transferts = []
+    this.fpurges = new Map()
+    this.transferts = new Map()
+
     this.transfertsApurger = []
   }
 
@@ -574,16 +499,16 @@ class GD {
     return d
   }
 
-  async nouvTRA (avgrid, idf) {
+  nouvTRA (avgrid, idf) {
     const dlv = AMJ.amjUtcPlusNbj(this.op.auj, 1)
-    const tr = Transferts.nouveau(avgrid, idf, dlv)
-    this.transferts.push(tr)
+    const d = Transferts.nouveau(avgrid, idf, dlv)
+    this.transferts.set(d.id, d)
   }
 
-  setFpurge (avgrid, lidf) {
+  nouvFPU (avgrid, lidf) {
     const id = ID.rnd()
-    const _data_ = new Uint8Array(encode({ id, avgrid, lidf }))
-    this.fpurges.push({ id, _data_ })
+    const d = Fpurges.nouveau({ id, avgrid, lidf })
+    this.fpurges.set(id, d)
     return id
   }
 
@@ -705,6 +630,18 @@ class GD {
     }
   }
 
+  async majFpurge (fpurge) {
+    if (fpurge._maj) {
+      this.op.insert(fpurge)
+    }
+  }
+
+  async majTransfert (transfert) {
+    if (transfert._maj) {
+      this.op.insert(transfert)
+    }
+  }
+
   async majCompte (compte) {
     if (compte._suppr) {
       this.op.delete({ _nom: 'comptes', id: compte.id })
@@ -768,10 +705,9 @@ class GD {
     for(const [,d] of this.sdocs) await this.majDoc(d)
     for(const [,d] of this.comptis) await this.majCompti(d)
     for(const [,d] of this.invits) await this.majInvit(d)
+    for(const [,d] of this.fpurges) await this.majFpurge(d)
+    for(const [,d] of this.transferts) await this.majTransfert(d)
     if (this.espace) await this.majEsp(this.espace)
-    if (this.transferts.length) 
-      for(const x of this.transferts)
-        await this.op.insert(x)
     
     for(const [id, d] of this.comptes) await this.majCompte(d)
 
@@ -788,7 +724,7 @@ class GD {
     */
     if (!this.op.SYS && this.op.compta) {
       // anticipation des coûts d'écriture
-      this.op.ne += (this.fpurges.length + this.transfertsApurger.length)
+      this.op.ne += this.transfertsApurger.length
       this.op.compta._maj = true
       await this.majCompta(this.op.compta)
     }
@@ -800,10 +736,9 @@ class GD {
     if (this.synthese) await this.majSynth()
     
     // PLUS DE LECTURES A PARTIR D'ICI
-    if (this.fpurges.length) for(const x of this.fpurges) 
-      await this.op.db.setFpurge(x)
-    if (this.transfertsApurger.length) for(const id of this.transfertsApurger)
-      await this.op.db.purgeTransferts(id)
+    if (this.transfertsApurger.length) 
+      for(const id of this.transfertsApurger)
+        await this.op.db.purgeTransferts(id)
   }
 
 }
@@ -828,7 +763,6 @@ export class Operation {
     this.authMode = authMode
     this.excFige = authMode === 3 ? 0 : (excFige || 1)
     this.dh = Date.now()
-    this.ns = 0
     this.org = ''
     this.result = { dh: this.dh }
     this.flags = 0
@@ -847,6 +781,11 @@ export class Operation {
     this.toDelete = []
     this.compte = null
     this.gd = new GD(this)
+  }
+
+  setOrg (org) {
+    this.org = org
+    this.db.setOrg(org)
   }
 
   async transac () { // Appelé par this.db.doTransaction
@@ -885,6 +824,7 @@ export class Operation {
         // retry - deconnexion / reconnexion
         this.db.disconnect()
         await dbp.connect(this)
+        if (this.op.org) this.setOrg(this.op.org)
       }
 
       if (this.phase2) {
@@ -905,7 +845,7 @@ export class Operation {
           if (this.subJSON.startsWith('???')) {
             if (config.mondebug) config.logger.error('subJSON=' + this.subJSON)
             } else {
-              await genLogin(this.ns, this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
+              await genLogin(this.org, this.sessionId, this.subJSON, this.nhb, this.id, 
                 this.compte.perimetre, this.compte.vpe)
             }
         }
@@ -920,7 +860,7 @@ export class Operation {
           const sl = this.gd.trLog.serialLong
           if (sl) {
             const sid = this.SYS ? null : (this.sessionId || null)
-            this.nhb = await genNotif(this.ns, sid, sl)
+            this.nhb = await genNotif(this.org, sid, sl)
           }
         }
         if (this.nhb !== undefined && this.nhb !== -1) 
@@ -1101,11 +1041,6 @@ export class Operation {
           if (v instanceof Array) break
           ko(n)
         }
-        case 'ns' : {
-          if (tof !== 'string' || v.length !== 1) ko(n)
-          if (Cles.nsToInt(v) === -1) ko(n)
-          break
-        }
         case 'nvch' : { // chsp: { ccK, ccP, cleE1C, cleE2C, t1c, t2c }
           if (tof !== 'object') ko(n)
           if (!v.ccK || !(v.ccK instanceof Uint8Array)) ko(n)
@@ -1166,9 +1101,10 @@ export class Operation {
             this.estAdmin = true
         } catch (e) { /* */ }
       }
-      this.org = this.authData.org
-      if (this.org)
-        await this.getEspaceOrg (this.authData.org, config.D1, excFige)
+
+      if (this.authData.org)
+        await this.getEspaceOrg (this.org, config.D1, excFige)
+      
       /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     } catch (e) { 
       await sleep(config.D1)
@@ -1176,7 +1112,8 @@ export class Operation {
     }
   }
 
-  async getEspaceOrg (org, delai, excFige) {
+  async getEspaceOrg (org, delai, excFige, noExcClos) {
+    this.setOrg(org)
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     this.espace = GenDoc.compile(await Cache.getRow(this, 'espaces', '', true))
     if (!this.espace) { 
@@ -1184,9 +1121,9 @@ export class Operation {
       throw new AppExc(F_SRV, 996) 
     }
     let cf = this.espace.clos
-    if (cf) throw new AppExc(A_SRV, 999, [cf.texte || '?'])
+    if (!noExcClos && cf) throw new AppExc(A_SRV, 999, [cf.texte || '?'])
     cf = this.espace.fige
-    if (excFige === 2 && cf) 
+    if (excFige && cf) 
       throw new AppExc(F_SRV, 101, [op.nomop, cf.texte || '?'])
     if (cf) this.flags = AL.add(this.flags, AL.FIGE)
     this.fige = AL.has(this.flags, AL.FIGE)
@@ -1353,10 +1290,6 @@ export class Operation {
     return rc
   }
 
-  async purgeTransferts (idag, idf) {
-    await this.db.purgeTransferts(this.ns + idag, idf)
-  }
-
   /* Méthode de suppression d'un groupe */
   async supprGroupe (gr) {
     // suppression des invitations / contacts
@@ -1383,8 +1316,8 @@ export class Operation {
     gr.setZombi() // suppression du groupe et de son chatgrs
     this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
     // tâches de suppression de tous les membres et des notes
-    await Taches.nouvelle(this, Taches.GRM, gr.id, '')
-    await Taches.nouvelle(this, Taches.AGN, gr.id, '')
+    await Taches.nouvelle(this, Taches.GRM, gr.id)
+    await Taches.nouvelle(this, Taches.AGN, gr.id)
   }
 
   /* Méthode de mise à jour des CV des membres d'un groupe */
@@ -1466,7 +1399,7 @@ export class Operation {
     for (const avid in c.mav) {
       const av = await this.gd.getAV(avid)
       if (av) av.setZombi()
-      await Taches.nouvelle(this, Taches.AVC, avid, 0)
+      await Taches.nouvelle(this, Taches.AVC, avid)
     }
     invits.setZombi()
     const compta = await this.gd.getCA(c.id)
@@ -1487,8 +1420,7 @@ export class Operation {
       (data) => { Compteurs.CSV(lignes, mois, sep, data) }
     )
     const buf = Buffer.from(lignes.join('\n'))
-    const buf2 = crypter(cleES, buf)
-    await this.storage.putFile(org, ID.duComptable(), 'C_' + mois, buf2)
+    return crypter(cleES, buf)
   }
 
   // Création d'un fichier CSV des tickets d'un mois
@@ -1525,7 +1457,6 @@ export class Operation {
       }
     )
     const buf = Buffer.from(lignes.join('\n'))
-    const buf2 = crypter(cleES, buf)
-    await this.storage.putFile(org, ID.duComptable(), 'T_' + mois, buf2)
+    return crypter(cleES, buf)
   }
 }
