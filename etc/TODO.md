@@ -1,5 +1,8 @@
 ## Bug / vérifications...
 
+    'leszsanglotszLONGSzgarezauzGORILLEz',
+    'auzvillagezSANSzjaizmauvaisezREPUTATIONz'
+    
 ## TODO
 Pages d'aide:
 - Rubriques "Comment faire pour ..."

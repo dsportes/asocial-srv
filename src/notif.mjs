@@ -326,7 +326,7 @@ async function post (fn, args) {
 export async function genNotif(org, sid, trlogLong) {
   const log = decode(trlogLong)
   if (!Session.pubsubURL)
-    return Session.getSession(ns).notif(sid, log)
+    return Session.getSession(org).notif(sid, log)
   return await post('notif', { ns, sid, log })
 }
 
@@ -334,7 +334,7 @@ export async function genNotif(org, sid, trlogLong) {
 // Retourne le numéro de HB courant ou 0 si service NON joignable
 export async function genLogin(org, sid, subscription, nhb, cid, perimetre, vpe) {
   if (!Session.pubsubURL) {
-    return Session.getSession(ns).login(sid, subscription, nhb, cid, perimetre, vpe)
+    return Session.getSession(org).login(sid, subscription, nhb, cid, perimetre, vpe)
   }
   return await post('login', { org, sid, subscription, nhb, cid, perimetre, vpe })
 }

@@ -1,11 +1,10 @@
-import { AppExc, A_SRV, F_SRV, ID, Compteurs } from './api.mjs'
+import { AppExc, A_SRV, F_SRV, ID } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { sleep, crypter, crypterSrv, decrypterSrv } from './util.mjs'
-
-import { Operation, Cache, Esp } from './modele.mjs'
-import { compile } from './gendoc.mjs'
-import { DataSync, Cles, Tarif, AMJ } from './api.mjs'
+import { GenDoc } from './gendoc.mjs'
+import { Operation, Cache } from './modele.mjs'
+import { DataSync, Cles, Tarif } from './api.mjs'
 // import { Taches } from './taches.mjs'
 
 // Pour forcer l'importation des opérations
@@ -670,9 +669,8 @@ operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   }
 
   async phase2 (args) {
-    this.org = args.org
-    const espace = await this.gd.getEspace('SetEspaceQuotas-1')
-    espace.setQuotas(args.quotas)
+    await this.getEspaceOrg (args.org, 0, false)
+    this.espace.setQuotas(args.quotas)
   }
 }
 
@@ -745,7 +743,6 @@ operations.CreationEspace = class CreationEspace extends Operation {
     if (this.espace)
       throw new AppExc(F_SRV, 203, [args.org])
 
-    this.org = args.org
     const cleE = Cles.espace()
     const cleES = crypterSrv(this.db.appKey, cleE)
     const cleET = crypter(args.TC, cleE)
@@ -831,6 +828,6 @@ operations.CreationComptable = class CreationComptable extends Operation {
     const cvA = { id: args.id }
     this.gd.nouvAV(args, cvA)
 
-    espace.comptableOK()
+    this.espace.comptableOK()
   }
 }

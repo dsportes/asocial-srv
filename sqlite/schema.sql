@@ -7,25 +7,23 @@ CREATE TABLE IF NOT EXISTS "singletons" (
 
 CREATE TABLE IF NOT EXISTS "taches" (
   "op" INTEGER,
-  "ns" TEXT,
+  "org" TEXT,
   "id" TEXT,
-  "ids" TEXT,
   "dh" INTEGER,
   "exc"	TEXT,
   "dhf" INTEGER,
   "nb" INTEGER,
-  PRIMARY KEY("op", "ns", "id", "ids")
+  PRIMARY KEY("op", "org", "id")
 );
 CREATE INDEX "taches_dh" ON "taches" ( "dh" );
-CREATE INDEX "taches_ns" ON "taches" ( "ns" );
 CREATE TABLE IF NOT EXISTS "espaces" (
   "id" TEXT,
-  "org" TEXT,
   "v" INTEGER,
+  "dpt" INTEGER,
   "_data_"	BLOB,
   PRIMARY KEY("id")
 );
-CREATE INDEX "espaces_org" ON "espaces" ( "org" );
+CREATE INDEX "espaces_dpt" ON "espaces" ( "dpt" );
 CREATE TABLE IF NOT EXISTS "syntheses" (
   "id" TEXT,
   "v" INTEGER,
@@ -80,7 +78,6 @@ CREATE TABLE IF NOT EXISTS "versions" (
   "id" TEXT,
   "v" INTEGER,
   "dlv" INTEGER,
-  "_data_"	BLOB,
   PRIMARY KEY("id")
 );
 CREATE INDEX "versions_id_v" ON "versions" ( "id", "v" );
@@ -122,10 +119,9 @@ CREATE TABLE IF NOT EXISTS "tickets" (
 CREATE INDEX "tickets_id_v" ON "tickets" ( "id", "v" );
 CREATE TABLE IF NOT EXISTS "transferts" (
   "id" TEXT,
-  "idf" TEXT,
   "dlv" INTEGER,
   "_data_"	BLOB,
-  PRIMARY KEY("id", "idf")
+  PRIMARY KEY("id")
 );
 CREATE INDEX "transferts_dlv" ON "transferts" ( "dlv" );
 CREATE TABLE IF NOT EXISTS "sponsorings" (

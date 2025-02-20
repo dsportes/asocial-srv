@@ -3,9 +3,12 @@ import { toByteArray, fromByteArray } from './base64.mjs'
 import { FLAGS, F_SRV, A_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, lqv, qv0, assertQv, ID, limitesjour, synthesesPartition } from './api.mjs'
 import { decrypterSrv, crypterSrv } from './util.mjs'
+import { config } from './config.mjs'
 
 // Classe abstraite pour méthodes communes à GenStProvider et GenConnx
 class GenStDb {
+  constructor () {}
+
   // crypte un texte UTF-8 et retourne son base64
   txt2B64 (txt) {
     return fromByteArray(crypterSrv(this.appKey, Buffer.from(txt)))
@@ -32,11 +35,12 @@ class GenStDb {
 
 // Classe abstraite de provider de Storga
 export class GenStProvider extends GenStDb {
-  constructor (site, code) {
+  constructor (code, site) {
+    super()
     const app_keys = config.app_keys
     this.code = code
     const s = app_keys.sites[site]
-    const x = provider.site.st
+    const x = s.st
     this.appKey = Buffer.from(s.k, 'base64')
     this.crOrg = (x && x[0]) || false
     this.crId = (x && x[1]) || false
@@ -54,11 +58,11 @@ export class GenConnx extends GenStDb {
     this.crOrg = (x && x[0]) || false
     this.crId = (x && x[1]) || false
     this.crData = (x && x[2]) || false
-    this.cOrg = null
+    this.cOrg = ''
   }
 
   setOrg (org) {
-    this.cOrg = this.cryptedOrg(org)
+    this.cOrg = this.crOrg  ? this.cryptedOrg(org) : org
   }
 
   decryptRow (row) {
@@ -84,6 +88,7 @@ export class GenConnx extends GenStDb {
   
   // Depuis un document compilé
   prepRow (obj) {
+    if (!(obj instanceof GenDoc)) return obj
     const r = { 
       id: obj.id ? this.idLong(obj.id) : this.cOrg
     }
@@ -97,16 +102,16 @@ export class GenConnx extends GenStDb {
     if (obj.vcv !== undefined) r.vcv = obj.vcv
     if (obj.dlv !== undefined) r.dlv = obj.dlv
     if (obj.dfh !== undefined) r.dfh = obj.dfh
+    if (obj.dpt !== undefined) r.dpt = obj.dpt
 
-    if (obj._zombi || obj._nom !== 'versions') 
-      r._data_ = null
-    else 
-      r._data_ = this.crData ? crypterSrv(this.appKey, obj.toData()) : obj.toData()
-  
+    if (obj._nom !== 'versions') {
+      if (obj._zombi) r._data_ = null
+      else r._data_ = this.crData ? crypterSrv(this.appKey, obj.toData()) : obj.toData()
+    }
     return r
   }
 
-  idLong (id) { return this.cOrg + '@' + this.cryptedId(id) }
+  idLong (id) { return this.cOrg + (id ? '@' + this.cryptedId(id) : '') }
 
   // Retourne le couple [org, id] d'une id cryptée de org@id
   orgId (id) {
@@ -140,6 +145,7 @@ export class MuterRow {
       const data = this.cin.crData ? new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : row._data_ 
       row._data = this.cout.crData ? new Uint8Array(crypterSrv(this.cout.appKey, data)) : data
     }
+    return row
   }
 
 }
@@ -166,7 +172,7 @@ export class GenDoc {
 
   /* Liste des attributs des (sous)collections- sauf singletons */
   static _attrs = {
-    espaces: ['id', 'v', '_data_'],
+    espaces: ['id', 'v', 'dpt', '_data_'],
     fpurges: ['id', '_data_'],
     partitions: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
@@ -174,7 +180,7 @@ export class GenDoc {
     comptis: ['id', 'v', '_data_'],
     invits: ['id', 'v', '_data_'],
     comptas: ['id', 'v', 'dlv', '_data_'],
-    versions: ['id', 'v', 'dlv', '_data_'],
+    versions: ['id', 'v', 'dlv'],
     avatars: ['id', 'v', 'vcv', 'hk', '_data_'],
     notes: ['id', 'ids', 'v', '_data_'],
     transferts: ['id', 'dlv', '_data_'],
@@ -237,6 +243,10 @@ export class GenDoc {
     }
     if (row._org) d.org = row._org
     return d.compile()
+  }
+
+  toShortData () { 
+    return this.toData()
   }
 
   toData () {

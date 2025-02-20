@@ -1,7 +1,7 @@
 import { Firestore } from '@google-cloud/firestore'
 import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
-import { GenConnx, GenDoc, compile, prepRow, decryptRow } from './gendoc.mjs'
+import { GenConnx, GenDoc } from './gendoc.mjs'
 
 export class FirestoreProvider {
   constructor (site, codeProvider) {

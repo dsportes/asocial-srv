@@ -4,7 +4,6 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, trace } from './modele.mjs'
-import { compile, Transferts } from './gendoc.mjs'
 import { UNITEV, AL } from './api.mjs'
 import { Taches } from './taches.mjs'
 

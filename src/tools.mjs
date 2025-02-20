@@ -23,7 +23,8 @@ import { parseArgs } from 'node:util'
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'readline'
 import path from 'path'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { decode } from '@msgpack/msgpack'
 
 import { config, getStorageProvider, getDBProvider } from './config.mjs'
 import { AMJ, ID } from './api.mjs'
@@ -103,8 +104,8 @@ export class Outils {
         await this.genVapidKeys()
         break
       }
-      case 'icon' : {
-        await this.buildIconMjs()
+      case 'data' : {
+        await this.decodeData()
         break
       }
       default : {
@@ -189,8 +190,10 @@ export class Outils {
 
     const opin = new OpSimple(null, cin.org)
     await cin.dbp.connect(opin)
+    opin.db.setOrg(cin.org)
     const opout = new OpSimple(null, cout.org)
     await cout.dbp.connect(opout)
+    opout.db.setOrg(cout.org)
  
     let msg = 'export-db:'
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
@@ -218,7 +221,10 @@ export class Outils {
       const rows = await opin.db.collOrg(nom, null, true)
       const lstRows = []
       for (const row of rows) {
-        if (v) scollIds.push(opin.db.orgId(row.id)[1])
+        if (v) {
+          const [co, ci] = opin.db.orgId(row.id)
+          scollIds.push(ci)
+        }
         lstRows.push(muteur.mute(row))
       }
       if (!this.simu) await opout.db.batchInsertRows(lstRows)
@@ -324,7 +330,7 @@ export class Outils {
     }
   }
 
-  async genVapidKeys() {
+  async genVapidKeys () {
     const msg = 'generate vpid keys dans ./vapid.json'
     const resp = await prompt(msg + '\nValider (o/N) ?')
     if (resp !== 'o' && resp !== 'O') throw 'Exécution interrompue.'
@@ -333,6 +339,16 @@ export class Outils {
     writeFileSync(pout, t)
     this.log('OK')
     this.log(t) 
+  }
+
+  async decodeData () {
+    const pin = path.resolve('./tmp/data.bin')
+    const b = new Uint8Array(readFileSync(pin))
+    const obj = decode(b)
+    const t = JSON.stringify(obj)
+    const pout = path.resolve('./tmp/data.json')
+    writeFileSync(pout, t)
+    console.log(t)
   }
 
 }

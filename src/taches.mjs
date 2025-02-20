@@ -1,8 +1,7 @@
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
-import { Operation, Esp, trace } from './modele.mjs'
-import { compile } from './gendoc.mjs'
-import { AMJ, ID, F_SRV, E_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
+import { Operation, trace } from './modele.mjs'
+import { AMJ, ID, E_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
 import { decrypterSrv, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -511,27 +510,28 @@ class ComptaStat extends Operation {
     await this.getEspaceOrg(this.org, 0, true)
 
     const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
-    const m = AMJ.djMoisN(this.auj, - args.mr)
-    const mois = Math.floor(m / 100)
-    this.setRes('mois', mois)
+    const mcre = Math.floor(this.espace.creation / 100)
+    if (args.mois < mcre) throw new AppExc(A_SRV, 353)
+    const mc = Math.floor(mc / 100)
+    if (args.mois > mc) throw new AppExc(A_SRV, 354)
 
     const idC = ID.duComptable() // 100000...
-    this.setRes('getUrl', await this.storage.getUrl(this.org, idC, 'C_' + mois))
+    this.setRes('getUrl', await this.storage.getUrl(this.org, idC, 'C_' + args.mois))
 
-    if (this.espace.moisStat && this.espace.moisStat >= mois) {
+    if (this.espace.moisStat && this.espace.moisStat >= args.mois) {
       // Demande d'une stat déjà calculée par le traitement mensuel
       this.setRes('creation', false)
       return
     }
 
     this.setRes('creation', true)
-    const buf = await this.creationC(this.org, cleES, mois)
-    await this.storage.putFile(org, idC, 'C_' + mois, buf)
+    const buf = await this.creationC(this.org, cleES, args.mois)
+    await this.storage.putFile(org, idC, 'C_' + args.mois, buf)
 
-    const moisSuivant = this.numMois(mois) === (this.numMois(this.espace.moisStat) + 1)
+    const moisSuivant = this.numMois(args.mois) === (this.numMois(this.espace.moisStat) + 1)
     // Enregistre par avance une stat mensuelle qui n'a pas encore été calculée par le GC
-    if (args.mr !== 0 && !this.espace.fige && moisSuivant)
-      this.espace.setMoisStat(mois)
+    if (!this.espace.fige && moisSuivant)
+      this.espace.setMoisStat(args.mois)
   }
 
 }
@@ -540,7 +540,7 @@ operations.ComptaStatC = class ComptaStatC extends ComptaStat {
   constructor (nom) { 
     super(nom, 2)
     this.targs = {
-      mr: { t: 'int', min: 0, max: 11 } //  mois relatif à la date du jour.
+      mois: { t: 'mois' } //  mois relatif à la date du jour.
     }
   }
 
@@ -554,7 +554,7 @@ operations.ComptaStatA = class ComptaStatA extends ComptaStat {
     super(nom, 3)
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
-      mr: { t: 'int', min: 0, max: 11 } //  mois relatif à la date du jour.
+      mois: { t: 'mois' } //  mois relatif à la date du jour.
     }
   }
 

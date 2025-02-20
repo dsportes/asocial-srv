@@ -227,7 +227,7 @@ class Connx extends GenConnx {
   /* Retourne le row d'une collection de nom / / org / id si sa version est postérieure à v
   */
   async getV (nom, id, v) {
-    const idLong = GenDoc.collsExp1.has(nom) ? this.cryptedOrg(id) : this.idLong(id)
+    const idLong = this.idLong(id)
     const code = 'SELV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND v > @v')
     const row = st.get({ id : idLong, v: v })
@@ -242,7 +242,7 @@ class Connx extends GenConnx {
   /* Retourne le row d'une collection de nom / id (sans version))
   */
   async getNV (nom, id, exportDb) {
-    const idLong = GenDoc.collsExp1.has(nom) ? this.cryptedOrg(id) : this.idLong(id)
+    const idLong = this.idLong(id)
     const code = 'SELNV' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id')
     const row = st.get({ id : idLong})
@@ -510,7 +510,7 @@ class Connx extends GenConnx {
     for (const row of rows) {
       const code = 'UPD' + row._nom
       const st = this._stmt(code, this._updStmt(row._nom))
-      const r = await this.prepRow(row)
+      const r = this.prepRow(row)
       st.run(r)
     }
   }

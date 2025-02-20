@@ -1,9 +1,9 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { ID, Cles, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, AL, idTkToL6, AMJ } from './api.mjs'
+import { ID, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, AL, idTkToL6, AMJ } from './api.mjs'
 import { config } from './config.mjs'
 import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'
-import { GenDoc, compile, Versions, Comptes, Avatars, Groupes, Transferts,
+import { GenDoc, Versions, Comptes, Avatars, Groupes, Transferts,
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
 import { genNotif, genLogin } from './notif.mjs'
@@ -47,13 +47,13 @@ export class Cache {
     if (x) {
       if (!lazy || (now - x.lru > Cache.LAZY_MS)) {
         // on vérifie qu'il n'y en pas une postérieure (pas lue si elle n'y en a pas)
-        const n = await op.db.getV(nom, op.org, id, x.row.v)
+        const n = await op.db.getV(nom, id, x.row.v)
         x.lru = now
         if (n && n.v > x.row.v) x.row = n // une version plus récente existe : mise en cache
       }
       return x.row
     }
-    const n = await op.db.getV(nom, op.org, id, 0)
+    const n = await op.db.getV(nom, id, 0)
     if (n) { // dernière version si elle existe
       const y = { lru: now, row: n }
       this.map.set(k, y)
@@ -803,8 +803,8 @@ export class Operation {
       this.args = args
       this.dbp = dbp
       this.storage = storage
-      if (!this.SYS) await this.auth1()
       await dbp.connect(this)
+      if (!this.SYS) await this.auth1()
       if (this.phase1) await this.phase1(this.args)
 
       if (this.phase2) for (let retry = 0; retry < 3; retry++) {
@@ -835,7 +835,6 @@ export class Operation {
         this.toUpdate.forEach(row => { if (GenDoc.majeurs.has(row._nom)) updated.push(row) })
         this.toDelete.forEach(row => { if (GenDoc.majeurs.has(row._nom)) deleted.push(row._nom + '/' + row.id) })
         Cache.update(this.op, updated, deleted)
-        if (this.gd.espace) Esp.updEsp(this, this.gd.espace)
       }
 
       await this.phase3(this.args) // peut ajouter des résultats et db HORS transaction
@@ -960,6 +959,14 @@ export class Operation {
           if (tof !== 'number' || !Number.isInteger(v)) ko(n)
           if (e.min !== undefined && v < e.min) ko(n)
           if (e.max !== undefined && v > e.max) ko(n)
+          break
+        }
+        case 'mois' : {
+          if (tof !== 'number' || !Number.isInteger(v)) ko(n)
+          const a = Math.floor(e / 100)
+          if (a < 2025 || a > 2099) ko(n)
+          const m = a % 100
+          if (m < 1 || a > 12) ko(n)
           break
         }
         case 'dh' : {
@@ -1102,8 +1109,8 @@ export class Operation {
         } catch (e) { /* */ }
       }
 
-      if (this.authData.org)
-        await this.getEspaceOrg (this.org, config.D1, excFige)
+      if (this.authData.org && this.authData.org !== 'admin')
+        await this.getEspaceOrg(this.authData.org, config.D1, this.excFige)
       
       /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     } catch (e) { 
@@ -1118,7 +1125,8 @@ export class Operation {
     this.espace = GenDoc.compile(await Cache.getRow(this, 'espaces', '', true))
     if (!this.espace) { 
       if (delai) await sleep(delai)
-      throw new AppExc(F_SRV, 996) 
+      if (excFige) throw new AppExc(F_SRV, 996) 
+      else return
     }
     let cf = this.espace.clos
     if (!noExcClos && cf) throw new AppExc(A_SRV, 999, [cf.texte || '?'])

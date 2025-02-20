@@ -67,10 +67,10 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   pathkeys: './keys',
 
   run: { // Configuration du "serveur"
-    site: 'A', // Donne sa clé de cryptage DB
+    site: 'B', // Donne sa clé de cryptage DB
     // origins: new Set(['http://localhost:8080']),
 
-    nom: 'test asocial-g',
+    nom: 'test asocial-B',
     // URL du serveur
     // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
     rooturl: 'http://test.sportes.fr:8443',
@@ -100,7 +100,7 @@ Tarif.init(config.tarifs)
 for (const n in config.env) env[n] = config.env[n]
 
 /*******************************************************************/
-export function appKeyBin (site) { return Buffer.from(config.app_keys.sites[site], 'base64') }
+export function appKeyBin (site) { return Buffer.from(config.app_keys.sites[site].k, 'base64') }
 
 /*******************************************************************/
 class Logger {
