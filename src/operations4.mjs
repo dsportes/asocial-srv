@@ -54,7 +54,7 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg (args.org, 0, false)
+    await this.getEspaceOrg(args.org)
     this.espace.setDlvat(args.dlvat)
   }
 }

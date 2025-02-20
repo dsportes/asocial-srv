@@ -142,7 +142,7 @@ operations.GetPubOrg = class GetPubOrg extends Operation {
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg (args.org, 0, false) 
+    await this.getEspaceOrg(args.org) 
     
     const avatar = await this.gd.getAV(args.id, 'getPub')
     if (!avatar.pub) await sleep(config.D1)
@@ -165,7 +165,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   } 
 
   async phase2 (args) {
-    await this.getEspaceOrg (args.org, 0, false)
+    await this.getEspaceOrg(args.org)
 
     if (this.espace.hTC) { // Compte du Comptable pas encore créé
       if (this.espace.hTC !== args.hTC) await sleep(config.D1)
@@ -195,7 +195,7 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg (args.org, 0, false)
+    await this.getEspaceOrg(args.org)
 
     if (await this.db.getCompteHk(args.hps1)) {
       this.setRes('existe', true)
@@ -271,7 +271,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg (args.org, 0, true)
+    await this.getEspaceOrg(args.org, true)
 
     const avsponsor = await this.gd.getAV(args.idsp)
     if (!avsponsor) {
@@ -374,7 +374,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
   }
 
   async phase2(args) {
-    await this.getEspaceOrg (args.org, 0, true)
+    await this.getEspaceOrg(args.org, true)
 
     const avsponsor = await this.gd.getAV(args.id)
     if (!avsponsor) {
@@ -669,7 +669,7 @@ operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg (args.org, 0, false)
+    await this.getEspaceOrg(args.org)
     this.espace.setQuotas(args.quotas)
   }
 }
@@ -739,7 +739,7 @@ operations.CreationEspace = class CreationEspace extends Operation {
   }
 
   async phase2(args) {
-    await this.getEspaceOrg (args.org, 0, false)
+    await this.getEspaceOrg(args.org)
     if (this.espace)
       throw new AppExc(F_SRV, 203, [args.org])
 
@@ -762,7 +762,7 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
   }
 
   async phase2(args) {
-    await this.getEspaceOrg (args.org, 0, false)
+    await this.getEspaceOrg(args.org)
 
     if (!this.espace.cleET) throw new AppExc(F_SRV, 316)
     const cleE = decrypterSrv(this.db.appKey, this.espace.cleES)
@@ -801,7 +801,7 @@ operations.CreationComptable = class CreationComptable extends Operation {
 
   async phase2(args) {
     const cfg = config.creationComptable
-    await this.getEspaceOrg(args.org, 0, true)
+    await this.getEspaceOrg(args.org, true)
 
     if (!this.espace.hTC) {
       await sleep(config.D1)

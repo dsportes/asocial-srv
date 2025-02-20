@@ -23,6 +23,21 @@ const IV = new Uint8Array([5, 255, 10, 250, 15, 245, 20, 240, 25, 235, 30, 230, 
 export function crypterSrv (k, buffer) {
   const b = buffer || new Uint16Array([])
   const cipher = crypto.createCipheriv('aes-256-cbc', k, IV)
+  const x1 = cipher.update(b)
+  const x2 = cipher.final()
+  return Buffer.concat([x1, x2])
+}
+
+export function decrypterSrv (k, b) {
+  const decipher = crypto.createDecipheriv('aes-256-cbc', k, IV)
+  const x1 = decipher.update(b)
+  const x2 = decipher.final()
+  return Buffer.concat([x1, x2])
+}
+/*
+export function crypterSrv (k, buffer) {
+  const b = buffer || new Uint16Array([])
+  const cipher = crypto.createCipheriv('aes-256-cbc', k, IV)
   const x0 = Buffer.from([k[0], k[1], k[2], k[3]])
   const x1 = cipher.update(b)
   const x2 = cipher.final()
@@ -36,6 +51,7 @@ export function decrypterSrv (k, b) {
   const x2 = decipher.final()
   return Buffer.concat([x1, x2])
 }
+*/
 
 const SALTS = new Array(256)
 

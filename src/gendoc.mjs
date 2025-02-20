@@ -1,8 +1,7 @@
 import { encode, decode } from '@msgpack/msgpack'
-import { toByteArray, fromByteArray } from './base64.mjs'
 import { FLAGS, F_SRV, A_SRV, AppExc, AMJ, UNITEN, UNITEV,
   Compteurs, lqv, qv0, assertQv, ID, limitesjour, synthesesPartition } from './api.mjs'
-import { decrypterSrv, crypterSrv } from './util.mjs'
+import { decrypterSrv, crypterSrv, u8ToB64, b64ToU8 } from './util.mjs'
 import { config } from './config.mjs'
 
 // Classe abstraite pour méthodes communes à GenStProvider et GenConnx
@@ -11,12 +10,17 @@ class GenStDb {
 
   // crypte un texte UTF-8 et retourne son base64
   txt2B64 (txt) {
-    return fromByteArray(crypterSrv(this.appKey, Buffer.from(txt)))
+    const x = u8ToB64(crypterSrv(this.appKey, Buffer.from(txt)), true)
+    /* const y = this.b642Txt(x)
+    if (txt !== y)
+      console.log('BBBBUG')
+    */
+    return x
   }
 
   // decrypte un base64 et retourne son texte UTF-8
   b642Txt (b64) {
-    return decrypterSrv(this.appKey, toByteArray(b64)).toString('utf-8')
+    return decrypterSrv(this.appKey, b64ToU8(b64)).toString('utf-8')
   }
 
   cryptedOrg (org) { return this.crOrg && org ? this.txt2B64(org) : (org || '') }
@@ -138,12 +142,14 @@ export class MuterRow {
       row.ids = this.cout.cryptedId(ids)
     }
 
-    if (row.hk !== undefined) 
-      row.hk = this.cout.idLong(this.cin.orgId(row.hk)[1])
+    if (row.hk !== undefined) {
+      const [org, hk] = this.cin.orgId(row.hk)
+      row.hk = this.cout.idLong(hk)
+    }
 
     if (row._data_) {
       const data = this.cin.crData ? new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : row._data_ 
-      row._data = this.cout.crData ? new Uint8Array(crypterSrv(this.cout.appKey, data)) : data
+      row._data_ = this.cout.crData ? new Uint8Array(crypterSrv(this.cout.appKey, data)) : data
     }
     return row
   }

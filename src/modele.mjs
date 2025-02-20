@@ -1107,27 +1107,28 @@ export class Operation {
           if (app_keys.admin.indexOf(shax64) !== -1) 
             this.estAdmin = true
         } catch (e) { /* */ }
-      }
-
-      if (this.authData.org && this.authData.org !== 'admin')
-        await this.getEspaceOrg(this.authData.org, config.D1, this.excFige)
-      
+      }      
       /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     } catch (e) { 
       await sleep(config.D1)
       throw new AppExc(F_SRV, 206, [e.message])
     }
+
+    if (this.authData.org && this.authData.org !== 'admin') {
+      await this.getEspaceOrg(this.authData.org, this.excFige)
+      if (!this.espace) {
+        await sleep(config.D1)
+        throw new AppExc(F_SRV, 996)
+      }
+    }
+
   }
 
-  async getEspaceOrg (org, delai, excFige, noExcClos) {
+  async getEspaceOrg (org, excFige, noExcClos) {
     this.setOrg(org)
     /* Espace: rejet de l'opération si l'espace est "clos" - Accès LAZY */
     this.espace = GenDoc.compile(await Cache.getRow(this, 'espaces', '', true))
-    if (!this.espace) { 
-      if (delai) await sleep(delai)
-      if (excFige) throw new AppExc(F_SRV, 996) 
-      else return
-    }
+    if (!this.espace) return
     let cf = this.espace.clos
     if (!noExcClos && cf) throw new AppExc(A_SRV, 999, [cf.texte || '?'])
     cf = this.espace.fige

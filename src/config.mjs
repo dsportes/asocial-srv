@@ -52,7 +52,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   },
 
   // Configuations nommées des providers db
-  sqlite_a: { path: './sqlite/test.db3' },
+  sqlite_a: { path: './sqlite/testa.db3' },
   sqlite_b: { path: './sqlite/testb.db3' },
   firestore_a: { key: 'service_account'},
 

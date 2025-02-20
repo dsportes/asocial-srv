@@ -507,7 +507,7 @@ class ComptaStat extends Operation {
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg(this.org, 0, true)
+    await this.getEspaceOrg(this.org, true)
 
     const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
     const mcre = Math.floor(this.espace.creation / 100)
@@ -580,7 +580,7 @@ operations.TicketsStat = class TicketsStat extends Operation {
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg(this.org, 0, true)
+    await this.getEspaceOrg(this.org, true)
 
     const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
 
