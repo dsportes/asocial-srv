@@ -1437,6 +1437,7 @@ export class Operation {
     const cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
     const sep = ','
     const lignes = []
+    const dlv = AMJ.djMoisN((mois * 100) + 1, 2)
     lignes.push(cptM.join(sep))
     // async selTickets (op, id, aamm, fnprocess)
     /* Ticket
@@ -1451,7 +1452,7 @@ export class Operation {
     await this.db.selTickets(
       ID.duComptable(), 
       org,
-      mois,
+      dlv,
       (data) => { 
         const d = decode(data)
         const ids = '"' + d.ids + '"'

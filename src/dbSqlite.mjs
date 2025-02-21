@@ -394,12 +394,12 @@ class Connx extends GenConnx {
     return r
   }
   
-  /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
+  /* Retourne les tickets du comptable id dont la dlv (dernier jour d'un mois)
+  est inférieure ou égale à dlv
   */
-  async selTickets (id, aamm, fnprocess) {
-    const mx = (aamm % 10000) + '99999999' // ids pas crypté
-    const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND ids <= @mx')
-    const rows = st.all({ id: this.idLong(id), mx })
+  async selTickets (id, dlv, fnprocess) {
+    const st = this._stmt('SELTKTS', 'SELECT * FROM tickets WHERE id = @id AND dlv <= @dlv')
+    const rows = st.all({ id: this.idLong(id), dlv })
     if (!rows) return []
     const r = []
     for (const row of rows) {
@@ -420,11 +420,10 @@ class Connx extends GenConnx {
     return info.changes
   }
 
-  async delTickets (id, aamm) {
-    const mx = (aamm % 10000) + '9999999999' // ids pas crypté
+  async delTickets (id, dlv) {
     const code = 'DELTKT'
-    const st = this._stmt(code, 'DELETE FROM tickets WHERE id = @id AND ids <= @mx')
-    const info = st.run({id: this.idLong(id), mx})
+    const st = this._stmt(code, 'DELETE FROM tickets WHERE id = @id AND dlv <= @dlv')
+    const info = st.run({id: this.idLong(id), dlv})
     this.op.ne += info.changes
     return info.changes
   }

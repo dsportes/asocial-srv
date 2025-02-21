@@ -1111,6 +1111,7 @@ operations.PlusTicket = class PlusTicket extends Operation {
     super(nom, 1, 2)
     this.targs = {
       ids: { t: 'ids' }, // ids du ticket généré
+      dlv: { t: 'date', n: true },
       ma : { t:'int', min: 0, max: 100000 }, // montant du ticket
       refa: { t: 'string', n: true } // référence éventuelle
     }

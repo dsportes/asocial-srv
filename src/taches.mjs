@@ -433,7 +433,8 @@ operations.STA = class STA extends OperationT {
       const buf = await this.creationT(s.org, cleES, s.mois)
       await this.storage.putFile(s.org, ID.duComptable(), 'T_' + s.mois, buf)
       this.espace.setMoisStatT(s.mois)
-      await this.db.delTickets(ID.duComptable(), s.mois)
+      const dlv = AMJ.djMoisN((s.mois * 100) + 1, 2)
+      await this.db.delTickets(ID.duComptable(), dlv)
     }
 
     args.fini = !args.todo.length
@@ -596,7 +597,8 @@ operations.TicketsStat = class TicketsStat extends Operation {
       const buf = await this.creationT(this.org, cleES, mois)
       if (!espace.fige && args.mr > 3) {
         this.espace.setMoisStatT(mois)
-        await this.db.delTickets(ID.duComptable(), mois)
+        const dlv = AMJ.djMoisN((mois * 100) + 1, 2)
+        await this.db.delTickets(ID.duComptable(), dlv)
       }
       await this.storage.putFile(this.org, ID.duComptable(), 'T_' + mois, buf)
     }

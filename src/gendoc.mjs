@@ -97,10 +97,8 @@ export class GenConnx extends GenStDb {
       id: obj.id ? this.idLong(obj.id) : this.cOrg
     }
 
+    if (obj.ids !== undefined) r.ids = this.cryptedId(obj.ids)
     if (obj.hk !== undefined) r.hk = this.idLong(obj.hk)
-
-    if (obj.ids !== undefined) 
-      r.ids = obj._nom === 'Tickets' ? obj.ids : this.cryptedId(obj.ids)
   
     if (obj.v !== undefined) r.v = obj.v
     if (obj.vcv !== undefined) r.vcv = obj.vcv
@@ -137,7 +135,7 @@ export class MuterRow {
   mute (row) {
     row.id = this.cout.idLong(this.cin.orgId(row.id)[1])
 
-    if (row.ids !== undefined && row._nom !== 'Tickets') {
+    if (row.ids !== undefined) {
       const ids = this.cin.decryptedId(row.ids)
       row.ids = this.cout.cryptedId(ids)
     }
@@ -192,7 +190,7 @@ export class GenDoc {
     transferts: ['id', 'dlv', '_data_'],
     sponsorings: ['id', 'ids', 'v', 'dlv', '_data_'],
     chats: ['id', 'ids', 'v', '_data_'],
-    tickets: ['id', 'ids', 'v', '_data_'],
+    tickets: ['id', 'ids', 'v', 'dlv', '_data_'],
     groupes: ['id', 'v', 'dfh', '_data_'],
     membres: ['id', 'ids', 'v', '_data_'],
     chatgrs: ['id', 'ids', 'v', '_data_']
@@ -459,6 +457,7 @@ export class Tickets extends GenDoc {
   static nouveau (idc, args) {
     return new Tickets().init( {
       _maj: true, v: 0,
+      dlv: args.dlv,
       idc: idc, 
       ids: args.ids, 
       ma: args.ma, 
