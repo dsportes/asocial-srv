@@ -74,16 +74,17 @@ export class GenConnx extends GenStDb {
     // Reconstruction des _data_ dont tous les attributs sont externalisés ou zombies
     if (!row._data_) { // versions et zombies
       if (row._nom === 'notes' || row._nom === 'chats') {
-        row._data_ = {
+        row._data_ = encode({
           id: this.orgId(row.id)[1],
-          ids: this.decryptedId(row.ids)
-        }
+          ids: this.decryptedId(row.ids),
+          _zombi: true
+        })
       } else if (row._nom === 'versions') {
-        row._data_ = {
+        row._data_ = encode({
           id: this.orgId(row.id)[1],
           dlv: row.dlv,
           v: row.v
-        }
+        })
       }
     } else if (this.crData)
         row._data_ = new Uint8Array(decrypterSrv(this.appKey, row._data_))
@@ -240,11 +241,8 @@ export class GenDoc {
   static compile (row) {
     if (!row) return null
     const d = GenDoc._new(row._nom)
-    if (!row._data_ || !row._data_.length) d._zombi = true
-    else {
-      const obj = decode(Buffer.from(row._data_))
-      for (const [key, value] of Object.entries(obj)) d[key] = value
-    }
+    const obj = decode(Buffer.from(row._data_))
+    for (const [key, value] of Object.entries(obj)) d[key] = value
     if (row._org) d.org = row._org
     return d.compile()
   }
@@ -411,7 +409,7 @@ export class Espaces extends GenDoc {
     const cl = this.cloneCourt()
 
     if (op.estAdmin) {
-      cl.cleES = decrypterSrv(op.db.appKey, this.cleES)
+      cl.cleES = this.cleES
       cl.hTC = this.hTC
       cl.moisStat = this.moisStat
       cl.moisStatT = this.moisStatT
@@ -419,6 +417,7 @@ export class Espaces extends GenDoc {
     }
 
     if (op.estComptable) {
+      cl.cleES = this.cleES
       cl.tnotifP = this.tnotifP
       cl.moisStat = this.moisStat
       cl.moisStatT = this.moisStatT
@@ -1666,11 +1665,13 @@ export class Transferts extends GenDoc {
 
   static nouveau (avgrid, idf, dlv) {
     const tr = new Transferts().init({
+      _maj: true,
       id: avgrid + '_' + idf,
       avgrid: avgrid,
       idf: idf,
       dlv: dlv,
     })
+    return tr
   }
 }
 

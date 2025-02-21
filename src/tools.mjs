@@ -160,6 +160,7 @@ export class Outils {
   }
 
   async setCfgSt (io) {
+    const app_keys = config.app_keys
     const e = {}
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
@@ -174,7 +175,7 @@ export class Outils {
     if (!e.appKey)
       throw 'Argument --' + io + ' : Attendu: org,provider,site . site [' + e.site + '] inconnu'
     e.pname = x[1]
-    e.storage = await getStorageProvider(x[1])
+    e.storage = await getStorageProvider(x[1], e.site)
     if (e.storage.ko)
       throw 'Argument --' + io + ' : Attendu: org,provider,site : provider [' + x[1] + ']: non trouvé'
     this.cfg[io] = e
@@ -211,7 +212,7 @@ export class Outils {
     // const ch = new NsOrg(cin, cout)
 
     for (const nom of GenDoc.collsExp1) {
-      const row = await opin.db.getNV(nom, '')
+      const row = await opin.db.getNV(nom, '', true)
       if (!this.simu) await opout.db.batchInsertRows([muteur.mute(row)])
       this.log(`export ${nom}`)
     }
@@ -242,7 +243,7 @@ export class Outils {
         const lstRows = []
         for (const row of rows) {
           stats[nom]++
-          lstRows.push(ch.chRow(row))
+          lstRows.push(muteur.mute(row))
         }
         if (!this.simu) await opout.db.batchInsertRows(lstRows)
       }

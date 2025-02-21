@@ -743,9 +743,8 @@ operations.CreationEspace = class CreationEspace extends Operation {
     if (this.espace)
       throw new AppExc(F_SRV, 203, [args.org])
 
-    const cleE = Cles.espace()
-    const cleES = crypterSrv(this.db.appKey, cleE)
-    const cleET = crypter(args.TC, cleE)
+    const cleES = Cles.espace()
+    const cleET = crypter(args.TC, cleES)
     this.gd.nouvES(cleES, cleET, args.hTC)
   }
 }
@@ -765,8 +764,7 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
     await this.getEspaceOrg(args.org)
 
     if (!this.espace.cleET) throw new AppExc(F_SRV, 316)
-    const cleE = decrypterSrv(this.db.appKey, this.espace.cleES)
-    const cleET = crypter(args.TC, cleE)
+    const cleET = crypter(args.TC, this.espace.cleES)
     this.espace.reset(cleET, args.hTC)
   }
 }

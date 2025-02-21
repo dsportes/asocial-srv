@@ -1,9 +1,9 @@
-import { AppExc, A_SRV, F_SRV, ID, FLAGS, AMJ, MAXTAILLEGROUPE } from './api.mjs'
+import { AppExc, A_SRV, F_SRV, ID, FLAGS, MAXTAILLEGROUPE } from './api.mjs'
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
-import { Operation, trace } from './modele.mjs'
+import { Operation, trace, assertKO } from './modele.mjs'
 import { UNITEV, AL } from './api.mjs'
 import { Taches } from './taches.mjs'
 

@@ -424,7 +424,7 @@ operations.STA = class STA extends OperationT {
 
     const s = args.todo.pop()
     await getEspaceOrg(s.org, 0, false, true)
-    const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
+    const cleES = this.espace.cleES
     if (s.t === 'C') {
       const buf = await this.creationC(s.org, cleES, s.mois)
       await this.storage.putFile(s.org, ID.duComptable(), 'C_' + s.mois, buf)

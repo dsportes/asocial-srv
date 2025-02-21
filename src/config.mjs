@@ -58,7 +58,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
 
   // Configuations nommées des providers storage
   s3_a: { bucket: 'asocial', key: 's3_config' },
-  fs_a: { rootpath: './fsstorage' },
+  fs_a: { rootpath: './fsstoragea' },
   fs_b: { rootpath: './fsstorageb' },
   gc_a: { bucket: 'asocial-test1.appspot.com', key: 'service_account' /* fixé pour emulator ? */ },
 
@@ -67,10 +67,10 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   pathkeys: './keys',
 
   run: { // Configuration du "serveur"
-    site: 'B', // Donne sa clé de cryptage DB
+    site: 'A', // Donne sa clé de cryptage DB
     // origins: new Set(['http://localhost:8080']),
 
-    nom: 'test asocial-B',
+    nom: 'test asocial-A',
     // URL du serveur
     // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
     rooturl: 'http://test.sportes.fr:8443',

@@ -258,7 +258,7 @@ class Connx extends GenConnx {
   async get (nom, id, ids) {
     const code = 'SEL' + nom
     const st = this._stmt(code, 'SELECT * FROM ' + nom + '  WHERE id = @id AND ids = @ids')
-    const row = st.get({ id : this.idLong(id), ids: this.idLong(ids) })
+    const row = st.get({ id : this.idLong(id), ids: this.cryptedId(ids) })
     if (row) {
       row._nom = nom
       this.op.nl++
