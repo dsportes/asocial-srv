@@ -1518,7 +1518,7 @@ export class Avatars extends GenDoc {
       this.cleAZC = args.cleAZC
       this.pcK = args.pcK
     } else {
-      this.hk = 0
+      delete this.hk
       delete this.hZR
       delete this.pcK
       delete this.cleAZC

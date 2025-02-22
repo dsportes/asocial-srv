@@ -6,6 +6,7 @@ import { eqU8 } from './util.mjs'
 import { Operation, trace, assertKO } from './modele.mjs'
 import { UNITEV, AL } from './api.mjs'
 import { Taches } from './taches.mjs'
+import { GenDoc } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function load4 () {

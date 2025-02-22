@@ -1289,13 +1289,13 @@ export class Operation {
   }
 
   async getRowMembre (id, ids, assert) {
-    const rm = await this.db.get('membres', id, ids)
+    const rm = await this.db.get('membres', id, '' + ids)
     if (assert && !rm) throw assertKO('getRowMembre/' + assert, 10, [this.org + '@' + id, ids])
     return rm
   }
 
   async getRowChatgr (id, assert) {
-    const rc = await this.db.get('chatgrs', id, ids)
+    const rc = await this.db.get('chatgrs', id, '1')
     if (assert && !rc) throw assertKO('getRowChatgr/' + assert, 10, [this.org + '@' + id, 1])
     return rc
   }
