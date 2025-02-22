@@ -323,8 +323,9 @@ export class Espaces extends GenDoc {
   cloneCourt () {
     return new Espaces().init({
       id: '',
+      v: this.v,
       dpt: this.dpt,
-      org: this._org,
+      org: this.org,
       creation: this.creation,
       moisStat: this.moisStat,
       moisStatT: this.moisStatT,

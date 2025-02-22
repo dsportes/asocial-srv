@@ -51,13 +51,18 @@ export class FsProvider extends GenStProvider {
   }
 
   async putFile (porg, pid, pidf, data) {
-    const org = this.cryptedOrg(porg)
-    const id = this.cryptedId(pid)
-    const idf = this.cryptedIdf(pidf)
-    const dir = path.resolve(this.rootpath, ''+org, ''+id)
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    const p = path.resolve(dir, ''+idf)
-    await writeFile(p, Buffer.from(data))
+    try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
+      const idf = this.cryptedIdf(pidf)
+      const dir = path.resolve(this.rootpath, ''+org, ''+id)
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+      const p = path.resolve(dir, ''+idf)
+      await writeFile(p, Buffer.from(data))
+    } catch (err) {
+      config.logger.info(err.toString())
+      throw err
+    }
   }
 
   async delFiles (porg, pid, lidf) {

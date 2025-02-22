@@ -209,6 +209,7 @@ class GD {
     const espace = GenDoc.compile(await Cache.getRow(this.op, 'espaces', ''))
     if (!espace && assert) throw assertKO(assert, 15, [this.op.org])
     this.espace = espace
+    this.op.espace = espace
     return espace
   }
 
@@ -1419,13 +1420,12 @@ export class Operation {
   }
 
   // Création d'un fichier CSV d'une compta
-  async creationC (org, cleES, mois) {
+  async creationC (cleES, mois) {
     const sep = ','
     const lignes = []
     lignes.push(Compteurs.CSVHDR(sep))
     await this.db.collOrg(
-      'comptas', 
-      org, 
+      'comptas',
       (data) => { Compteurs.CSV(lignes, mois, sep, data) }
     )
     const buf = Buffer.from(lignes.join('\n'))
@@ -1433,7 +1433,7 @@ export class Operation {
   }
 
   // Création d'un fichier CSV des tickets d'un mois
-  async creationT (org, cleES, mois) {
+  async creationT (cleES, mois) {
     const cptM = ['IDS', 'TKT', 'DG', 'DR', 'MA', 'MC', 'REFA', 'REFC']
     const sep = ','
     const lignes = []
@@ -1450,8 +1450,7 @@ export class Operation {
     - `refc` : texte court (32c) facultatif du Comptable à la réception.
     */
     await this.db.selTickets(
-      ID.duComptable(), 
-      org,
+      ID.duComptable(),
       dlv,
       (data) => { 
         const d = decode(data)

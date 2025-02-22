@@ -670,6 +670,7 @@ operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
 
   async phase2 (args) {
     await this.getEspaceOrg(args.org)
+    await this.gd.getEspace()
     this.espace.setQuotas(args.quotas)
   }
 }
@@ -762,6 +763,7 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
 
   async phase2(args) {
     await this.getEspaceOrg(args.org)
+    await this.gd.getEspace()
 
     if (!this.espace.cleET) throw new AppExc(F_SRV, 316)
     const cleET = crypter(args.TC, this.espace.cleES)
@@ -800,6 +802,7 @@ operations.CreationComptable = class CreationComptable extends Operation {
   async phase2(args) {
     const cfg = config.creationComptable
     await this.getEspaceOrg(args.org, true)
+    await this.gd.getEspace()
 
     if (!this.espace.hTC) {
       await sleep(config.D1)

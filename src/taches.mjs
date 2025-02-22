@@ -1,7 +1,7 @@
 import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, trace } from './modele.mjs'
-import { AMJ, ID, E_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
+import { AMJ, ID, E_SRV, A_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
 import { decrypterSrv, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
@@ -424,14 +424,15 @@ operations.STA = class STA extends OperationT {
 
     const s = args.todo.pop()
     await getEspaceOrg(s.org, 0, false, true)
+    await this.gd.getEspace()
     const cleES = this.espace.cleES
     if (s.t === 'C') {
-      const buf = await this.creationC(s.org, cleES, s.mois)
-      await this.storage.putFile(s.org, ID.duComptable(), 'C_' + s.mois, buf)
+      const buf = await this.creationC(cleES, s.mois)
+      await this.storage.putFile(this.org, ID.duComptable(), 'C_' + s.mois, buf)
       this.espace.setMoisStat(s.mois)
     } else {
-      const buf = await this.creationT(s.org, cleES, s.mois)
-      await this.storage.putFile(s.org, ID.duComptable(), 'T_' + s.mois, buf)
+      const buf = await this.creationT(cleES, s.mois)
+      await this.storage.putFile(this.org, ID.duComptable(), 'T_' + s.mois, buf)
       this.espace.setMoisStatT(s.mois)
       const dlv = AMJ.djMoisN((s.mois * 100) + 1, 2)
       await this.db.delTickets(ID.duComptable(), dlv)
@@ -510,10 +511,10 @@ class ComptaStat extends Operation {
   async phase2 (args) {
     await this.getEspaceOrg(this.org, true)
 
-    const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
+    const cleES = this.espace.cleES
     const mcre = Math.floor(this.espace.creation / 100)
     if (args.mois < mcre) throw new AppExc(A_SRV, 353)
-    const mc = Math.floor(mc / 100)
+    const mc = Math.floor(this.auj / 100)
     if (args.mois > mc) throw new AppExc(A_SRV, 354)
 
     const idC = ID.duComptable() // 100000...
@@ -526,13 +527,15 @@ class ComptaStat extends Operation {
     }
 
     this.setRes('creation', true)
-    const buf = await this.creationC(this.org, cleES, args.mois)
-    await this.storage.putFile(org, idC, 'C_' + args.mois, buf)
+    const buf = await this.creationC(cleES, args.mois)
+    await this.storage.putFile(this.org, idC, 'C_' + args.mois, buf)
 
     const moisSuivant = this.numMois(args.mois) === (this.numMois(this.espace.moisStat) + 1)
     // Enregistre par avance une stat mensuelle qui n'a pas encore été calculée par le GC
-    if (!this.espace.fige && moisSuivant)
+    if (!this.espace.fige && moisSuivant) {
+      await this.gd.getEspace()
       this.espace.setMoisStat(args.mois)
+    }
   }
 
 }
@@ -541,7 +544,7 @@ operations.ComptaStatC = class ComptaStatC extends ComptaStat {
   constructor (nom) { 
     super(nom, 2)
     this.targs = {
-      mois: { t: 'mois' } //  mois relatif à la date du jour.
+      mois: { t: 'mois' } 
     }
   }
 
@@ -555,7 +558,7 @@ operations.ComptaStatA = class ComptaStatA extends ComptaStat {
     super(nom, 3)
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
-      mois: { t: 'mois' } //  mois relatif à la date du jour.
+      mois: { t: 'mois' }
     }
   }
 
@@ -576,31 +579,36 @@ operations.TicketsStat = class TicketsStat extends Operation {
   constructor (nom) { 
     super(nom, 2)
     this.targs = {
-      mr: { t: 'int', min: 0, max: 3 } //  mois relatif à la date du jour.
+      mois: { t: 'mois' } //  mois relatif à la date du jour.
     }
   }
 
+  numMois (m) {
+    if (m === 0) return 0
+    return (Math.floor(m / 100) * 12) + (m % 100)
+  }
+
   async phase2 (args) {
-    await this.getEspaceOrg(this.org, true)
+    await this.gd.getEspace()
 
-    const cleES = decrypterSrv(this.db.appKey, this.espace.cleES)
+    const cleES = this.espace.cleES
 
-    const moisauj = Math.floor(this.auj / 100)
-    const mois = AMJ.moisMoins(moisauj, args.mr)
+    const moisAuj = Math.floor(this.auj / 100)
+    if (args.mois > moisAuj) args.mois = moisAuj
+    const mr = this.numMois(moisAuj) - this.numMois(args.mois)
 
-    this.setRes('getUrl', await this.storage.getUrl(this.org, ID.duComptable(), 'T_' + mois))
-    this.setRes('mois', mois)
-    if (this.espace.moisStatT && this.espace.moisStatT >= mois) {
+    this.setRes('getUrl', await this.storage.getUrl(this.org, ID.duComptable(), 'T_' + args.mois))
+    if (this.espace.moisStatT && this.espace.moisStatT >= args.mois) {
       this.setRes('creation', false)
     } else {
       this.setRes('creation', true)
-      const buf = await this.creationT(this.org, cleES, mois)
-      if (!espace.fige && args.mr > 3) {
-        this.espace.setMoisStatT(mois)
-        const dlv = AMJ.djMoisN((mois * 100) + 1, 2)
+      const buf = await this.creationT(cleES, args.mois)
+      if (!this.espace.fige && mr > 2) {
+        this.espace.setMoisStatT(args.mois)
+        const dlv = AMJ.djMoisN((args.mois * 100) + 1, 2)
         await this.db.delTickets(ID.duComptable(), dlv)
       }
-      await this.storage.putFile(this.org, ID.duComptable(), 'T_' + mois, buf)
+      await this.storage.putFile(this.org, ID.duComptable(), 'T_' + args.mois, buf)
     }
   }
 }

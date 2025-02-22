@@ -39,6 +39,7 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
   }
 
   async phase2 (args) {
+    await this.gd.getEspace()
     this.espace.setOptions(args.optionA, args.nbmi)
   }
 }
@@ -55,6 +56,7 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
 
   async phase2 (args) {
     await this.getEspaceOrg(args.org)
+    await this.gd.getEspace()
     this.espace.setDlvat(args.dlvat)
   }
 }
