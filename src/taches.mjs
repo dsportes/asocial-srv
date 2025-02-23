@@ -2,7 +2,7 @@ import { config } from './config.mjs'
 import { operations } from './cfgexpress.mjs'
 import { Operation, trace } from './modele.mjs'
 import { AMJ, ID, E_SRV, A_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
-import { decrypterSrv, sendAlMail } from './util.mjs'
+import { sleep, sendAlMail } from './util.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches () {
@@ -63,11 +63,10 @@ export class Taches {
     return Taches.dh((nj * 86400000) + h + tache.op)
   }
 
-  static async nouvelle (oper, top, id, ids) {
+  static async nouvelle (oper, top, id) {
     const t = new Taches({
       op: top, 
       id: id || '',
-      ids: ids || '', 
       org: oper.org, 
       dh: Taches.dh(oper.dh), 
       exc: ''})
@@ -235,9 +234,9 @@ operations.ProchTache = class ProchTache extends Operation {
         await op.run(args, this.dbp, this.storage)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
           if (!tache.estGC) // La tache est supprimée
-            await this.db.delTache(tache.op, tache.org, tache.id, tache.ids)
+            await this.db.delTache(tache.op, tache.org, tache.id)
           else // La tache est déjà inscrite pour sa prochaine exécution: set dhf
-            await this.db.recTache(tache.op, tache.org, tache.id, tache.ids, Date.now(), args.nb || 0)
+            await this.db.recTache(tache.op, tache.org, tache.id, Date.now(), args.nb || 0)
           break
         }
       } catch (e) { // Opération sortie en exception
@@ -249,7 +248,7 @@ operations.ProchTache = class ProchTache extends Operation {
           if (al) {
             const al1 = al['admin']
             if (al1)
-              await sendAlMail(config.run.site, op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
+              await sendAlMail(config.run.site, tache.op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
           }
         }
         break
@@ -276,6 +275,7 @@ operations.DFH = class DFH extends OperationT {
   async phase2(args) {
     // Récupération de la liste des id des groupes à supprimer
     // Test d'une exc: throw new AppExc(A_SRV, 10, ['plantage DFH'])
+    // await sleep(10000)
     if (!args.lst) {
       args.lst = await this.db.getGroupesDfh(this.auj)
       args.nb = args.lst.length
@@ -283,7 +283,7 @@ operations.DFH = class DFH extends OperationT {
     if (!args.lst.length) { args.fini = true; return }
 
     const [org, idg] = args.lst.pop()
-    await getEspaceOrg(org, 0, false, true)
+    await this.getEspaceOrg(org, 0, false, true)
     // Les espaces clos finiront par être purgés de la base (et n'apparaîtront plus en DFH)
     // Les espaces figés sont ignorés. Ils réapparaîtront jusqu'à ce qu'ils ne soient plus figés
     if (this.espace && !this.espace.clos && !this.espace.fige) {
@@ -293,7 +293,7 @@ operations.DFH = class DFH extends OperationT {
   }
 }
 
-// détection des comptes au dela de leur DLV
+// détection des comptas au dela de leur DLV
 operations.DLV = class DLV extends OperationT {
   constructor (nom) { super(nom) }
 
@@ -306,7 +306,7 @@ operations.DLV = class DLV extends OperationT {
     if (!args.lst.length) { args.fini = true; return }
 
     const [org, idc] = args.lst.pop()
-    await getEspaceOrg(org, 0, false, true)
+    await this.getEspaceOrg(org, 0, false, true)
     if (this.espace && !this.espace.clos && !this.espace.fige) {
       const c = await this.gd.getCO(idc)
       if (c) await this.resilCompte(c) // bouclera sur le suivant de hb jusqu'à épuisement de hb
@@ -325,7 +325,7 @@ operations.TRA = class TRA extends OperationT {
     const lst = await this.db.listeTransfertsDlv(this.auj) 
     args.nb = lst.length
     for (const d of lst) {
-      await getEspaceOrg(d.org, 0, false, true)
+      await this.getEspaceOrg(d.org, 0, false, true)
       if (this.espace && !this.espace.clos && !this.espace.fige) {
         await this.storage.delFiles(d.org, d.avgrid, [d.idf])
         await this.db.purgeTransferts(d.id)
@@ -349,7 +349,7 @@ operations.FPU = class FPU extends OperationT {
     const lst = await this.db.listeFpurges(this)
     args.nb = 0
     for (const d of lst) {
-      await getEspaceOrg(d.org, 0, false, true)
+      await this.getEspaceOrg(d.org, 0, false, true)
       if (this.espace && !this.espace.clos && !this.espace.fige) {
         await this.storage.delFiles(d.org, d.avgrid, d.lidf)
         await this.db.purgeFpurge(d.id)
@@ -423,7 +423,7 @@ operations.STA = class STA extends OperationT {
     }
 
     const s = args.todo.pop()
-    await getEspaceOrg(s.org, 0, false, true)
+    await this.getEspaceOrg(s.org, 0, false, true)
     await this.gd.getEspace()
     const cleES = this.espace.cleES
     if (s.t === 'C') {
@@ -452,7 +452,7 @@ operations.GRM = class GRM extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    await getEspaceOrg(args.tache.org, 0, false, true)
+    await this.getEspaceOrg(args.tache.org, 0, false, true)
     if (this.espace && !this.espace.clos && !this.espace.fige)
       args.nb = await this.db.delScoll('membres', args.tache.id)
     args.fini = true
@@ -466,7 +466,7 @@ operations.AGN = class AGN extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    await getEspaceOrg(tache.org, 0, false, true)
+    await this.getEspaceOrg(args.tache.org, 0, false, true)
     if (this.espace && !this.espace.clos && !this.espace.fige)
       args.nb = await this.db.delScoll('notes', args.tache.id)
     await this.storage.delId(this.org, args.tache.id)
@@ -479,7 +479,7 @@ operations.AVC = class AVC extends OperationT {
   constructor (nom) { super(nom) }
 
   async phase2(args) {
-    await getEspaceOrg(tache.org, 0, false, true)
+    await this.getEspaceOrg(args.tache.org, 0, false, true)
     if (this.espace && !this.espace.clos && !this.espace.fige) {
       for (const row of await this.db.scoll('chats', args.tache.id, 0)) {
         const chI = GenDoc.compile(row)

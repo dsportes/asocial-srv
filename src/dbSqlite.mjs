@@ -163,7 +163,7 @@ class Connx extends GenConnx {
 
   async delTache (op, org, id) {
     const arg = { op, org: this.cryptedOrg(org), id: this.cryptedId(id) }
-    const st = this._stmt('DELTACHE2', 'DELETE FROM taches WHERE op = @op AND ns = @ns AND id = @id')
+    const st = this._stmt('DELTACHE2', 'DELETE FROM taches WHERE op = @op AND org = @org AND id = @id')
     st.run(arg)
   }
 
@@ -492,7 +492,8 @@ class Connx extends GenConnx {
     for (const row of rows) {
       const code = 'DEL' + row._nom
       const st = this._stmt(code, this._delStmt(row._nom))
-      st.run(row) // row contient id et ids
+      const r = this.prepRow(row)
+      st.run(r) // row contient id et ids
     }
   }
 

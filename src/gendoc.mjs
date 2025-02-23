@@ -181,7 +181,7 @@ export class GenDoc {
     fpurges: ['id', '_data_'],
     partitions: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
-    comptes: ['id', 'v', 'hk', '_data_'],
+    comptes: ['id', 'v', 'hk', 'dlv', '_data_'],
     comptis: ['id', 'v', '_data_'],
     invits: ['id', 'v', '_data_'],
     comptas: ['id', 'v', 'dlv', '_data_'],

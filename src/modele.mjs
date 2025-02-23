@@ -18,7 +18,7 @@ export function assertKO (src, code, args) {
   const x = args && args.length ? JSON.stringify(args) : ''
   const msg = `ASSERT : ${src} - ${x} - ${code}`
   const t = new Date().toISOString()
-  config.logger(msg)
+  config.logger.error(msg)
   if (args) args.unshift(src)
   return new AppExc(A_SRV, code, !args ? [src || '???'] : args)
 }
@@ -537,7 +537,8 @@ class GD {
     let v = this.versions.get(id)
     if (!v) {
       v = await this.getV(id)
-      if (!v) throw assertKO('majV', 20, [this.org + '@' + id])
+      if (!v && !suppr) throw assertKO('majV', 20, [this.op.org + '@' + id])
+      if (!v && suppr) return 0
     }
     if (!v._maj) {
       v._vav = v.v
@@ -557,10 +558,10 @@ class GD {
     if (d._suppr) { 
       if (d.ids) { // pour membres, notes, chats, sponsorings, tickets
         await this.majV(d.id)
-        this.op.delete({ _nom: d._nom, id: d.id, ids: d.ids })
+        this.op.delete(GenDoc._new(d._nom).init({id: d.id, ids: d.ids }))
       } else { // pour groupes, avatars, comptes, comptas, invits, comptis
         await this.majV(d.id, true)
-        this.op.delete({ _nom: d._nom, id: d.id })
+        this.op.delete(GenDoc._new(d._nom).init({id: d.id}))
       }
     } else if (d._maj) {
       const ins = d.v === 0
@@ -590,7 +591,7 @@ class GD {
 
   async majCompta (compta) { // ET report éventuel dans partition / synthese
     if (compta._suppr) {
-      this.op.delete({ _nom: 'comptas', id: compta.id })
+      this.op.delete(GenDoc._new('comptas').init({id: compta.id}))
     } else {
       compta._vav = compta.v
       compta.v++
@@ -645,7 +646,7 @@ class GD {
 
   async majCompte (compte) {
     if (compte._suppr) {
-      this.op.delete({ _nom: 'comptes', id: compte.id })
+      this.op.delete(GenDoc._new('comptes').init({id: compte.id}))
     } else if (compte._maj) {
       compte._vav = compte.v
       let compti, invit, p
@@ -1324,7 +1325,7 @@ export class Operation {
       }
     }
     gr.setZombi() // suppression du groupe et de son chatgrs
-    this.delete({ _nom: 'chatgrs', id: gr.id, ids: 1 })
+    this.delete(new Chatgrs().init({ id: gr.id, ids: '1' }))
     // tâches de suppression de tous les membres et des notes
     await Taches.nouvelle(this, Taches.GRM, gr.id)
     await Taches.nouvelle(this, Taches.AGN, gr.id)
