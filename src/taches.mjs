@@ -3,6 +3,7 @@ import { operations } from './cfgexpress.mjs'
 import { Operation, trace } from './modele.mjs'
 import { AMJ, ID, E_SRV, A_SRV, AppExc, IDBOBSGC, limitesjour, NBMOISENLIGNETKT } from './api.mjs'
 import { sleep, sendAlMail } from './util.mjs'
+import { GenDoc } from './gendoc.mjs'
 
 // Pour forcer l'importation des opérations
 export function loadTaches () {
@@ -46,8 +47,9 @@ export class Taches {
     24: 'AVC'
   }
 
-  static dh (t) {
+  static dh (t, label) {
     // const x = new Date(t).toISOString()
+    // if (config.mondebug) config.logger.info(label + ': ' + x)
     return t
   }
 
@@ -57,10 +59,11 @@ export class Taches {
   */
   static dhRetry (tache) {
     const now = Date.now()
-    if (!tache || !Taches.OPSGC.has(tache.op)) return Taches.dh(now + config.retrytache)
+    if (!tache || !Taches.OPSGC.has(tache.op)) 
+      return Taches.dh(now + (config.retrytache * 60000), 'retry 2')
     const nj = Math.floor(now / 86400000) + 1
     const h = (((config.heuregc[0] * 60) + config.heuregc[1]) * 60000)
-    return Taches.dh((nj * 86400000) + h + tache.op)
+    return Taches.dh((nj * 86400000) + h + tache.op, 'dhRetry')
   }
 
   static async nouvelle (oper, top, id) {
@@ -68,7 +71,7 @@ export class Taches {
       op: top, 
       id: id || '',
       org: oper.org, 
-      dh: Taches.dh(oper.dh), 
+      dh: Taches.dh(oper.dh, 'nouvelle'), 
       exc: ''})
     oper.db.setTache(t)
     oper.aTaches = true
@@ -87,8 +90,8 @@ export class Taches {
     }, 1)
   }
 
-  constructor ({op, id, ids, org, dh, exc}) {
-    this.op = op; this.id = id; this.ids = ids; this.org = org; this.dh = dh; this.exc = exc
+  constructor ({op, id, org, dh, exc}) {
+    this.op = op; this.id = id; this.org = org; this.dh = dh; this.exc = exc
   }
 
 }
@@ -111,8 +114,8 @@ operations.InitTachesGC = class InitTachesGC extends Operation {
     Taches.OPSGC.forEach(t => { s.add(t)})
     rows.forEach(r => { s.delete(r.op) })
     for (const t of s) {
-      const tache = new Taches({op: t, id: '', ids: '', ns: '', dh: 0, exc: ''})
-      tache.dh = tache.op // Taches.dhRetry(tache) + tache.op
+      const tache = new Taches({op: t, id: '', org: '', dh: 0, exc: ''})
+      tache.dh = Taches.dhRetry(tache)
       await this.db.setTache(tache)
     }
     this.setRes('nxnc', [Taches.OPSGC.size - s.size, s.size])
@@ -196,7 +199,7 @@ operations.ProchTache = class ProchTache extends Operation {
 
     try {
       Taches.demon = true
-      const dh = Taches.dh(Date.now())
+      const dh = Taches.dh(Date.now(), 'ProchTache')
 
       const proch = await this.db.prochTache(dh)
       if (proch) {
@@ -217,8 +220,12 @@ operations.ProchTache = class ProchTache extends Operation {
 
     /* La tâche est inscrite pour plus tard : en cas de non terminaison
     elle est déjà configurée pour être relancée. */
-    tache.dh = Taches.dhRetry(tache)
+    const t = Taches.dhRetry(tache)
+    tache.dh = t
     tache.exc = ''
+    if (config.mondebug)
+      config.logger.info ('SetTache avant run:' + Taches.OPNOMS[tache.op] 
+        + ' ' + (tache.org || 'GC') + ' ' + (tache.id || '') + ' '+ new Date(t).toISOString())
     await this.db.setTache(tache)
 
     /* L'opération va être lancée N fois, jusqu'à ce qu'elle indique
@@ -233,15 +240,26 @@ operations.ProchTache = class ProchTache extends Operation {
         const op = new cl(nom)
         await op.run(args, this.dbp, this.storage)
         if (args.fini) { // L'opération a épuisé ce qu'elle avait à faire
-          if (!tache.estGC) // La tache est supprimée
+          if (!tache.estGC) { // La tache est supprimée
+            if (config.mondebug)
+              config.logger.info('DEL Tache après run:' + Taches.OPNOMS[tache.op]
+                + ' ' + (tache.org || 'GC') + ' ' + (tache.id || '') + ' '+ new Date(t).toISOString())
             await this.db.delTache(tache.op, tache.org, tache.id)
-          else // La tache est déjà inscrite pour sa prochaine exécution: set dhf
+          }
+          else {
+            // La tache est déjà inscrite pour sa prochaine exécution: set dhf
+            if (config.mondebug)
+              config.logger.info('SetTache après run:' + Taches.OPNOMS[tache.op] 
+                + ' ' + (tache.org || 'GC') + ' ' + (tache.id || '') + ' '+ new Date(t).toISOString())
             await this.db.recTache(tache.op, tache.org, tache.id, Date.now(), args.nb || 0)
+          }
           break
         }
       } catch (e) { // Opération sortie en exception
         // Enregistrement de l'exception : la tache est déjà inscrite pour relance 
         tache.exc = e.message + (e.stack ? '\n' + e.stack : '')
+        if (config.mondebug)
+          config.logger.info('SetTache après EXC:' + Taches.OPNOMS[tache.op] + ' ' + new Date(tache.dh).toISOString())
         await this.db.setTache(tache)
         if (tache.exc.code !== 8995) {
           const al = config.alertes
@@ -485,6 +503,7 @@ operations.AVC = class AVC extends OperationT {
         const chI = GenDoc.compile(row)
         const chE = await this.gd.getCAV(chI.idE, chI.idsE)
         if (chE) chE.chEdisp()
+        // throw new AppExc(A_SRV, 10, ['Plantage AVC']) // Test de plantage
       }
       args.nb = await this.db.delScoll('chats', args.tache.id)
     }

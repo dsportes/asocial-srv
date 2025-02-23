@@ -585,7 +585,8 @@ class GD {
       d._vav = d.v
       d.v++
       this.trLog.setEsp(d.v)
-      if (ins) this.op.insert(d); else this.op.update(d)
+      if (ins) this.op.insert(d)
+      else this.op.update(d)
     }
   }
 

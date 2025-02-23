@@ -93,19 +93,19 @@ export class GenConnx extends GenStDb {
   
   // Depuis un document compilé
   prepRow (obj) {
-    if (!(obj instanceof GenDoc)) return obj
-    const r = { 
-      id: obj.id ? this.idLong(obj.id) : this.cOrg
-    }
+    const b = obj instanceof GenDoc
+    if (!b) return obj
+    const r = { }
 
-    if (obj.ids !== undefined) r.ids = this.cryptedId(obj.ids)
-    if (obj.hk !== undefined) r.hk = this.idLong(obj.hk)
-  
-    if (obj.v !== undefined) r.v = obj.v
-    if (obj.vcv !== undefined) r.vcv = obj.vcv
-    if (obj.dlv !== undefined) r.dlv = obj.dlv
-    if (obj.dfh !== undefined) r.dfh = obj.dfh
-    if (obj.dpt !== undefined) r.dpt = obj.dpt
+    const la = GenDoc._attrs[obj._nom]
+    la.forEach(a => {
+      if (a !== '_data_') {
+        if (a === 'id') r.id = obj.id ? this.idLong(obj.id) : this.cOrg
+        else if (a === 'ids') r.ids = this.cryptedId(obj.ids)
+        else if (a === 'hk') r.hk = obj.hk ? this.idLong(obj.hk) : null
+        else r[a] = obj[a] || GenDoc.defVals[a]
+      }
+    })
 
     if (obj._nom !== 'versions') {
       if (obj._zombi) r._data_ = null
@@ -181,7 +181,7 @@ export class GenDoc {
     fpurges: ['id', '_data_'],
     partitions: ['id', 'v', '_data_'],
     syntheses: ['id', 'v', '_data_'],
-    comptes: ['id', 'v', 'hk', 'dlv', '_data_'],
+    comptes: ['id', 'v', 'hk', '_data_'],
     comptis: ['id', 'v', '_data_'],
     invits: ['id', 'v', '_data_'],
     comptas: ['id', 'v', 'dlv', '_data_'],
@@ -225,7 +225,7 @@ export class GenDoc {
     return obj
   }
 
-  static defVals = { id: '', ids: '', hk: '', v:0, dlv: 0, dfh: 0, vcv: 0 }
+  static defVals = { id: '', ids: null, hk: null, v:0, dlv: 0, dfh: 0, vcv: 0, dpt: 0 }
 
   constructor (nom) { 
     const la = GenDoc._attrs[nom]

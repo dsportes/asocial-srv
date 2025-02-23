@@ -4,6 +4,12 @@
     'auzvillagezSANSzjaizmauvaisezREPUTATIONz'
     
 ## TODO
+Pas testé: GC : DLV comptas, DLV : sponsorings, DLV : versions
+
+Pas testé : mode avion, fichiers mode avion
+
+firestore, storageGC et AWS
+
 Pages d'aide:
 - Rubriques "Comment faire pour ..."
 

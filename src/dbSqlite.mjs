@@ -186,12 +186,22 @@ class Connx extends GenConnx {
   async orgTaches (org) {
     const arg = { org: this.cryptedOrg(org) }
     const st = this._stmt('ORGTACHES', 'SELECT * FROM taches WHERE org = @org')
-    return st.all(arg)
+    const rows = st.all(arg)
+    for(const row of rows) {
+      if (row.org) row.org = this.decryptedOrg(row.org)
+      if (row.id) row.id = this.decryptedId(row.id)
+    }
+    return rows
   }
 
   async toutesTaches () {
     const st = this._stmt('TOUTESTACHES', 'SELECT * FROM taches')
-    return st.all()
+    const rows = st.all()
+    for(const row of rows) {
+      if (row.org) row.org = this.decryptedOrg(row.org)
+      if (row.id) row.id = this.decryptedId(row.id)
+    }
+    return rows
   }
 
   async getRowEspaces () {
@@ -499,9 +509,9 @@ class Connx extends GenConnx {
 
   async insertRows (rows) {
     for (const row of rows) {
-      const r = this.prepRow(row)
       const code = 'INS' + row._nom
       const st = this._stmt(code, this._insStmt(row._nom))
+      const r = this.prepRow(row)
       st.run(r)
     }
   }

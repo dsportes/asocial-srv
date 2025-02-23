@@ -1,13 +1,11 @@
 {
   "configurations": [
-  {
-    "name": "Attach by Process ID",
-    "processId": "${command:PickProcess}",
-    "request": "attach",
-    "skipFiles": [
-      "<node_internals>/**"
-    ],
-    "type": "node"
-  }
+    {
+      "name": "Launch Chrome",
+      "request": "launch",
+      "type": "chrome",
+      "url": "http://localhost:8081?demo",
+      "webRoot": "${workspaceFolder}"
+    }
   ]
 }
