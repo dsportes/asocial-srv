@@ -5,6 +5,7 @@ import { Hash } from '@aws-sdk/hash-node'
 import { formatUrl } from '@aws-sdk/util-format-url'
 
 import { config } from './config.mjs'
+import { GenStProvider } from './gendoc.mjs'
 // import { s3_config } from './keys.mjs'
 
 function stream2buffer(stream) {
@@ -17,15 +18,17 @@ function stream2buffer(stream) {
 }
 
 /* S3Provider ********************************************************************/
-export class S3Provider {
-  constructor (codeProvider) {
+export class S3Provider extends GenStProvider {
+  constructor (code, site) {
+    super(code, site)
+
     // this.config = config.s3_config
-    const kn = config[codeProvider].key
+    const kn = config[code].key
     this.config = config[kn]
     this.config.sha256 = Hash.bind(null, 'sha256')
     this.s3 = new S3Client(this.config)
     this.signer = new S3RequestPresigner(this.config)
-    this.bucketName = config[codeProvider].bucket
+    this.bucketName = config[code].bucket
   }
 
   async ping () {
@@ -37,7 +40,10 @@ export class S3Provider {
     return true
   }
 
-  async getUrl (org, id, idf) {
+  async getUrl (porg, pid, pidf) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const idf = this.cryptedIdf(pidf)
     const objectKey = '/' + org + '/' + id + '/' + idf
     const getCmd = new GetObjectCommand({ Bucket: this.bucketName, Key: objectKey })
     const getReq = await createRequest(this.s3, getCmd)
@@ -49,7 +55,10 @@ export class S3Provider {
     return getUrl
   }
 
-  async putUrl (org, id, idf) {
+  async putUrl (porg, pid, pidf) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const idf = this.cryptedIdf(pidf)
     const objectKey = '/' + org + '/' + id + '/' + idf
     const putCmd = new PutObjectCommand({ Bucket: this.bucketName, Key: objectKey })
     // const putUrl = await getSignedUrl(s3, putCmd, { expiresIn: 3600 }) // KO : voir bug ci-dessus
@@ -62,8 +71,11 @@ export class S3Provider {
     return putUrl
   }
 
-  async getFile (org, id, idf) {
+  async getFile (porg, pid, pidf) {
     try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
+      const idf = this.cryptedIdf(pidf)
       const objectKey = '/' + org + '/' + id + '/' + idf
       const getCmd = new GetObjectCommand({ Bucket: this.bucketName, Key: objectKey })
       const res = await this.s3.send(getCmd)
@@ -74,7 +86,10 @@ export class S3Provider {
     }
   }
 
-  async putFile (org, id, idf, data) {
+  async putFile (porg, pid, pidf, data) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const idf = this.cryptedIdf(pidf)
     const objectKey = '/' + org + '/' + id + '/' + idf
     const bucketParams = { Bucket: this.bucketName, Key: objectKey, Body: data }
     const putCmd = new PutObjectCommand(bucketParams)
@@ -84,8 +99,11 @@ export class S3Provider {
   async delFiles (org, id, lidf) {
     if (!lidf || !lidf.length) return
     try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
       for (let i = 0; i < lidf.length; i++) {
-        const objectKey = '/' + org + '/' + id + '/' + lidf[i]
+        const idf = this.cryptedIdf(lidf[i])
+        const objectKey = '/' + org + '/' + id + '/' + idf
         const delCmd = new DeleteObjectCommand({ Bucket: this.bucketName, Key: objectKey })
         await this.s3.send(delCmd)
       }
@@ -94,8 +112,10 @@ export class S3Provider {
     }
   }
 
-  async delId (org, id) {
-    const pfx = org + '/' + (id === -1 ? '' : id + '/')
+  async delId (porg, pid) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const pfx = org + '/' + id + '/'
     const lst = []
     const bucketParams = { Bucket: this.bucketName, Prefix: pfx, Delimiter: '/', MaxKeys: 10000 }
     let truncated = true
@@ -111,11 +131,28 @@ export class S3Provider {
     }
   }
 
-  async delOrg (org) {
-    await this.delId(org, -1)
+  async delOrg (porg) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const pfx = org + '/'
+    const lst = []
+    const bucketParams = { Bucket: this.bucketName, Prefix: pfx, Delimiter: '/', MaxKeys: 10000 }
+    let truncated = true
+    while (truncated) {
+      const response = await this.s3.send(new ListObjectsCommand(bucketParams))
+      if (response.Contents) response.Contents.forEach((item) => { lst.push(item.Key) })
+      truncated = response.IsTruncated
+      if (truncated) bucketParams.Marker = response.NextMarker
+    }
+    for (let i = 0; i < lst.length; i++) {
+      const delCmd = new DeleteObjectCommand({ Bucket: this.bucketName, Key: lst[i] })
+      await this.s3.send(delCmd)
+    }
   }
 
-  async listFiles (org, id) {
+  async listFiles (porg, pid) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
     const lst = []
     const pfx = org + '/' + id + '/'
     const l = pfx.length
@@ -124,7 +161,9 @@ export class S3Provider {
     while (truncated) {
       const response = await this.s3.send(new ListObjectsCommand(bucketParams))
       if (response.Contents) response.Contents.forEach((item) => {
-        lst.push(item.Key.substring(l))
+        const name = item.Key.substring(l)
+        const dname = this.decryptedIdf(name)
+        lst.push(dname) 
       })
       truncated = response.IsTruncated
       if (truncated) bucketParams.Marker = response.NextMarker
@@ -132,7 +171,8 @@ export class S3Provider {
     return lst
   }
 
-  async listIds (org) {
+  async listIds (porg) {
+    const org = this.cryptedOrg(porg)
     const lst = []
     const l = (org + '/').length
     const bucketParams = { Bucket: this.bucketName, Prefix: org + '/', Delimiter: '/', MaxKeys: 10000 }
@@ -141,8 +181,9 @@ export class S3Provider {
       const response = await this.s3.send(new ListObjectsCommand(bucketParams))
       if (response.CommonPrefixes) response.CommonPrefixes.forEach((item) => {
         const s = item.Prefix
-        const s2 = s.substring(l, s.length - 1)
-        lst.push(s2)
+        const name = s.substring(l, s.length - 1)
+        const dname = this.decryptedIdf(name)
+        lst.push(dname) 
       })
       truncated = response.IsTruncated
       if (truncated) bucketParams.Marker = response.NextMarker

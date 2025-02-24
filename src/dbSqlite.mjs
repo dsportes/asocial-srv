@@ -9,7 +9,6 @@ export const Database = require('better-sqlite3')
 
 import path from 'path'
 import { existsSync } from 'node:fs'
-import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { GenConnx, GenDoc } from './gendoc.mjs'
 
@@ -20,6 +19,7 @@ export class SqliteProvider {
     this.code = code
     this.site = app_keys.sites[site]
     this.appKey = Buffer.from(this.site.k, 'base64')
+    
     this.path = path.resolve(config[code].path)
     if (!existsSync(this.path)) {
       config.logger.info('Path DB inaccessible= [' + this.path + ']')

@@ -2,6 +2,7 @@ import { Storage } from '@google-cloud/storage'
 import { encode3 } from './util.mjs'
 import { config } from './config.mjs'
 // import { service_account } from './keys.mjs'
+import { GenStProvider } from './gendoc.mjs'
 
 const cors = {
   origin: ['*'],
@@ -11,10 +12,11 @@ const cors = {
 }
 
 /* GcProvider ********************************************************************/
-export class GcProvider {
-  constructor (codeProvider) {
+export class GcProvider extends GenStProvider {
+  constructor (code, site) {
+    super(code, site)
     // const service_account = config.service_account
-    const cfg = config[codeProvider]
+    const cfg = config[code]
     const kn = cfg.key
     const service_account = config[kn]
     this.emulator = config.env.STORAGE_EMULATOR_HOST
@@ -46,11 +48,14 @@ export class GcProvider {
     }
   }
 
-  async getUrl (org, id, idf) {
+  async getUrl (porg, pid, pidf) {
     if (this.emulator) {
-      const url = this.storageUrlGenerique(org, id, idf)
+      const url = this.storageUrlGenerique(porg, pid, pidf)
       return url  
     }
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const idf = this.cryptedIdf(pidf)
     const fileName = org + '/' + id + '/' + idf
     // These options will allow temporary read access to the file
     const options = {
@@ -59,15 +64,18 @@ export class GcProvider {
       expires: Date.now() + 1000 * 60 * 60, // one hour
     }
     // Get a v4 signed URL for the file
-    const [url] = await this.bucket.file(fileName).getSignedUrl(options)
+    const [url] = this.bucket.file(fileName).getSignedUrl(options)
     return url
   }
 
-  async putUrl (org, id, idf) {
+  async putUrl (porg, pid, pidf) {
     if (this.emulator) {
-      const url = this.storageUrlGenerique(org, id, idf)
+      const url = this.storageUrlGenerique(porg, pid, pidf)
       return url  
     }
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const idf = this.cryptedIdf(pidf)
     const fileName = org + '/' + id + '/' + idf
     // These options will allow temporary uploading of the file with outgoing
     // Content-Type: application/octet-stream header.
@@ -78,15 +86,18 @@ export class GcProvider {
       contentType: 'application/octet-stream',
     }
     // Get a v4 signed URL for uploading file
-    const [url] = await this.bucket.file(fileName).getSignedUrl(options)
+    const [url] = this.bucket.file(fileName).getSignedUrl(options)
     return url
     /* You can use this URL with any user agent, for example:
     curl -X PUT -H 'Content-Type: application/octet-stream' --upload-file my-file ${url}
     */
   }
 
-  async getFile (org, id, idf) {
+  async getFile (porg, pid, pidf) {
     try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
+      const idf = this.cryptedIdf(pidf)
       const fileName = org + '/' + id + '/' + idf
       const contents = await this.bucket.file(fileName).download()
       return contents[0]
@@ -96,17 +107,28 @@ export class GcProvider {
     }
   }
 
-  async putFile (org, id, idf, data) {
-    const fileName = org + '/' + id + '/' + idf
-    await this.bucket.file(fileName).save(Buffer.from(data))
+  async putFile (porg, pid, pidf, data) {
+    try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
+      const idf = this.cryptedIdf(pidf)
+      const fileName = org + '/' + id + '/' + idf
+      await this.bucket.file(fileName).save(Buffer.from(data))
+    } catch (err) {
+      config.logger.info(err.toString())
+      throw err
+    }
   }
 
-  async delFiles (org, id, lidf) {
+  async delFiles (porg, pid, lidf) {
     if (!lidf || !lidf.length) return
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
     const deleteOptions = {
       ignoreNotFound: true // ne fait rien !
     }
-    for (const idf of lidf) {
+    for (const pidf of lidf) {
+      const idf = this.cryptedId(pidf)
       const fileName = org + '/' + id + '/' + idf
       try {
         await this.bucket.file(fileName).delete(deleteOptions)
@@ -116,10 +138,12 @@ export class GcProvider {
     }
   }
 
-  async delId (org, id) {
+  async delId (porg, pid) {
     return new Promise((resolve) => {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
       const options = {
-        prefix: org + '/' + (id === -1 ? '' : id + '/'),
+        prefix: org + '/' + id + '/',
         force: true
       }
       this.bucket.deleteFiles(options, () => {
@@ -128,25 +152,44 @@ export class GcProvider {
     })
   }
 
-  async delOrg (org) {
-    await this.delId(org, -1)
+  async delOrg (porg) {
+    return new Promise((resolve) => {
+      const org = this.cryptedOrg(porg)
+      const options = {
+        prefix: org + '/',
+        force: true
+      }
+      this.bucket.deleteFiles(options, () => {
+        resolve(true)
+      })
+    })
   }
 
-  async listFiles (org, id) {
-    const prefix = org + '/' + id + '/'
-    const lg = prefix.length
-    // Lists files in the bucket, filtered by a prefix
-    // eslint-disable-next-line no-unused-vars
-    const [files] = await this.bucket.getFiles({prefix})
-    const lst = []
-    files.forEach(file => {
-      lst.push(file.name.substring(lg))
-    }) 
-    return lst
+  async listFiles (porg, pid) {
+    try {
+      const org = this.cryptedOrg(porg)
+      const id = this.cryptedId(pid)
+      const prefix = org + '/' + id + '/'
+      const lg = prefix.length
+      // Lists files in the bucket, filtered by a prefix
+      // eslint-disable-next-line no-unused-vars
+      const [files] = await this.bucket.getFiles({prefix})
+      const lst = []
+      files.forEach(file => {
+        const name = file.name.substring(lg)
+        const dname = this.decryptedIdf(name)
+        lst.push(dname) 
+      }) 
+      return lst
+    } catch (err) {
+      config.logger.info(err.toString())
+      throw err
+    }
   }
 
-  async listIds (org) {
+  async listIds (porg) {
     return new Promise((resolve, reject) => {
+      const org = this.cryptedOrg(porg)
       const lg = org.length + 1
       const options = {
         prefix: org + '/',
@@ -159,7 +202,9 @@ export class GcProvider {
           const l = []
           const lst = apiResponse.prefixes
           if (lst) lst.forEach(p => {
-            l.push(p.substring(lg, p.length - 1))
+            const name = p.substring(lg, p.length - 1)
+            const dname = this.decryptedIdf(name)
+            lst.push(dname)
           })
           resolve(l)
         })

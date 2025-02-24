@@ -1,17 +1,17 @@
 import { Firestore } from '@google-cloud/firestore'
-import { decode } from '@msgpack/msgpack'
 import { config } from './config.mjs'
 import { GenConnx, GenDoc } from './gendoc.mjs'
 
 export class FirestoreProvider {
-  constructor (site, codeProvider) {
-    const cfg = config[codeProvider]
-    const kn = cfg.key
-    this.service_account = config[kn]
+  constructor (code, site) {
     const app_keys = config.app_keys
     this.type = 'firestore'
     this.site = app_keys.sites[site]
     this.appKey = Buffer.from(this.site.k, 'base64')
+
+    const cfg = config[code]
+    const kn = cfg.key
+    this.service_account = config[kn]
     this.emulator = config.env.FIRESTORE_EMULATOR_HOST
   }
 
@@ -95,17 +95,13 @@ class Connx extends GenConnx {
   }
 
   /** PUBLIQUES POUR EXPORT / PURGE ******************************************/
-  /* Purge d'un ns
-  Sur collsExp2 ['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'avatars', 'groupes', 'versions']: index sur id
-  */
-  async deleteNS(log, ns) {
-    const min = ns
-    const max = ns + '{'
+  async deleteOrg(log) {
+    const min = this.cOrg + '@'
+    const max = this.cOrg + '@{'
 
     for (const nom of GenDoc.collsExp1) {
-      const p = nom + '/' + ns
+      const p = nom + '/' + this.cOrg
       await this.fs.doc(p).delete()
-      // log(`delete ${nom} - 1 row`)
     }
     for (const nom of GenDoc.collsExp2) {
       const q = this.fs.collection(nom).where('id', '>=', min).where('id', '<', max)
@@ -124,14 +120,13 @@ class Connx extends GenConnx {
          } else
           ds.ref.delete()
       }
-      // log(`delete ${nom} - ${n} rows`)
     }
   }
   
   async batchInsertRows (rows) {
     const wb = this.fs.batch()
     for (const row of rows) {
-      const r = await prepRow(this.appKey, row)
+      const r = this.prepRow(row)
       const dr = this.fs.doc(FirestoreProvider._path(row._nom, r.id, r.ids))
       wb.set(dr, r)
     }
@@ -140,30 +135,33 @@ class Connx extends GenConnx {
 
   /*********************************************************************/
   // Retourne un dr (document reference)
-  tacheP (top, ns, id, ids) {
-    return this.fs.doc('taches/' + top + ';' + org + ';' + id + (ids ? ';' + ids : ''))
+  tacheP (top, org, id) {
+    return this.fs.doc('taches/' + top + ';' + org + ';' + id)
   }
 
   async setTache (t) {
     const r = { 
       op: t.op,
-      org: t.org, 
-      id: t.id || '', 
-      ids: t.ids || '',
+      org: this.cryptedOrg(t.org),
+      id: this.cryptedId(t.id),
       dh: t.dh, 
       exc: t.exc
     }
-    const dr = this.tacheP(r.op, r.org, r.id, r.ids)
+    const dr = this.tacheP(r.op, r.org, r.id)
     await dr.set(r)
   }
 
-  async delTache (top, ns, id, ids) { // t: {op, id, ids}
-    const dr = this.tacheP(top, ns, id, ids)
+  async delTache (top, porg, pid) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const dr = this.tacheP(top, org, id)
     await dr.delete()
   }
 
-  async recTache (top, ns, id, ids, dhf, nb) {
-    const dr = this.tacheP(top, ns, id, ids)
+  async recTache (top, porg, pid, dhf, nb) {
+    const org = this.cryptedOrg(porg)
+    const id = this.cryptedId(pid)
+    const dr = this.tacheP(top, org, id)
     const ds = await dr.get()
     const r = ds.exists ? ds.data() : null
     if (r) {
@@ -176,25 +174,33 @@ class Connx extends GenConnx {
   /* Obtention de la prochaine tâche
   Sur taches: index composite sur dh / ns
   */
-  async prochTache (dh, x, lns) { // ns inactifs
-    // 'NOT_IN' requires an non-empty ArrayValue
+  async prochTache (dh) {
     const q = this.fs.collection('taches')
       .where('dh', '<', dh)
-      .where('ns', 'not-in', lns.length ? lns : ['ZZ'])
       .orderBy('dh')
       .limit(1)
     const qs = await q.get()
-    return !qs.empty ? qs.docs[0].data() : null
+    if (qs.empty) return null
+    const r = qs.docs[0].data()
+    if (r.org) r.org = this.decryptedOrg(r.org)
+    if (r.id) r.id = this.decryptedId(r.id)
+    return r
   }
 
   /* Obtention des taches d'un ns
   Sur taches: index sur ns
   */
-  async nsTaches (ns) {
-    const q = this.fs.collection('taches').where('ns', '==', ns)
+  async orgTaches (porg) {
+    const org = this.cryptedOrg(porg) 
+    const q = this.fs.collection('taches').where('org', '==', org)
     const qs = await q.get()
     const rows = []
-    if (!qs.empty) for (const qds of qs.docs) { rows.push(qds.data()) }
+    if (!qs.empty) for (const qds of qs.docs) {
+      const row = qds.data()
+      if (row.org) row.org = this.decryptedOrg(row.org)
+      if (row.id) row.id = this.decryptedId(row.id)
+      rows.push(row)
+    }
     return rows
   }
 
@@ -202,22 +208,44 @@ class Connx extends GenConnx {
     const q = this.fs.collection('taches')
     const qs = await q.get()
     const rows = []
-    if (!qs.empty) for (const qds of qs.docs) { rows.push(qds.data()) }
+    if (!qs.empty) for (const qds of qs.docs) {
+      const row = qds.data()
+      if (row.org) row.org = this.decryptedOrg(row.org)
+      if (row.id) row.id = this.decryptedId(row.id)
+      rows.push(row)
+    }
     return rows
   }
 
   /* Obtention des espaces modifiés après v
   Sur espaces: index sur v
   */
-  async getRowEspaces(v) {
-    const q = this.fs.collection('espaces').where('v', '>', v)
+  async getRowEspaces() {
+    const q = this.fs.collection('espaces')
     const qs = await q.get()
     const r = []
     if (!qs.empty) for (const qds of qs.docs) {
       const row = qds.data()
-      const x = await decryptRow(this.appKey, row)
-      x._nom = 'espaces'
-      r.push(row)
+      row._nom = 'espaces'
+      this.op.nl++
+      const x = this.decryptRow(row)
+      x._org = this.decryptedOrg(row.id)
+      r.push(x)
+    }
+    return r
+  }
+  
+  async getRowEspacesCalc (dpt) {
+    const q = this.fs.collection('espaces').where('dpt', '<=', dpt)
+    const qs = await q.get()
+    const r = []
+    if (!qs.empty) for (const qds of qs.docs) {
+      const row = qds.data()
+      row._nom = 'espaces'
+      this.op.nl++
+      const x = this.decryptRow(row)
+      x._org = this.decryptedOrg(row.id)
+      r.push(x)
     }
     return r
   }
@@ -226,7 +254,8 @@ class Connx extends GenConnx {
   Sur majeurs ['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'versions', 'avatars', 'groupes']
   index composite id / v
   */
-  async getV (nom, id, v) {
+  async getV (nom, pid, v) {
+    const id = this.idLong(pid)
     let row = null
     if (v && GenDoc.majeurs.has(nom)) {
       const q = this.fs.collection(nom).where('id', '==', id).where('v', '>', v)
@@ -235,64 +264,52 @@ class Connx extends GenConnx {
       if (row) {
         row._nom = nom
         this.op.nl++
-        return await decryptRow(this.appKey, row)
+        return this.decryptRow(row)
       }
       return null
     }
 
     const dr = this.fs.doc(FirestoreProvider._path(nom, id))
-    let ds
-    if (this.transaction) {
-      ds = await this.transaction.get(dr)
-    } else {
-      ds = await dr.get()
-    }
+    const ds = this.transaction ? await this.transaction.get(dr) : await dr.get()
     if (ds.exists) {
       row = ds.data()
       row._nom = nom
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
 
   /* Retourne LE row de la collection nom / id (sans version)
   */
-  async getNV (nom, id) {
+  async getNV (nom, pid, exportDb) {
+    const id = this.idLong(pid)
     let row = null
     const dr = this.fs.doc(FirestoreProvider._path(nom, id)) // dr: DocumentReference
     // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
-    let ds
-    if (this.transaction) {
-      ds = await this.transaction.get(dr)
-    } else {
-      ds = await dr.get()
-    }
+    const ds = this.transaction ? await this.transaction.get(dr) : await dr.get()
     if (ds.exists) {
       row = ds.data()
       row._nom = nom
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return exportDb ? row : this.decryptRow(row)
     }
     return null
   }
 
   /* Retourne le row d'un objet d'une sous-collection nom / id / ids */
-  async get (nom, id, ids) {
+  async get (nom, pid, pids) {
+    const id = this.idLong(pid)
+    const ids = this.cryptedId(pids)
     let row = null
     const dr = this.fs.doc(FirestoreProvider._path(nom, id, ids)) // dr: DocumentReference
     // ds: DocumentSnapshot N'EXISTE PAS TOUJOURS
-    let ds
-    if (this.transaction) {
-      ds = await this.transaction.get(dr)
-    } else {
-      ds = await dr.get()
-    }
+    const ds = this.transaction ? await this.transaction.get(dr) : await dr.get()
     if (ds.exists) {
       row = ds.data()
       row._nom = nom
       this.op.nl++
-      return await decryptRow(this.appKey, row)
+      return this.decryptRow(row)
     }
     return null
   }
@@ -300,7 +317,8 @@ class Connx extends GenConnx {
   /* Retourne l'avatar si sa CV est PLUS récente que celle détenue en session (de version vcv)
   Sur avatars: index sur vcv
   */
-  async getAvatarVCV (id, vcv) {
+  async getAvatarVCV (pid, vcv) {
+    const id = this.idLong(pid)
     const q = this.fs.collection(FirestoreProvider._collPath('avatars'))
       .where('id', '==', id).where('vcv', '>', vcv)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
@@ -308,42 +326,45 @@ class Connx extends GenConnx {
     const row = qs.docs[0].data()
     row._nom = 'avatars'
     this.op.nl++
-    return compile(await decryptRow(this.appKey, row))
+    return this.decryptRow(row)
   }
 
   /* Obtention d'un compte par sa hk */
-  async getCompteHk (hk) {
+  async getCompteHk (phk) {
+    const hk = this.idLong(phk)
     const q = this.fs.collection(FirestoreProvider._collPath('comptes')).where('hk', '==', hk)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()
     row._nom = 'comptes'
     this.op.nl++
-    return await decryptRow(this.appKey, row)
+    return this.decryptRow(row)
   }
 
   /* Obtention d'un avatar par sa hk */
-  async getAvatarHk (hk) {
+  async getAvatarHk (phk) {
+    const hk = this.idLong(phk)
     const q = this.fs.collection(FirestoreProvider._collPath('avatars')).where('hk', '==', hk)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()    
     row._nom = 'avatars'
     this.op.nl++
-    return await decryptRow(this.appKey, row)
+    return this.decryptRow(row)
   }
 
   /* Obtention d'un sponsorings par son ids
   Sur sponsorings: index COLLECTION_GROUP sur ids
   */
-  async getSponsoringIds (ids) {
+  async getSponsoringIds (pids) {
+    const ids = this.cryptedId(ids)
     const q = this.fs.collectionGroup(FirestoreProvider._collPath('sponsorings')).where('ids', '==', ids)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()
     row._nom = 'sponsorings'
     this.op.nl++
-    return await decryptRow(this.appKey, row)
+    return this.decryptRow(row)
   }
 
   /* Retourne l'array des ids des "groupes" dont la fin d'hébergement 
@@ -353,8 +374,9 @@ class Connx extends GenConnx {
     const q = this.fs.collection(FirestoreProvider._collPath('groupes')).where('dfh', '>', 0).where('dfh', '<', dfh) 
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     const r = []
-    if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id')) })
-    this.op.nl += r.length
+    if (!qs.empty) qs.forEach(qds => { 
+      r.push(this.orgId(qds.get('id'))) 
+    })
     return r
   }
 
@@ -364,36 +386,11 @@ class Connx extends GenConnx {
     const q = this.fs.collection(FirestoreProvider._collPath('comptas')).where('dlv', '<', dlvmax) 
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     const r = []
-    if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id')) })
-    this.op.nl += r.length
+    if (!qs.empty) qs.forEach(qds => { 
+      r.push(this.orgId(qds.get('id'))) 
+    })
     return r
   }
-
-  /* Versions si restriction de query sur inégalité sur un seul champ
-  async getComptesDlvat2 (ns, dla, dlf) {
-    const ns1 = ns
-    const ns2 = ns + '{'
-    const r = []
-    const p = FirestoreProvider._collPath('comptes')
-    {
-      const q = this.fs.collection(p)
-        .where('id', '>=', ns1)
-        .where('id', '<', ns2)
-        .where('dlv', '==', dla)
-      const qs = this.transaction ? await this.transaction.get(q) : await q.get()      if (!qs.empty) qs.forEach(qds => { r.push(qds.get('id')) })
-      this.op.nl += r.length
-    }
-    {
-      const q = this.fs.collection(p).where('dlv', '>', dlf)
-      const qs = this.transaction ? await this.transaction.get(q) : await q.get()      if (!qs.empty) qs.forEach(qds => { 
-        const id = qds.get('id')
-        if (id >= ns1 && id < ns2) r.push(id) 
-      })
-      this.op.nl += r.length
-    }
-    return r
-  }
-  */
 
   /* Retourne la collection de nom 'nom' : pour avoir tous les espaces */
   async coll (nom) {
@@ -404,7 +401,8 @@ class Connx extends GenConnx {
     for (const qds of qs.docs) { 
       const row = qds.data()
       row._nom = nom
-      r.push(await decryptRow(this.appKey, row))
+      this.op.nl++
+      r.push(this.decryptRow(row))
     }
     this.op.nl += r.length
     return r
@@ -415,19 +413,24 @@ class Connx extends GenConnx {
   elle est invoquée à chaque row pour traiter son _data_
   plutôt que d'accumuler les rows.
   */
-  async collNs (nom, ns, fnprocess) {
-    const ns1 = ns
-    const ns2 = ns + '{'
-    const q = this.fs.collection(FirestoreProvider._collPath(nom)).where('id', '>=', ns1).where('id', '<', ns2) 
+  async collOrg (nom, fnprocess, exportDb) {
+    const c = this.cryptedOrg(this.op.org)
+    const min = c + '@'
+    const max = c + '@{'
+    const q = this.fs.collection(FirestoreProvider._collPath(nom)).where('id', '>=', min).where('id', '<', max) 
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
       const row = qds.data()
       row._nom = nom
-      const rx = await decryptRow(this.appKey, row)
-      this.op.nl++
-      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
+      if (exportDb) r.push(row)
+      else {
+        const rx = this.decryptRow(row)
+        this.op.nl++
+        if (!fnprocess) r.push(rx)
+        else fnprocess(rx._data_)
+      }
     }
     return !fnprocess ? r : null
   }
@@ -435,7 +438,8 @@ class Connx extends GenConnx {
   /* Retourne la sous-collection de 'nom' du document majeur id
   Si v est donnée, uniquement les documents de version supérieurs à v.
   */
-  async scoll (nom, id, v) {
+  async scoll (nom, pid, v, exportDb) {
+    const id = this.idLong(pid)
     const q = this.fs.collection(FirestoreProvider._collPath(nom, id)).where('v', '>', v)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return []
@@ -443,7 +447,7 @@ class Connx extends GenConnx {
     for (const qds of qs.docs) { 
       const row = qds.data()
       row._nom = nom
-      r.push(await decryptRow(this.appKey, row))
+      r.push(exportDb ? row : this.decryptRow(row))
     }
     this.op.nl += r.length
     return r
@@ -451,23 +455,25 @@ class Connx extends GenConnx {
 
   /* Retourne les tickets du comptable id et du mois aamm ou antérieurs
   */
-  async selTickets (id, ns, aamm, fnprocess) {
-    const mx = ns + (aamm % 10000) + '99999999'
-    const q = this.fs.collection(FirestoreProvider._collPath('tickets', id)).where('ids', '<=', mx)
+  async selTickets (pid, dlv, fnprocess) {
+    const id = this.idLong(pid)
+    const q = this.fs.collection(FirestoreProvider._collPath('tickets', id)).where('dlv', '<=', dlv)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return []
     const r = []
     for (const qds of qs.docs) { 
       const row = qds.data()
       row._nom = 'tickets'
-      const rx = await decryptRow(this.appKey, row)
+      const rx = this.decryptRow(row)
       this.op.nl++
-      if (!fnprocess) r.push(rx); else fnprocess(rx._data_)
+      if (!fnprocess) r.push(rx)
+      else fnprocess(rx._data_)
     }
     return !fnprocess ? r : null
   }
   
-  async delScoll (nom, id) {
+  async delScoll (nom, pid) {
+    const id = this.idLong(pid)
     let n = 0
     const q = this.fs.collection(FirestoreProvider._collPath(nom, id))
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
@@ -478,34 +484,16 @@ class Connx extends GenConnx {
     return n
   }
 
-  async delTickets (id, ns, aamm) {
+  async delTickets (pid, dlv) {
+    const id = this.idLong(pid)
     let n = 0
-    const mx = ns + (aamm % 10000) + '9999999999'
-    const q = this.fs.collection(FirestoreProvider._collPath('tickets', id)).where('ids', '<=', mx)
+    const q = this.fs.collection(FirestoreProvider._collPath('tickets', id)).where('dlv', '<=', dlv)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }
     }
     this.op.ne += n
     return n
-  }
-
-  async setFpurge (r) {
-    const dr = this.fs.doc(FirestoreProvider._path('fpurges', id))
-    if (this.transaction)
-      this.transaction.set(dr, r)
-    else
-      await dr.set(r)
-    this.op.ne++
-  }
-
-  async unsetFpurge (id) {
-    const dr = this.fs.doc(FirestoreProvider._path('fpurges', id))
-    if (this.transaction)
-      this.transaction.delete(dr)
-    else
-      await dr.delete()
-    this.op.ne++
   }
 
   /* Retourne une liste d'objets  { id, idag, lidf } PAS de rows */
@@ -516,32 +504,47 @@ class Connx extends GenConnx {
     if (!qs.empty) {
       for (const qds of qs.docs) { 
         const row = qds.data()
-        r.push(decode(row._data_))
+        const d = GenDoc.compile(this.decryptRow(row))
+        d.org = this.orgId(row.id)[0]
+        this.op.nl++
+        r.push(d)
       }
     }
-    this.op.nl += r.length
     return r
   }
 
-  /* Retourne une liste de couples [id, ids] PAS de rows 
-  Sur transferts: index COLLECTION_GROUP sur dlv
-  */
-  async listeTransfertsDlv (dlv) {
+   /* Retourne une liste de {org, id, ids} des transferts hors date (à purger) */
+   async listeTransfertsDlv (dlv) {
     const r = []
     const q = this.fs.collectionGroup('transferts').where('dlv', '<=', dlv)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (!qs.empty) {
       for (const qds of qs.docs) { 
         const row = qds.data()
-        r.push([row.id, row.idf])
+        row._nom = 'Transferts'
+        const d = GenDoc.compile(this.decryptRow(row))
+        d.org = this.orgId(row.id)[0]
+        this.op.nl++
+        r.push(d)
       }
     }
-    this.op.nl += r.length
     return r
   }
 
-  async purgeTransferts (id, idf) {
-    const dr = this.fs.doc(FirestoreProvider._path('transferts', id, idf))
+
+  async purgeFpurge (pid) {
+    const id = this.idLong(pid)
+    const dr = this.fs.doc(FirestoreProvider._path('fpurges', id))
+    if (this.transaction)
+      this.transaction.delete(dr)
+    else
+      await dr.delete()
+    this.op.ne++
+  }
+
+  async purgeTransferts (pid) {
+    const id = this.idLong(pid)
+    const dr = this.fs.doc(FirestoreProvider._path('transferts', id))
     if (this.transaction)
       this.transaction.delete(dr)
     else
@@ -574,7 +577,9 @@ class Connx extends GenConnx {
   /* deleteRows : les rows n'ont que { _nom, id, ids } */
   async deleteRows (rows) {
     for (const row of rows) {
-      const dr = this.fs.doc(FirestoreProvider._path(row._nom, row.id, row.ids))
+      const id = this.idLong(row.id)
+      const ids = this.idLong(row.ids)
+      const dr = this.fs.doc(FirestoreProvider._path(row._nom, id, ids))
       if (this.transaction)
         this.transaction.delete(dr)
       else
@@ -588,8 +593,8 @@ class Connx extends GenConnx {
 
   async setRows (rows) {
     for (const row of rows) {
-      const r = await prepRow(this.appKey, row)
-      const dr = this.fs.doc(FirestoreProvider._path(row._nom, r.id, r.ids || r.idf))
+      const r = this.prepRow(row)
+      const dr = this.fs.doc(FirestoreProvider._path(row._nom, r.id, r.ids))
       if (this.transaction)
         this.transaction.set(dr, r)
       else
