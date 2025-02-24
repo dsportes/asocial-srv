@@ -5,7 +5,10 @@
       "request": "launch",
       "type": "chrome",
       "url": "http://localhost:8081?demo",
-      "webRoot": "${workspaceFolder}"
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": {
+          "/src/*": "${workspaceRoot}/src/*"     
+      }
     }
   ]
 }

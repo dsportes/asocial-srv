@@ -618,7 +618,9 @@ class GD {
   }
 
   async majCompti (compti) {
-    if (compti._maj) {
+    if (compti._suppr) {
+      this.op.delete(GenDoc._new('comptis').init({id: compti.id}))
+    } else if (compti._maj) {
       compti._vav = compti.v
       const compte = await this.getCO(compti.id)
       if (compte) compte.setCI()
