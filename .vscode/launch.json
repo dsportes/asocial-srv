@@ -1,14 +1,17 @@
 {
   "configurations": [
     {
-      "name": "Launch Chrome",
+    "name": "Launch via NPM",
       "request": "launch",
-      "type": "chrome",
-      "url": "http://localhost:8081?demo",
-      "webRoot": "${workspaceFolder}",
-      "sourceMapPathOverrides": {
-          "/src/*": "${workspaceRoot}/src/*"     
-      }
+    "runtimeArgs": [
+      "run-script",
+      "debug"
+    ],
+    "runtimeExecutable": "npm",
+    "skipFiles": [
+      "<node_internals>/**"
+    ],
+    "type": "node"
     }
   ]
 }
