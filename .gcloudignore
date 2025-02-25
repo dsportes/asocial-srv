@@ -16,6 +16,7 @@ firebase.json
 firebase-debug.logs
 firestore.indexes.json
 firestores.rules
-minio.jsonstorage.rules
+minio.json
+storage.rules
 ui-debug.log
 webpack.config.mjs

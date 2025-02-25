@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Test d'envoi de mail</title>
+</head>
+<body>
+<form action="http://alterconsos.fr/tech/server3.php" method="post">
+ 	<p>mailer : <input type="text" name="mailer" value="A" /></p>
+ 	<p>mdp : <input type="text" name="mdp" value="Les_1Sanglots_2De_3L_4Automne" /></p>
+ 	<p>to : <input type="text" name="to" value="daniel@sportes.fr" /></p>
+ 	<p>subject : <input type="text" name="subject" value="Mon sujet"/></p>
+ 	<p>text : <textarea  row"10" cols="80" type="text" name="text">Mon beau texte.</textarea></p>
+ 	<input type="hidden" name="smtp" value="1"/>
+ 	<p><input type="submit" value="Envoyer"></p>
+</form>
+</body>

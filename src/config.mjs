@@ -2,6 +2,7 @@ import { env } from 'process'
 import { secret } from './secret.mjs'
 import { b642Obj } from './gensecret.mjs'
 import { Tarif } from './api.mjs'
+// import { sendAlMail } from './util.mjs'
 
 // import { LoggingWinston } from '@google-cloud/logging-winston'
 // export const GAELoggingWinston = new LoggingWinston()
@@ -83,11 +84,11 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     mode: 'http', // 'http' 'https' 'gae' 'passenger'
     port: 8443, // port d'écoute
 
-    db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
-    storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
+    // db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    // storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
 
-    // db_provider: 'sqlite_b', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
-    // storage_provider: 'fs_b' // Provider Storage : service OP - 'gc_a', 'fs_a'
+    db_provider: 'sqlite_b', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    storage_provider: 'fs_b' // Provider Storage : service OP - 'gc_a', 'fs_a'
   }
 }
 // croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
@@ -112,18 +113,21 @@ class Logger {
 }
 config.logger = new Logger()
 
+// await sendAlMail('mon site', 'demo', 'daniel@sportes.fr', 'mon sujet')
+
 /*******************************************************************/
 export async function getStorageProvider (codeProvider, site, detools) {
   if (!detools)
     config.logger.info('Storage= [' + config.run.storage_provider + ']')
   let storage
-  switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
+  const cp = codeProvider.substring(0, codeProvider.indexOf('_'))
+  switch (cp) {
   case 'fs' : { storage = FsProvider ? new FsProvider(codeProvider, site) : null; break }
   case 's3' : { storage = S3Provider ? new S3Provider(codeProvider, site) : null; break }
   case 'gc' : { storage = GcProvider ? new GcProvider(codeProvider, site) : null; break }
   }
   if (!storage) {
-    config.logger.error('Storage provider non trouvé:' + config.run.storage_provider)
+    config.logger.error('Storage provider non trouvé: ' + codeProvider)
     return false
   }
   if (config.mondebug) {
@@ -136,12 +140,13 @@ export async function getStorageProvider (codeProvider, site, detools) {
 export async function getDBProvider (codeProvider, site) {
   config.logger.info('DB= [' + codeProvider + ']')
   let dbp
-  switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
+  const cp = codeProvider.substring(0, codeProvider.indexOf('_'))
+  switch (cp) {
   case 'sqlite' : { dbp = SqliteProvider ? new SqliteProvider(codeProvider, site) : null; break }
   case 'firestore' : { dbp = FirestoreProvider ? new FirestoreProvider(codeProvider, site) : null; break }
   }
   if (!dbp || dbp.ko) {
-    config.logger.error('DB provider non trouvé:' + codeProvider)
+    config.logger.error('DB provider non trouvé: ' + codeProvider)
     return false
   }
   if (config.mondebug) {

@@ -145,15 +145,25 @@ export async function sendAlMail (site, org, to, sub) {
 
   const url = config.alertes._url
   const pwd = config.alertes._pwd
-  if (!url || !pwd) return  
+  if (!url || !pwd) {
+    config.logger.info('Simulation send mail. to:' + to + ' subject:' + s)
+    return  
+  }
 
+  // Test avec le script server.php
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers:{
         'Content-Type': 'application/x-www-form-urlencoded'
       },    
-      body: new URLSearchParams({ pwd, sub: s, to, txt: '-' })
+      body: new URLSearchParams({ 
+        mailer: 'A',
+        mdp: pwd, 
+        subject: s, 
+        to, 
+        text: '-'
+      })
     })
     const t = await response.text()
     if (t.startsWith('OK'))
