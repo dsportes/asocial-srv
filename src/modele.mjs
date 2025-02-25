@@ -3,7 +3,7 @@ import { ID, AppExc, A_SRV, F_SRV, E_SRV, Compteurs, AL, idTkToL6, AMJ } from '.
 import { config } from './config.mjs'
 import { sleep, b64ToU8, crypter, quotes, sendAlMail } from './util.mjs'
 import { Taches } from './taches.mjs'
-import { GenDoc, Versions, Comptes, Avatars, Groupes, Transferts,
+import { GenDoc, Versions, Comptes, Avatars, Groupes, Transferts, Fpurges,
   Chatgrs, Chats, Tickets, Sponsorings, Notes,
   Membres, Espaces, Partitions, Syntheses, Comptas, Comptis, Invits } from './gendoc.mjs'
 import { genNotif, genLogin } from './notif.mjs'
@@ -508,7 +508,7 @@ class GD {
 
   nouvFPU (avgrid, lidf) {
     const id = ID.rnd()
-    const d = Fpurges.nouveau({ id, avgrid, lidf })
+    const d = Fpurges.nouveau(id, avgrid, lidf)
     this.fpurges.set(id, d)
     return id
   }

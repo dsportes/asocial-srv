@@ -515,7 +515,7 @@ export class Tickets extends GenDoc {
 export class Fpurges extends GenDoc {
   constructor () { super('fpurges') } 
 
-  nouveau (id, avgrid, lidf) {
+  static nouveau (id, avgrid, lidf) {
     return new Fpurges().init({
       _maj: true, v: 0,
       id,

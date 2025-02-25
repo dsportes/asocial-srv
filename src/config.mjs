@@ -17,8 +17,8 @@ import { FsProvider } from './storageFS.mjs'
 import { GcProvider } from './storageGC.mjs'
 // const GcProvider = null
 
-// import { S3Provider } from './storageS3.mjs'
-const S3Provider = null
+import { S3Provider } from './storageS3.mjs'
+// const S3Provider = null
 
 import { SqliteProvider } from './dbSqlite.mjs'
 // const SqliteProvider = null
@@ -113,8 +113,9 @@ class Logger {
 config.logger = new Logger()
 
 /*******************************************************************/
-export async function getStorageProvider (codeProvider, site) {
-  config.logger.info('Storage= [' + config.run.storage_provider + ']')
+export async function getStorageProvider (codeProvider, site, detools) {
+  if (!detools)
+    config.logger.info('Storage= [' + config.run.storage_provider + ']')
   let storage
   switch (codeProvider.substring(0, codeProvider.indexOf('_'))) {
   case 'fs' : { storage = FsProvider ? new FsProvider(codeProvider, site) : null; break }

@@ -1,4 +1,5 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, 
+  ListObjectsCommand } from '@aws-sdk/client-s3'
 import { /* getSignedUrl, */ S3RequestPresigner } from '@aws-sdk/s3-request-presigner'
 import { createRequest } from '@aws-sdk/util-create-request'
 import { Hash } from '@aws-sdk/hash-node'
@@ -96,7 +97,7 @@ export class S3Provider extends GenStProvider {
     await this.s3.send(putCmd)
   }
 
-  async delFiles (org, id, lidf) {
+  async delFiles (porg, pid, lidf) {
     if (!lidf || !lidf.length) return
     try {
       const org = this.cryptedOrg(porg)
@@ -121,7 +122,9 @@ export class S3Provider extends GenStProvider {
     let truncated = true
     while (truncated) {
       const response = await this.s3.send(new ListObjectsCommand(bucketParams))
-      if (response.Contents) response.Contents.forEach((item) => { lst.push(item.Key) })
+      if (response.CommonPrefixes) response.CommonPrefixes.forEach((item) => { 
+        lst.push(item.Prefix)
+      })
       truncated = response.IsTruncated
       if (truncated) bucketParams.Marker = response.NextMarker
     }
@@ -133,17 +136,24 @@ export class S3Provider extends GenStProvider {
 
   async delOrg (porg) {
     const org = this.cryptedOrg(porg)
-    const id = this.cryptedId(pid)
     const pfx = org + '/'
     const lst = []
-    const bucketParams = { Bucket: this.bucketName, Prefix: pfx, Delimiter: '/', MaxKeys: 10000 }
+    /* ICI PAS DE Delimiter: '/'
+    Sinon ça ne renvoie QUE le premier niveau en dessous
+    (el l'occurrence la liste des Ids et de plus c'est
+    récupéré dans response.CommonPrefixes et pas dans response.Contents)
+    */
+    const bucketParams = { Bucket: this.bucketName, Prefix: pfx, MaxKeys: 10000 }
     let truncated = true
     while (truncated) {
       const response = await this.s3.send(new ListObjectsCommand(bucketParams))
-      if (response.Contents) response.Contents.forEach((item) => { lst.push(item.Key) })
+      if (response.Contents) response.Contents.forEach((item) => { 
+        lst.push(item.Key) 
+      })
       truncated = response.IsTruncated
       if (truncated) bucketParams.Marker = response.NextMarker
     }
+    console.log(lst.length)
     for (let i = 0; i < lst.length; i++) {
       const delCmd = new DeleteObjectCommand({ Bucket: this.bucketName, Key: lst[i] })
       await this.s3.send(delCmd)
@@ -156,12 +166,15 @@ export class S3Provider extends GenStProvider {
     const lst = []
     const pfx = org + '/' + id + '/'
     const l = pfx.length
+    /* ICI il y a Delimiter: '/'
+    MAIS on comme c'est le dernier niveau on aurait pu s'en passer
+    et lire la liste dans reponse.Contents */
     const bucketParams = { Bucket: this.bucketName, Prefix: pfx, Delimiter: '/', MaxKeys: 10000 }
     let truncated = true
     while (truncated) {
       const response = await this.s3.send(new ListObjectsCommand(bucketParams))
-      if (response.Contents) response.Contents.forEach((item) => {
-        const name = item.Key.substring(l)
+      if (response.CommonPrefixes) response.CommonPrefixes.forEach((item) => {
+        const name = item.Prefix.substring(l)
         const dname = this.decryptedIdf(name)
         lst.push(dname) 
       })
@@ -175,6 +188,7 @@ export class S3Provider extends GenStProvider {
     const org = this.cryptedOrg(porg)
     const lst = []
     const l = (org + '/').length
+    /* ICI il FAUT Delimiter: '/' */
     const bucketParams = { Bucket: this.bucketName, Prefix: org + '/', Delimiter: '/', MaxKeys: 10000 }
     let truncated = true
     while (truncated) {

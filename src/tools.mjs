@@ -175,7 +175,7 @@ export class Outils {
     if (!e.appKey)
       throw 'Argument --' + io + ' : Attendu: org,provider,site . site [' + e.site + '] inconnu'
     e.pname = x[1]
-    e.storage = await getStorageProvider(x[1], e.site)
+    e.storage = await getStorageProvider(x[1], e.site, true)
     if (e.storage.ko)
       throw 'Argument --' + io + ' : Attendu: org,provider,site : provider [' + x[1] + ']: non trouvé'
     this.cfg[io] = e
@@ -302,8 +302,9 @@ export class Outils {
 
   async purgeDb() {
     const cin = this.cfg.in
-    const opin = new OpSimple(null)
+    const opin = new OpSimple(null, cin.org)
     await cin.dbp.connect(opin)
+    opin.db.setOrg(cin.org)
     let msg = 'purge-db:'
     msg += ' org:' + cin.org
     msg += ' provider:' + cin.pname

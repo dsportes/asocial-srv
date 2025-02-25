@@ -2436,7 +2436,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
 
   async phase3 (args) {
     await this.attente(args.lg / 1000000)
-    const url = await this.storage.getUrl(this.org, this.avgrid, this.idf)
+    const url = await this.storage.putUrl(this.org, this.avgrid, this.idf)
     this.setRes('url', url)
     this.setRes('idf', this.idf)
   }
