@@ -1,7 +1,4 @@
 ## Bug / vérifications...
-
-    'leszsanglotszLONGSzgarezauzGORILLEz',
-    'auzvillagezSANSzjaizmauvaisezREPUTATIONz'
     
 ## TODO
 Pas testé: GC : DLV comptas, DLV : sponsorings, DLV : versions
@@ -22,6 +19,15 @@ Déploiements:
 - CF OP
 - CF PUBSUB
 
+# Problèmes de build des binaires
+Concerne a minima better-sqlite3 qui a besoin d'être buildé.
+
+yarn le fait.
+
+MAIS il faut avoir installé build-tools:
+
+    npm install build-tools -g
+
 # Développement Firestore
 
 Il y a une dualité entre Firebase et GCP (Google Cloud Platform):
@@ -33,6 +39,7 @@ Consoles:
 
     https://console.cloud.google.com/
     https://console.firebase.google.com/
+    https://console.firebase.google.com/project/asocial-test1
 
 ## CLI Firebase
 https://firebase.google.com/docs/cli
@@ -88,6 +95,7 @@ Remarques:
     Depuis ./emulators
 
     Lancement avec mémoire vide:
+    L'argument --project peut être omis s'il existe .firebaserc
     firebase emulators:start --project asocial-test1
 
     Lancement avec chargée depuis un import:
