@@ -1,0 +1,6 @@
+/node_modules/
+.gitignore
+keys.json
+depl.sh
+logs
+readme.md

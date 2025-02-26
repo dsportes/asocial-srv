@@ -85,17 +85,19 @@ Remarques:
 
 **Commandes usuelles:**
 
+    Depuis ./emulators
+
     Lancement avec mémoire vide:
     firebase emulators:start --project asocial-test1
 
     Lancement avec chargée depuis un import:
-    firebase emulators:start --import=./emulators/bk1
+    firebase emulators:start --import=./bk/t1
 
     Le terminal reste ouvert. Arrêt par CTRL-C (la mémoire est perdue)
 
 En cours d'exécution, on peut faire un export depuis un autre terminal:
 
-    firebase emulators:export ./emulators/bk2 -f
+    firebase emulators:export ./bk/t1 -f
 
 **Consoles Web sur les données:**
 
@@ -104,17 +106,11 @@ En cours d'exécution, on peut faire un export depuis un autre terminal:
 
 # Import / export
 
-node src/tools.mjs export-db --in 1,demo,sqlite_b,A --out 1,demo,firestore_a,A
+node src/tools.mjs export-db --in demo,sqlite_a,A --out demo,firestore_a,A
 
-node src/tools.mjs export-db --in 1,demo,firestore_a,A --out 1,demo,sqlite_b,A
+node src/tools.mjs export-st --in demo,fs_a,A --out demo,gc_a,A
 
-node src/tools.mjs export-st --in demo,fs_b --out demo,gc_a
-
-node src/tools.mjs export-st --in demo,gc_a --out demo,fs_b
-
-node src/tools.mjs purge-db --in 1,demo,sqlite_b,A
-
-node src/tools.mjs purge-db --in 1,demo,firestore_a,A
+node src/tools.mjs purge-db --in demo,sqlite_a,A
 
 # Scénarios de test
 

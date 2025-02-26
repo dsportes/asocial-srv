@@ -136,12 +136,12 @@ export class MuterRow {
   mute (row) {
     row.id = this.cout.idLong(this.cin.orgId(row.id)[1])
 
-    if (row.ids !== undefined) {
+    if (row.ids) {
       const ids = this.cin.decryptedId(row.ids)
       row.ids = this.cout.cryptedId(ids)
     }
 
-    if (row.hk !== undefined) {
+    if (row.hk) {
       const [org, hk] = this.cin.orgId(row.hk)
       row.hk = this.cout.idLong(hk)
     }

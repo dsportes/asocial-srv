@@ -188,27 +188,22 @@ export class GcProvider extends GenStProvider {
   }
 
   async listIds (porg) {
-    return new Promise((resolve, reject) => {
-      const org = this.cryptedOrg(porg)
-      const lg = org.length + 1
-      const options = {
-        prefix: org + '/',
-        delimiter: '/',
-        autoPaginate: false
-      }
-      this.bucket.getFiles(options, 
-        (err, files, nextQuery, apiResponse) => {
-          if (err) reject(err)
-          const l = []
-          const lst = apiResponse.prefixes
-          if (lst) lst.forEach(p => {
-            const name = p.substring(lg, p.length - 1)
-            const dname = this.decryptedIdf(name)
-            lst.push(dname)
-          })
-          resolve(l)
-        })
+    const org = this.cryptedOrg(porg)
+    const lg = org.length + 1
+    const options = { prefix: org }
+    const s = new Set()
+    const [files] = await this.bucket.getFiles(options)
+    files.forEach(p => {
+      const n = p.name.substring(lg)
+      const x = n.substring(0, n.indexOf('/'))
+      s.add(x)
     })
+    const lst = []
+    s.forEach(name => {
+      const dname = this.decryptedIdf(name)
+      lst.push(dname)
+    })
+    return lst
   }
 
 }

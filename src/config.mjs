@@ -1,3 +1,6 @@
+const EMULATOR = true
+const GAE = false
+
 import { env } from 'process'
 import { secret } from './secret.mjs'
 import { b642Obj } from './gensecret.mjs'
@@ -47,10 +50,10 @@ export const config = { // Valeurs par défaut et / ou obligatoires
 
   // On utilise env pour EMULATOR
   // Variables d'environnement déclarées en interne
-  env: {
+  env: EMULATOR ? {
     STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
     FIRESTORE_EMULATOR_HOST: 'localhost:8080'
-  },
+  } : {},
 
   // Configuations nommées des providers db
   sqlite_a: { path: './sqlite/testa.db3' },
@@ -68,27 +71,27 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   pathkeys: './keys',
 
   run: { // Configuration du "serveur"
-    site: 'B', // Donne sa clé de cryptage DB
+    site: 'A', // Donne sa clé de cryptage DB
     // origins: new Set(['http://localhost:8080']),
 
-    nom: 'test asocial-B',
+    nom: 'test asocial',
     // URL du serveur
     // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
-    rooturl: 'http://test.sportes.fr:8443',
+    rooturl: 'http://localhost:8443',
 
     pubsubURL: null, // Si serveur OP+PUBSUB
     // pubsubURL: 'https://test.sportes.fr/pubsub/', // dans les autres cas
     // pubsubURL: 'http://localhost:8444/pubsub/',
 
     // SI "serveur"
-    mode: 'http', // 'http' 'https' 'gae' 'passenger'
-    port: 8443, // port d'écoute
+    mode: GAE ? 'gae' : 'http', // 'http' 'https' 'gae' 'passenger'
+    port: GAE ? 0 : 8443, // port d'écoute pour http / https
 
-    // db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
-    // storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
+    db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
 
-    db_provider: 'sqlite_b', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
-    storage_provider: 'fs_b' // Provider Storage : service OP - 'gc_a', 'fs_a'
+    // db_provider: 'sqlite_b', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    // storage_provider: 'fs_b' // Provider Storage : service OP - 'gc_a', 'fs_a'
   }
 }
 // croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
