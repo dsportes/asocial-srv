@@ -2,6 +2,7 @@ node_modules
 dist
 logs
 keys
+keys.json
 tmp
 emulators/bk
 src/secret.mjs
@@ -9,3 +10,4 @@ src/secret.mjs
 *.db3
 *.db3-shm
 *.db3-wal
+*.log
