@@ -21,8 +21,5 @@ cp -f ../src/util.mjs $depl/src
 cp -f ./config.mjs $depl/src
 cp -f ./package.json $depl
 cp -f ./app.yaml $depl/dist
-cp -f ./package-dist.json $depl/dist/package.json
-cp -f ./webpack.config.mjs $depl
 cp -f ./keys.json $depl
-cp -f ./.yarnrc.yaml $depl
 echo Copies faites

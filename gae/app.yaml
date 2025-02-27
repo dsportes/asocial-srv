@@ -1,7 +1,5 @@
 runtime: nodejs22
 
-entrypoint: "node main.js"
-
 env: standard
 
 instance_class: F1

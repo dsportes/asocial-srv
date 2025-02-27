@@ -64,7 +64,8 @@ export class GcProvider extends GenStProvider {
       expires: Date.now() + 1000 * 60 * 60, // one hour
     }
     // Get a v4 signed URL for the file
-    const [url] = this.bucket.file(fileName).getSignedUrl(options)
+    const f = this.bucket.file(fileName)
+    const [url] = await f.getSignedUrl(options)
     return url
   }
 
@@ -86,7 +87,8 @@ export class GcProvider extends GenStProvider {
       contentType: 'application/octet-stream',
     }
     // Get a v4 signed URL for uploading file
-    const [url] = this.bucket.file(fileName).getSignedUrl(options)
+    const f = this.bucket.file(fileName)
+    const [url] = await f.getSignedUrl(options)
     return url
     /* You can use this URL with any user agent, for example:
     curl -X PUT -H 'Content-Type: application/octet-stream' --upload-file my-file ${url}

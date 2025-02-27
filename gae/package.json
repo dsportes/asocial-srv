@@ -2,10 +2,10 @@
   "name": "asocial-srv",
   "version": "1.0.0",
   "description": "",
-  "main": "./dist/main.js",
+  "main": "./src/secret.js",
+  "type": "module",
   "scripts": {
-    "start": "node ./dist/main.js",
-    "build": "webpack"
+    "start": "node ./src/secret.js"
   },
   "author": "Daniel Sportes",
   "license": "ISC",
@@ -23,11 +23,6 @@
     "web-push": "^3.6.7",
     "winston": "^3.14.2"
   },
-  "devDependencies": {
-    "webpack": "^5.94.0",
-    "webpack-cli": "^6.0.1"
-  },
-  "packageManager": "yarn@4.4.1",
   "engines": {
     "node": "^22.0.0"
   }

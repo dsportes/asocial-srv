@@ -1,15 +1,15 @@
 import { env } from 'process'
 import winston from 'winston'
-import { config, GAELoggingWinston } from './config.mjs'
+import { config, GAELoggingWinston, GAE_INSTANCE } from './config.mjs'
 
 // Setup Logging ***********************************************
 export function setLogger () {
-
-  if (GAELoggingWinston && config.run.mode === 'gae') {
+  
+  if (GAELoggingWinston && GAE_INSTANCE) {
     // Imports the Google Cloud client library for Winston
     const loggingWinston = GAELoggingWinston
     // Logs will be written to: "projects/YOUR_PROJECT_ID/logs/winston_log"
-    return winston.createLogger({
+    const lg = winston.createLogger({
       level: 'info',
       transports: [
         new winston.transports.Console(),
@@ -17,6 +17,7 @@ export function setLogger () {
         loggingWinston,
       ],
     })
+    return lg
   }
 
   // const { format, transports } = require('winston')

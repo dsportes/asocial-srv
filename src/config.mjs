@@ -1,4 +1,4 @@
-const EMULATOR = true
+const EMULATOR = false
 
 import { env } from 'process'
 import { secret } from './secret.mjs'
@@ -6,9 +6,10 @@ import { b642Obj } from './gensecret.mjs'
 import { Tarif } from './api.mjs'
 // import { sendAlMail } from './util.mjs'
 
-// import { LoggingWinston } from '@google-cloud/logging-winston'
-// export const GAELoggingWinston = new LoggingWinston()
-export const GAELoggingWinston = null
+export const GAE_INSTANCE = env['GAE_INSTANCE']
+import { LoggingWinston } from '@google-cloud/logging-winston'
+export const GAELoggingWinston = new LoggingWinston()
+// export const GAELoggingWinston = null
 
 import { smSendgrid } from './sendgrid.mjs'
 // export const mySmSendgrid = smSendgrid
@@ -76,7 +77,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     nom: 'test asocial',
     // URL du serveur
     // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
-    rooturl: 'http://localhost:8080',
+    // rooturl: 'http://localhost:8080',
 
     pubsubURL: null, // Si serveur OP+PUBSUB
     // pubsubURL: 'https://test.sportes.fr/pubsub/', // dans les autres cas
