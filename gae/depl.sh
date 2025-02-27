@@ -20,6 +20,6 @@ cp -f ../src/tools.mjs $depl/src
 cp -f ../src/util.mjs $depl/src
 cp -f ./config.mjs $depl/src
 cp -f ./package.json $depl
-cp -f ./app.yaml $depl/dist
+cp -f ./app.yaml $depl
 cp -f ./keys.json $depl
 echo Copies faites
