@@ -120,6 +120,26 @@ node src/tools.mjs export-st --in demo,fs_a,A --out demo,gc_a,A
 
 node src/tools.mjs purge-db --in demo,sqlite_a,A
 
+# Déploiement GAE
+
+Éditer:
+- gae/keys.json
+- gae/config.mjs
+
+        # Depuis git
+        mkdir ./asocial-gae1
+        mkdir ./asocial-gae1/dist
+        cd ./asocial-srv/gae
+        ./depl.sh
+        cd ../../asocial-gae1
+        yarn install
+        node src/gensecret.mjs
+        npm run build
+
+        # Run
+        cd dist
+        node main.js
+
 # Scénarios de test
 
 ## Init-0

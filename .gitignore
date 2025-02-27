@@ -3,6 +3,7 @@ dist
 logs
 keys
 keys.json
+gae/keys.json
 tmp
 emulators/bk
 src/secret.mjs

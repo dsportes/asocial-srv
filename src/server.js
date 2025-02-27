@@ -95,6 +95,7 @@ try {
     break
   }
 
+  /*
   case 'gae' : {
     const port = env.PORT
     server = http.createServer(app).listen(port, () => {
@@ -102,6 +103,7 @@ try {
     })  
     break
   }
+  */
 
   case 'https' : {
     const port = config.run.port
