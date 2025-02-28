@@ -266,7 +266,7 @@ operations.ProchTache = class ProchTache extends Operation {
           if (al) {
             const al1 = al['admin']
             if (al1)
-              await sendAlMail(config.run.site, tache.op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
+              await sendAlMail(config.run.nom, tache.op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
           }
         }
         break

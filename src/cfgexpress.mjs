@@ -216,7 +216,7 @@ async function operation(req, res, dbp, storage) {
         if (al) {
           const al1 = al['admin']
           if (al1)
-            await sendAlMail(config.run.site, op.org || 'admin', al1, 'assert-' + e.code)
+            await sendAlMail(config.run.nom, op.org || 'admin', al1, 'assert-' + e.code)
         }
       }
     } else {

@@ -1186,7 +1186,7 @@ export class Operation {
     if (!al) return
     const al1 = sub === 'chat' ? al[this.org] : al['admin']
     if (!al1) return
-    await sendAlMail(config.run.site, this.org || 'admin', al1, sub)
+    await sendAlMail(config.run.nom, this.org || 'admin', al1, sub)
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/

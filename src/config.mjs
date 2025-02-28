@@ -4,7 +4,7 @@ import { env } from 'process'
 import { secret } from './secret.mjs'
 import { b642Obj } from './gensecret.mjs'
 import { Tarif } from './api.mjs'
-// import { sendAlMail } from './util.mjs'
+import { sendAlMail } from './util.mjs'
 
 export const GAE_INSTANCE = env['GAE_INSTANCE']
 import { LoggingWinston } from '@google-cloud/logging-winston'
@@ -12,8 +12,8 @@ export const GAELoggingWinston = new LoggingWinston()
 // export const GAELoggingWinston = null
 
 import { smSendgrid } from './sendgrid.mjs'
-// export const mySmSendgrid = smSendgrid
-export const mySmSendgrid = null
+export const mySmSendgrid = smSendgrid
+// export const mySmSendgrid = null
 
 import { FsProvider } from './storageFS.mjs'
 // const FsProvider = null
@@ -116,7 +116,7 @@ class Logger {
 }
 config.logger = new Logger()
 
-// await sendAlMail('mon site', 'demo', 'daniel@sportes.fr', 'mon sujet')
+// await sendAlMail(config.run.nom, 'demo', 'daniel@sportes.fr', 'Starting 2', 'Bonjour 2')
 
 /*******************************************************************/
 export async function getStorageProvider (codeProvider, site, detools) {

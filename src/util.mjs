@@ -136,10 +136,10 @@ export function decrypter (cle, u8) { // u8: Buffer
   }
 }
 
-export async function sendAlMail (site, org, to, sub) {
-  const s = 'AsocialApp - [' + site + '] '  + org + ' : ' + sub
+export async function sendAlMail (site, org, to, sub, txt) {
+  const s = '[' + site + '] '  + org + ' : ' + sub
   if (mySmSendgrid && config.alertes._sendgrid_api_key) {
-    await mySmSendgrid(to, s, '')
+    await mySmSendgrid(to, s, txt || '-')
     return
   }
 
@@ -162,7 +162,7 @@ export async function sendAlMail (site, org, to, sub) {
         mdp: pwd, 
         subject: s, 
         to, 
-        text: '-'
+        text:  txt || '-'
       })
     })
     const t = await response.text()
