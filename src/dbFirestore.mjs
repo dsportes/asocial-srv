@@ -356,9 +356,9 @@ class Connx extends GenConnx {
   /* Obtention d'un sponsorings par son ids
   Sur sponsorings: index COLLECTION_GROUP sur ids
   */
-  async getSponsoringIds (pids) {
-    const ids = this.cryptedId(ids)
-    const q = this.fs.collectionGroup(FirestoreProvider._collPath('sponsorings')).where('ids', '==', ids)
+  async getSponsoringIds (phk) {
+    const hk = this.idLong(phk)
+    const q = this.fs.collectionGroup(FirestoreProvider._collPath('sponsorings')).where('hk', '==', hk)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (qs.empty) return null
     const row = qs.docs[0].data()

@@ -312,9 +312,9 @@ class Connx extends GenConnx {
     return null
   }
   
-  async getSponsoringIds (ids) {
-    const st = this._stmt('SELSPIDS', 'SELECT * FROM sponsorings WHERE ids = @ids')
-    const row = st.get({ ids: this.cryptedId(ids) })
+  async getSponsoringIds (hk) {
+    const st = this._stmt('SELSPIDS', 'SELECT * FROM sponsorings WHERE hk = @hk')
+    const row = st.get({ hk: this.idLong(hk) })
     if (row) {
       row._nom = 'sponsorings'
       this.op.nl++

@@ -146,11 +146,12 @@ CREATE TABLE IF NOT EXISTS "sponsorings" (
   "ids" TEXT,
   "v" INTEGER,
   "dlv" INTEGER,
+  "hk" TEXT,
   "_data_"	BLOB,
   PRIMARY KEY("id", "ids")
 );
 CREATE INDEX "sponsorings_id_v" ON "sponsorings" ( "id", "v" );
-CREATE INDEX "sponsorings_ids" ON "sponsorings" ( "ids" );
+CREATE INDEX "sponsorings_hk" ON "sponsorings" ( "hk" );
 CREATE INDEX "sponsorings_dlv" ON "sponsorings" ( "dlv" );
 
 CREATE TABLE IF NOT EXISTS "groupes" (

@@ -173,7 +173,7 @@ export class GenDoc {
   // Gérés en Cache
   static majeurs = new Set(['partitions', 'comptes', 'comptas', 'comptis', 'invits', 'versions', 'avatars', 'groupes'])
 
-  static sousColls = new Set(['notes', 'chats', 'membres', 'chatgrs', 'tickets'])
+  static sousColls = new Set(['notes', 'chats', 'sponsorings', 'membres', 'chatgrs', 'tickets'])
 
   /* Liste des attributs des (sous)collections- sauf singletons */
   static _attrs = {
@@ -189,7 +189,7 @@ export class GenDoc {
     avatars: ['id', 'v', 'vcv', 'hk', '_data_'],
     notes: ['id', 'ids', 'v', '_data_'],
     transferts: ['id', 'dlv', '_data_'],
-    sponsorings: ['id', 'ids', 'v', 'dlv', '_data_'],
+    sponsorings: ['id', 'ids', 'v', 'dlv', 'hk', '_data_'],
     chats: ['id', 'ids', 'v', '_data_'],
     tickets: ['id', 'ids', 'v', 'dlv', '_data_'],
     groupes: ['id', 'v', 'dfh', '_data_'],
@@ -1706,6 +1706,7 @@ export class Sponsorings extends GenDoc {
     sp.v = 0
     sp.id = args.id
     sp.ids = ids
+    sp.hk = ids
     sp.dlv = AMJ.amjUtcPlusNbj(AMJ.amjUtc(), limitesjour.sponsoring)
     sp.st = 0
     sp.psK = args.psK
