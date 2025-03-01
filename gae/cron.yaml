@@ -1,0 +1,5 @@
+cron:
+- url: '/op/ProchTache?code=1234azerty'
+  schedule: 'every day 11:00'
+  timezone: 'Europe/Paris'
+  description: 'Garbage collector quotidien'

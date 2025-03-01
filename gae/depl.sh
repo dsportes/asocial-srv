@@ -21,5 +21,6 @@ cp -f ../src/util.mjs $depl/src
 cp -f ./config.mjs $depl/src
 cp -f ./package.json $depl
 cp -f ./app.yaml $depl
+cp -f ./cron.yaml $depl
 cp -f ./keys.json $depl
 echo Copies faites
