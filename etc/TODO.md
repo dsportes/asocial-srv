@@ -1,4 +1,6 @@
 ## Bug / vérifications...
+
+!!! Mettre une hk à sponsorings !!! en redondance de ids. Changer dans les db provider getSponsoringIds.
     
 ## TODO
 Pas testé: GC : DLV comptas, DLV : sponsorings, DLV : versions
@@ -19,22 +21,7 @@ Déploiements:
 - CF OP
 - CF PUBSUB
 
-# Problèmes de build des binaires
-Concerne a minima better-sqlite3 qui a besoin d'être buildé.
-
-yarn le fait.
-
-MAIS il faut avoir installé build-tools:
-
-    npm install build-tools -g
-
 # Développement Firestore
-
-Il y a une dualité entre Firebase et GCP (Google Cloud Platform):
-- `firestore, storage, functions` sont _effectivement_ hébergés sur GCP.
-- la console Firebase propose une vue et des fonctions plus simples d'accès mais moins complètes.
-- il faut donc parfois retourner à la console GCP pour certaines opérations.
-
 Consoles:
 
     https://console.cloud.google.com/
@@ -56,7 +43,6 @@ Installation ou mise à jour de l'installation
 
     firebase login --reauth
 
-
 ### Delete ALL collections
 Aide: firebase firestore:delete -
 
@@ -74,21 +60,6 @@ Les fichiers sont:
     firebase firestore:indexes > firestore.indexes.EXP.json
 
 ### Emulator
-Dans `src/config.mjs` remplir la section `env:`
-
-    env: {
-       // On utilise env pour EMULATOR
-      STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-      FIRESTORE_EMULATOR_HOST: 'localhost:8080'
-    },
-
-Remarques:
-- Pour storage: 
-  - le nom de variable a changé au cours du temps. C'est bien STORAGE_...
-  - il faut `http://` devant le host sinon il tente https
-- Pour Firestore il choisit le port 8080. Conflit éventuel avec app par exemple.
-- En cas de message `cannot determine the project_id ...`
-  `export GOOGLE_CLOUD_PROJECT="asocial-test1"`
 
 **Commandes usuelles:**
 
