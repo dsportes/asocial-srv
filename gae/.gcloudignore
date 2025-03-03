@@ -15,5 +15,7 @@
 
 # Node.js dependencies:
 node_modules/
-keys.json
 
+keys.json
+logs/
+dist/

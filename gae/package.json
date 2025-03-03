@@ -2,10 +2,10 @@
   "name": "asocial-srv",
   "version": "1.0.0",
   "description": "",
-  "main": "./src/secret.js",
+  "main": "./src/server.js",
   "type": "module",
   "scripts": {
-    "start": "node ./src/secret.js"
+    "start": "node ./src/server.js"
   },
   "author": "Daniel Sportes",
   "license": "ISC",
@@ -15,7 +15,6 @@
     "@google-cloud/storage": "^7.12.1",
     "@msgpack/msgpack": "^3.0.0-beta2",
     "@open-wc/webpack-import-meta-loader": "^0.4.7",
-    "@sendgrid/mail": "^8.1.3",
     "express": "^4.19.2",
     "js-sha256": "^0.11.0",
     "node-args": "^2.1.8",

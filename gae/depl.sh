@@ -14,7 +14,6 @@ cp -f ../src/notif.mjs $depl/src
 cp -f ../src/operations3.mjs $depl/src
 cp -f ../src/operations4.mjs $depl/src
 cp -f ../src/pubsub.js $depl/src
-cp -f ../src/sendgrid.mjs $depl/src
 cp -f ../src/taches.mjs $depl/src
 cp -f ../src/tools.mjs $depl/src
 cp -f ../src/util.mjs $depl/src

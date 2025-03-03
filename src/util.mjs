@@ -3,7 +3,7 @@ import { encode, decode } from '@msgpack/msgpack'
 
 import { toByteArray, fromByteArray } from './base64.mjs'
 import { AppExc, A_SRV } from './api.mjs'
-import { appKeyBin, config, mySmSendgrid } from './config.mjs'
+import { appKeyBin, config } from './config.mjs'
 
 export function u8ToB64 (u8, url) {
   if (!u8 || !u8.length) return ''
@@ -138,11 +138,6 @@ export function decrypter (cle, u8) { // u8: Buffer
 
 export async function sendAlMail (site, org, to, sub, txt) {
   const s = '[' + site + '] '  + org + ' : ' + sub
-  if (mySmSendgrid && config.alertes._sendgrid_api_key) {
-    await mySmSendgrid(to, s, txt || '-')
-    return
-  }
-
   const url = config.alertes._url
   const pwd = config.alertes._pwd
   if (!url || !pwd) {

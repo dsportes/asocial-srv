@@ -111,6 +111,22 @@ node src/tools.mjs purge-db --in demo,sqlite_a,A
         cd dist
         node main.js
 
+## Déployer depuis `asocial-gae1`
+
+    gcloud app deploy --verbosity debug --no-cache
+
+no-cache : sinon plantage du build step 2 en cherchant à comparer avec une version antérieure.
+
+Quelques minutes ..., puis si nécessaire (si `cron.yaml` a changé par rapport à l'opérationnel):
+
+    gcloud app deploy cron.yaml
+
+C'est rapide.
+
+Dans un autre terminal `gcloud app logs tail` permet de voir les logs de l'application quand ils vont survenir.
+
+Les logs complets s'obtienne depuis la console Google du projet (menu hamburger en haut à gauche `>>> Logs >>> Logs Explorer`).
+
 # Scénarios de test
 
 ## Init-0

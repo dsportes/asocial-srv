@@ -16,7 +16,15 @@ export const operations = {
 // positionne les headers et le status d'une réponse. Permet d'accepter des requêtes cross origin des browsers
 function setRes(res, status, respType) {
   res.status(status)
+  addCors(res)
   return res.type(respType ? respType : 'application/octet-stream')
+}
+
+function addCors (res) {
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept')
+  return res
 }
 
 // Configuration express: retourne le "app"
@@ -109,10 +117,6 @@ export function appExpress(dbp, storage) {
       })
     } else
       await pubsub(req, res)
-  })
-  
-  if (config.prefixapp) app.get('/', function (req, res) {
-    res.redirect(config.prefixapp + '/index.html');
   })
 
   return app

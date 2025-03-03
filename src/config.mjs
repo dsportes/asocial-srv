@@ -11,10 +11,6 @@ import { LoggingWinston } from '@google-cloud/logging-winston'
 export const GAELoggingWinston = new LoggingWinston()
 // export const GAELoggingWinston = null
 
-import { smSendgrid } from './sendgrid.mjs'
-export const mySmSendgrid = smSendgrid
-// export const mySmSendgrid = null
-
 import { FsProvider } from './storageFS.mjs'
 // const FsProvider = null
 
@@ -77,7 +73,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     nom: 'test asocial',
     // URL du serveur
     // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
-    // rooturl: 'http://localhost:8080',
+    rooturl: 'http://localhost:8080',
 
     pubsubURL: null, // Si serveur OP+PUBSUB
     // pubsubURL: 'https://test.sportes.fr/pubsub/', // dans les autres cas
