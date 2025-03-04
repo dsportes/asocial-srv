@@ -144,7 +144,7 @@ export class MuterRow {
     if (row.hk) {
       const [org, hk] = this.cin.orgId(row.hk)
       row.hk = this.cout.idLong(hk)
-    }
+    } else if (row._nom === 'sponsorings') row.hk = null
 
     if (row._data_) {
       const data = this.cin.crData ? new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : row._data_ 

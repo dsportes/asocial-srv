@@ -1268,35 +1268,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sendgrid/client@npm:^8.1.4":
-  version: 8.1.4
-  resolution: "@sendgrid/client@npm:8.1.4"
-  dependencies:
-    "@sendgrid/helpers": "npm:^8.0.0"
-    axios: "npm:^1.7.4"
-  checksum: 10/99a3b30b9258a08ab73bc956126a0abe04308821b41a7260e6e30c3164af28cb96f6c43f7c0b3e090bd5fbb31483d31c7847ac4aec6fc00f4059d64c6e3900a2
-  languageName: node
-  linkType: hard
-
-"@sendgrid/helpers@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "@sendgrid/helpers@npm:8.0.0"
-  dependencies:
-    deepmerge: "npm:^4.2.2"
-  checksum: 10/23ff86dd7dcdcc6aec45a387978f9dcb31a7c2ec6f8450ca89542ecb63b6f7df7a2ce3ff6e5c9b003d9c6a7923fb74b00d8c58e70e6737ba0810360f0a074592
-  languageName: node
-  linkType: hard
-
-"@sendgrid/mail@npm:^8.1.3":
-  version: 8.1.4
-  resolution: "@sendgrid/mail@npm:8.1.4"
-  dependencies:
-    "@sendgrid/client": "npm:^8.1.4"
-    "@sendgrid/helpers": "npm:^8.0.0"
-  checksum: 10/4654bb99ade2a1e258ae8cc4e6cb35d26512de7107dd196f2cc5401a02d58e977ccab5fb5db3624328500913a4bd7ba0ffdcac984faa299375942eb34c038e89
-  languageName: node
-  linkType: hard
-
 "@smithy/abort-controller@npm:^4.0.1":
   version: 4.0.1
   resolution: "@smithy/abort-controller@npm:4.0.1"
@@ -2526,7 +2497,6 @@ __metadata:
     "@google-cloud/storage": "npm:^7.12.1"
     "@msgpack/msgpack": "npm:^3.0.0-beta2"
     "@open-wc/webpack-import-meta-loader": "npm:^0.4.7"
-    "@sendgrid/mail": "npm:^8.1.3"
     better-sqlite3: "npm:^11.5.0"
     eslint: "npm:^9.9.1"
     express: "npm:^4.19.2"
@@ -3115,13 +3085,6 @@ __metadata:
   version: 0.1.4
   resolution: "deep-is@npm:0.1.4"
   checksum: 10/ec12d074aef5ae5e81fa470b9317c313142c9e8e2afe3f8efa124db309720db96d1d222b82b84c834e5f87e7a614b44a4684b6683583118b87c833b3be40d4d8
-  languageName: node
-  linkType: hard
-
-"deepmerge@npm:^4.2.2":
-  version: 4.3.1
-  resolution: "deepmerge@npm:4.3.1"
-  checksum: 10/058d9e1b0ff1a154468bf3837aea436abcfea1ba1d165ddaaf48ca93765fdd01a30d33c36173da8fbbed951dd0a267602bc782fe288b0fc4b7e1e7091afc4529
   languageName: node
   linkType: hard
 
