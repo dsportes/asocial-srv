@@ -772,9 +772,10 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
 }
 
 /* CreationComptable : création du comptable d'un nouvel espace
-Création des rows:
-- partition : primitive, avec le Comptable comme premier participant et délégué
-- compte / compti / compta, avatar du Comptable
+- création de `compte compti compta` du Comptable,
+- création de la première `partition` ne comprenant que le Comptable,
+- création de son `avatar` principal (et pour toujours unique),
+- _dans son `espace`_: suppression de `hTC` qui ne sert plus à rien.
 */
 operations.CreationComptable = class CreationComptable extends Operation {
   constructor (nom) { 

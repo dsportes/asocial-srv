@@ -265,20 +265,27 @@ export class GenDoc {
 
 /* Espaces *******************************************************
 _data_ :
-- `id` : de l'espace de 10 à 89.
+- `id` : string vide.
 - `v` : 1..N
 - `dpt` : date du prochain traitement (mensuel).
 
+- `org` : code de l'organisation propriétaire, récupérée par le service OP, mais pas stockée dans _data_.
+
 - `creation` : date de création.
+- `hTC` : hash _court_ du PBKFD de la phrase de sponsoring du Comptable par l'administrateur technique.
 - `moisStat` : dernier mois de calcul de la statistique des comptas.
 - `moisStatT` : dernier mois de calcul de la statistique des tickets.
-- `dlvat` : `dlv` de l'administrateur technique.
-- `cleES` : clé de l'espace cryptée par la clé du site. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
+- `quotas`:  `{ qn, qv, qc }` : quotas maximum globaux attribués par l'administrateur technique.
+- `dlvat` : `dlv` déclarée par l'administrateur technique.
+- `cleES` : clé de l'espace générée à la création de l'espace.
+  
 - `notifE` : notification pour l'espace de l'administrateur technique. Le texte n'est pas crypté.
 - `opt`: option des comptes autonomes.
-- `nbmi`: nombre de mois d'inactivité acceptable pour un compte O fixé par le comptable. Ce changement n'a pas d'effet rétroactif.
-- `tnotifP` : table des notifications de niveau _partition_.
-  - _index_ : id (numéro) de la partition.
+  - 0: Pas de comptes "autonomes",
+  - 1: Comptes autonomes autorisés.
+- `nbmi`: nombre de mois d'inactivité acceptable pour un compte "O" fixé par le comptable. Ce changement n'a pas d'effet rétroactif.
+- `tnotifP` : map des notifications de niveau _partition_.
+  - _clé_ : ID de la partition.
   - _valeur_ : notification (ou `null`), texte crypté par la clé P de la partition.
 */
 export class Espaces extends GenDoc { 
@@ -400,11 +407,11 @@ export class Espaces extends GenDoc {
   }
 
   /* Restriction pour les délégués de la partition idp
-  **Propriétés accessibles :**
-    - administrateur technique : toutes de tous les espaces SAUF notifP.
-    - Comptable : toutes de _son_ espace.
-    - Délégués : dlvat, nbmi, pas stats ...
-    - tous comptes: dlvat, nbmi et la notification de _leur_ partition sera seule lisible.
+  - _Administrateur technique_ : toutes les propriétés, quelque soit l'espace, sauf `tnotifP`.
+  - _Comptable_ : toutes les propriétés (pour _son_ espace, il ne peut pas lire les autres), sauf `hTC` qui ne lui sert à rien..
+  - _autres comptes "O"_ : pour leur espace seulement,
+    - toutes les propriétés sauf `moisStat moisStatT cleES hTC`.
+    - `tnotifP`: ne contient QUE la seule notification de _leur_ partition.
   */
   toShortData (op) {
     const cl = this.cloneCourt()
@@ -425,11 +432,18 @@ export class Espaces extends GenDoc {
       return cl.toData()
     }
 
+    /*
     if (op.compte && op.compte.idp) {
       if (!op.compte.del) {
         cl.tnotifP = {}
         cl.tnotifP[op.compte.idp] = this.tnotifP[op.compte.idp]
       } else cl.tnotifP = this.tnotifP
+    }
+    */
+
+    if (op.compte && op.compte.idp) {
+      cl.tnotifP = {}
+      cl.tnotifP[op.compte.idp] = this.tnotifP[op.compte.idp]
     }
 
     return cl.toData()
@@ -438,8 +452,11 @@ export class Espaces extends GenDoc {
 
 /* Tickets **********************************************
 _data_:
-- `id`: id du Comptable.
-- `ids` : numéro du ticket
+- `id`: ID du Comptable.
+- `ids`: l'ids d'un ticket est un string de la forme : `aammrrrrrrrr`
+  - `aa` : année de génération,
+  - `mm` : mois de génération,
+  - `r...r` : aléatoire.
 - `v` : version du ticket.
 
 - `dg` : date de génération.
@@ -527,18 +544,19 @@ export class Fpurges extends GenDoc {
 
 /** Partitions ********************************************
 _data_:
-- `id` : numéro de partition attribué par le Comptable à sa création.
+- `id` : ID de la partition attribué par le Comptable à sa création.
 - `v` : 1..N
 
 - `nrp`: niveau de restriction de la notification (éventuelle) de niveau _partition_ mémorisée dans `espaces` et dont le texte est crypté par la clé P de la partition.
 - `q`: `{ qc, qn, qv }` quotas globaux attribués à la partition par le Comptable.
-- `mcpt` : map des comptes attachés à la partition. 
+- `mcpt` : map des comptes "O" attachés à la partition. 
   - _clé_: id du compte.
   - _valeur_: `{ notif, cleAP, del, q }`
     - `notif`: notification du compte cryptée par la clé P de la partition (redonde celle dans compte).
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
     - `q` : `qc qn qv nn nc ng v cjm` extraits du document `comptas` du compte.
+      - `cjm` est le compteur `conso2M` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1. 
 */
 export class Partitions extends GenDoc { 
   constructor () { super('partitions') }
@@ -662,21 +680,20 @@ export class Partitions extends GenDoc {
 
 /* Syntheses : un par espace ******************************
 _data_:
-- `id` : ns de son espace.
-- `v` : 
+- `id` : string vide.
+- `v` : version, numéro d'ordre de mise à jour.
 - `qA` : `{ qc, qn, qv }` - quotas **maximum** disponibles pour les comptes A.
-- `qtA` : `{ qn, qv, qc }` - quotas **effectivement attribués** aux comptes A. En conséquence `qA.qn - qtA.qn` est le quotas `qn` encore attribuable aux compte A.
+- `qtA` : `{ qc, qn, qv }` - quotas **effectivement attribués** aux comptes A. En conséquence `qA.qn - qtA.qn` est le quotas `qn` encore attribuable aux compte A.
 
-- `tsp` : table des _synthèses_ des partitions.
-  - _index_: numéro de la partition.
+- `tsp` : map des _synthèses_ des partitions.
+  - _clé_: id de la partition.
   - _valeur_ : `synth`, objet des compteurs de synthèse calculés de la partition.
     - `id nbc nbd`
     - `ntfp[1,2,3]`
     - `q` : `{ qc, qn, qv }`
-    - `qt` : { qc qn qv c2m n v }`
+    - `qt` : `{ qc qn qv c2m n v }`
     - `ntf[1,2,3]`
     - `pcac pcan pcav pcc pcn pcv`
-
 */
 export class Syntheses extends GenDoc { 
   constructor () { super('syntheses') }
@@ -770,15 +787,15 @@ export class Syntheses extends GenDoc {
 _data_ :
 - `id` : ID du compte = ID de son avatar principal.
 - `v` : 1..N.
-- `hk` : `hXR`, hash du PBKFD d'un extrait de la phrase secrète (en base précédé de `ns`).
+- `hk` : `hXR`, hash _court_ du PBKFD du début de la phrase secrète (en base `org@hk`).
 
 - `vpe` : version du périmètre
 - `vci` : version de `comptis`
 - `vin` : version de `invits`
 
-- `hXC`: hash du PBKFD de la phrase secrète complète (sans son `ns`).
+- `hXC`: hash _court_ du PBKFD de la phrase secrète complète.
 - `cleKXC` : clé K cryptée par XC (PBKFD de la phrase secrète complète).
-- `cleEK` : pour le Comptable, clé de l'espace cryptée par sa clé K à la création de l'espace pour le Comptable. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
+- `cleEK` : pour le Comptable seulement, clé de l'espace cryptée par sa clé K à la création de l'espace. Permet au comptable de lire les reports créés sur le serveur et cryptés par cette clé E.
 - `privK` : clé privée RSA de son avatar principal cryptée par la clé K du compte.
 
 - `lmut` : liste des `ids` des chats pour lesquels le compte (son avatar principal) a une demande de mutation (`mutI` != 0)
@@ -803,6 +820,7 @@ _Comptes "O" seulement:_
 - `tpK` : map des partitions cryptée par la clé K du Comptable `[ {cleP, code }]`. Son index est le numéro de la partition.
   - `cleP` : clé P de la partition.
   - `code` : code / commentaire court de convenance attribué par le Comptable.
+
 */
 export class Comptes extends GenDoc { 
   constructor() { super('comptes') }
@@ -1209,22 +1227,22 @@ export class Invits extends GenDoc {
 
 /** Comptas ************************************************
 _data_:
-- `id` : ID du compte = ID de son avatar principal.
-- `v` : 1..N.
-- dhdc: dh de la dernière connexion
-- dharc: date-heure de la notification d'accès restreint par compte ou partition
-- dharp: date-heure de la notification d'accès restreint par partition
-- dlv: date limite de validité du compte
-- flags: lors de la dernière opération
-- adq: dernières valeurs transmise en adq
-  - dlv
-  - flags
-  - qv
-- serialCompteurs: sérialisation des quotas, volumes et coûts.
-- tickets: map des tickets / dons:
+- `id` : numéro du compte = id de son avatar principal.
+- `v` : 1..N. Sa version lui est spécifique.
+- `dlv`: date limite de validité du compte.
+
+- `dhdc`: date-heure de la dernière connexion du compte.
+- `dharc`: date-heure de la notification d'accès restreint signifiée au compte.
+- `dharp`: date-heure de la notification d'accès restreint signifiée à la partition du compte.
+- `dlv`: date limite de validité du compte.
+- `flags`: des restrictions lors de la dernière opération.
+- `adq`: dernières valeurs transmise en `adq`: `dlv, flgs, qv`
+
+- `serialCompteurs`: sérialisation des quotas, volumes et coûts. Voir la description détaillée des **compteurs** en annexe.
+- `tickets`: map des tickets:
   - _clé_: `ids`
   - _valeur_: `{dg, dr, ma, mc, refa, refc}`
-- dons: liste des dons effectués / reçus `[{ dh, m, iddb }]`
+- `dons`: liste des dons effectués / reçus `[{ dh, m, iddb }]`
   - `dh`: date-heure du don
   - `m`: montant du don (positif ou négatif)
   - `iddb`: id du donateur / bénéficiaire (selon le signe de `m`).
@@ -1471,18 +1489,16 @@ export class Versions extends GenDoc {
 
 /* Avatar *************************************************************
 _data_:
-- `id` : id de l'avatar.
-- `v` : 1..N. Par convention, une version à 999999 désigne un **avatar logiquement détruit** mais dont les données sont encore présentes. L'avatar est _en cours de suppression_.
+- `id` : ID de l'avatar.
+- `v` : 1..N.
 - `vcv` : version de la carte de visite afin qu'une opération puisse détecter (sans lire le document) si la carte de visite est plus récente que celle qu'il connaît.
-- `hk` : hash du PBKFD de la phrase de contact réduite.
+- `hk` : `hZR` hash _court_ du PBKFD de la phrase de contact réduite (`org@hk` en base).
 
 - `idc` : id du compte de l'avatar (égal à son id pour l'avatar principal).
 - `cleAZC` : clé A cryptée par ZC (PBKFD de la phrase de contact complète).
 - `pcK` : phrase de contact complète cryptée par la clé K du compte.
 - `hZC` : hash du PBKFD de la phrase de contact complète.
-
-- `cvA` : carte de visite de l'avatar `{id, v, photo, texte}`. photo et texte cryptés par la clé A de l'avatar.
-
+- `cvA` : carte de visite de l'avatar `{id, v, ph, tx}`. photo et texte (possiblement gzippé) cryptés par la clé A de l'avatar.
 - `pub privK` : couple des clés publique / privée RSA de l'avatar.
 */
 export class Avatars extends GenDoc { 
@@ -1530,29 +1546,46 @@ export class Avatars extends GenDoc {
 /* Classe Notes *****************************************************
 _data_:
 - `id` : id de l'avatar ou du groupe.
-- `ids` : identifiant aléatoire relatif à son avatar.
+- `ids` : identifiant aléatoire universel.
 - `v` : 1..N.
 
-- `rds`:
-- `im` : exclusivité dans un groupe. L'écriture est restreinte au membre du groupe dont `im` est `ids`. 
+- `im` : exclusivité dans un groupe. L'écriture est restreinte au membre du groupe d'indice `im`. 
 - `vf` : volume total des fichiers attachés.
 - `ht` : liste des hashtags _personnels_ cryptée par la clé K du compte.
-  - En session, pour une note de groupe, `ht` est le terme de `htm` relatif au compte de la session.
+  - En session d'une application Web, pour une note de groupe, `ht` est le terme de `htm` relatif au compte de la session.
 - `htg` : note de groupe : liste des hashtags cryptée par la clé du groupe.
 - `htm` : note de groupe seulement, hashtags des membres. Map:
-    - _clé_ : id courte du compte de l'auteur,
+    - _clé_ : id du compte de l'auteur,
     - _valeur_ : liste des hashtags cryptée par la clé K du compte.
     - non transmis en session.
 - `l` : liste des _auteurs_ (leurs `im`) pour une note de groupe.
 - `d` : date-heure de dernière modification du texte.
 - `texte` : texte (gzippé) crypté par la clé de la note.
 - `mfa` : map des fichiers attachés.
-- `pid pids` : identifiant de sa note _parent_:
+- `pid pids` : référence de sa note _parent_.
 
 Map des fichiers attachés
-- _clé_ `idf`: identifiant aléatoire généré à la création. L'identifiant _externe_ est `id` du groupe / avatar, `idf`. En pratique `idf` est un identifiant absolu.
+- _clé_ `idf`: identifiant aléatoire (absolu) généré à la création.
 - _valeur_ : `{ idf, lg, ficN }`
   - `ficN` : `{ nom, info, dh, type, gz, lg, sha }` crypté par la clé de la note
+
+**A propos de `[pid, pids]`**:
+- Pour un note de groupe:
+  - `[null, null]`: rattachement _virtuel_ au groupe lui-même.
+  - `[pid, pids]` : 
+    - `pid`: ID du groupe lui-même (`id` de la note), 
+    - `ids`: de la note du groupe à laquelle elle est rattachée (possiblement supprimée).
+- Pour un note personnelle:
+  - `[null, null]`: rattachement _virtuel_ à l'avatar de la note.
+  - `[pid null]` : 
+    - `pid`: ID d'UN GROUPE, 
+    - rattachement _virtuel_ au groupe lui-même, possiblement disparu / radié.
+  - `[pid, pids]`: 
+    - SI `pid` est ID de l'avatar (de la note), 
+      - `ids`: de la note de l'avatar à laquelle elle est rattachée (possiblement supprimée).
+    - SI `pid`: est l'ID d'UN GROUPE, possiblement disparu / radié.
+      - `ids`: de la note de ce groupe à laquelle elle est rattachée (possiblement supprimée).
+
 */
 export class Notes extends GenDoc { 
   constructor() { super('notes') } 
@@ -1676,31 +1709,36 @@ export class Transferts extends GenDoc {
   }
 }
 
+/* Sponsorings
+_data_:
+- `id` : id de l'avatar sponsor.
+- `ids` : hash _court_ du PBKFD de la phrase réduite de parrainage, 
+- `v`: 1..N.
+- `dlv` : date limite de validité.
+- `hk` : `ids`, en base `org@hk`. Deux organisations peuvent utiliser des phrases de sponsorings identiques sans collision.
+
+- `st` : statut. _0: en attente réponse, 1: refusé, 2: accepté, 3: détruit / annulé_
+- `pspK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
+- `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
+- `hYC` : hash _court_ du PBKFD de la phrase de sponsoring,
+- `dh`: date-heure du dernier changement d'état.
+- `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
+- `partitionId`: id de la partition si compte "O"
+- `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD de la phrase complète de sponsoring (donne le numéro de partition).
+- `nomYC` : nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
+- `del` : `true` si le sponsorisé est délégué de sa partition.
+- `cvA` : `{ id, v, ph, tx }` du sponsor, textes cryptés par sa cle A.
+- `quotas` : `[qc, q1, q2]` quotas attribués par le sponsor.
+- `don` : montant du don éventuel par le sponsor.
+- `dconf` : le sponsor a demandé à rester confidentiel. Si oui, aucun _chat_ ne sera créé à l'acceptation du sponsoring.
+- `dconf2` : le sponsorisé a demandé à rester confidentiel. Si oui, aucun _chat_ ne sera créé à l'acceptation du sponsoring (ignoré en session UI).
+- `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
+*/
+
 export class Sponsorings extends GenDoc { 
   constructor() { super('sponsorings') } 
 
   static nouveau (args, ids) {
-    /* 
-    - id : id du sponsor
-    - hYR : hash du PBKFD de la phrase de sponsoring réduite
-    - `psK` : texte de la phrase de sponsoring cryptée par la clé K du sponsor.
-    - `YCK` : PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
-    - `hYC`: hash du PBKFD de la phrase de sponsoring.
-    - `cleAYC` : clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring.
-    - `partitionId`: id de la partition si compte 0    
-    - `clePYC` : clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD 
-      de la phrase complète de sponsoring (donne l'id de la partition).
-    - `nomYC` : nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
-    - `cvA` : `{ v, photo, info }` du sponsor, textes cryptés par sa cle A.
-    - `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
-
-    - `quotas` : `[qc, q1, q2]` pour un compte O, quotas attribués par le sponsor.
-      - pour un compte "A" `[0, 1, 1]`. Un tel compte n'a pas de `qc` et peut changer à loisir
-      `[qn, qv]` qui sont des protections pour lui-même (et fixe le coût de l'abonnement).
-    - don: montant du don pour un compte autonome sponsorisé par un compte autonome
-    - dconf: true, si le sponsor demande la confidentialité (pas de chat à l'avcceptation)
-    - del: true si le compte est délégué de la partition
-    */
     const sp = new Sponsorings()
     sp._maj = true
     sp.v = 0
@@ -1907,18 +1945,17 @@ export class Chats extends GenDoc {
 /* Classe Groupe ****************************************************
 _data_:
 - `id` : id du groupe.
-- `v` :  1..N, Par convention, une version à 999999 désigne un **groupe logiquement détruit** mais dont les données sont encore présentes. Le groupe est _en cours de suppression_.
+- `v` :  1..N
 - `dfh` : date de fin d'hébergement.
 
-- `rds` :
-- `nn qn vf qv`: nombres de notes actuel et maximum attribué par l'hébergeur, volume total actuel des fichiers des notes et maximum attribué par l'hébergeur.
+- `nn qn vf qv`: nombres de notes actuel et maximum autorisé par l'hébergeur, volume total actuel des fichiers des notes et maximum autorisé par l'hébergeur.
 - `idh` : id du compte hébergeur (pas transmise aux sessions).
 - `imh` : indice `im` du membre dont le compte est hébergeur.
 - `msu` : mode _simple_ ou _unanime_.
   - `null` : mode simple.
-  - `[ids]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
-- `invits` : map `{ fl, li[] }` des invitations en attente de vote ou de réponse.
-- `tid` : table des ids des membres.
+  - `[im]` : mode unanime : liste des indices des animateurs ayant voté pour le retour au mode simple. La liste peut être vide mais existe.
+- `invits` : map `{ fl, li[] }` des invitations en attente de vote ou de réponse. Clé: `im` du membre invité.
+- `tid` : table des IDs des membres.
 - `st` : table des statuts.
 - `flags` : tables des flags.
 - `lng` : liste noire _groupe_ des ids (courts) des membres.
@@ -2278,12 +2315,13 @@ export class Groupes extends GenDoc {
 }
 
 /* Membres ***********************************************************
+_data_:
 - `id` : id du groupe.
-- `ids`: identifiant, indice `im` de membre relatif à son groupe.
+- `ids`: indice `im` de membre relatif à son groupe.
 - `v` : 
+- `vcv` : version de la carte de visite du membre.
 
-- `rds`: 
-- `dpc` : date de premier contact (ou de première invitation s'il a été directement invité).
+- `dpc` : date de premier contact.
 - `ddi` : date de la dernière invitation (envoyée au membre, c'est à dire _votée_).
 - **dates de début de la première et fin de la dernière période...**
   - `dac fac` : d'activité.
@@ -2291,7 +2329,7 @@ export class Groupes extends GenDoc {
   - `den fen` : d'accès en écriture aux notes.
   - `dam fam` : d'accès aux membres.
 - `cleAG` : clé A de l'avatar membre cryptée par la clé G du groupe.
-- `cvA` : carte de visite du membre `{id, v, photo, info}`, textes cryptés par la clé A de l'avatar membre.
+- `cvA` : carte de visite du membre `{id, v, ph, tx}`, textes cryptés par la clé A de l'avatar membre.
 - `msgG`: message d'invitation crypté par la clé G pour une invitation en attente de vote ou de réponse. 
 */
 export class Membres extends GenDoc { 

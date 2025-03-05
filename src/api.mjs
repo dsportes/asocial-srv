@@ -60,7 +60,7 @@ export class ID {
     return r
   }
 
-  static dunTicket (a, m) { /* Génère l'id d'un ticket: aa mm rrr rrr rrr*/
+  static dunTicket (a, m) { /* Génère l'id d'un ticket: aa mm rrrrrrrr*/
     const x1 = (((a % 100) * 100) + m)
     return '' + ((ID.rnd6() % d8) + (x1 * d8))
   }
@@ -644,7 +644,7 @@ La structure est la suivante:
 - `vd` : [0..11] - vecteur détaillé pour les 12 mois de l'année (glissante)
 
 Propriétés calculées:
-- pcn : % dude qn utilisé
+- pcn : % de qn utilisé
 - pcv : % de qv utilisé
 - pcc : % du cjm*30 à qc
 - `cjm` : consommation moyenne de M M-1 ramenée à un jour.
