@@ -241,7 +241,6 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     super(nom, 0)
     this.targs = {
       org: { t: 'org' }, // organisation
-      // subJSON: { t: 'string' }, // subscription de la session
       idsp: { t: 'ida' }, // identifiant du sponsor
       idssp: { t: 'ids' }, // identifiant du sponsoring
       id: { t: 'ida' }, // id du compte sponsorisé à créer
