@@ -1445,7 +1445,7 @@ export class Operation {
     lignes.push(cptM.join(sep))
     // async selTickets (op, id, aamm, fnprocess)
     /* Ticket
-    - `ids` : numéro du ticket - ns + aamm + 10 chiffres rnd
+    - `ids` : numéro du ticket - aa mm rrrrrrrr
     - `dg` : date de génération.
     - `dr`: date de réception. Si 0 le ticket est _en attente_.
     - `ma`: montant déclaré émis par le compte A.

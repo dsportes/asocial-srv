@@ -1007,7 +1007,7 @@ export class Compteurs {
   "processeur" de chaque row récupéré pour éviter son stockage en mémoire
   puis son traitement:
   - lignes : array de cumul des lignes générées.
-  - mr : mois relatif
+  - mois: aaaamm
   - sep : séparateur CSV à utiliser
   - data : row sérialisé (non crypté) compta, contenant un champ compteurs (sérialisation des compteurs).
   */
