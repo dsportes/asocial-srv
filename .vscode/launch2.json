@@ -8,8 +8,8 @@
       "url": "http://localhost:8081?demo-z",
       "webRoot": "${workspaceFolder}/src",
       "sourceMapPathOverrides": {
-          "webpack://asocial/./src/*": "${webRoot}/*"
+        "webpack://asocial/./src/*": "${webRoot}/*"
       }
       }
   ]
-  }
+}
