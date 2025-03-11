@@ -171,9 +171,7 @@ class Connx extends GenConnx {
     }
   }
 
-  /* Obtention de la prochaine tâche
-  Sur taches: index composite sur dh / ns
-  */
+  /* Obtention de la prochaine tâche */
   async prochTache (dh) {
     const q = this.fs.collection('taches')
       .where('dh', '<', dh)
@@ -187,9 +185,7 @@ class Connx extends GenConnx {
     return r
   }
 
-  /* Obtention des taches d'un ns
-  Sur taches: index sur ns
-  */
+  /* Obtention des taches d'une org */
   async orgTaches (porg) {
     const org = this.cryptedOrg(porg) 
     const q = this.fs.collection('taches').where('org', '==', org)
@@ -217,9 +213,7 @@ class Connx extends GenConnx {
     return rows
   }
 
-  /* Obtention des espaces modifiés après v
-  Sur espaces: index sur v
-  */
+  /* Obtention des espaces modifiés après v */
   async getRowEspaces() {
     const q = this.fs.collection('espaces')
     const qs = await q.get()

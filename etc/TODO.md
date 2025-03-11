@@ -1,8 +1,8 @@
 ## Bug / vérifications...
-
-!!! Mettre une hk à sponsorings !!! en redondance de ids. Changer dans les db provider getSponsoringIds.
     
 ## TODO
+Mettre un TimeOut de session pour éviter que le heartbeat maintienne en vie une session synchro endormie.
+
 Pas testé: GC : DLV comptas, DLV : sponsorings, DLV : versions
 
 Pages d'aide:
