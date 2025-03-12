@@ -1391,15 +1391,6 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  nnPlus (q) {
-    const qv = { ...this.qv }
-    qv.nn += q
-    if (qv.nn < 0) qv.nn = 0
-    const c = new Compteurs(this.serialCompteurs, qv)
-    this.serialCompteurs = c.serial
-    this._maj = true
-  }
-
   ngPlus (q) {
     const qv = { ...this.qv }
     qv.ng += q
@@ -1409,10 +1400,12 @@ export class Comptas extends GenDoc {
     this._maj = true
   }
 
-  vPlus (q) {
+  vPlus (dn, dv) {
     const qv = { ...this.qv }
-    qv.v += q
+    qv.v += dv
+    qv.nn += dn
     if (qv.v < 0) qv.v = 0
+    if (qv.nn < 0) qv.nn = 0
     const c = new Compteurs(this.serialCompteurs, qv)
     this.serialCompteurs = c.serial
     this._maj = true
@@ -1551,6 +1544,7 @@ _data_:
 
 - `im` : exclusivité dans un groupe. L'écriture est restreinte au membre du groupe d'indice `im`. 
 - `vf` : volume total des fichiers attachés.
+- `nbp`: nombre de fichiers photo (avec thumbnail)
 - `ht` : liste des hashtags _personnels_ cryptée par la clé K du compte.
   - En session d'une application Web, pour une note de groupe, `ht` est le terme de `htm` relatif au compte de la session.
 - `htg` : note de groupe : liste des hashtags cryptée par la clé du groupe.
@@ -1566,8 +1560,8 @@ _data_:
 
 Map des fichiers attachés
 - _clé_ `idf`: identifiant aléatoire (absolu) généré à la création.
-- _valeur_ : `{ idf, lg, ficN }`
-  - `ficN` : `{ nom, info, dh, type, gz, lg, sha }` crypté par la clé de la note
+- _valeur_ : `{ idf, lg, ficN, pic }`
+  - `ficN` : `{ nom, info, dh, type, gz, lg, sha, thn }` crypté par la clé de la note
 
 **A propos de `[pid, pids]`**:
 - Pour un note de groupe:
@@ -1594,9 +1588,10 @@ export class Notes extends GenDoc {
     const n = new Notes()
     n._maj = true
     n.id = id
-    n.ids = ids,
+    n.ids = ids
     n.im = im
     n.vf = 0
+    n.nbp = 0
     n.d = dh
     n.texte = t
     n.mfa = {}
@@ -1610,6 +1605,8 @@ export class Notes extends GenDoc {
     }
     return n
   }
+
+  get nn () { return this._zombi ? 0 : (1 + (this.nbp || 0)) }
 
   toShortData (op, idc) { //idc : id du compte demandeur
     if (this._zombi) {
@@ -1687,9 +1684,14 @@ export class Notes extends GenDoc {
 
   setVF () {
     let v = 0
-    for (const idf in this.mfa) v += this.mfa[idf].lg 
-    if (v > (this.qv * UNITEV)) throw new AppExc(A_SRV, 311)
+    let nbp = 0
+    for (const idf in this.mfa) {
+      const f = this.mfa[idf]
+      v += f.lg
+      if (f.pic) nbp++
+    }
     this.vf = v
+    this.nbp = nbp
     this._maj = true
   }
 }

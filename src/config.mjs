@@ -64,7 +64,9 @@ export const config = { // Valeurs par défaut et / ou obligatoires
 
   // Pour les "serveurs" seulement: configuration des paths locaux
   pathlogs: './logs',
-  pathkeys: './keys',
+
+  // pathkeys: './keys',
+  // keys: ['fullchain.pem', 'privkey.pem'],
 
   run: { // Configuration du "serveur"
     site: 'A', // Donne sa clé de cryptage DB

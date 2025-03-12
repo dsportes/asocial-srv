@@ -15,7 +15,6 @@ import{ load3 } from './operations3.mjs'
 import{ load4 } from './operations4.mjs'
 
 let dbp = null, storage = null
-const keys = ['fullchain.pem', 'privkey.pem']
 
 try {
   config.logger = setLogger()
@@ -37,14 +36,15 @@ try {
   load3()
   load4()
 
-  for (const nf of keys) {
-    const p = path.resolve(config.pathkeys + '/' + nf)
-    const n = nf.substring(0, nf.indexOf('.'))
-    if (existsSync(p)) {
-      config.logger.info('KEY ' + n + ' : OK')
-      config.run[n] = readFileSync(p)
+  if (config.pathkeys)
+    for (const nf of config.keys) {
+      const p = path.resolve(config.pathkeys + '/' + nf)
+      const n = nf.substring(0, nf.indexOf('.'))
+      if (existsSync(p)) {
+        config.logger.info('KEY ' + n + ' : OK')
+        config.run[n] = readFileSync(p)
+      }
     }
-  }
 
 } catch (e) {
   config.logger.error(e.toString() + '\n' + e.stack)

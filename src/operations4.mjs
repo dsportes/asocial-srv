@@ -4,7 +4,7 @@ import { operations } from './cfgexpress.mjs'
 import { eqU8 } from './util.mjs'
 
 import { Operation, trace, assertKO } from './modele.mjs'
-import { UNITEV, AL } from './api.mjs'
+import { UNITEV, UNITEN, AL } from './api.mjs'
 import { Taches } from './taches.mjs'
 import { GenDoc } from './gendoc.mjs'
 
@@ -2111,7 +2111,7 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
     let im = 0, aut = 0
     if (!this.groupe) {
       if (args.ref) await this.checkRatt()
-      this.compta.nnPlus(1)
+      this.compta.vPlus(1, 0)
       this.compta.exN()
     } else {
       if (!this.aut || !this.aut.de) throw new AppExc(A_SRV, 293)
@@ -2119,7 +2119,7 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
       aut = this.aut.im
       if (args.ref) await this.checkRatt(true)
       const compta = await this.gd.getCA(this.groupe.idh, 'NouvelleNote-1')
-      compta.nnPlus(1)
+      compta.vPlus(1, 0)
       compta.exN()
       this.groupe.setNV(1, 0)
       this.groupe.exN()
@@ -2206,7 +2206,6 @@ operations.SupprNote = class SupprNote extends OperationNo {
     await this.checkNoteId()
     if (!this.note) assertKO('SupprNote-1', 13, [id + '/NOT' + ids])
 
-    let ok = false
     if (ng) {
       // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
       if (!this.idxAvc) throw new AppExc(A_SRV, 314)
@@ -2214,11 +2213,12 @@ operations.SupprNote = class SupprNote extends OperationNo {
       if (!this.aDE) throw new AppExc(A_SRV, 301)
     }
     const dv = -this.note.vf
+    const dn = -this.note.nn
 
     let compta
 
     if (ng) {
-      this.groupe.setNV(0, dv)
+      this.groupe.setNV(dn, dv)
       if (this.groupe.idh) {
         compta = this.groupe.idh === this.id ? this.compta : 
           await this.gd.getCA(this.groupe.idh, 'SupprNote-1')
@@ -2227,10 +2227,8 @@ operations.SupprNote = class SupprNote extends OperationNo {
       compta = this.compta
     }
     
-    if (compta) {
-      compta.vPlus(dv)
-      compta.exV()
-    }
+    if (compta)
+      compta.vPlus(dn, dv)
 
     this.lidf = []
     for(const idf in this.note.mfa) this.lidf.push(idf)
@@ -2376,9 +2374,15 @@ operations.GetUrlNf = class GetUrl extends OperationNo {
 }
 
 /* PutUrlNf : retourne l'URL de put d'un fichier d'une note
-Retour:
+Retour si OK:
 - idf : identifiant du fichier
 - url : url à passer sur le PUT de son contenu
+
+Retour si KO: { code, n1, n2 }
+  1 - excès de taille / quota
+  2 - excès de note / photo quota
+  3 - excès volume / groupe
+  4 - excès note / photo groupe
 */
 operations.PutUrlNf = class PutUrl extends OperationNo {
   constructor (nom) { 
@@ -2387,6 +2391,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
       lg: {t: 'int', min: 0, max: 500000000}, // taille du fichier
+      pic: { t: 'bool' }, // est une photo (avec thumbnail)
       aut: { t: 'ida', n: true }, // pour une note de groupe, id de l'auteur de l'enregistrement
       lidf: { t: 'lidf', n: true } // liste des idf fichiers de la note à supprimer
     } 
@@ -2404,19 +2409,32 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       if (!this.aDE) throw new AppExc(A_SRV, 301)
     }
 
-    let nv = args.lg
+    let nv = args.lg // volume des fichiers APRES
+    let nvnbp = args.pic ? 1 : 0 // nombre de photos APRES
     const s = new Set()
     if (args.lidf && args.lidf.length) args.lidf.forEach(idf => { s.add(idf) })
     for (const idf in this.note.mfa) {
-      if (!s.has(idf)) nv += this.note.mfa[idf].lg
+      if (!s.has(idf)) { // fichiers présents et restant dans la note
+        const f = this.note.mfa[idf]
+        nv += f.lg
+        if (f.pic) nvnbp++
+      }
     }
 
     let compta
     if (ID.estGroupe(args.id)) {
       // Dépassement du quota donné par l'hébergeur ?
       if (this.groupe.idh) {
-        if (this.groupe.vf - this.note.vf + nv > this.groupe.qv * UNITEV) 
-          throw new AppExc(F_SRV, 66, [this.vf, this.qv * UNITEV])
+        let n1 = this.groupe.vf - this.note.vf + nv
+        if (n1 > this.groupe.qv * UNITEV) {
+          this.setRes('err', { code: 1, n1, n2: this.groupe.qv * UNITEV})
+          return
+        }
+        n1 = this.groupe.nn - this.note.nn + nvnbp + 1
+        if (n1 > this.groupe.qn * UNITEN) {
+          this.setRes('err', { code: 2, n1, n2: this.groupe.qn * UNITEN})
+          return
+        }
         compta = this.groupe.idh === this.id ? this.compta : 
           await this.gd.getCA(this.groupe.idh, 'PutUrlNf-2')
       } else { // Pas d'hébergeur, le volume doit baisser
@@ -2425,20 +2443,30 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
     } else {
       compta = this.compta
     }
+
     // dépassement du quota comptable du compte ou de l'hébergeur
-    const x = compta.qv.v + nv - this.note.vf
-    if (x > compta.qv.qv * UNITEV) 
-      throw new AppExc(F_SRV, 56, [x, compta.qv.qn * UNITEV])
+    let n1 = compta.qv.v - this.note.vf + nv
+    if (n1 > compta.qv.qv * UNITEV) {
+      this.setRes('err', { code: 3, n1, n2: compta.qv.qv * UNITEV})
+      return
+    }
+    n1 = compta.qv.nn - this.note.nn + nvnbp + 1
+    if (n1 > compta.qv.qn * UNITEN) {
+      this.setRes('err', { code: 4, n1, n2: compta.qv.qn * UNITEN})
+      return
+    }
 
     this.idf = ID.fic()
     this.gd.nouvTRA(avgr.id, this.idf)
   }
 
   async phase3 (args) {
-    await this.attente(args.lg / 1000000)
-    const url = await this.storage.putUrl(this.org, this.avgrid, this.idf)
-    this.setRes('url', url)
-    this.setRes('idf', this.idf)
+    if (this.idf) {
+      await this.attente(args.lg / 1000000)
+      const url = await this.storage.putUrl(this.org, this.avgrid, this.idf)
+      this.setRes('url', url)
+      this.setRes('idf', this.idf)
+    }
   }
 }
 
@@ -2449,7 +2477,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
-      fic: { t: 'fic' }, // { idf, lg, ficN }
+      fic: { t: 'fic' }, // { idf, lg, ficN, pic }
       ida: { t: 'ida', n: true }, // id de l'auteur (pour une note de groupe)
       lidf: { t: 'lidf', n: true } // liste des idf fichiers de la note à supprimer
     }
@@ -2460,12 +2488,15 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     if (!this.note) assertKO('ValiderUpload-1', 13, [id + '/NOT' + ids])
     const f = this.note.mfa[args.fic.idf]
     if (f) throw new AppExc(A_SRV, 310)
-    let dv = this.note.vf
+    
+    const vav = this.note.vf
+    const nav = this.note.nbp || 0
     this.note.setFic(args.fic)
     if (args.lidf && args.lidf.length) 
       args.lidf.forEach(idf => { this.note.delFic(idf)})
     this.note.setVF()
-    dv = this.note.vf - dv
+    const dv = this.note.vf - vav
+    const dn = this.note.nbp - nav
 
     let compta
 
@@ -2478,22 +2509,23 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
       const e = this.mavc.get(args.ida) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
       this.note.setAut(e.im)
+      this.groupe.setNV(dn, dv)
       if (this.groupe.idh) {
-        this.groupe.setNV(0, dv)
         this.groupe.exV()
+        this.groupe.exN()
         compta = this.groupe.idh === this.id ? this.compta : 
           await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
       } else {
-        if (dv > 0) throw new AppExc(A_SRV, 312)
-        this.groupe.setNV(0, dv)
+        if (dv > 0 || dn > 0) throw new AppExc(A_SRV, 312)
       }
     } else {
       compta = this.compta
     }
     
     if (compta) {
-      compta.vPlus(dv)
+      compta.vPlus(dn, dv)
       compta.exV()
+      compta.exN()
     }
     
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
@@ -2534,10 +2566,13 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
 
     const f = this.note.mfa[args.idf]
     if (!f) return
-    let dv = this.note.vf
+
+    const vav = this.note.vf
+    const nav = this.note.nn
     this.note.delFic(args.idf)
     this.note.setVF()
-    dv = this.note.vf - dv // négatif
+    const dv = this.note.vf - vav // négatif
+    const dn = this.note.nn - nav // 0 ou -1
 
     let compta
 
@@ -2551,26 +2586,24 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
       this.note.setAut(e.im)
 
+      this.groupe.setNV(dn, dv)
       if (this.groupe.idh) {
-        this.groupe.setNV(0, dv)
-        this.groupe.exV()
         compta = this.groupe.idh === this.id ? this.compta : 
           await this.gd.getCA(this.groupe.idh, 'SupprFichier-4')
       } else {
-        this.groupe.setNV(0, dv)
+        this.groupe.setNV(dn, dv)
       }
     } else {
       compta = this.compta
     }
     
-    if (compta) {
-      compta.vPlus(dv)
-      compta.exV()
-    }
+    if (compta)
+      compta.vPlus(dn, dv)
+      // compta.exV() // on ne peut pas refuser de supprimer un fichier pour dépassement de quota !
+
     const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
     this.avgrid = avgr.id
 
-    // APRES toutes les 
     this.idfp = this.gd.nouvFPU(args.id, [args.idf])
   }
 
