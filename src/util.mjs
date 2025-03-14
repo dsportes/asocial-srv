@@ -79,13 +79,13 @@ export function getHP (url) {
 }
 
 export function encode3 (org, id, idf) {
-  const y = crypterSrv(appKeyBin('A'), Buffer.from(encode(([org, id, idf]))))
+  const y = Buffer.from(encode(([org, id, idf])))
   const z = u8ToB64(y, true)
   return z
 }
 
 export function decode3 (arg) { // retourne [org, id, idf]
-  return decode(Buffer.from((decrypterSrv(appKeyBin('A'), b64ToU8(arg)))))
+  return decode(Buffer.from(b64ToU8(arg)))
 }
 
 export function eqU8 (a, b) {

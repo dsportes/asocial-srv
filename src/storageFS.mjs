@@ -33,9 +33,13 @@ export class FsProvider extends GenStProvider {
     }
   }
 
-  getUrl (org, id, idf) { return this.storageUrlGenerique(org, id, idf) }
+  getUrl (org, id, idf) { 
+    return this.storageUrlGenerique(org, id, idf) 
+  }
 
-  putUrl (org, id, idf) { return this.storageUrlGenerique(org, id, idf) }
+  putUrl (org, id, idf) {
+    return this.storageUrlGenerique(org, id, idf) 
+  }
 
   async getFile (porg, pid, pidf) {
     try {
