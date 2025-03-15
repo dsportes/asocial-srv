@@ -1,12 +1,8 @@
 ## Bug / vérifications...
     
 ## TODO
-Mettre un TimeOut de session pour éviter que le heartbeat maintienne en vie une session synchro endormie.
 
 Pas testé: GC : DLV comptas, DLV : sponsorings, DLV : versions
-
-Pages d'aide:
-- Rubriques "Comment faire pour ..."
 
 ## Réflexions
 **La connexion d'un compte au delà de sa DLV n'est pas _bloquée_**
