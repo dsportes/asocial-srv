@@ -425,7 +425,7 @@ operations.STA = class STA extends OperationT {
 
         mois = esp.moisStatT || mcre // dernier mois de statT calculé
         while (mois < mauj) {
-          const mr = AL.nbMois(mauj, mois)
+          const mr = AMJ.nbMois(mauj, mois)
           // calcul possible seulement dans les 3 derniers mois
           if (mr <= NBMOISENLIGNETKT)
             args.todo.push({ org: esp.org, t: 'C', mois })
