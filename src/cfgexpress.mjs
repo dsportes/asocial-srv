@@ -217,14 +217,8 @@ async function operation(req, res, dbp, storage) {
       httpst = e.majeur *1000 === F_SRV ? 400 : (e.majeur * 1000 === A_SRV ? 401 : 402)
       delete e.stack
       s = e.toString() // JSON
-      if (op && e.code > 9000 && e.code < 9999) {
-        const al = config.alertes
-        if (al) {
-          const al1 = al['admin']
-          if (al1)
-            await sendAlMail(config.run.nom, op.org || 'admin', al1, 'assert-' + e.code)
-        }
-      }
+      if (op && e.code > 9000 && e.code < 9999) 
+        await sendAlMail(config.run.nom, op.org || 'admin', 'admin', 'assert-' + e.code)
     } else {
       // erreur non trappée : mise en forme en AppExc
       httpst = 403

@@ -137,9 +137,11 @@ export function decrypter (cle, u8) { // u8: Buffer
 }
 
 export async function sendAlMail (site, org, to, sub, txt) {
+  const al = config.alertes
+  if (!al || !al[to]) return
   const s = '[' + site + '] '  + org + ' : ' + sub
-  const url = config.alertes._url
-  const pwd = config.alertes._pwd
+  const url = al._url
+  const pwd = al._pwd
   if (!url || !pwd) {
     config.logger.info('Simulation send mail. to:' + to + ' subject:' + s)
     return  
@@ -156,7 +158,7 @@ export async function sendAlMail (site, org, to, sub, txt) {
         mailer: 'A',
         mdp: pwd, 
         subject: s, 
-        to, 
+        to: al[to], 
         text:  txt || '-'
       })
     })

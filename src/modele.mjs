@@ -1182,11 +1182,8 @@ export class Operation {
   }
 
   async alerte (sub) {
-    const al = config.alertes
-    if (!al) return
-    const al1 = sub === 'chat' ? al[this.org] : al['admin']
-    if (!al1) return
-    await sendAlMail(config.run.nom, this.org || 'admin', al1, sub)
+    const to = sub === 'chat' ? this.org : 'admin'
+    await sendAlMail(config.run.nom, this.org || 'admin', to, sub)
   }
 
   /* Fixe LA valeur de la propriété 'prop' du résultat (et la retourne)*/

@@ -114,7 +114,7 @@ class Logger {
 }
 config.logger = new Logger()
 
-// await sendAlMail(config.run.nom, 'demo', 'daniel@sportes.fr', 'Starting 2', 'Bonjour 2')
+await sendAlMail(config.run.nom, 'demo', 'admin', 'Starting 2', 'Bonjour 2')
 
 /*******************************************************************/
 export async function getStorageProvider (codeProvider, site, detools) {

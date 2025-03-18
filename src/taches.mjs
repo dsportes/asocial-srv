@@ -261,14 +261,8 @@ operations.ProchTache = class ProchTache extends Operation {
         if (config.mondebug)
           config.logger.info('SetTache après EXC:' + Taches.OPNOMS[tache.op] + ' ' + new Date(tache.dh).toISOString())
         await this.db.setTache(tache)
-        if (tache.exc.code !== 8995) {
-          const al = config.alertes
-          if (al) {
-            const al1 = al['admin']
-            if (al1)
-              await sendAlMail(config.run.nom, tache.op.org || 'admin', al1, 'tache-' + nom + '-' + e.code)
-          }
-        }
+        if (tache.exc.code !== 8995)
+          await sendAlMail(config.run.nom, tache.op.org || 'admin', 'admin', 'tache-' + nom + '-' + e.code)
         break
       }
     }

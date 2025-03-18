@@ -463,7 +463,7 @@ operations.MajChat = class MajChat extends OperationCh {
     this.chE.actifE()
 
     if (ID.estComptable(this.chE.id) && args.urgence) 
-        await this.alerte('chat')
+      await this.alerte('chat')
   }
 }
 
