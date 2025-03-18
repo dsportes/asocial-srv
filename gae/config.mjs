@@ -4,16 +4,12 @@ import { env } from 'process'
 import { secret } from './secret.mjs'
 import { b642Obj } from './gensecret.mjs'
 import { Tarif } from './api.mjs'
-// import { sendAlMail } from './util.mjs'
+import { sendAlMail } from './util.mjs'
 
 export const GAE_INSTANCE = env['GAE_INSTANCE']
 import { LoggingWinston } from '@google-cloud/logging-winston'
 export const GAELoggingWinston = new LoggingWinston()
 // export const GAELoggingWinston = null
-
-// import { smSendgrid } from './sendgrid.mjs'
-// export const mySmSendgrid = smSendgrid
-export const mySmSendgrid = null
 
 // import { FsProvider } from './storageFS.mjs'
 const FsProvider = null
@@ -33,7 +29,7 @@ import { FirestoreProvider } from './dbFirestore.mjs'
 export const config = { // Valeurs par défaut et / ou obligatoires
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
   debugsql: false,
-  NOPURGESESSIONS: true, // En test ne pas purger les sessions dans notif
+  NOPURGESESSIONS: false, // En test ne pas purger les sessions dans notif
 
   tarifs: [
     { am: 202401, cu: [0.45, 0.10, 8, 20, 15, 15] },
@@ -51,37 +47,49 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   // On utilise env pour EMULATOR
   // Variables d'environnement déclarées en interne
   env: EMULATOR ? {
-      STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
-      FIRESTORE_EMULATOR_HOST: 'localhost:8085'
-    } : {},
+    STORAGE_EMULATOR_HOST: 'http://127.0.0.1:9199', // 'http://' est REQUIS
+    FIRESTORE_EMULATOR_HOST: 'localhost:8085'
+  } : {},
 
   // Configuations nommées des providers db
+  // sqlite_a: { path: './sqlite/testa.db3' },
+  // sqlite_b: { path: './sqlite/testb.db3' },
   firestore_a: { key: 'service_account'},
 
   // Configuations nommées des providers storage
+  // s3_a: { bucket: 'asocial', key: 's3_config' },
+  // fs_a: { rootpath: './fsstoragea' },
+  // fs_b: { rootpath: './fsstorageb' },
   gc_a: { bucket: 'asocial-test1.appspot.com', key: 'service_account' /* fixé pour emulator ? */ },
 
   // Pour les "serveurs" seulement: configuration des paths locaux
-  pathlogs: './logs',
-  pathkeys: './keys',
+  // pathlogs: './logs',
+
+  // pathkeys: './keys',
+  // keys: ['fullchain.pem', 'privkey.pem'],
 
   run: { // Configuration du "serveur"
     site: 'A', // Donne sa clé de cryptage DB
     // origins: new Set(['http://localhost:8080']),
 
-    nom: 'asocial-gae1',
-
-    // N'EST UTILE EN GC QU'EN mode EMULATOR
-    rooturl: EMULATOR ? 'http://localhost:8080' : '',
+    nom: 'test asocial',
+    // URL du serveur
+    // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
+    // rooturl: 'http://localhost:8080',
 
     pubsubURL: null, // Si serveur OP+PUBSUB
+    // pubsubURL: 'https://test.sportes.fr/pubsub/', // dans les autres cas
+    // pubsubURL: 'http://localhost:8080/pubsub/',
 
     // SI "serveur"
-    mode: 'http', // 'http' 'https' 'gae' 'passenger'
+    mode: 'http', // 'http' 'https' 'passenger'
     port: 8080, // port d'écoute pour http / https
 
-    db_provider: 'firestore_a', //  Provider DB
-    storage_provider: 'gc_a' // Provider Storage
+    db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
+
+    // db_provider: 'sqlite_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    // storage_provider: 'fs_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
   }
 }
 // croninterne: '30 3 * * *', // A 3h30 du matin tous les jours OU false
@@ -106,7 +114,7 @@ class Logger {
 }
 config.logger = new Logger()
 
-// await sendAlMail('mon site', 'demo', 'daniel@sportes.fr', 'mon sujet')
+// await sendAlMail(config.run.nom, 'demo', 'daniel@sportes.fr', 'Starting 2', 'Bonjour 2')
 
 /*******************************************************************/
 export async function getStorageProvider (codeProvider, site, detools) {
