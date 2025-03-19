@@ -85,10 +85,10 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     mode: 'http', // 'http' 'https' 'passenger'
     port: 8080, // port d'écoute pour http / https
 
-    db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    // db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
     // storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
 
-    // db_provider: 'sqlite_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    db_provider: 'sqlite_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
     storage_provider: 'fs_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
   }
 }
