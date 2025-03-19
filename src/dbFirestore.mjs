@@ -498,6 +498,7 @@ class Connx extends GenConnx {
     if (!qs.empty) {
       for (const qds of qs.docs) { 
         const row = qds.data()
+        row._nom = 'fpurges'
         const d = GenDoc.compile(this.decryptRow(row))
         d.org = this.orgId(row.id)[0]
         this.op.nl++
@@ -548,7 +549,9 @@ class Connx extends GenConnx {
 
   async purgeVER (suppr) { // nom: sponsorings, versions
     let n = 0
-    const q = this.fs.collectionGroup('versions').where('dlv', '>', 0).where('dlv', '<', suppr)
+    // const q = this.fs.collectionGroup('versions')
+    const q = this.fs.collection(FirestoreProvider._collPath('versions'))
+      .where('dlv', '>', 0).where('dlv', '<', suppr)
     const qs = this.transaction ? await this.transaction.get(q) : await q.get()
     if (!qs.empty) {
       for (const doc of qs.docs) { n++; doc.ref.delete() }

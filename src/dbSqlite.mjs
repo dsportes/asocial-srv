@@ -444,7 +444,7 @@ class Connx extends GenConnx {
     const st = this._stmt('SELFPURGES', 'SELECT _data_ FROM fpurges')
     const rows = st.all({ })
     if (rows) rows.forEach(row => {
-      row._nom = 'Fpurges'
+      row._nom = 'fpurges'
       const d = GenDoc.compile(this.decryptRow(row))
       d.org = this.orgId(row.id)[0]
       this.op.nl++
