@@ -123,7 +123,7 @@ class TrLog {
     this.vesp = 0 // version de espace
     this.vadq = 0 // version de compta quand adq a changé
     this.avgr = new Map() // clé: ID de av / gr, valeur: version
-    this.perimetres = new Map() // clé: ID du compte, valeur: {v, p} -version, périmètre
+    this.perimetres = new Map() // clé: ID du compte, valeur: {v, vpe, p}
   }
 
   fermer () {
