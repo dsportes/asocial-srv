@@ -48,3 +48,10 @@
     ## Password: Pg35423542
     
     Add Server: lui donner comme nom "Local", user: postgres pwd: Pg35423542
+
+# Développement
+### `schema.sql`
+Même schéma que pour sqlite avec les différences suivantes:
+- les types `INTEGER` et `TEXT` ont été mis en minuscule.
+- le type `BLOB` a été remplacé par `bytea`.
+

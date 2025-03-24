@@ -26,6 +26,9 @@ import { SqliteProvider } from './dbSqlite.mjs'
 import { FirestoreProvider } from './dbFirestore.mjs'
 // const FirestoreProvider = null
 
+import { PgProvider } from './dbPg.mjs'
+// const PgProvider = null
+
 export const config = { // Valeurs par défaut et / ou obligatoires
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
   debugsql: false,
@@ -88,7 +91,8 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     // db_provider: 'firestore_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
     // storage_provider: 'gc_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
 
-    db_provider: 'sqlite_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    // db_provider: 'sqlite_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
+    db_provider: 'pg_a', //  Provider DB : service OP - 'firestore_a' 'sqlite_a'
     storage_provider: 'fs_a' // Provider Storage : service OP - 'gc_a', 'fs_a'
   }
 }
@@ -144,6 +148,7 @@ export async function getDBProvider (codeProvider, site) {
   const cp = codeProvider.substring(0, codeProvider.indexOf('_'))
   switch (cp) {
   case 'sqlite' : { dbp = SqliteProvider ? new SqliteProvider(codeProvider, site) : null; break }
+  case 'pg' : { dbp = PgProvider ? new PgProvider(codeProvider, site) : null; break }
   case 'firestore' : { dbp = FirestoreProvider ? new FirestoreProvider(codeProvider, site) : null; break }
   }
   if (!dbp || dbp.ko) {

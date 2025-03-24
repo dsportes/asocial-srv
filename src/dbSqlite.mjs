@@ -498,7 +498,7 @@ class Connx extends GenConnx {
   }
 
   // PRIVATE /////////////////////////////////////////// 
-  deleteRows (rows) {
+  async deleteRows (rows) {
     for (const row of rows) {
       const code = 'DEL' + row._nom
       const st = this._stmt(code, this._delStmt(row._nom))
