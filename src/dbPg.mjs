@@ -13,7 +13,8 @@ export class PgProvider {
     this.appKey = Buffer.from(this.site.k, 'base64')
     
     const cfg = config[code]
-    this.pool = new Pool(cfg)
+    const kn = cfg.key
+    this.pool = new Pool(config[kn])
   }
 
   async connect(op) {
@@ -168,7 +169,7 @@ class Connx extends GenConnx {
   async prochTache (dh) {
     const text = 'SELECT * FROM taches WHERE dh < $1 ORDER BY dh DESC LIMIT 1'
     const values = [dh]
-    const rows = await this.client.query(text, values).rows
+    const rows = (await this.client.query(text, values)).rows
     if (!rows.length) return null
     const r = rows[0]
     if (r.org) r.org = this.decryptedOrg(r.org)
@@ -179,8 +180,10 @@ class Connx extends GenConnx {
   async orgTaches (org) {
     const values = [this.cryptedOrg(org)]
     const text = 'SELECT * FROM taches WHERE org = $1'
-    const rows = await this.client.query(text, values).rows
+    const rows = (await this.client.query(text, values)).rows
     for(const row of rows) {
+      row.dh = parseInt(row.dh)
+      row.dhf = parseInt(row.dhf)
       if (row.org) row.org = this.decryptedOrg(row.org)
       if (row.id) row.id = this.decryptedId(row.id)
     }
@@ -189,8 +192,10 @@ class Connx extends GenConnx {
 
   async toutesTaches () {
     const text = 'SELECT * FROM taches'
-    const rows = await this.client.query(text).rows
+    const rows = (await this.client.query(text)).rows
     for(const row of rows) {
+      row.dh = parseInt(row.dh)
+      row.dhf = parseInt(row.dhf)
       if (row.org) row.org = this.decryptedOrg(row.org)
       if (row.id) row.id = this.decryptedId(row.id)
     }
@@ -199,7 +204,7 @@ class Connx extends GenConnx {
 
   async getRowEspaces () {
     const text = 'SELECT * FROM espaces'
-    const rows = await this.client.query(text).rows
+    const rows = (await this.client.query(text)).rows
     const r = []
     for (const row of rows) {
       row._nom = 'espaces'
@@ -213,11 +218,11 @@ class Connx extends GenConnx {
 
   async getRowEspacesCalc (dpt) {
     const query = {
-      name: 'SELESPCALC' + nom,
+      name: 'SELESPCALC',
       text: 'SELECT * FROM espaces where dpt <= $1',
       values: [dpt]
     }
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     const r = []
     for (const row of rows) {
       row._nom = 'espaces'
@@ -237,7 +242,8 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM ' + nom + '  WHERE id = $1 AND v > $2',
       values: [this.idLong(id), v]
     }
-    const row = await this.client.query(query).rows[0]
+    // const res = await this.client.query(query)
+    const row = (await this.client.query(query)).rows[0]
     if (row) {
       row._nom = nom
       this.op.nl++
@@ -254,7 +260,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM ' + nom + '  WHERE id = $1',
       values: [this.idLong(id)]
     }
-    const row = await this.client.query(query).rows[0]
+    const row = (await this.client.query(query)).rows[0]
     if (row) {
       row._nom = nom
       this.op.nl++
@@ -270,7 +276,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM ' + nom + '  WHERE id = $1 AND ids = $2',
       values: [this.idLong(id), this.cryptedId(ids)]
     }
-    const row = await this.client.query(query).rows[0]
+    const row = (await this.client.query(query)).rows[0]
      if (row) {
       row._nom = nom
       this.op.nl++
@@ -287,7 +293,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM avatars WHERE id = $1 AND vcv > $2',
       values: [this.idLong(id), vcv]
     }
-    const row = await this.client.query(query).rows[0]
+    const row = (await this.client.query(query)).rows[0]
     if (row) {
       row._nom = 'avatars'
       this.op.nl++
@@ -302,7 +308,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM comptes WHERE hk = $1',
       values: [this.idLong(hk)]
     }
-    const row = await this.client.query(query).rows[0]
+    const row = (await this.client.query(query)).rows[0]
     if (row) {
       row._nom = 'comptes'
       this.op.nl++
@@ -317,7 +323,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM avatars WHERE hk = $1',
       values: [this.idLong(hk)]
     }
-    const row = await this.client.query(query).rows[0]
+    const row = (await this.client.query(query)).rows[0]
     if (row) {
       row._nom = 'avatars'
       this.op.nl++
@@ -332,7 +338,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM avatars WHERE hk = $1',
       values: [this.idLong(hk)]
     }
-    const row = await this.client.query(query).rows[0]
+    const row = (await this.client.query(query)).rows[0]
     if (row) {
       row._nom = 'sponsorings'
       this.op.nl++
@@ -348,7 +354,7 @@ class Connx extends GenConnx {
       text: 'SELECT id FROM groupes WHERE dfh > 0 AND dfh < $1',
       values: [dfh]
     }
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     const r = []
     if (rows) rows.forEach(row => {
       r.push(this.orgId(row.id))
@@ -363,7 +369,7 @@ class Connx extends GenConnx {
       text: 'SELECT id FROM comptas WHERE dlv < $1',
       values: [dlvmax]
     }
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     const r = []
     if (rows) rows.forEach(row => { 
       r.push(this.orgId(row.id))
@@ -378,7 +384,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM ' + nom,
       values: []
     }
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     if (!rows || !rows.length) return []
     const r = []
     for (const row of rows) {
@@ -403,7 +409,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM ' + nom + ' WHERE id >= $1 AND id < $2',
       values: [min, max]
     }
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     if (!rows || !rows.length) return []
     const r = []
     for (const row of rows) {
@@ -429,7 +435,7 @@ class Connx extends GenConnx {
       values: [this.idLong(id)]
     }
     if (v) query.values.push(v)
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     if (!rows || !rows.length) return []
     const r = []
     for (const row of rows) {
@@ -449,7 +455,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM tickets WHERE id = $1 AND dlv <= $2',
       values: [this.idLong(id), dlv]
     }
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     if (!rows || !rows.length) return []
     const r = []
     for (const row of rows) {
@@ -488,7 +494,7 @@ class Connx extends GenConnx {
   async listeFpurges () {
     const r = []
     const text = 'SELECT _data_ FROM fpurges'
-    const rows = await this.client.query(text).rows
+    const rows = (await this.client.query(text)).rows
     if (rows && rows.length) rows.forEach(row => {
       row._nom = 'fpurges'
       const d = GenDoc.compile(this.decryptRow(row))
@@ -507,7 +513,7 @@ class Connx extends GenConnx {
       text: 'SELECT * FROM transferts WHERE dlv <= $1',
       values: [dlv]
     }
-    const rows = await this.client.query(query).rows
+    const rows = (await this.client.query(query)).rows
     if (rows && rows.length) rows.forEach(row => {
       row._nom = 'Transferts'
       const d = GenDoc.compile(this.decryptRow(row))
@@ -624,11 +630,11 @@ class Connx extends GenConnx {
     const la = GenDoc._attrs[nom]
     for(let i = 0; i < la.length; i++) {
       const c = la[i]
-      if (c !== 'id' && c!== 'ids') vals.push(c + ' = $' + c)
+      if (c !== 'id' && c!== 'ids') vals.push(c + ' = $' + (i + 1))
     }
     x.push(vals.join(', '))
-    x.push(' WHERE id = @1 ')
-    if (la.indexOf('ids') !== -1) x.push(' AND ids = @2')
+    x.push(' WHERE id = $1 ')
+    if (la.indexOf('ids') !== -1) x.push(' AND ids = $2')
     return x.join('')
   }
 
@@ -636,8 +642,8 @@ class Connx extends GenConnx {
    Syntaxe : DELETE FROM matable WHERE id = @id
   */
   _delStmt (nom) {
-    const x = ['DELETE FROM ' + nom + ' WHERE id = @$1 ']
-    if (GenDoc._attrs[nom].indexOf('ids') !== -1) x.push(' AND ids = @2')
+    const x = ['DELETE FROM ' + nom + ' WHERE id = $1 ']
+    if (GenDoc._attrs[nom].indexOf('ids') !== -1) x.push(' AND ids = $2')
     return x.join('')
   }
 

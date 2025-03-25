@@ -9,9 +9,9 @@ CREATE TABLE IF NOT EXISTS "taches" (
   "op" integer,
   "org" text,
   "id" text,
-  "dh" integer,
+  "dh" bigint,
   "exc"	text,
-  "dhf" integer,
+  "dhf" bigint,
   "nb" integer,
   PRIMARY KEY("op", "org", "id")
 );

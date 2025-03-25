@@ -1,5 +1,5 @@
 
-# Installation
+# Installation Linux
 
     sudo apt install postgresql
 
@@ -8,11 +8,16 @@
         
 ## Dans postgesql.conf
 
-    listen_addresses = 'localhost'
+    # Vérifier
+    listen_addresses = '*'
 
 ## Dans pg_hba.conf
 
-    hostssl template1       postgres        localhost/24        scram-sha-256
+    # Vérifier à la fin du fichier
+    # IPv4 local connections:
+    host    all all 127.0.0.1/32    scram-sha-256
+    # IPv6 local connections:
+    host    all all ::1/128 scram-sha-256
 
 ## Start / restart / stop service
 
@@ -54,4 +59,4 @@
 Même schéma que pour sqlite avec les différences suivantes:
 - les types `INTEGER` et `TEXT` ont été mis en minuscule.
 - le type `BLOB` a été remplacé par `bytea`.
-
+- dans `taches` les colonnes `dh` et `dhf` sont en `bigint`.

@@ -58,6 +58,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   sqlite_a: { path: './sqlite/testa.db3' },
   sqlite_b: { path: './sqlite/testb.db3' },
   firestore_a: { key: 'service_account'},
+  pg_a: { key: 'postgres_a' },
 
   // Configuations nommées des providers storage
   s3_a: { bucket: 'asocial', key: 's3_config' },
