@@ -607,7 +607,7 @@ class Connx extends GenConnx {
   }
 
   /* PRIVATE : retourne un insert statement SQL 
-   Syntaxe : INSERT INTO matable (c1, c2) VALUES (@1, @2)
+   Syntaxe : INSERT INTO matable (c1, c2) VALUES ($1, $2)
   */
   _insStmt (nom) {
     const x = ['INSERT INTO ' + nom + ' (']
@@ -622,7 +622,7 @@ class Connx extends GenConnx {
   }
 
   /* PRIVATE : retourne un update statement SQL 
-   Syntaxe : UPDATE matable SET c1 = $3, c2 = $4 WHERE id = @1 AND ids = @2
+   Syntaxe : UPDATE matable SET c1 = $3, c2 = $4 WHERE id = $1 AND ids = $2
   */
   _updStmt (nom) {
     const vals = []
@@ -639,7 +639,7 @@ class Connx extends GenConnx {
   }
 
   /* PRIVATE : retourne un delete statement SQL 
-   Syntaxe : DELETE FROM matable WHERE id = @id
+   Syntaxe : DELETE FROM matable WHERE id = $id
   */
   _delStmt (nom) {
     const x = ['DELETE FROM ' + nom + ' WHERE id = $1 ']
