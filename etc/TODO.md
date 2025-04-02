@@ -5,6 +5,27 @@
 ## Doc
 application.md est en cours
 
+# Application Web - Build et test de la build
+
+    yarn quasar build -m pwa
+
+    # OU
+    npm run build:pwa
+
+    # https://github.com/http-party/http-server
+    # Installation: npm install -g http-server
+
+    npx http-server dist/pwa -p 8080 --cors -S --cert ../asocial-srv/keys/fullchain.pem --key ../asocial-srv/keys/privkey.pem
+
+    # Plus simplement
+    npx http-server dist/pwa -p 8080 --cors
+
+Le résultat est dans `dist/pwa` (environ 40 fichiers pour 5Mo):
+- y mettre le fichier `services.json` avec le contenu ci-dessus et `README.md`.
+
+L'application _buildée et configurée_ peut être distribuée depuis `dist/pwa` sur le CDN de son choix, par exemple ci-après dans `github pages`.
+
+
 # Développement Firestore
 Consoles:
 
