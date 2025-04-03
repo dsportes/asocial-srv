@@ -32,7 +32,7 @@ import { PgProvider } from './dbPg.mjs'
 export const config = { // Valeurs par défaut et / ou obligatoires
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
   debugsql: false,
-  NOPURGESESSIONS: true, // En test ne pas purger les sessions dans notif
+  NOPURGESESSIONS: false, // En test ne pas purger les sessions dans notif
 
   tarifs: [
     { am: 202401, cu: [0.45, 0.10, 8, 20, 15, 15] },
