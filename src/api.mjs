@@ -86,7 +86,7 @@ export class ID {
   static fic () { return '8' + ID.rnd().substring(1) }
 }
 
-export const HBINSECONDS = 20 // 120
+export const HBINSECONDS = 120 // 120
 export const ESPTO = 3 // en minutes : rechargement de la cache des espaces
 
 export const MSPARJOUR = 86400 * 1000

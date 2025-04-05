@@ -60,7 +60,7 @@ class Session {
 
   static purge (boot) {
     if (!boot) {
-      const dlv = Date.now() + (HBINSECONDS * 1000)
+      const dlv = Date.now() + (HBINSECONDS * 2000)
       for(const [, x] of Session.toutes) {
         for(const [rnd, s] of x.sessions) {
           if (s.dlv < dlv) {
@@ -259,7 +259,7 @@ class Session {
 
   // Enregistrement d'une session
   login (sid, subscription, nhb, cid, perimetre, vpe) {
-    const dlv = Date.now() + (HBINSECONDS * 1000)
+    const dlv = Date.now() + (HBINSECONDS * 1500)
     const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
     let s = this.sessions.get(rnd)
     if (s) {
@@ -287,7 +287,7 @@ class Session {
 
   // Enregistrement du heartbeat d'une session
   heartbeat (sid, nhb) {
-    const dlv = Date.now() + (HBINSECONDS * 1000)
+    const dlv = Date.now() + (HBINSECONDS * 1500)
     const x = sid.split('.'); const rnd = x[0], nc = parseInt(x[1])
     const s = this.sessions.get(rnd)
     if (!s || s.nc !== nc) return -1
