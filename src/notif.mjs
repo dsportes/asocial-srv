@@ -60,7 +60,7 @@ class Session {
 
   static purge (boot) {
     if (!boot) {
-      const dlv = Date.now() + (HBINSECONDS * 2000)
+      const dlv = Date.now() - (HBINSECONDS * 2000)
       for(const [, x] of Session.toutes) {
         for(const [rnd, s] of x.sessions) {
           if (s.dlv < dlv) {
