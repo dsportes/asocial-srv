@@ -4,7 +4,7 @@ import { encode, decode } from '@msgpack/msgpack'
 
 import { config } from './config.mjs'
 import { decode3, getHP, sendAlMail, sleep } from './util.mjs'
-import { AMJ, APIVERSION, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
+import { AMJ, isAppExc, AppExc, E_SRV, A_SRV, F_SRV } from './api.mjs'
 import { pubsub } from './notif.mjs'
 
 // Toutes les opérations
@@ -197,8 +197,9 @@ async function operation(req, res, dbp, storage) {
     op = new opClass(opName)
     if (isGet) op.isGet = true
 
-    if (args.APIVERSION && args.APIVERSION !== APIVERSION)
-      throw new AppExc(E_SRV, 5, [APIVERSION, args.APIVERSION])
+    if (args.APIVERSION && 
+        (args.APIVERSION < config.APIVERSIONS[0] || args.APIVERSION > config.APIVERSIONS[1]))
+      throw new AppExc(E_SRV, 5, [config.APIVERSIONS[0], config.APIVERSIONS[1], args.APIVERSION, config.BUILD])
 
     const result = await op.run(args, dbp, storage)
     if (op.isGet) {

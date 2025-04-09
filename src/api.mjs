@@ -4,8 +4,6 @@ import { sha256 as jssha256 } from 'js-sha256'
 import { fromByteArray } from './base64.mjs'
 import { random } from './util.mjs'
 
-export const APIVERSION = '1.01'
-
 /** Cles **********************************************************************/
 export class Cles {
   // Retourne un hash string sur 12c en base64 URL (sans = + /) d'un u8

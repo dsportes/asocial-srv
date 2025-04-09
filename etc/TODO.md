@@ -96,6 +96,8 @@ node src/tools.mjs export-st --in demo,fs_a,A --out demo,gc_a,A
 
 node src/tools.mjs purge-db --in demo,sqlite_a,A
 
+node src/tools.mjs purge-st --in demo,fs_a,A
+
 # Déploiement GAE
 
 Éditer:

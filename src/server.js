@@ -18,6 +18,8 @@ let dbp = null, storage = null
 
 try {
   config.logger = setLogger()
+  config.logger.info('BUILD:' + config.BUILD + ' APIVERSIONS:[' +
+     config.APIVERSIONS[0] + '...' + config.APIVERSIONS[1] + ']')
   config.logger.info('Logs configurés' + (config.mondebug ? ' : MONDEBUG' : ''))
   config.logger.info('SITE= [' + config.run.site + ']')
   config.logger.info('ROOTURL= [' + config.run.rooturl + ']')

@@ -27,6 +27,8 @@ import { FirestoreProvider } from './dbFirestore.mjs'
 // const FirestoreProvider = null
 
 export const config = { // Valeurs par défaut et / ou obligatoires
+  BUILD: 'v2.0',
+  APIVERSIONS: [2, 2],
   mondebug: true, // (env.NODE_ENV === 'mondebug'),
   debugsql: false,
   NOPURGESESSIONS: false, // En test ne pas purger les sessions dans notif
@@ -72,7 +74,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
     site: 'A', // Donne sa clé de cryptage DB
     // origins: new Set(['http://localhost:8080']),
 
-    nom: 'test asocial',
+    nom: 'asocial-srv',
     // URL du serveur
     // N'EST UTILE QUE QUAND storage fs OU gc en mode EMULATOR
     // rooturl: 'http://localhost:8080',

@@ -769,7 +769,7 @@ export class Operation {
     this.excFige = authMode === 3 ? 0 : (excFige || 1)
     this.dh = Date.now()
     this.org = ''
-    this.result = { dh: this.dh }
+    this.result = { dh: this.dh, srvBUILD: config.BUILD }
     this.flags = 0
   }
 
@@ -780,7 +780,7 @@ export class Operation {
       config.logger.info(this.nomop + ' : ' + new Date(this.dh).toISOString())
     this.flags = 0
     this.nl = 0; this.ne = 0; this.vd = 0; this.vm = 0
-    this.result = { }
+    this.result = { dh: this.dh, srvBUILD: config.BUILD }
     this.toInsert = []
     this.toUpdate = []
     this.toDelete = []
