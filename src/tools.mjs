@@ -33,7 +33,7 @@ import { genVapidKeys } from './notif.mjs'
 
 const cmdargs = parseArgs({
   allowPositionals: true,
-  options: { 
+  options: {
     outil: { type: 'string', short: 'o' },
     in: { type: 'string' },
     out: { type: 'string' },
@@ -50,7 +50,7 @@ function prompt (q) {
     readline.question(q, rep => {
       readline.close()
       resolve(rep)
-    })    
+    })
   })
 }
 
@@ -138,10 +138,10 @@ export class Outils {
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
-    
-    if (x.length !== 3) 
+
+    if (x.length !== 3)
       throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: org1,sqlite_a,A + ( org,provider,site)'
-        
+
     e.org = x[0]
     if (!e.org || e.org.length < 4 || e.org.length > 8)
       throw 'Argument --' + io + ' : Attendu: org,provider,site : org [' + e.org + ']: de 4 à 8 caractères'
@@ -165,7 +165,7 @@ export class Outils {
     const arg = this.args.values[io]
     if (!arg) throw 'Argument --' + io + ' non trouvé'
     const x = arg.split(',')
-    if (x.length !== 3) 
+    if (x.length !== 3)
       throw 'Argument --' + io + ' : erreur de syntaxe. Attendu: doda,fs_a,A'
     e.org = x[0]
     if (!e.org || e.org.length < 4 || e.org.length > 12)
@@ -185,9 +185,9 @@ export class Outils {
     const cin = this.cfg.in
     const cout = this.cfg.out
     if (cin.dbp.type === 'firestore' && cout.dbp.type === 'firestore' && cin.dbp.code !== cout.dbp.code)
-      throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre Firestore' 
-    if ((cin.org === cout.org) && (cin.dbp.code === cout.dbp.code)) 
-      throw 'Il n\'est pas possible d\'exporter une organisation d\'une base dans la même base sans changer son nom' 
+      throw 'Il n\'est pas possible d\'exporter directement d\'un Firestore vers un autre Firestore'
+    if ((cin.org === cout.org) && (cin.dbp.code === cout.dbp.code))
+      throw 'Il n\'est pas possible d\'exporter une organisation d\'une base dans la même base sans changer son nom'
 
     const opin = new OpSimple(null, cin.org)
     await cin.dbp.connect(opin)
@@ -195,7 +195,7 @@ export class Outils {
     const opout = new OpSimple(null, cout.org)
     await cout.dbp.connect(opout)
     opout.db.setOrg(cout.org)
- 
+
     let msg = 'export-db:'
     msg += cin.org === cout.org ? ' org:' + cin.org : ' org:' + cin.org + '=>' + cout.org
     msg += cin.pname === cout.pname ? ' provider:' + cin.pname : ' provider:' + cin.pname + '=>' + cout.pname
@@ -297,7 +297,7 @@ export class Outils {
     this.log(`\r${nbav} avatar(s) - ${nbfav} fichier(s) - ${volav} bytes` + espaces)
     this.log(`${nbgr} groupe(s) - ${nbfgr} fichier(s) - ${volgr} bytes`)
     this.log(`Export ${this.simu ? 'simulé' : 'REEL'} terminé avec succès.`)
-  
+
   }
 
   async purgeDb() {
@@ -340,7 +340,7 @@ export class Outils {
     const pout = path.resolve('./vapid.json')
     writeFileSync(pout, t)
     this.log('OK')
-    this.log(t) 
+    this.log(t)
   }
 
   async decodeData () {
