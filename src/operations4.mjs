@@ -25,15 +25,15 @@ export function load4 () {
     2 : exception si figé
   Après authentification, sont disponibles dans this:
     isGet, db, storage, args, dh
-    id estA sync (ou null) setR 
+    id estA sync (ou null) setR
     compte espace (lazy)
 */
 
 /* SetEspaceOptionA : changement de l'option A, nbmi, par le Comptable */
 operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
-    this.targs = { 
+    this.targs = {
       optionA: { t: 'int', min: 0, max: 1, n: true}, // true si accepte le s compte A
       nbmi: { t: 'int', min: 3, max: 18, n: true } // nombre de mois d'inactivité avant suppression d'un compte
     }
@@ -47,9 +47,9 @@ operations.SetEspaceOptionA = class SetEspaceOptionA extends Operation {
 
 /* SetEspaceDlvat : changement de dlvat par l'administrateur */
 operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 3)
-    this.targs = { 
+    this.targs = {
       org: { t: 'org'}, // ns de l'espace concerné
       dlvat: { t: 'date' } // aaaammjj : date limite fixée par l'administrateur technique
     }
@@ -64,16 +64,16 @@ operations.SetEspaceDlvat = class SetEspaceDlvat extends Operation {
 
 /* Ajout d'un sponsoring */
 operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 2) 
-    this.targs = { 
+  constructor (nom) {
+    super(nom, 1, 2)
+    this.targs = {
       id: { t: 'ida' }, // id du sponsor
       hYR: { t: 'ids' }, // hash du PBKFD de la phrase réduite de sponsoring,
       psK: { t: 'u8' }, // texte de la phrase de sponsoring cryptée par la clé K du sponsor.
       YCK: { t: 'u8' }, // PBKFD de la phrase de sponsoring cryptée par la clé K du sponsor.
       hYC: { t: 'ids' }, // hash du PBKFD de la phrase de sponsoring
       cleAYC: { t: 'u8' }, // clé A du sponsor crypté par le PBKFD de la phrase complète de sponsoring
-      partitionId: { t: 'idp', n: true }, // id de la partition si compte "O" 
+      partitionId: { t: 'idp', n: true }, // id de la partition si compte "O"
       cleAP: { t: 'u8', n: true }, // clé A du COMPTE sponsor crypté par la clé P de la partition.
       clePYC: { t: 'u8', n: true }, // clé P de sa partition (si c'est un compte "O") cryptée par le PBKFD de la phrase complète de sponsoring (donne l'id de la partition).
       nomYC: { t: 'u8' }, // nom du sponsorisé, crypté par le PBKFD de la phrase complète de sponsoring.
@@ -94,7 +94,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
     if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 308)
 
-    if (await this.db.getSponsoringIds(args.hYR)) 
+    if (await this.db.getSponsoringIds(args.hYR))
       throw new AppExc(F_SRV, 207)
 
     const q = args.quotas
@@ -102,9 +102,9 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
       const partition = await this.gd.getPA(args.partitionId, 'AjoutSponsoring')
       if (!this.estComptable) {
         const e = partition.mcpt[this.compte.id]
-        if (!e || !eqU8(e.cleAP, args.cleAP)) 
+        if (!e || !eqU8(e.cleAP, args.cleAP))
           throw new AppExc(F_SRV, 209, [args.partitionId, this.compte.id])
-        if (!e.del) 
+        if (!e.del)
           throw new AppExc(F_SRV, 210, [args.partitionId, this.compte.id])
       }
       const s = partition.getSynthese()
@@ -125,7 +125,7 @@ operations.AjoutSponsoring = class AjoutSponsoring extends Operation {
 
 /* ProlongerSponsoring : prolongation d'un sponsoring existant */
 operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida'}, // identifiant de l'avatar du du sponsoring
@@ -147,12 +147,12 @@ operations.ProlongerSponsoring = class ProlongerSponsoring extends Operation {
 Le demandeur doit être:
 - le comptable,
 - OU un délégué de sa partition si c'est un cpompte O
-- OU avec un chat ayant un "mut" avec le demandé si c'est un compte A 
+- OU avec un chat ayant un "mut" avec le demandé si c'est un compte A
 Retour:
 - rowCompta s'il existe
 */
 operations.GetCompta = class GetCompta extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1)
     this.targs = {
       id: { t: 'ida' }, // id du compte dont la compta est demandée
@@ -181,15 +181,15 @@ operations.GetCompta = class GetCompta extends Operation {
 }
 
 /* GetComptaQv : retourne les compteurs qv de compteurs de la compta d'un compte
-Retour: 
+Retour:
 - comptaQV: rowCompta
 */
 operations.GetComptaQv = class GetComptaQv extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1)
     this.targs = {
       id: { t: 'ida' } // id du compte
-    } 
+    }
   }
 
   async phase2 (args) {
@@ -209,7 +209,7 @@ Retour:
 - collision: true si la phrase courte pointe sur un  autre avatar
 */
 operations.GetAvatarPC = class GetAvatarPC extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1)
     this.targs = {
       hZR: { t: 'ids' }, // hash de la phrase de contact réduite
@@ -244,9 +244,9 @@ class OperationCh extends Operation {
     return true
   }
 
-  /* Restriction MINI : ne pas l'appliquer: 
+  /* Restriction MINI : ne pas l'appliquer:
   - Au Compatble ni en I ni en E.
-  - Quand le chat est utilisé "en cas d'urgence", 
+  - Quand le chat est utilisé "en cas d'urgence",
     c'est à dire si le compte souhaite s'adresser à un délégué de sa partition
   - A un délégué quand il s'adresse à un compte de sa partition.
   */
@@ -265,20 +265,20 @@ Retour:
 - rowChat : row du chat I.
 */
 operations.NouveauChat = class NouveauChat extends OperationCh {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idI: { t: 'ida' }, // id de l'vatar du chat "interne"
       idE: { t: 'ida' }, // id de l'vatar du chat "externe"
       urgence: { t: 'bool', n: true }, // chats ouvert d'urgence
-      mode: { t: 'modech' }, 
+      mode: { t: 'modech' },
       // - 0: par phrase de contact - hZC en est le hash
       // - 1: idE est Comptable
       // - 2: idE est délégué de la partition de idI
       // - idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
-    
-      // 0: par phrase de contact (hZC en est le hash),  
-      // 1: idE est délégué de la partition de idI, 
+
+      // 0: par phrase de contact (hZC en est le hash),
+      // 1: idE est délégué de la partition de idI,
       // idg: idE et idI sont co-membres du groupe idg (idI a accès aux membres)
 
       hZC : { t: 'ids', n: true }, // hash du PBKFD de la phrase de contact compléte pour le mode 0
@@ -323,7 +323,7 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     let chI = await this.gd.getCAV(args.idI, idsI)
     if (chI) { this.setRes('rowChat', chI.toShortData(this)); return}
 
-    chI = await this.gd.nouvCAV({ 
+    chI = await this.gd.nouvCAV({
       id: args.idI,
       ids: idsI,
       st: 10,
@@ -351,16 +351,16 @@ operations.NouveauChat = class NouveauChat extends OperationCh {
     // const comptaE = await this.gd.getCA(args.idE, 'NouveauChat-3')
     // comptaE.ncPlus(1)
 
-    if (ID.estComptable(chE.id) && args.urgence) 
+    if (ID.estComptable(chE.id) && args.urgence)
       await this.alerte('chat')
   }
 }
 
-/* MutChat: Ajout ou suppression d\'une demande de mutation sur un chat 
+/* MutChat: Ajout ou suppression d\'une demande de mutation sur un chat
 */
 operations.MutChat = class MutChat extends OperationCh {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar du chat (principal)
       ids: { t: 'ids' },  // ids du chat
@@ -396,8 +396,8 @@ operations.MutChat = class MutChat extends OperationCh {
 /* MajLectChat: mise à jour de la dh de lecture du chat ***********
 */
 operations.MajLectChat = class MajLectChat extends OperationCh {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar du chat
       ids: { t: 'ids' },  // ids du chat
@@ -415,8 +415,8 @@ Retour:
 - disp: true si E a disparu (pas de maj faite)
 */
 operations.MajChat = class MajChat extends OperationCh {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar du chat
       ids: { t: 'ids' },  // ids du chat
@@ -428,7 +428,7 @@ operations.MajChat = class MajChat extends OperationCh {
   }
 
   async phase2 (args) {
-    if (!await this.intro2(args)) { 
+    if (!await this.intro2(args)) {
       this.chI.chEdisp() // pas de chatE
       return
     }
@@ -446,7 +446,7 @@ operations.MajChat = class MajChat extends OperationCh {
 
     if (args.t) {
       const itemI = args.t ? { a: 0, dh: this.dh, t: args.t } : null
-      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null  
+      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null
       this.chI.addChatItem(itemI)
       this.chE.addChatItem(itemE)
     } else if (args.dh) {
@@ -457,12 +457,12 @@ operations.MajChat = class MajChat extends OperationCh {
     // Maj CVs
     this.chI.setCvE(avE.cvA || {id: avE.id, v: 0 })
     this.chE.setCvE(avI.cvA || {id: avI.id, v: 0 })
-   
+
     if (this.chI.stI === 0) this.compta.ncPlus(1) // I était passif, redevient actif
     this.chI.actifI()
     this.chE.actifE()
 
-    if (ID.estComptable(this.chE.id) && args.urgence) 
+    if (ID.estComptable(this.chE.id) && args.urgence)
       await this.alerte('chat')
   }
 }
@@ -473,7 +473,7 @@ Retour
 - disp: true si E a disparu
 */
 operations.PassifChat = class PassifChat extends OperationCh {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar du chat
@@ -481,7 +481,7 @@ operations.PassifChat = class PassifChat extends OperationCh {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     if (!await this.intro2()) { // E disparu. I voulait être passif, devient détruit
       this.chI.setZombi()
       this.setRes('suppr', true)
@@ -507,8 +507,8 @@ Exceptions:
 F_SRV, 26: Phrase de contact trop proche d\'une phrase existante.
 */
 operations.ChangementPC = class ChangementPC extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar
       hZR: { t: 'ids', n: true }, // hash de la phrase de contact réduite (SUPPRESSION si null)
@@ -518,8 +518,8 @@ operations.ChangementPC = class ChangementPC extends Operation {
     }
   }
 
-  async phase2 (args) { 
-    if (args.hZR && await this.db.getAvatarHk(args.hZR)) 
+  async phase2 (args) {
+    if (args.hZR && await this.db.getAvatarHk(args.hZR))
       throw new AppExc(F_SRV, 26) // trop proche existante
 
     if (!this.compte.mav[args.id]) throw new AppExc(A_SRV, 224)
@@ -532,11 +532,11 @@ operations.ChangementPC = class ChangementPC extends Operation {
 /* StatutChatE: Statut du contact d'un chat
 Retour: { cpt, idp, del }
 - cpt: true si avatar principal
-- idp: id de la partition si compte "0", 
+- idp: id de la partition si compte "0",
 - del: true si delégué
 */
 operations.StatutChatE = class StatutChatE extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1)
     this.targs = {
       ids: { t: 'ids' } // ids = chat
@@ -567,7 +567,7 @@ Exception générique:
 - 8001: avatar disparu
 */
 operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar
@@ -577,7 +577,7 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
   }
 
   async phase2(args) {
-    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable 
+    /* Restriction MINI NE s'applique QUE si le compte n'est pas le comptable
     if ((AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) && !this.estComptable) throw new AppExc(F_SRV, 802)
     */
     if (!this.compte.mav[args.id])
@@ -592,10 +592,10 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
       const av = await this.gd.getAAVCV(idE, vcv)
       if (av) {
         const ch = await this.gd.getCAV(args.id, ids)
-        if (ch && !this.fige) { 
+        if (ch && !this.fige) {
           nc++
           nv++
-          ch.setCvE(av.cvA)  
+          ch.setCvE(av.cvA)
         }
       }
     }
@@ -605,9 +605,9 @@ operations.RafraichirCvsAv = class RafraichirCvsAv extends Operation {
       const av = await this.gd.getAAVCV(ida, vcv)
       if (av) {
         const mb = await this.gd.getMBR(id, im)
-        if (mb && !this.fige) { 
+        if (mb && !this.fige) {
           nc++
-          mb.setCvA(av.cvA) 
+          mb.setCvA(av.cvA)
         }
       }
     }
@@ -624,8 +624,8 @@ Exception générique:
 - 8002: groupe disparu
 */
 operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
-  constructor (nom) { 
-    super(nom, 1) 
+  constructor (nom) {
+    super(nom, 1)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
       lmb: { t: 'array' } // liste des membres: [{ id, im, ida, vcv} ...]
@@ -634,7 +634,7 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
 
   async phase2(args) {
     /* Restriction NE s'applique QUE si le compte n'est pas le comptable */
-    if ((AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) && !this.estComptable) 
+    if ((AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) && !this.estComptable)
       throw new AppExc(F_SRV, 802)
     if (!this.compte.mpg[args.idg]) throw new AppExc(A_SRV, 275)
 
@@ -646,22 +646,22 @@ operations.RafraichirCvsGr = class RafraichirCvsGr extends Operation {
       const { av } = await this.gd.getAAVCV(ida, vcv)
       if (av) {
         const mb = await this.gd.getMBR(id, im)
-        if (mb && !this.fige) { 
+        if (mb && !this.fige) {
           nv++
           mb.setCvA(av.cvA)
-          nc++ 
+          nc++
         }
       }
     }
-    
+
     this.setRes('ncnv', [nc, nv])
   }
 }
 
 /* SetQuotas: 'Fixation des quotas d'un compte dans sa partition ou comme compte A */
 operations.SetQuotas = class SetQuotas extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       idp: { t: 'idp' }, // id de la partition
       idc: { t: 'idc' }, // id du compte
@@ -684,7 +684,7 @@ operations.SetQuotas = class SetQuotas extends Operation {
 
 /* NouvellePartition: Création d\'une nouvelle partition */
 operations.NouvellePartition = class NouvellePartition extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
       idp: { t: 'idp' }, // id de la partition
@@ -706,7 +706,7 @@ operations.NouvellePartition = class NouvellePartition extends Operation {
 
 /* SupprPartition: Suppression d\'une partition */
 operations.SupprPartition = class SupprPartition extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
       idp: { t: 'idp' } // id de la partition
@@ -730,7 +730,7 @@ operations.SupprPartition = class SupprPartition extends Operation {
 
 /* SetQuotasPart: Mise à jour des quotas d\'une partition */
 operations.SetQuotasPart = class SetQuotasPart extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
       idp: { t: 'idp' }, // id de la partition
@@ -768,8 +768,8 @@ operations.SetQuotasPart = class SetQuotasPart extends Operation {
 
 /* SetQuotasA: Mise à jour des quotas pour les comptes A */
 operations.SetQuotasA = class SetQuotasA extends Operation {
-  constructor (nom) { 
-    super(nom, 2, 2) 
+  constructor (nom) {
+    super(nom, 2, 2)
     this.targs = {
       quotas: { t: 'q' } // quotas: {qc, qn, qv}
     }
@@ -800,7 +800,7 @@ operations.SetQuotasA = class SetQuotasA extends Operation {
 
 /* SetCodePart: Mise à jour du code d\'une partition */
 operations.SetCodePart = class SetCodePart extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
       idp: { t: 'idp' }, // id de la partition
@@ -820,15 +820,15 @@ Mutation d'un compte `c` O de la partition `p` en compte A
 - bloqué si l'augmentation de `syntheses.qtA` fait dépasser `syntheses.qA`.
 */
 operations.MuterCompteAauto = class MuterCompteAauto extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
-      quotas: { t: 'q' } // quotas: { qc, qn, qv }   
+      quotas: { t: 'q' } // quotas: { qc, qn, qv }
     }
   }
 
   async phase2 (args) {
-    if (!this.compte.idp || this.estComptable) 
+    if (!this.compte.idp || this.estComptable)
       throw new AppExc(A_SRV, 352)
 
     this.compta.setIdp('')
@@ -869,7 +869,7 @@ operations.MuterCompte = class MuterCompte extends Operation {
     const avE = await this.gd.getAV(chI.idE, 'MuterCompteO-7')
     if (args.t) {
       const itemI = args.t ? { a: 0, dh: this.dh, t: args.t } : null
-      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null  
+      const itemE = args.t ? { a: 1, dh: this.dh, t: args.t } : null
       chI.addChatItem(itemI)
       chE.addChatItem(itemE)
     }
@@ -890,12 +890,12 @@ Mutation d'un compte `c` O de la partition `p` en compte A
 - bloqué si l'augmentation de `syntheses.qtA` fait dépasser `syntheses.qA`.
 */
 operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant A
       ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
-      quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
+      quotas: { t: 'q' }, // quotas: { qc, qn, qv }
       t: { t: 'u8' } // texte (crypté) de l'item à ajouter au chat
     }
   }
@@ -905,7 +905,7 @@ operations.MuterCompteA = class MuterCompteA extends operations.MuterCompte {
     if (!compte.idp) throw new AppExc(A_SRV, 289)
 
     await this.check()
-  
+
     const compta = await this.gd.getCA(args.id, 'MuterCompteA-3')
     compta.setIdp('')
     const q = compta.qv
@@ -932,11 +932,11 @@ Mutation d'un compte `c` A en compte O de la partition `p`
 - blocage si les quotas de la partition ne supportent pas les quotas du compte muté.
 */
 operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom)
     this.targs = {
       id: { t: 'ida' }, // id du compte devenant O
-      quotas: { t: 'q' }, // quotas: { qc, qn, qv }   
+      quotas: { t: 'q' }, // quotas: { qc, qn, qv }
       cleAP: { t: 'u8' }, // clé A du compte cryptée par la clé P de la partition
       clePK: { t: 'u8' }, // clé de la nouvelle partition cryptée par la clé publique du compte
       ids: { t: 'ids' }, // ids du chat du compte demandeur (Comptable / Délégué)
@@ -946,7 +946,7 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
 
   async phase2 (args) {
     await this.check()
-  
+
     const idp = this.compte.idp // partition de l'exécutant de la mutation
 
     const compte = await this.gd.getCO(args.id, 'MuterCompteO-2')
@@ -970,10 +970,10 @@ operations.MuterCompteO = class MuterCompteO extends operations.MuterCompte {
 
 /* FixerQuotasA: Attribution par le Comptable de quotas globaux pour les comptes A */
 operations.FixerQuotasA = class FixerQuotasA extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
-      quotas: { t: 'q' } // quotas: { qc, qn, qv }   
+      quotas: { t: 'q' } // quotas: { qc, qn, qv }
     }
   }
 
@@ -985,7 +985,7 @@ operations.FixerQuotasA = class FixerQuotasA extends Operation {
 
 /*  ChangerPartition: Transfert d\'un compte O dans une autre partition */
 operations.ChangerPartition = class ChangerPartition extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
       id: { t: 'ida' }, // id du compte qui change de partition
@@ -1017,7 +1017,7 @@ operations.ChangerPartition = class ChangerPartition extends Operation {
 
 /*  DeleguePartition: Changement de statut délégué d\'un compte dans sa partition */
 operations.DeleguePartition = class DeleguePartition extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
       id: { t: 'ida' }, // id du compte qui change de statut
@@ -1036,8 +1036,8 @@ operations.DeleguePartition = class DeleguePartition extends Operation {
 
 /* SetNotifP : notification d'une partition */
 operations.SetNotifP = class SetNotifP extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       idp: { t: 'idp' }, // id de la partition
       notif: { t: 'ntf', n: true } // notification cryptée par la clé de la partition.
@@ -1047,9 +1047,9 @@ operations.SetNotifP = class SetNotifP extends Operation {
   async phase2 (args) {
     const ec = this.estComptable
     const ed = !ec && this.compte.del
-    if ((!ec && !ed) || (ed && this.compte.idp !== args.idp)) 
+    if ((!ec && !ed) || (ed && this.compte.idp !== args.idp))
       throw new AppExc(A_SRV, 235)
-    
+
     const espace = await this.gd.getEspace('SetNotifP-1')
     const ntf = espace.tnotifP[args.idp]
     const aut = ntf ? (ntf.idDel ? ntf.idDel : ID.duComptable()) : null
@@ -1069,7 +1069,7 @@ operations.SetNotifP = class SetNotifP extends Operation {
 
 /* SetNotifC: notification d'un compte "O" */
 operations.SetNotifC = class SetNotifC extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idc: { t: 'ida' }, // id du compte
@@ -1106,11 +1106,11 @@ operations.SetNotifC = class SetNotifC extends Operation {
 }
 
 /* PlusTicket: Génération d'un ticket de crédit et ajout du ticket au Comptable
-Retour: 
+Retour:
 - rowCompta: du compte après insertion du ticket
 */
 operations.PlusTicket = class PlusTicket extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       ids: { t: 'ids' }, // ids du ticket généré
@@ -1134,11 +1134,11 @@ operations.PlusTicket = class PlusTicket extends Operation {
 }
 
 /* MoinsTicket: retrait d'un ticket à un compte A et retrait d'un ticket au Comptable
-Retour: 
+Retour:
 - rowCompta : du compte
 */
 operations.MoinsTicket = class MoinsTicket extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       ids: { t: 'ids' } // ids du ticket à enlever
@@ -1159,7 +1159,7 @@ operations.MoinsTicket = class MoinsTicket extends Operation {
 
 /* ReceptionTicket: Réception d'un ticket par le Comptable */
 operations.ReceptionTicket = class ReceptionTicket extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 2, 2)
     this.targs = {
       ids: { t: 'ids' }, // ids du ticket reçu
@@ -1187,7 +1187,7 @@ operations.ReceptionTicket = class ReceptionTicket extends Operation {
 
 /* MajCv : Mise à jour de la carte de visite d\'un avatar ou d'un groupe*/
 operations.MajCv = class MajCv extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       cv: { t: 'cv' } // carte de visite (photo / texte cryptés)
@@ -1208,7 +1208,7 @@ operations.MajCv = class MajCv extends Operation {
       const groupe = await this.gd.getGR(args.cv.id, 'MajCv-3')
       const anims = groupe.anims
       let ok = false
-      for(const ida of e.lav) 
+      for(const ida of e.lav)
         if (anims.has(groupe.mmb.get(ida))) ok = true
       if (!ok) throw new AppExc(A_SRV, 243)
       groupe.setCv(args.cv)
@@ -1229,13 +1229,13 @@ Retour:
 - cv: si trouvée
 */
 operations.GetCv = class GetCv extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
   }
 
   async phase2(args) {
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
-    
+
     const r = args.r || { }
     if (!ID.estGroupe(args.id)) {
       let ok = false
@@ -1265,7 +1265,7 @@ operations.GetCv = class GetCv extends Operation {
         const avatar = await this.gd.getAV(args.id, 'GetCv-2')
         this.setRes('cv', avatar.cvA)
       }
-      return 
+      return
     }
 
     if (r.ida && r.ima) {
@@ -1286,7 +1286,7 @@ operations.GetCv = class GetCv extends Operation {
 
 /* NouvelAvatar: Création d'un nouvel avatar du compte */
 operations.NouvelAvatar = class NouvelAvatar extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' }, // id de l'avatar à créér
@@ -1311,8 +1311,8 @@ operations.NouvelAvatar = class NouvelAvatar extends Operation {
 
 /* McMemo: Changement des mots clés et mémo attachés à un contact ou groupe */
 operations.McMemo = class McMemo extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de l'avatar ou du groupe
       htK: { t: 'u8', n: true }, // hashtags séparés par un espace et crypté par la clé K
@@ -1320,7 +1320,7 @@ operations.McMemo = class McMemo extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     if (AL.has(this.flags, AL.ARSN) || AL.has(this.flags, AL.ARNTF)) throw new AppExc(F_SRV, 802)
     if (AL.has(this.flags, AL.LSNTF)) throw new AppExc(F_SRV, 801)
 
@@ -1331,7 +1331,7 @@ operations.McMemo = class McMemo extends Operation {
 
 /* ChangementPS: Changement de la phrase secrete de connexion du compte */
 operations.ChangementPS = class ChangementPS extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       hps1: { t: 'ids' }, // hash9 du PBKFD de la phrase secrète réduite du compte.
@@ -1340,17 +1340,17 @@ operations.ChangementPS = class ChangementPS extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     this.compte.chgPS(args)
   }
 }
 
-/* Nouveau groupe 
+/* Nouveau groupe
 Exception:
 - 8001: avatar disparu
 */
 operations.NouveauGroupe = class NouveauGroupe extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1363,7 +1363,7 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const rg = await this.gd.getGR(args.idg)
     if (rg) throw new AppExc(A_SRV, 246)
 
@@ -1378,13 +1378,13 @@ operations.NouveauGroupe = class NouveauGroupe extends Operation {
   }
 }
 
-/* Nouveau contact 
-Exception: 
+/* Nouveau contact
+Exception:
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.NouveauContact = class NouveauContact extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1394,7 +1394,7 @@ operations.NouveauContact = class NouveauContact extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const groupe = await this.gd.getGR(args.idg)
     if (!groupe) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.ida)
@@ -1410,58 +1410,58 @@ operations.NouveauContact = class NouveauContact extends Operation {
     if (groupe.mmb.get(args.ida)) throw new AppExc(A_SRV, 248)
     if (groupe.lnc.indexOf(args.ida) !== -1) throw new AppExc(A_SRV, 260)
     if (groupe.lng.indexOf(args.ida) !== -1) throw new AppExc(A_SRV, 261)
-    
+
     const im = groupe.nvContact(args.ida)
     const dx = { dpc: this.auj}
     await this.gd.nouvMBR(args.idg, im, avatar.cvA, args.cleAG, dx)
 
     const cinvit = await this.gd.getIN(avatar.idc, 'InvitationGroupe-2b')
-    const invx = { 
+    const invx = {
       idg: args.idg,
       ida: args.ida,
-      cleGA: args.cleGA, 
-      cvG: groupe.cvG, 
-      flags: 0,  
-      msgG: null 
+      cleGA: args.cleGA,
+      cvG: groupe.cvG,
+      flags: 0,
+      msgG: null
     }
     cinvit.setContact(invx)
   }
 }
 
 /* ModeSimple: 'Demande de retour au mode simple d\'invitation à un groupe
-Exception: 
+Exception:
 - 8002: groupe disparu
 */
 operations.ModeSimple = class ModeSimple extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
       ida: { t: 'ida' }, // id de l'avatar demandant le retour au mode simple
-      simple: { t: 'bool' } 
+      simple: { t: 'bool' }
       // true 'Je vote pour passer au mode "SIMPLE"'
       // false: 'Annuler les votes et rester en mode UNANIME'
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
 
     if (!this.compte.mav[args.ida]) throw new AppExc(A_SRV, 249)
     const im = gr.mmb.get(args.ida)
     if (!im || gr.st[im] !== 5) throw new AppExc(A_SRV, 250)
-    
+
     gr.setMsu(args.simple, im)
   }
 }
 
 /* AnnulerContact: Annulation du statut de contact d'un groupe par un avatar
-Exception: 
+Exception:
 - 8002: groupe disparu
 */
 operations.AnnulerContact = class AnnulerContact extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1470,7 +1470,7 @@ operations.AnnulerContact = class AnnulerContact extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
 
@@ -1486,12 +1486,12 @@ operations.AnnulerContact = class AnnulerContact extends Operation {
 }
 
 /* InvitationGroupe: Invitation à un groupe'
-Exception: 
+Exception:
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.InvitationGroupe = class InvitationGroupe extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1506,7 +1506,7 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.idm)
@@ -1524,18 +1524,18 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     const membre = await this.gd.getMBR(args.idg, im, 'InvitationGroupe-3')
 
     const s = gr.st[im]
-    
+
     if (args.suppr) { // suppression de l'invitation
       if (s < 2 || s > 3) throw new AppExc(A_SRV, 252)
       gr.supprInvit(im, args.suppr)
       cinvit.retourContact(args.idg, args.idm)
       membre.supprRad(args.suppr)
       return
-    } 
-    
+    }
+
     // Création 0 / modification 2 / vote pour 4
     if (args.rmsv === 0 && s !== 1) throw new AppExc(A_SRV, 256) // création mais pas contact
-    if ((args.rmsv === 2 || args.rmsv === 4) && (s < 2 || s > 3)) 
+    if ((args.rmsv === 2 || args.rmsv === 4) && (s < 2 || s > 3))
       throw new AppExc(A_SRV, 257) // modification ou vote mais pas déjà (pré) invité
     if (!gr.msu && args.rmsv === 4) throw new AppExc(A_SRV, 258) // vote mais pas en mode unanime
     if (!gr.msu && !args.idi) throw new AppExc(A_SRV, 255) // mode simple et absence d'avatar invitant
@@ -1544,10 +1544,10 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
     let aInviter = false // inviter effectivement (sinon laisser en pré-invité)
     const invit = { fl: args.flags, li: [] }
     if (args.idi) { // mode simple
-      if (!this.compte.mav[args.idi]) 
+      if (!this.compte.mav[args.idi])
         throw new AppExc(A_SRV, 249) // invitant non membre du groupe
       const imi = gr.mmb.get(args.idi)
-      if (!imi || gr.st[imi] !== 5) 
+      if (!imi || gr.st[imi] !== 5)
         throw new AppExc(A_SRV, 254) // invitant non animateur
       invit.li.push(imi)
       aInviter = true
@@ -1573,19 +1573,19 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       - `flags` : d'invitation.
       - `invpar` : `[{ cleAG, cvA }]`
         - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
-        - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
+        - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe).
       - `msgG` : message de bienvenue / invitation émis par l'invitant.
     */
     if (aInviter) {
       const invpar = []
-      const invx = { 
+      const invx = {
         idg: args.idg,
         ida: args.idm,
-        cleGA: args.cleGA, 
-        cvG: gr.cvG, 
-        flags: args.flags, 
-        invpar, 
-        msgG: args.msgG 
+        cleGA: args.cleGA,
+        cvG: gr.cvG,
+        flags: args.flags,
+        invpar,
+        msgG: args.msgG
       }
       for (const im of invit.li) {
         const mb = await this.gd.getMBR(gr.id, im, 'InvitationGroupe-5')
@@ -1604,19 +1604,19 @@ operations.InvitationGroupe = class InvitationGroupe extends Operation {
       */
       ch.addItem(invit.li[0], this.dh, args.msgG)
     }
-    
+
     // maj du membre invité
     membre.setInvit(this.auj, aInviter, args.msgG)
   }
 }
 
 /* AcceptInvitation: Acceptation d'une invitation à un groupe
-Eception: 
+Eception:
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.AcceptInvitation = class AcceptInvitation extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1630,7 +1630,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.idm)
@@ -1641,7 +1641,7 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(A_SRV, 251)
     if (gr.st[im] !== 3) throw new AppExc(A_SRV, 259)
-    
+
     const membre = await this.gd.getMBR(args.idg, im, 'AcceptInvitation-3')
 
     if (args.cas === 1) { // acceptation
@@ -1685,11 +1685,11 @@ operations.AcceptInvitation = class AcceptInvitation extends Operation {
 }
 
 /* ItemChatgr: Ajout ou effacement d'un item au chat du groupe
-Exception: 
+Exception:
 - 8002: groupe disparu
 */
 operations.ItemChatgr = class ItemChatgr extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1699,10 +1699,10 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
-    
+
     if (args.idaut) {
       if (!this.compte.mav[args.idaut]) throw new AppExc(A_SRV, 249)
       const im = gr.mmb.get(args.idaut)
@@ -1723,7 +1723,7 @@ operations.ItemChatgr = class ItemChatgr extends Operation {
 /* MajLectChatgr: mise à jour de la lecture d'un chat du groupe
 */
 operations.MajLectChatgr = class MajLectChatgr extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1731,7 +1731,7 @@ operations.MajLectChatgr = class MajLectChatgr extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const ch = await this.gd.getCGR(args.idg)
     if (!ch) return
     const dh = ch.dh
@@ -1744,12 +1744,12 @@ operations.MajLectChatgr = class MajLectChatgr extends Operation {
 }
 
 /* MajDroitsMembre: Mise à jour des droits d'un membre sur un groupe
-Exception: 
+Exception:
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1767,9 +1767,9 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
 
     const im = gr.mmb.get(args.idm)
     if (!im) throw new AppExc(A_SRV, 251)
-    const stm = gr.st[im] 
+    const stm = gr.st[im]
     if (stm < 4) throw new AppExc(A_SRV, 262)
-    
+
     // Set des im des avatars du compte étant animateur */
     const anc = this.compte.imAnimsDeGr(gr)
 
@@ -1780,8 +1780,9 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
       fst = 5
     }
     if (!args.anim && stm === 5) {
-      // supprimer le statut d'animateur du membre - Possible pour soi-même seulement
-      if (!anc.has(im)) throw new AppExc(A_SRV, 264)
+      // supprimer le statut d'animateur du membre - Possible pour soi-même seulement ou fondateur
+      if (!anc.has(1) && !anc.has(im))
+        throw new AppExc(A_SRV, 264)
       fst = 4
     }
 
@@ -1806,12 +1807,12 @@ operations.MajDroitsMembre = class MajDroitsMembre extends Operation {
 }
 
 /* RadierMembre: Radiation d'un membre d'un groupe
-Exception: 
+Exception:
 - 8002: groupe disparu
 - 8001: avatar disparu
 */
 operations.RadierMembre = class RadierMembre extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
@@ -1821,7 +1822,7 @@ operations.RadierMembre = class RadierMembre extends Operation {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
     const avatar = await this.gd.getAV(args.idm)
@@ -1863,9 +1864,9 @@ operations.RadierMembre = class RadierMembre extends Operation {
       if (stmap === 1) { // il doit désormais y être
         const invits = await this.gd.getIN(compte.id)
         const inv = {
-          idg: args.idg, 
-          ida: args.idm, 
-          cleGA: args.cleGA, 
+          idg: args.idg,
+          ida: args.idm,
+          cleGA: args.cleGA,
           cvG: gr.cvG
         }
         if (invits) invits.setContact(inv)
@@ -1887,12 +1888,12 @@ Exception générique:
 - 8002: groupe disparu
 */
 operations.HebGroupe = class HebGroupe extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       idg: { t: 'idg' }, // id du groupe
       nvHeb: { t: 'ida' }, // id de l'avatar nouvel hébergeur
-      action: { t: 'int', min: 1, max: 4 }, 
+      action: { t: 'int', min: 1, max: 4 },
       // 1: 'Je prends l\'hébergement à mon compte',
       // 2: 'Je cesse d\'héberger ce groupe',
       // 3: 'Je transmet l\'hébergement à un autre de mes avatars',
@@ -1906,8 +1907,8 @@ operations.HebGroupe = class HebGroupe extends Operation {
     const gr = await this.gd.getGR(args.idg)
     if (!gr) throw new AppExc(F_SRV, 2)
 
-    // 2: 'Je cesse d\'héberger ce groupe',    
-    if (args.action === 2) { 
+    // 2: 'Je cesse d\'héberger ce groupe',
+    if (args.action === 2) {
       if (gr.idh !== this.id) throw new AppExc(A_SRV, 276)
       gr.finHeb(this.auj)
       this.compta.finHeb(gr.nn, gr.vf)
@@ -1924,7 +1925,7 @@ operations.HebGroupe = class HebGroupe extends Operation {
 
     // 1: 'Je prends l\'hébergement à mon compte',
     if (args.action === 1) {
-      if (gr.idh && gr.idh !== this.id && gr.st[gr.imh] === 5 && gr.st[im] !== 5) 
+      if (gr.idh && gr.idh !== this.id && gr.st[gr.imh] === 5 && gr.st[im] !== 5)
         throw new AppExc(A_SRV, 280)
       this.compta.debHeb(gr.nn, gr.vf)
       gr.majHeb(args.qn, args.qv, this.id, im)
@@ -1932,14 +1933,14 @@ operations.HebGroupe = class HebGroupe extends Operation {
     }
 
     // 3: 'Je transmet l\'hébergement à un autre de mes avatars',
-    if (args.action === 3) { 
+    if (args.action === 3) {
       if (gr.idh !== this.id) throw new AppExc(A_SRV, 283)
       gr.majHeb(args.qn, args.qv, this.id, im)
       return
     }
 
     // 4: 'Je met seulement à jour les nombres de notes et volumes de fichiers maximum attribués au groupe',
-    if (args.action === 4) { 
+    if (args.action === 4) {
       if (gr.idh !== this.id) throw new AppExc(A_SRV, 285)
       gr.majHeb(args.qn, args.qv, gr.idh, gr.imh)
       return
@@ -1953,7 +1954,7 @@ Exception:
 - 8001: avatar disparu
 */
 operations.SupprAvatar = class SupprAvatar extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'ida' } // id de l'avatar
@@ -1990,9 +1991,9 @@ operations.SupprAvatar = class SupprAvatar extends Operation {
     }
 
     this.compte.supprAvatar(av.id)
-    
+
     /* Purges
-    'notes': tache de purge, 
+    'notes': tache de purge,
     'transferts': purge par le GC sur dlv,
     'sponsorings': suppressions ici,
     'chats': tache de purge ET de gestion de disparition sur idE,
@@ -2014,7 +2015,7 @@ Exception:
 operations.SupprCompte = class SupprCompte extends Operation {
   constructor (nom) { super(nom, 1, 2) }
 
-  async phase2 () { 
+  async phase2 () {
     const compte = await this.gd.getCO(this.id)
     if (!compte) throw new AppExc(F_SRV, 1)
     await this.resilCompte(compte)
@@ -2028,7 +2029,7 @@ class OperationNo extends Operation {
     const id = this.args.id
     this.note = this.args.ids ? await this.gd.getNOT(this.args.id, this.args.ids) : null
     if (ID.estGroupe(id)) {
-      const e = this.compte.mpg[id] 
+      const e = this.compte.mpg[id]
       if (!e) throw new AppExc(A_SRV, 290)
       this.mavc = new Map() // actifs du compte: idm, { im, am, an, de, anim }
       this.groupe = await this.gd.getGR(id, 'OperationNo-1')
@@ -2042,8 +2043,8 @@ class OperationNo extends Operation {
         if (anim) this.anim = true
         const f = this.groupe.flags[im]
         let am = false, an = false, de = false
-        if ((f & FLAGS.AN) && (f & FLAGS.DN)) an = true 
-        if ((f & FLAGS.AM) && (f & FLAGS.DM)) am = true 
+        if ((f & FLAGS.AN) && (f & FLAGS.DN)) an = true
+        if ((f & FLAGS.AM) && (f & FLAGS.DM)) am = true
         if (an && (f & FLAGS.DE)) de = true
         if (an) {
           if (de) this.aDE = true
@@ -2081,7 +2082,7 @@ class OperationNo extends Operation {
           if (notep.id !== this.args.id) throw new AppExc(A_SRV, 297)
         } else {
           if (ID.estGroupe(notep.id)) break
-          if (notep.id !== this.args.id) throw new AppExc(A_SRV, 296)  
+          if (notep.id !== this.args.id) throw new AppExc(A_SRV, 296)
         }
         if (!notep.pid || !notep.pids) break
         id = notep.pid
@@ -2093,7 +2094,7 @@ class OperationNo extends Operation {
 
 /* NouvelleNote: Création d\'une nouvelle note */
 operations.NouvelleNote = class NouvelleNote extends OperationNo {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
@@ -2105,7 +2106,7 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     await this.checkNoteId()
     args.ids = ID.estGroupe(args.id) ? ID.noteGr() : ID.noteAv()
     let im = 0, aut = 0
@@ -2131,8 +2132,8 @@ operations.NouvelleNote = class NouvelleNote extends OperationNo {
 
 /* RattNote: Gestion du rattachement d\'une note à une autre */
 operations.RattNote = class RattNote extends OperationNo {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
@@ -2141,7 +2142,7 @@ operations.RattNote = class RattNote extends OperationNo {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     if (!args.pid) throw new AppExc(A_SRV, 300)
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
@@ -2160,7 +2161,7 @@ operations.RattNote = class RattNote extends OperationNo {
 
 /* MajNote: Mise à jour du texte d\'une note */
 operations.MajNote = class MajNote extends OperationNo {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
@@ -2170,7 +2171,7 @@ operations.MajNote = class MajNote extends OperationNo {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
     if (!this.note) assertKO('RattNote-1', 13, [id + '/NOT' + ids])
@@ -2193,15 +2194,15 @@ operations.MajNote = class MajNote extends OperationNo {
 
 /* SupprNote: Suppression d'une note */
 operations.SupprNote = class SupprNote extends OperationNo {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' } // ids de la note
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
     if (!this.note) assertKO('SupprNote-1', 13, [id + '/NOT' + ids])
@@ -2220,13 +2221,13 @@ operations.SupprNote = class SupprNote extends OperationNo {
     if (ng) {
       this.groupe.setNV(dn, dv)
       if (this.groupe.idh) {
-        compta = this.groupe.idh === this.id ? this.compta : 
+        compta = this.groupe.idh === this.id ? this.compta :
           await this.gd.getCA(this.groupe.idh, 'SupprNote-1')
       }
     } else {
       compta = this.compta
     }
-    
+
     if (compta)
       compta.vPlus(dn, dv)
 
@@ -2235,7 +2236,7 @@ operations.SupprNote = class SupprNote extends OperationNo {
 
     this.note.setZombi()
 
-    if (this.lidf.length) 
+    if (this.lidf.length)
       this.idfp = this.gd.nouvFPU(args.id, this.lidf)
   }
 
@@ -2243,7 +2244,7 @@ operations.SupprNote = class SupprNote extends OperationNo {
     if (this.lidf.length) try {
       await this.storage.delFiles(this.org, args.id, this.lidf)
       await this.db.purgeFpurge(this.idfp)
-    } catch (e) { 
+    } catch (e) {
       trace('SupprNote-phase3', args.id, e.message)
     }
   }
@@ -2251,7 +2252,7 @@ operations.SupprNote = class SupprNote extends OperationNo {
 
 /* HTNote: Changement des hashtags attachés à une note par un compte */
 operations.HTNote = class HTNote extends OperationNo {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
@@ -2261,7 +2262,7 @@ operations.HTNote = class HTNote extends OperationNo {
     }
   }
 
-  async phase2 (args) { 
+  async phase2 (args) {
     const ng = ID.estGroupe(args.id)
     await this.checkNoteId()
     if (!this.note) assertKO('SupprNote-1', 13, [id + '/NOT' + ids])
@@ -2275,20 +2276,20 @@ operations.HTNote = class HTNote extends OperationNo {
 
 /* ExcluNote: Changement de l'attribution de l'exclusivité d'écriture d'une note */
 operations.ExcluNote = class ExcluNote extends OperationNo {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
       ida: { t: 'ida', n: true } // id de l'avatar prenant l'exclusivité
-    } 
+    }
   }
 
   async phase2 (args) {
     if (!ID.estGroupe(args.id)) throw new AppExc(A_SRV, 303)
     await this.checkNoteId()
     if (!this.note) assertKO('SupprNote-1', 13, [id + '/NOT' + ids])
-  
+
     const im = args.ida ? this.groupe.mmb.get(args.ida) : 0
     if (im) {
       // l'avatar cible a-t-il droit d'écriture sur la note ?
@@ -2305,7 +2306,7 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
       if (ok) aEX = true
     }
 
-    if (aEX) { 
+    if (aEX) {
       // la note A actuellement un auteur exclusif
       // l'auteur exclusif actuel de la note est-il avatar du compte ?
       if (!this.idxAvc) {
@@ -2320,7 +2321,7 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
         if (im === this.note.im) return // c'est toujours le même
         this.note.setExclu(im)
       }
-    } else { 
+    } else {
       // la note n'a pas (encore) d'auteur exclusif
       if (!im) return // et n'en aura toujours pas
       if (!this.anim) { // le compte demandeur n'a pas d'animateur
@@ -2333,7 +2334,7 @@ operations.ExcluNote = class ExcluNote extends OperationNo {
         if (!ok) throw new AppExc(A_SRV, 347)
         this.note.setExclu(im)
       } else {
-        // un compte animateur peut donner l'exclusivité 
+        // un compte animateur peut donner l'exclusivité
         // à tout avatar (de son compte ou d'un un autre)
         this.note.setExclu(im)
       }
@@ -2346,19 +2347,19 @@ Retour:
 - url : url de get
 */
 operations.GetUrlNf = class GetUrl extends OperationNo {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 0)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
       idf: { t: 'idf' } // id du fichier
-    } 
+    }
   }
 
   async phase2 (args) {
     await this.checkNoteId()
     if (!this.note) assertKO('GetUrlNf-1', 13, [id + '/NOT' + ids])
-    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id)
     this.avgrid = avgr.id
     this.f = this.note.mfa[args.idf] // { idf, nom, info, dh, type, gz, lg, sha }
     if (!this.f) throw new AppExc(A_SRV, 307)
@@ -2385,8 +2386,8 @@ Retour si KO: { code, n1, n2 }
   4 - excès note / photo groupe
 */
 operations.PutUrlNf = class PutUrl extends OperationNo {
-  constructor (nom) { 
-    super(nom, 1, 2) 
+  constructor (nom) {
+    super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
       ids: { t: 'ids' }, // ids de la note
@@ -2394,13 +2395,13 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
       pic: { t: 'bool' }, // est une photo (avec thumbnail)
       aut: { t: 'ida', n: true }, // pour une note de groupe, id de l'auteur de l'enregistrement
       lidf: { t: 'lidf', n: true } // liste des idf fichiers de la note à supprimer
-    } 
+    }
   }
 
   async phase2 (args) {
     await this.checkNoteId()
     if (!this.note) assertKO('PutUrlNf-1', 13, [id + '/NOT' + ids])
-    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id)
     this.avgrid = avgr.id
     if (ID.estGroupe(args.id)) {
       // this.idxAvc : L'auteur exclusif de la note est avatar du compte ou pas exclu
@@ -2435,7 +2436,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
           this.setRes('err', { code: 2, n1, n2: this.groupe.qn * UNITEN})
           return
         }
-        compta = this.groupe.idh === this.id ? this.compta : 
+        compta = this.groupe.idh === this.id ? this.compta :
           await this.gd.getCA(this.groupe.idh, 'PutUrlNf-2')
       } else { // Pas d'hébergeur, le volume doit baisser
         if (nv > this.note.vf) throw new AppExc(A_SRV, 312)
@@ -2472,7 +2473,7 @@ operations.PutUrlNf = class PutUrl extends OperationNo {
 
 /* validerUpload */
 operations.ValiderUpload = class ValiderUpload extends OperationNo {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
@@ -2488,11 +2489,11 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     if (!this.note) assertKO('ValiderUpload-1', 13, [id + '/NOT' + ids])
     const f = this.note.mfa[args.fic.idf]
     if (f) throw new AppExc(A_SRV, 310)
-    
+
     const vav = this.note.vf
     const nav = this.note.nbp || 0
     this.note.setFic(args.fic)
-    if (args.lidf && args.lidf.length) 
+    if (args.lidf && args.lidf.length)
       args.lidf.forEach(idf => { this.note.delFic(idf)})
     this.note.setVF()
     const dv = this.note.vf - vav
@@ -2505,7 +2506,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
       if (!this.idxAvc) throw new AppExc(A_SRV, 314)
       // this.aDE : Le compte a un avatar ayant droit d'écriture
       if (!this.aDE) throw new AppExc(A_SRV, 301)
-  
+
       const e = this.mavc.get(args.ida) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
       this.note.setAut(e.im)
@@ -2513,7 +2514,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
       if (this.groupe.idh) {
         this.groupe.exV()
         this.groupe.exN()
-        compta = this.groupe.idh === this.id ? this.compta : 
+        compta = this.groupe.idh === this.id ? this.compta :
           await this.gd.getCA(this.groupe.idh, 'ValiderUpload-4')
       } else {
         if (dv > 0 || dn > 0) throw new AppExc(A_SRV, 312)
@@ -2521,19 +2522,19 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     } else {
       compta = this.compta
     }
-    
+
     if (compta) {
       compta.vPlus(dn, dv)
       compta.exV()
       compta.exN()
     }
-    
-    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
+
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id)
     this.avgrid = avgr.id
 
     this.gd.setTransfertsApurger(this.avgrid, args.fic.idf)
 
-    if (args.lidf && args.lidf.length) 
+    if (args.lidf && args.lidf.length)
       this.idfp = this.gd.nouvFPU(this.avgrid, args.lidf)
   }
 
@@ -2541,7 +2542,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
     if (this.idfp) try {
       await this.storage.delFiles(this.org, this.avgrid, args.lidf)
       await this.db.purgeFpurge(this.idfp)
-    } catch (e) { 
+    } catch (e) {
       trace('ValiderUpload-phase3', args.id, e.message)
     }
   }
@@ -2550,7 +2551,7 @@ operations.ValiderUpload = class ValiderUpload extends OperationNo {
 
 /* SupprFichier : Suppression d'un fichier d'une note */
 operations.SupprFichier = class SupprFichier extends OperationNo {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 2)
     this.targs = {
       id: { t: 'idag' }, // id de la note (avatar ou groupe)
@@ -2581,14 +2582,14 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
       if (!this.idxAvc) throw new AppExc(A_SRV, 314)
       // this.aDE : Le compte a un avatar ayant droit d'écriture
       if (!this.aDE) throw new AppExc(A_SRV, 301)
-  
+
       const e = this.mavc.get(args.ida) // idm, { im, am, de, anim }
       if (!e || !e.de) throw new AppExc(A_SRV, 313)
       this.note.setAut(e.im)
 
       this.groupe.setNV(dn, dv)
       if (this.groupe.idh) {
-        compta = this.groupe.idh === this.id ? this.compta : 
+        compta = this.groupe.idh === this.id ? this.compta :
           await this.gd.getCA(this.groupe.idh, 'SupprFichier-4')
       } else {
         this.groupe.setNV(dn, dv)
@@ -2596,12 +2597,12 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
     } else {
       compta = this.compta
     }
-    
+
     if (compta)
       compta.vPlus(dn, dv)
       // compta.exV() // on ne peut pas refuser de supprimer un fichier pour dépassement de quota !
 
-    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id) 
+    const avgr = ID.estGroupe(args.id) ? await this.gd.getGR(args.id) : await this.gd.getAV(args.id)
     this.avgrid = avgr.id
 
     this.idfp = this.gd.nouvFPU(args.id, [args.idf])
@@ -2611,7 +2612,7 @@ operations.SupprFichier = class SupprFichier extends OperationNo {
     try {
       await this.storage.delFiles(this.org, this.avgrid, [args.idf])
       await this.db.purgeFpurge(this.idfp)
-    } catch (e) { 
+    } catch (e) {
       trace('SupprFichier-phase3', args.id, e.message)
     }
   }

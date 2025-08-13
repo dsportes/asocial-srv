@@ -24,7 +24,7 @@ export function load3 () {
     2 : exception si figé
   Après authentification, sont disponibles dans this:
     isGet, db, storage, args, dh
-    id estA sync (ou null) notifs 
+    id estA sync (ou null) notifs
     compte compta espace partition (si c'est un compte O)
 */
 
@@ -37,9 +37,9 @@ Retour:
 - echo : texte d'entrée retourné
 */
 operations.EchoTexte = class EchoTexte extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 0)
-    this.SYS = true 
+    this.SYS = true
     this.targs = {
       texte: { t: 'string' }
     }
@@ -55,7 +55,7 @@ operations.EchoTexte = class EchoTexte extends Operation {
 Exception: F_SRV, 10
 */
 operations.ErreurFonc = class ErreurFonc extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 0)
     this.SYS = true
     this.targs = {
@@ -75,9 +75,9 @@ Retour:
 - un string avec les date-heures de ping (le précédent et celui posé)
 */
 operations.PingDB = class PingDB extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 0)
-    this.SYS = true 
+    this.SYS = true
   }
 
   async phase2() {
@@ -98,7 +98,7 @@ operations.GetEspaces = class GetEspaces extends Operation {
     const rows = await this.db.getRowEspaces()
     const espaces = []
     for(const row of rows) {
-      const esp = GenDoc.compile(row) // A ajouté esp.org 
+      const esp = GenDoc.compile(row) // A ajouté esp.org
       espaces.push(esp.toShortData(this))
     }
     this.setRes('espaces', espaces)
@@ -115,7 +115,7 @@ Retour:
 - pub: clé RSA
 */
 operations.GetPub = class GetPub extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 1)
     this.targs = {
       id: { t: 'ida' } // id de l'avatar
@@ -133,17 +133,17 @@ Retour:
 - pub: clé RSA
 */
 operations.GetPubOrg = class GetPubOrg extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 0)
     this.targs = {
       org: { t: 'org'}, // code de l'organisation
       id: { t: 'ida' }  // id de l'avatar
-    } 
+    }
   }
 
   async phase2 (args) {
-    await this.getEspaceOrg(args.org) 
-    
+    await this.getEspaceOrg(args.org)
+
     const avatar = await this.gd.getAV(args.id, 'getPub')
     if (!avatar.pub) await sleep(config.D1)
     this.setRes('pub', avatar ? avatar.pub : null)
@@ -155,14 +155,14 @@ Retour:
 - rowSponsoring s'il existe
 */
 operations.GetSponsoring = class GetSponsoring extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 0)
     this.targs = {
       org: { t: 'org'},
       hps1: { t: 'ids' }, // hash9 du PBKFD de la phrase de contact réduite
       hTC: { t: 'ids' } // hash de la phrase de sponsoring complète
     }
-  } 
+  }
 
   async phase2 (args) {
     await this.getEspaceOrg(args.org)
@@ -172,7 +172,7 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
       this.setRes('cleET', this.espace.hTC === args.hTC ? this.espace.cleET : false)
     } else {
       const sp = GenDoc.compile(await this.db.getSponsoringIds(args.hps1))
-      if (!sp) { 
+      if (!sp) {
         await sleep(config.D1)
         throw new AppExc(F_SRV, 11)
       }
@@ -181,13 +181,13 @@ operations.GetSponsoring = class GetSponsoring extends Operation {
   }
 }
 
-/* ExistePhrase1: Recherche hash de phrase de connexion 
+/* ExistePhrase1: Recherche hash de phrase de connexion
 Retour:
 - existe : true si le hash de la phrase existe
 */
 operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
-  constructor (nom) { 
-    super(nom, 0) 
+  constructor (nom) {
+    super(nom, 0)
     this.targs = {
       org: { t: 'org'},
       hps1: { t: 'ids' } // hash9 du PBKFD de la phrase de contact réduite
@@ -204,13 +204,13 @@ operations.ExistePhrase1 = class ExistePhrase1 extends Operation {
   }
 }
 
-/* ExistePhrase: Recherche hash de phrase 
+/* ExistePhrase: Recherche hash de phrase
 Retour:
 - existe : true si le hash de la phrase existe
 */
 operations.ExistePhrase = class ExistePhrase extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 1)  
+  constructor (nom) {
+    super(nom, 1, 1)
     this.targs = {
       t: { t: 'int', min: 2, max: 3 },
       // 2 : phrase de sponsoring (ids)
@@ -237,7 +237,7 @@ operations.ExistePhrase = class ExistePhrase extends Operation {
 /* AcceptationSponsoring - synchronisation sur ouverture d'une session à l'acceptation d'un sponsoring
 */
 operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 0)
     this.targs = {
       org: { t: 'org' }, // organisation
@@ -287,7 +287,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
     sp.acceptSp(this.dh, args) // Maj du sponsoring: st dconf2 dh ardYC
 
     // Maj compta du sponsor si don
-    if (sp.don) { 
+    if (sp.don) {
       const csp = await this.gd.getCA(args.idsp)
       if (!csp) throw new AppExc(F_SRV, 402)
       csp.don(this.dh, -sp.don, args.id)
@@ -314,7 +314,7 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
       const synth = await this.gd.getSY()
       synth.updQuotasA({ qn: 0, qv: 0, qc: 0 }, sp.quotas) // Maj mais lève une Exc si insuffisance de quotas
     }
-    
+
     /* Création chat */
     if (!sp.dconf && !args.dconf) {
       /*- ccK: clé C du chat cryptée par la clé K du compte
@@ -358,10 +358,10 @@ operations.AcceptationSponsoring = class AcceptationSponsoring extends Operation
   }
 }
 
-/* RefusSponsoring: Rejet d'une proposition de sponsoring 
+/* RefusSponsoring: Rejet d'une proposition de sponsoring
 */
 operations.RefusSponsoring = class RefusSponsoring extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 0)
     this.targs = {
       org: { t: 'org'},
@@ -380,7 +380,7 @@ operations.RefusSponsoring = class RefusSponsoring extends Operation {
       await sleep(config.D1)
       throw new AppExc(F_SRV, 401)
     }
-  
+
     // Recherche du sponsorings
     const sp = await this.gd.getSPO(args.id, args.ids)
     if (!sp) throw new AppExc(F_SRV, 11)
@@ -400,7 +400,7 @@ Retour:
 - rowSynthese
 */
 operations.GetSynthese = class GetSynthese extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 1)
     this.targs = {
       org: { t: 'org', n: true } // id de l'espace (pour admin seulement, sinon c'est celui de l'espace courant)
@@ -409,17 +409,17 @@ operations.GetSynthese = class GetSynthese extends Operation {
 
   async phase2 (args) {
     if (this.estAdmin) this.org = args.org
-    const synthese = await this.gd.getSY() 
+    const synthese = await this.gd.getSY()
     this.setRes('rowSynthese', synthese.toShortData(this))
   }
 }
 
-/* GetPartition : retourne une partition 
+/* GetPartition : retourne une partition
 Retour:
 - rowPartition
 */
 operations.GetPartition = class GetPartition extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 1)
     this.targs = {
       id: { t: 'idp', n: true } // id de la partition
@@ -441,8 +441,8 @@ Retour:
 */
 
 operations.GetEspace = class GetEspace extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 1) 
+  constructor (nom) {
+    super(nom, 1, 1)
   }
 
   async phase2 (args) {
@@ -460,8 +460,8 @@ const nlmax = 100 // nombre de lectures par lot de synchro
 LE PERIMETRE est mis à jour: DataSync aligné OU créé avec les avatars / groupes tirés du compte
 */
 operations.Sync = class Sync extends Operation {
-  constructor (nom) { 
-    super(nom, 1, 1) 
+  constructor (nom) {
+    super(nom, 1, 1)
     this.targs = {
       subJSON: { t: 'string', n: true }, // subscription de la session
       nhb: { t: 'int', n: true}, // numéro de HB pour un login / relogin
@@ -484,19 +484,21 @@ operations.Sync = class Sync extends Operation {
     return g
   }
 
-  async getGrRows1 (ida, x) { 
+  async getGrRows1 (ida, x) {
     // ida : ID long d'un sous-arbre avatar ou d'un groupe. x : son item dans ds
     let gr = this.mgr.get(ida) // on a pu aller chercher le plus récent si cnx
     if (!gr) gr = GenDoc.compile(await this.db.getV('groupes', ida, x.vs))
     if (gr) this.addRes('rowGroupes', gr.toShortData(this, this.compte, x.m))
   }
 
-  async getGrRows (ida, x) { 
+  async getGrRows (ida, x) {
     if (x.m) {
       /* SI la session avait des membres chargés, chargement incrémental depuis vs
       SINON chargement initial de puis 0 */
-      for (const row of await this.db.scoll('membres', ida, x.ms ? x.vs : 0))
-        this.addRes('rowMembres', GenDoc.compile(row).toShortData(this))
+      for (const row of await this.db.scoll('membres', ida, x.ms ? x.vs : 0)) {
+        // if (ida === '4fgD81MTHtf1') //   console.log('BUG!!!! ', row._nom, ida)
+        if (row._data_) this.addRes('rowMembres', GenDoc.compile(row).toShortData(this))
+      }
       for (const row of await this.db.scoll('chatgrs', ida, x.ms ? x.vs : 0))
         this.addRes('rowChatgrs', GenDoc.compile(row).toShortData(this))
     }
@@ -506,7 +508,7 @@ operations.Sync = class Sync extends Operation {
     if (x.n) for (const row of await this.db.scoll('notes', ida, x.ns ? x.vs : 0))
       this.addRes('rowNotes', GenDoc.compile(row).toShortData(this, this.id))
   }
-  
+
   async getAvRows1 (ida, x) { // ida : ID long d'un sous-arbre avatar ou d'un groupe
     const row = await this.db.getV('avatars', ida, x.vs)
     if (row) this.addRes('rowAvatars', GenDoc.compile(row).toShortData(this))
@@ -519,7 +521,7 @@ operations.Sync = class Sync extends Operation {
       this.addRes('rowChats', GenDoc.compile(row).toShortData(this))
     for (const row of await this.db.scoll('sponsorings', ida, x.vs))
       this.addRes('rowSponsorings', GenDoc.compile(row).toShortData(this))
-    if (ID.estComptable(this.id)) 
+    if (ID.estComptable(this.id))
       for (const row of await this.db.scoll('tickets', ida, x.vs))
         this.addRes('rowTickets', GenDoc.compile(row).toShortData(this))
   }
@@ -539,15 +541,15 @@ operations.Sync = class Sync extends Operation {
     const g = await this.getGr(idg)
     const rowVersion = await this.getRowVersion(idg)
 
-    if (!g || !rowVersion || rowVersion.dlv) 
+    if (!g || !rowVersion || rowVersion.dlv)
       this.ds.groupes.delete(idg) // NORMALEMENT le groupe aurait déjà du être enlevé de compte/mpg AVANT
     else {
       x.vb = rowVersion.v
       // reset de x.m x.n : un des avatars du compte a-t-il accès aux membres / notes
       const sid = this.compte.idMbGr(idg)
-      if (sid.size) { 
+      if (sid.size) {
         const [mx, nx] = g.amAn(sid)
-        x.m = mx; x.n = nx 
+        x.m = mx; x.n = nx
       }
       else { x.m = false; x.n = false }
     }
@@ -584,11 +586,11 @@ operations.Sync = class Sync extends Operation {
     }
 
     /* Mise à niveau des listes avatars / groupes du dataSync
-    en fonction des avatars et groupes listés dans mav/mpg du compte 
+    en fonction des avatars et groupes listés dans mav/mpg du compte
     Ajoute les manquants dans ds, supprime ceux de ds absents de mav / mpg
     Pour CHAQUE GROUPE les indicateurs m et n NE SONT PAS bien positionnés.
     */
-    this.compte.majPerimetreDataSync(this.ds)  
+    this.compte.majPerimetreDataSync(this.ds)
 
     if (this.premTour || args.full) {
       // Recherche des versions vb de TOUS les avatars requis
@@ -596,8 +598,8 @@ operations.Sync = class Sync extends Operation {
       // Recherche des versions vb de TOUS les groupes requis
       for(const [idg,] of this.ds.groupes) await this.setGr(idg)
     } else {
-      // Recherche des versions uniquement pour les avatars / groupes signalés 
-      // comme ayant (a priori) changé de version 
+      // Recherche des versions uniquement pour les avatars / groupes signalés
+      // comme ayant (a priori) changé de version
       if (args.lids && args.lids.length) for(const id of args.lids) {
         if (ID.estAvatar(id)) await this.setAv(id)
         if (ID.estGroupe(id)) await this.setGr(id)
@@ -618,7 +620,7 @@ operations.Sync = class Sync extends Operation {
       }
       if (this.nl - n <= nlmax) for(const [idg, x] of this.ds.groupes) {
         x.chg = false
-        /* Si la version en base est supérieure à celle en session, 
+        /* Si la version en base est supérieure à celle en session,
         OU s'il faut désormais des membres alors qu'il n'y en a pas en session
         OU s'il faut désormais des notes alors qu'il n'y en a pas en session
         chargement */
@@ -639,7 +641,7 @@ operations.Sync = class Sync extends Operation {
 
     if (this.loginSync) this.compta.setDhdc(this.dh)
 
-    if (config.mondebug) 
+    if (config.mondebug)
       config.logger.info('Fin Sync: ' + this.sessionId + ' id:' + this.id + ' nbIter:' +
         args.nbIter + ' vb:' + this.ds.compte.vb + ' vs:' + this.ds.compte.vs)
   }
@@ -659,7 +661,7 @@ operations.Adq = class Adq extends Operation {
 /* SetEspaceQuotas: Déclaration des quotas globaux de l'espace par l'administrateur technique
 */
 operations.SetEspaceQuotas = class SetEspaceQuotas extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 3)
     this.targs = {
       org: { t: 'org' }, // id de l'espace modifié
@@ -679,8 +681,8 @@ Echappe aux contrôles espace figé / clos, puisque justement
 c'est CETTE OPERATION qui positionne fige / clos.
 */
 operations.SetNotifE = class SetNotifE extends Operation {
-  constructor (nom) { 
-    super(nom, 3) 
+  constructor (nom) {
+    super(nom, 3)
     this.targs = {
       org: { t: 'org' }, // id de l'espace notifié
       ntf: { t: 'ntfesp', n: true } // sérialisation de l'objet notif, cryptée par la clé du comptable de l'espace. Cette clé étant publique, le cryptage est symbolique et vise seulement à éviter une lecture simple en base
@@ -702,7 +704,7 @@ Retour:
 - notif
 */
 operations.GetNotifC = class GetNotifC extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 1, 1)
     this.targs = {
       id: { t: 'ida' } // id du compte dont on cherche la notification
@@ -720,8 +722,8 @@ operations.GetNotifC = class GetNotifC extends Operation {
 }
 
 /* CreationEspace : création d'un nouvel espace
-Traitement ssi: 
-- soit espace n'existe pas, 
+Traitement ssi:
+- soit espace n'existe pas,
 - soit espace existe et a un `hTC` : re-création avec une nouvelle phrase de sponsoring.
 
 Création des rows espace, synthese
@@ -729,7 +731,7 @@ Création des rows espace, synthese
 - stocke dans l'espace: `hTC cleES cleET`. Il est _à demi_ créé, son Comptable n'a pas encore crée son compte.
 */
 operations.CreationEspace = class CreationEspace extends Operation {
-  constructor (nom) { 
+  constructor (nom) {
     super(nom, 3)
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
@@ -751,8 +753,8 @@ operations.CreationEspace = class CreationEspace extends Operation {
 
 /* MajSponsEspace : Changement de la phrase de contact du Comptable */
 operations.MajSponsEspace = class MajSponsEspace extends Operation {
-  constructor (nom) { 
-    super(nom, 3) 
+  constructor (nom) {
+    super(nom, 3)
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
       TC: { t: 'u8' }, // PBKFD de la phrase de sponsoring du Comptable par l'AT
@@ -777,8 +779,8 @@ operations.MajSponsEspace = class MajSponsEspace extends Operation {
 - _dans son `espace`_: suppression de `hTC` qui ne sert plus à rien.
 */
 operations.CreationComptable = class CreationComptable extends Operation {
-  constructor (nom) { 
-    super(nom, 0) 
+  constructor (nom) {
+    super(nom, 0)
     this.targs = {
       org: { t: 'org' }, // code de l'organisation
       idp: { t: 'idp' }, // ID de la partition primitive
@@ -793,7 +795,7 @@ operations.CreationComptable = class CreationComptable extends Operation {
       cleAK: { t: 'u8' }, // clé A du Comptable cryptée par la clé K du Comptable
       cleKXC: { t: 'u8' }, //  clé K du Comptable cryptée par XC du Comptable (PBKFD de la phrase secrète complète).
       clePA: { t: 'u8' }, //  cle P de la partition cryptée par la clé A du Comptable
-      ck: { t: 'u8' } //  {cleP, code} cryptés par la clé K du Comptable. 
+      ck: { t: 'u8' } //  {cleP, code} cryptés par la clé K du Comptable.
         // cleP : clé P de la partition.
         // code : code / commentaire court de convenance attribué par le Comptable
     }
@@ -812,10 +814,10 @@ operations.CreationComptable = class CreationComptable extends Operation {
       await sleep(config.D1)
       throw new AppExc(F_SRV, 106)
     }
-    
+
     args.id = ID.duComptable()
 
-    const qc = { qc: cfg.pqc, qn: cfg.pqn, qv: cfg.pqv } 
+    const qc = { qc: cfg.pqc, qn: cfg.pqn, qv: cfg.pqv }
     const partition = await this.gd.nouvPA(args.idp, qc)
 
     // Compte Comptable

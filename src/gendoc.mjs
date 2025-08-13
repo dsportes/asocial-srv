@@ -90,7 +90,7 @@ export class GenConnx extends GenStDb {
         row._data_ = new Uint8Array(decrypterSrv(this.appKey, row._data_))
     return row
   }
-  
+
   // Depuis un document compilé
   prepRow (obj) {
     const b = obj instanceof GenDoc
@@ -147,7 +147,7 @@ export class MuterRow {
     } else if (row._nom === 'sponsorings') row.hk = null
 
     if (row._data_) {
-      const data = this.cin.crData ? new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : row._data_ 
+      const data = this.cin.crData ? new Uint8Array(decrypterSrv(this.cin.appKey, row._data_)) : row._data_
       row._data_ = this.cout.crData ? new Uint8Array(crypterSrv(this.cout.appKey, data)) : data
     }
     return row
@@ -196,7 +196,7 @@ export class GenDoc {
     membres: ['id', 'ids', 'v', '_data_'],
     chatgrs: ['id', 'ids', 'v', '_data_']
   }
-  
+
   get _attrs () { return GenDoc._attrs[this._nom] }
 
   static _new (nom) {
@@ -227,7 +227,7 @@ export class GenDoc {
 
   static defVals = { id: '', ids: null, hk: null, v:0, dlv: 0, dfh: 0, vcv: 0, dpt: 0 }
 
-  constructor (nom) { 
+  constructor (nom) {
     const la = GenDoc._attrs[nom]
     this._nom = nom
     la.forEach(a => { const v = GenDoc.defVals[a]; if (v !== undefined) this[a] = v })
@@ -247,14 +247,14 @@ export class GenDoc {
     return d.compile()
   }
 
-  toShortData () { 
+  toShortData () {
     return this.toData()
   }
 
   toData () {
     if (this._zombi || this.nom === 'versions') return null
     const d = {}
-    for (const [key, value] of Object.entries(this)) 
+    for (const [key, value] of Object.entries(this))
       if (!key.startsWith('_')) d[key] = value
     d._nom = this._nom
     return Buffer.from(encode(d))
@@ -278,7 +278,7 @@ _data_ :
 - `quotas`:  `{ qn, qv, qc }` : quotas maximum globaux attribués par l'administrateur technique.
 - `dlvat` : `dlv` déclarée par l'administrateur technique.
 - `cleES` : clé de l'espace générée à la création de l'espace.
-  
+
 - `notifE` : notification pour l'espace de l'administrateur technique. Le texte n'est pas crypté.
 - `opt`: option des comptes autonomes.
   - 0: Pas de comptes "autonomes",
@@ -288,15 +288,15 @@ _data_ :
   - _clé_ : ID de la partition.
   - _valeur_ : notification (ou `null`), texte crypté par la clé P de la partition.
 */
-export class Espaces extends GenDoc { 
-  constructor () { super('espaces') } 
+export class Espaces extends GenDoc {
+  constructor () { super('espaces') }
 
   excFerme () { if (this.clos) throw new AppExc(A_SRV, 995, this.clos.texte || '?'); return this }
 
-  excFige (op) { 
-    if (this.fige) 
+  excFige (op) {
+    if (this.fige)
       throw new AppExc(F_SRV, 101, [op.nomop])
-    return this 
+    return this
   }
 
   get fige () { const n = this.notifE
@@ -468,19 +468,19 @@ _data_:
 - `disp`: true si le compte était disparu lors de la réception.
 - `idc`: id du compte générateur. Cette donnée n'est pas transmise aux sessions.
 */
-export class Tickets extends GenDoc { 
-  constructor () { super('tickets') } 
+export class Tickets extends GenDoc {
+  constructor () { super('tickets') }
 
   static nouveau (idc, args) {
     return new Tickets().init( {
       _maj: true, v: 0,
       dlv: args.dlv,
-      idc: idc, 
-      ids: args.ids, 
-      ma: args.ma, 
-      refa: args.refa || '', 
+      idc: idc,
+      ids: args.ids,
+      ma: args.ma,
+      refa: args.refa || '',
       refc: '',
-      mc: 0, 
+      mc: 0,
       dr: 0
     })
   }
@@ -515,7 +515,7 @@ export class Tickets extends GenDoc {
 
   shortTk () {
     return {
-      ids: this.ids, ma: this.ma, refa: this.refa, 
+      ids: this.ids, ma: this.ma, refa: this.refa,
       mc: this.mc, refc: this.refc, dr: this.dr, dg: this.dg
     }
   }
@@ -530,7 +530,7 @@ export class Tickets extends GenDoc {
 }
 
 export class Fpurges extends GenDoc {
-  constructor () { super('fpurges') } 
+  constructor () { super('fpurges') }
 
   static nouveau (id, avgrid, lidf) {
     return new Fpurges().init({
@@ -549,16 +549,16 @@ _data_:
 
 - `nrp`: niveau de restriction de la notification (éventuelle) de niveau _partition_ mémorisée dans `espaces` et dont le texte est crypté par la clé P de la partition.
 - `q`: `{ qc, qn, qv }` quotas globaux attribués à la partition par le Comptable.
-- `mcpt` : map des comptes "O" attachés à la partition. 
+- `mcpt` : map des comptes "O" attachés à la partition.
   - _clé_: id du compte.
   - _valeur_: `{ notif, cleAP, del, q }`
     - `notif`: notification du compte cryptée par la clé P de la partition (redonde celle dans compte).
     - `cleAP` : clé A du compte crypté par la clé P de la partition.
     - `del`: `true` si c'est un délégué.
     - `q` : `qc qn qv nn nc ng v cjm` extraits du document `comptas` du compte.
-      - `cjm` est le compteur `conso2M` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1. 
+      - `cjm` est le compteur `conso2M` de compteurs, montant moyen _mensualisé_ de consommation de calcul observé sur M/M-1.
 */
-export class Partitions extends GenDoc { 
+export class Partitions extends GenDoc {
   constructor () { super('partitions') }
 
   static qz = {qc: 0, qn: 0, qv: 0, c2m: 0, nn: 0, nc: 0, ng: 0, v: 0 }
@@ -695,12 +695,12 @@ _data_:
     - `ntf[1,2,3]`
     - `pcac pcan pcav pcc pcn pcv`
 */
-export class Syntheses extends GenDoc { 
+export class Syntheses extends GenDoc {
   constructor () { super('syntheses') }
 
   static l1 = ['qc', 'qn', 'qv']
 
-  static nouveau () { 
+  static nouveau () {
     return new Syntheses().init({
       _maj: true, v: 0,
       qA: { qc: 0, qn: 0, qv: 0 },
@@ -712,8 +712,8 @@ export class Syntheses extends GenDoc {
 
   compile () {
     const a = { // colonne 0 de totalisation
-      id: '0', 
-      nbc: 0, 
+      id: '0',
+      nbc: 0,
       nbd: 0,
       ntfp: [0, 0, 0],
       ntf: [0, 0, 0],
@@ -806,7 +806,7 @@ _Comptes "O" seulement:_
 - `del` : `true` si le compte est délégué de la partition.
 - `notif`: notification de niveau _compte_ dont le texte est crypté par la clé P de la partition (`null` s'il n'y en a pas).
 
-- `mav` : map des avatars du compte. 
+- `mav` : map des avatars du compte.
   - _clé_ : ID de l'avatar.
   - _valeur_ : `claAK`: clé A de l'avatar crypté par la clé K du compte.
 
@@ -822,7 +822,7 @@ _Comptes "O" seulement:_
   - `code` : code / commentaire court de convenance attribué par le Comptable.
 
 */
-export class Comptes extends GenDoc { 
+export class Comptes extends GenDoc {
   constructor() { super('comptes') }
 
   get _estA () { return !this.idp }
@@ -848,7 +848,7 @@ export class Comptes extends GenDoc {
   }
 
   /* Retourne le périmètre SEULEMENT s'il a changé, sinon false */
-  get perimetreChg () { 
+  get perimetreChg () {
     const p = this.perimetre
     const pav = this.perimetreAv
     if (p.length !== pav.length) return p
@@ -863,7 +863,7 @@ export class Comptes extends GenDoc {
       id: args.id,
       hk: args.hXR,
       hXC: args.hXC,
-      cleKXC: args.cleKXC, 
+      cleKXC: args.cleKXC,
       privK: args.privK,
       clePK: args.clePK,
       mav: {},
@@ -1029,25 +1029,25 @@ export class Comptes extends GenDoc {
   estAvc (id) { return this.mav[id] !== undefined}
 
   /* Mise à niveau des listes avatars / groupes du dataSync
-  en fonction des avatars et groupes listés dans mav/mpg du compte 
+  en fonction des avatars et groupes listés dans mav/mpg du compte
   Ajoute les manquants dans ds, supprime ceux de ids absents de mav / mpg
   */
   majPerimetreDataSync (ds) {
 
     // Ajout dans ds des avatars existants dans le compte et inconnus de ds
     for(const ida in this.mav)
-      if (!ds.avatars.has(ida)) 
+      if (!ds.avatars.has(ida))
         ds.avatars.set(ida, { id: ida, vs: 0, vb: 0 })
-    
+
     /* Suppression de ds des avatars qui y étaient cités et sont inconnus du compte */
     const sa = new Set(); for(const [ida,] of ds.avatars) sa.add(ida)
     for(const ida of sa) if (!this.mav[ida]) ds.avatars.delete(ida)
 
     // Ajout dans ds des groupes existants dans le compte et inconnus de ds
     for(const idg in this.mpg)
-      if (!ds.groupes.has(idg)) 
+      if (!ds.groupes.has(idg))
         ds.groupes.set(idg, { id: idg, vs: 0, vb: 0, ms: false, ns: false, m: false, n:false })
-    
+
     /* Suppression de ds des groupes qui y étaient cités et sont inconnus du compte */
     const sg = new Set(); for(const [idg,] of ds.groupes) sg.add(idg)
     for(const idg of sg) if (!this.mpg[idg]) ds.groupes.delete(idg)
@@ -1067,7 +1067,7 @@ export class Comptes extends GenDoc {
     const s = new Set()
     const e = this.mpg[gr.id]
     if (!e || !e.lav || !e.lav.length) return s
-    e.lav.forEach(idc => { 
+    e.lav.forEach(idc => {
       const im = gr.mmb.get(idc)
       if (im && gr.st[im] === 5) s.add(im)
     })
@@ -1086,14 +1086,14 @@ _data_:
     - `ht` : liste des hashtags séparés par un espace attribués par le compte et cryptée par la clé K du compte.
     - `tx` : commentaire écrit par le compte gzippé et crypté par la clé K du compte.
 */
-export class Comptis extends GenDoc { 
-  constructor() { super('comptis') } 
+export class Comptis extends GenDoc {
+  constructor() { super('comptis') }
 
   static nouveau (id) {
-    return new Comptis().init({ 
+    return new Comptis().init({
       _maj: true, v: 0,
       id,
-      mc: {} 
+      mc: {}
     })
   }
 
@@ -1123,17 +1123,17 @@ _data_:
     - `flags` : d'invitation.
     - `invpar` : `[{ cleAG, cvA }]`
       - `cleAG`: clé A de l'avatar invitant crypté par la clé G du groupe.
-      - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe). 
+      - `cvA` : carte de visite de l'invitant (photo et texte sont cryptés par la clé G du groupe).
     - `msgG` : message de bienvenue / invitation émis par l'invitant.
 */
-export class Invits extends GenDoc { 
-  constructor() { super('invits') } 
+export class Invits extends GenDoc {
+  constructor() { super('invits') }
 
   static nouveau (id) {
-    return new Invits().init({ 
+    return new Invits().init({
       _maj: true, v: 0,
-      id, 
-      invits: [] 
+      id,
+      invits: []
     })
   }
 
@@ -1175,7 +1175,7 @@ export class Invits extends GenDoc {
   /* L'entrée idg / ida, si elle existe, redevient un contact */
   retourContact (idg, ida) {
     const l = []
-    this.invits.forEach(i => { 
+    this.invits.forEach(i => {
       if (i.idg === idg && i.ida === ida)
         l.push({ idg: i.idg, ida: i.ida, cleGA: i.cleGA, cvG: i.cvG, flags: 0 })
       else l.pudh(i)
@@ -1187,7 +1187,7 @@ export class Invits extends GenDoc {
   /* L'entrée idg / ida, si elle existe, est supprimée */
   supprInvit (idg, ida) {
     const l = []
-    this.invits.forEach(i => { 
+    this.invits.forEach(i => {
       if (i.idg !== idg || i.ida !== ida) l.push(i)
     })
     this.invits = l
@@ -1201,7 +1201,7 @@ export class Invits extends GenDoc {
     this.invits = l
     this._maj = true
   }
-  
+
   majInvpar (idg, ida, setInv) {
     const l = []
     let m = false
@@ -1247,19 +1247,19 @@ _data_:
   - `m`: montant du don (positif ou négatif)
   - `iddb`: id du donateur / bénéficiaire (selon le signe de `m`).
 */
-export class Comptas extends GenDoc { 
-  constructor() { super('comptas') } 
+export class Comptas extends GenDoc {
+  constructor() { super('comptas') }
 
   static nouveau (id, quotas, don, idp) {
     const qv0 = { qc: 0, qn: 0, qv: 0, nn: 0, nc: 0, ng: 0, v: 0, cjm: 0 }
     const qv = { ...qv0 }
     qv.qc = quotas.qc || 0
     qv.qn = quotas.qn || 0
-    qv.qv = quotas.qv || 0 
+    qv.qv = quotas.qv || 0
     assertQv(qv, 'Comptas.nouveau')
     const c = new Compteurs(null, qv, null, idp, don)
     const x = new Comptas().init({
-      _maj: true, v: 0, 
+      _maj: true, v: 0,
       id: id,
       serialCompteurs: c.serial,
       dons: [],
@@ -1284,11 +1284,11 @@ export class Comptas extends GenDoc {
   get qv () { return this.compteurs.qv }
 
   finOp (op, esp) {
-    const conso = { 
-      nl: op.nl, 
+    const conso = {
+      nl: op.nl,
       ne: op.ne + 1 + op.toInsert.length + op.toUpdate.length + op.toDelete.length,
-      vd: op.vd, 
-      vm: op.vm 
+      vd: op.vd,
+      vm: op.vm
     }
     const x = { nl: conso.nl, ne: conso.ne, vd: conso.vd, vm: conso.vm }
     const c = new Compteurs(this.serialCompteurs, null, x)
@@ -1318,12 +1318,12 @@ export class Comptas extends GenDoc {
     return { chgAdq, chgQv, idp }
   }
 
-  /* PRIVATE : retourne true SSI qv de Compteurs 
+  /* PRIVATE : retourne true SSI qv de Compteurs
   a changé de manière significative par rapport à la valeur qv du COMPTE */
   chgQv () {
     const av = this.adq.qv
     const ap = this.qv
-    function d5 (x) { 
+    function d5 (x) {
       if (av[x] === ap[x]) return false
       if ((av[x] && !ap[x]) || (!av[x] && ap[x])) return true
       let y = (av[x] - ap[x]) / av[x]; if (y < 0) y = -y
@@ -1334,7 +1334,7 @@ export class Comptas extends GenDoc {
     }
     return d5('nn') || d5('nc') || d5('ng') || d5('v') || d5('cjm')
   }
-  
+
   // Set de la date-heure de connexion
   setDhdc (dh) {
     this.dhdc = dh
@@ -1468,8 +1468,8 @@ export class Comptas extends GenDoc {
 
 /* Versions ************************************************************
 */
-export class Versions extends GenDoc { 
-  constructor() { super('versions') } 
+export class Versions extends GenDoc {
+  constructor() { super('versions') }
 
   static nouveau (id) {
     return new Versions().init({
@@ -1494,12 +1494,12 @@ _data_:
 - `cvA` : carte de visite de l'avatar `{id, v, ph, tx}`. photo et texte (possiblement gzippé) cryptés par la clé A de l'avatar.
 - `pub privK` : couple des clés publique / privée RSA de l'avatar.
 */
-export class Avatars extends GenDoc { 
-  constructor() { super('avatars') } 
+export class Avatars extends GenDoc {
+  constructor() { super('avatars') }
 
   static nouveau (args, cvA) {
     cvA.v = 0
-    return new Avatars().init({ 
+    return new Avatars().init({
       _maj: true, v: 0,
       id: args.id,
       pub: args.pub,
@@ -1542,7 +1542,7 @@ _data_:
 - `ids` : identifiant aléatoire universel.
 - `v` : 1..N.
 
-- `im` : exclusivité dans un groupe. L'écriture est restreinte au membre du groupe d'indice `im`. 
+- `im` : exclusivité dans un groupe. L'écriture est restreinte au membre du groupe d'indice `im`.
 - `vf` : volume total des fichiers attachés.
 - `nbp`: nombre de fichiers photo (avec thumbnail)
 - `ht` : liste des hashtags _personnels_ cryptée par la clé K du compte.
@@ -1566,23 +1566,23 @@ Map des fichiers attachés
 **A propos de `[pid, pids]`**:
 - Pour un note de groupe:
   - `[null, null]`: rattachement _virtuel_ au groupe lui-même.
-  - `[pid, pids]` : 
-    - `pid`: ID du groupe lui-même (`id` de la note), 
+  - `[pid, pids]` :
+    - `pid`: ID du groupe lui-même (`id` de la note),
     - `ids`: de la note du groupe à laquelle elle est rattachée (possiblement supprimée).
 - Pour un note personnelle:
   - `[null, null]`: rattachement _virtuel_ à l'avatar de la note.
-  - `[pid null]` : 
-    - `pid`: ID d'UN GROUPE, 
+  - `[pid null]` :
+    - `pid`: ID d'UN GROUPE,
     - rattachement _virtuel_ au groupe lui-même, possiblement disparu / radié.
-  - `[pid, pids]`: 
-    - SI `pid` est ID de l'avatar (de la note), 
+  - `[pid, pids]`:
+    - SI `pid` est ID de l'avatar (de la note),
       - `ids`: de la note de l'avatar à laquelle elle est rattachée (possiblement supprimée).
     - SI `pid`: est l'ID d'UN GROUPE, possiblement disparu / radié.
       - `ids`: de la note de ce groupe à laquelle elle est rattachée (possiblement supprimée).
 
 */
-export class Notes extends GenDoc { 
-  constructor() { super('notes') } 
+export class Notes extends GenDoc {
+  constructor() { super('notes') }
 
   static nouveau (id, ids, { im, dh, t, aut, pid, pids}) {
     const n = new Notes()
@@ -1696,8 +1696,8 @@ export class Notes extends GenDoc {
   }
 }
 
-export class Transferts extends GenDoc { 
-  constructor() { super('transferts') } 
+export class Transferts extends GenDoc {
+  constructor() { super('transferts') }
 
   static nouveau (avgrid, idf, dlv) {
     const tr = new Transferts().init({
@@ -1714,7 +1714,7 @@ export class Transferts extends GenDoc {
 /* Sponsorings
 _data_:
 - `id` : id de l'avatar sponsor.
-- `ids` : hash _court_ du PBKFD de la phrase réduite de parrainage, 
+- `ids` : hash _court_ du PBKFD de la phrase réduite de parrainage,
 - `v`: 1..N.
 - `dlv` : date limite de validité.
 - `hk` : `ids`, en base `org@hk`. Deux organisations peuvent utiliser des phrases de sponsorings identiques sans collision.
@@ -1737,8 +1737,8 @@ _data_:
 - `ardYC` : ardoise de bienvenue du sponsor / réponse du sponsorisé cryptée par le PBKFD de la phrase de sponsoring.
 */
 
-export class Sponsorings extends GenDoc { 
-  constructor() { super('sponsorings') } 
+export class Sponsorings extends GenDoc {
+  constructor() { super('sponsorings') }
 
   static nouveau (args, ids) {
     const sp = new Sponsorings()
@@ -1761,7 +1761,7 @@ export class Sponsorings extends GenDoc {
     sp.dconf = args.dconf || false
     sp.quotas = args.quotas
     sp.don = args.don
-    if (args.partitionId) { 
+    if (args.partitionId) {
       sp.clePYC = args.clePYC
       sp.partitionId = args.partitionId
       sp.del = args.del
@@ -1825,8 +1825,8 @@ _data_ (de l'exemplaire I):
   - `dhx` : date-heure de suppression.
   - `t` : texte crypté par la clé C du chat (vide s'il a été supprimé).
 */
-export class Chats extends GenDoc { 
-  constructor() { super('chats') } 
+export class Chats extends GenDoc {
+  constructor() { super('chats') }
 
   static nouveau (arg) {
     const c = new Chats().init(arg)
@@ -1847,7 +1847,7 @@ export class Chats extends GenDoc {
     this._maj = true
   }
 
-  razChatItem (dh, dhop) { 
+  razChatItem (dh, dhop) {
     // a : 0:écrit par I, 1: écrit par E
     const nl = []
     for (const it of this.items) {
@@ -1900,7 +1900,7 @@ export class Chats extends GenDoc {
 
   chEdisp () {
     if (this.stI) { // était actif
-      this.st = (this.stI * 10) + 2 
+      this.st = (this.stI * 10) + 2
       this.cvE = null
     } else { // était passif, disparait
       this._zombi = true
@@ -1935,7 +1935,7 @@ export class Chats extends GenDoc {
 
   get estPassif () { return this.stI === 0 }
 
-  toShortData (op) { 
+  toShortData (op) {
     if (this._zombi) {
       const x = { _nom: 'chats', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
@@ -1966,12 +1966,12 @@ _data_:
 
 Calculée : mmb: Map des membres. Clé: id long du membre, Valeur: son im
 */
-export class Groupes extends GenDoc { 
+export class Groupes extends GenDoc {
   constructor() { super('groupes') }
 
   compile () {
     this.mmb = new Map()
-    this.tid.forEach((id, im) => { 
+    this.tid.forEach((id, im) => {
       if (im) this.mmb.set(id, im)
     })
     return this
@@ -1983,18 +1983,18 @@ export class Groupes extends GenDoc {
       _maj: true, v: 0,
       id: args.idg, // id du groupe
       tid: [null, args.ida], // id de l'avatar fondateur
-      msu: args.msu ? null : [], // mode simple (true) / unanime
+      msu: !args.msu ? null : [], // mode simple (true) / unanime
       qn: args.quotas.qn,  // quotas.qn
       qv: args.quotas.qv, // quotas.qv
       cvG: args.cvG, // CV du groupe cryptée clé G
-      dfh: 0, 
+      dfh: 0,
       imh: 1,
-      nn: 0, 
-      vf: 0, 
+      nn: 0,
+      vf: 0,
       invits: {},
       st: new Uint8Array([0, 5]),
       flags: new Uint8Array([0, 255]),
-      lnc: [], 
+      lnc: [],
       lng: []
     })
   }
@@ -2013,7 +2013,7 @@ export class Groupes extends GenDoc {
 
   accesNote2 (im) {
     const f = im ? this.flags[im] : 0
-    const x = im && this.estActif(im) && (f & FLAGS.AN) && (f & FLAGS.DN) 
+    const x = im && this.estActif(im) && (f & FLAGS.AN) && (f & FLAGS.DN)
     if (!x) return 0
     return (f & FLAGS.DE) ? 2 : 1
   }
@@ -2105,7 +2105,7 @@ export class Groupes extends GenDoc {
     const idm = this.tid[im]
     if (suppr > 1) this.tid[im] = 0
     this.flags[im] = 0
-    if (suppr === 3 && this.lmg.indexOf(idm) === -1) 
+    if (suppr === 3 && this.lmg.indexOf(idm) === -1)
       this.lmg.push(idm)
     this._maj = true
   }
@@ -2114,7 +2114,7 @@ export class Groupes extends GenDoc {
   - met à jour ou supprime invits
   - Map des ida des avatars dont les invitations sont à mettre à jour:
     - clé: ida
-    - value: 
+    - value:
       - rc: true: retour contact, sinon maj de setInv
       - setInv: set des ids des invitants
   */
@@ -2173,7 +2173,7 @@ export class Groupes extends GenDoc {
     if (cas > 2) {
       this.tid[im] = 0
       this.flags[im] = 0
-      if (cas === 4 && this.lnc.indexOf(idmc) === -1) 
+      if (cas === 4 && this.lnc.indexOf(idmc) === -1)
         this.lnc.push(idmc)
     }
     this._maj = true
@@ -2231,7 +2231,7 @@ export class Groupes extends GenDoc {
     this._maj = true
   }
 
-  /* Sérialisation en row après avoir enlevé 
+  /* Sérialisation en row après avoir enlevé
   les champs non pertinents selon l'accès aux membres.
   Pas accès membre: tid ne contient que les entrées des avatars du compte */
   toShortData (op, c, m) { // c : compte, m: le compte à accès aux membres
@@ -2272,15 +2272,15 @@ export class Groupes extends GenDoc {
     for (const id of s) {
       const im = this.mmb.get(id)
       const f = this.flags[im]
-      if ((f & FLAGS.AN) && (f & FLAGS.DN)) n = true 
-      if ((f & FLAGS.AM) && (f & FLAGS.DM)) m = true 
+      if ((f & FLAGS.AN) && (f & FLAGS.DN)) n = true
+      if ((f & FLAGS.AM) && (f & FLAGS.DM)) m = true
     }
     return [m, n]
   }
 
   get anims () {
     const s = new Set()
-    for (let im = 1; im < this.st.length; im++) if (this.st[im] === 5) s.add(im) 
+    for (let im = 1; im < this.st.length; im++) if (this.st[im] === 5) s.add(im)
     return s
   }
 
@@ -2320,7 +2320,7 @@ export class Groupes extends GenDoc {
 _data_:
 - `id` : id du groupe.
 - `ids`: indice `im` de membre relatif à son groupe.
-- `v` : 
+- `v` :
 - `vcv` : version de la carte de visite du membre.
 
 - `dpc` : date de premier contact.
@@ -2332,17 +2332,17 @@ _data_:
   - `dam fam` : d'accès aux membres.
 - `cleAG` : clé A de l'avatar membre cryptée par la clé G du groupe.
 - `cvA` : carte de visite du membre `{id, v, ph, tx}`, textes cryptés par la clé A de l'avatar membre.
-- `msgG`: message d'invitation crypté par la clé G pour une invitation en attente de vote ou de réponse. 
+- `msgG`: message d'invitation crypté par la clé G pour une invitation en attente de vote ou de réponse.
 */
-export class Membres extends GenDoc { 
-  constructor() { super('membres') } 
+export class Membres extends GenDoc {
+  constructor() { super('membres') }
 
   static nouveau(idg, im, cvA, cleAG, dx) {
     const m = new Membres().init({
       _maj: true, v: 0,
-      id: idg, 
-      ids: '' + im, 
-      cvA: cvA, 
+      id: idg,
+      ids: '' + im,
+      cvA: cvA,
       cleAG: cleAG,
       dpc: 0, ddi: 0, dac: 0, fac: 0, dln: 0, fln: 0, den: 0, fen: 0, dam: 0, fam: 0
     })
@@ -2408,7 +2408,7 @@ export class Membres extends GenDoc {
     this._maj = true
   }
 
-  toShortData (op) { 
+  toShortData (op) {
     if (this._zombi) {
       const x = { _nom: 'membres', id: this.id, ids: this.ids, v: this.v, _zombi: true}
       return encode(x)
@@ -2428,8 +2428,8 @@ export class Membres extends GenDoc {
   - `dhx` : date-heure de suppression.
   - `t` : texte crypté par la clé G du groupe (vide s'il a été supprimé).
 */
-export class Chatgrs extends GenDoc { 
-  constructor() { super('chatgrs') } 
+export class Chatgrs extends GenDoc {
+  constructor() { super('chatgrs') }
 
   static nouveau (idg) {
     return new Chatgrs().init({
