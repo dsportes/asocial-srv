@@ -1972,7 +1972,7 @@ export class Groupes extends GenDoc {
   compile () {
     this.mmb = new Map()
     this.tid.forEach((id, im) => {
-      if (im) this.mmb.set(id, im)
+      if (im && id) this.mmb.set(id, im)
     })
     return this
   }

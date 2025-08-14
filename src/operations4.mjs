@@ -1476,10 +1476,15 @@ operations.AnnulerContact = class AnnulerContact extends Operation {
 
     if (!this.compte.mav[args.ida]) throw new AppExc(A_SRV, 249)
     const im = gr.mmb.get(args.ida)
-    if (!im || gr.st[im] !== 1) throw new AppExc(A_SRV, 272)
-    gr.anContact(im, args.ln)
-    const mb = await this.gd.getMBR(args.idg, im, 'AnnulerContact-1')
-    mb.setZombi()
+    if (im) {
+      if (gr.st[im] === 1) {
+        // throw new AppExc(A_SRV, 272)
+        gr.anContact(im, args.ln)
+        const mb = await this.gd.getMBR(args.idg, im)
+        if (mb)
+          mb.setZombi()
+      }
+    }
     const invit = await this.gd.getIN(this.compte.id)
     invit.supprContact(args.idg, args.ida)
   }
