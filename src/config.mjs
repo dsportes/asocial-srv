@@ -71,8 +71,8 @@ export const config = { // Valeurs par défaut et / ou obligatoires
   // Pour les "serveurs" seulement: configuration des paths locaux
   pathlogs: './logs',
 
-  // pathkeys: './keys',
-  // keys: ['fullchain.pem', 'privkey.pem'],
+  // pathkeys: './keys', // Pour HTTPS
+  // keys: ['fullchain.pem', 'privkey.pem'], // Pour HTTPS
 
   run: { // Configuration du "serveur"
     site: 'A', // Donne sa clé de cryptage DB
@@ -85,7 +85,7 @@ export const config = { // Valeurs par défaut et / ou obligatoires
 
     pubsubURL: null, // Si serveur OP+PUBSUB
     // pubsubURL: 'https://test.sportes.fr/pubsub/', // dans les autres cas
-    // pubsubURL: 'http://localhost:8080/pubsub/',
+    // pubsubURL: 'https://192.168.1.4:8080/pubsub/',
 
     // SI "serveur"
     mode: 'http', // 'http' 'https' 'passenger'
